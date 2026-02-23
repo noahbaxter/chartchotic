@@ -15,7 +15,7 @@ This project uses a **modified version** of JUCE with custom VST2 REAPER integra
 **Modifications**:
 - Added `handleReaperApi()` callback to `VST2ClientExtensions`
 - Modified VST2 wrapper to automatically perform REAPER handshake
-- See `/docs/development/JUCE_REAPER_MODIFICATIONS.md` for complete details
+- See `/docs/REAPER_INTEGRATION.md` for complete details
 
 **To obtain**:
 ```bash
@@ -24,7 +24,7 @@ git clone https://github.com/juce-framework/JUCE.git
 cd JUCE
 git checkout develop
 
-# Apply our modifications (see docs/development/JUCE_REAPER_MODIFICATIONS.md)
+# Apply our modifications (see docs/REAPER_INTEGRATION.md)
 # Or use our modified fork if available
 ```
 
@@ -85,4 +85,4 @@ All paths are relative from the `ChartPreview/` directory.
 **Solution**: Download REAPER SDK and extract to `third_party/reaper-sdk/`
 
 **Problem**: Build fails with REAPER API errors
-**Solution**: Check that you're using our modified JUCE (see JUCE_REAPER_MODIFICATIONS.md)
+**Solution**: Check that you're using our modified JUCE (see docs/REAPER_INTEGRATION.md)

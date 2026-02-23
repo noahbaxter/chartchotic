@@ -596,7 +596,7 @@ jobs:
         echo "- **Linux**: Extract ChartPreview-VST3-Linux-x64.vst3 to ~/.vst3/ or your DAW's VST3 directory" >> release_notes.md
         echo "" >> release_notes.md
         echo "### What's New" >> release_notes.md
-        echo "See [development roadmap](https://github.com/noahbaxter/chart-preview/blob/main/docs/TODO.md) for detailed changes and known issues." >> release_notes.md
+        echo "See [backlog](https://github.com/noahbaxter/chart-preview/blob/main/BACKLOG.md) for roadmap and known issues." >> release_notes.md
         echo "" >> release_notes.md
         echo "### Files" >> release_notes.md
         echo "- \`ChartPreview-VST3-Windows-x64.zip\` - Windows VST3 plugin" >> release_notes.md

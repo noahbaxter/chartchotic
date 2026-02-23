@@ -83,7 +83,12 @@ DO NOT DISTRIBUTE
 # REAPER Files
 # -----------------------------------------------------------------------------
 *.rpp-bak
+*.rpp-UNDO
 *.RPP-UNDO
+**/peaks/
+
+# Example/test DAW projects (local only)
+examples/
 
 # -----------------------------------------------------------------------------
 # Third-Party Dependencies (obtain via third_party/README.md)

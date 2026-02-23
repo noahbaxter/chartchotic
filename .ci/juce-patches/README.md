@@ -51,4 +51,4 @@ We chose to vendor JUCE directly rather than use a submodule because:
 
 ## Documentation
 
-See `docs/JUCE_REAPER_MODIFICATIONS.md` for detailed explanation of what these modifications do and how to use them in your code.
+See `docs/REAPER_INTEGRATION.md` for detailed explanation of what these modifications do and how to use them in your code.
