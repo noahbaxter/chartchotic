@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_string: ${{ steps.version.outputs.version_string }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Read version
+      id: version
+      run: |
+        VERSION=$(cat VERSION | tr -d '[:space:]')
+        echo "version_string=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Release version: ${VERSION}"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      version_string: ${{ needs.version.outputs.version_string }}
+    secrets: inherit
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Create release archives
+      run: |
+        cd ChartPreview-Windows && zip -r ../ChartPreview-Windows.zip . && cd ..
+        cd ChartPreview-macOS && zip -r ../ChartPreview-macOS.zip . && cd ..
+        cd ChartPreview-Linux && zip -r ../ChartPreview-Linux.zip . && cd ..
+
+    - name: Extract changelog for this version
+      id: changelog
+      run: |
+        VERSION="${{ needs.version.outputs.version_string }}"
+        # Extract the section between "## $VERSION" and the next "## " header
+        awk "/^## ${VERSION}/{found=1; next} /^## /{if(found) exit} found{print}" CHANGELOG.md > release_notes.md
+        if [ ! -s release_notes.md ]; then
+          echo "No changelog entry found for ${VERSION}, using fallback"
+          echo "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." > release_notes.md
+        fi
+        cat release_notes.md
+
+    - name: Create GitHub release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION="${{ needs.version.outputs.version_string }}"
+        gh release create "v${VERSION}" \
+          --repo ${{ github.repository }} \
+          --title "Chart Preview v${VERSION}" \
+          --notes-file release_notes.md \
+          ChartPreview-Windows.zip \
+          ChartPreview-macOS.zip \
+          ChartPreview-Linux.zip

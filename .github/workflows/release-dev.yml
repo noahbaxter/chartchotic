@@ -1,0 +1,73 @@
+name: Dev Release
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_string: ${{ steps.version.outputs.version_string }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Generate dev version string
+      id: version
+      run: |
+        BASE_VERSION=$(cat VERSION | tr -d '[:space:]')
+        TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
+        SHORT_SHA=$(git rev-parse --short HEAD)
+        VERSION="${BASE_VERSION}-dev.${TIMESTAMP}.${SHORT_SHA}"
+        echo "version_string=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Dev version: ${VERSION}"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      version_string: ${{ needs.version.outputs.version_string }}
+      build_channel: DEV
+    secrets: inherit
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Create release archives
+      run: |
+        cd ChartPreview-Windows && zip -r ../ChartPreview-Windows.zip . && cd ..
+        cd ChartPreview-macOS && zip -r ../ChartPreview-macOS.zip . && cd ..
+        cd ChartPreview-Linux && zip -r ../ChartPreview-Linux.zip . && cd ..
+
+    - uses: actions/checkout@v4
+
+    - name: Delete existing dev-latest release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release delete dev-latest --repo ${{ github.repository }} --yes 2>/dev/null || true
+        git push --delete origin dev-latest 2>/dev/null || true
+
+    - name: Create dev-latest release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create dev-latest \
+          --repo ${{ github.repository }} \
+          --title "Dev Build (${{ needs.version.outputs.version_string }})" \
+          --notes "Automated dev build from \`dev\` branch.
+
+        **Version:** \`${{ needs.version.outputs.version_string }}\`
+        **Commit:** ${{ github.sha }}
+
+        > These builds are unstable and may contain bugs. Use release builds for production." \
+          --prerelease \
+          ChartPreview-Windows.zip \
+          ChartPreview-macOS.zip \
+          ChartPreview-Linux.zip

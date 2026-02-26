@@ -1,619 +1,433 @@
-name: Build Chart Preview
+name: Build
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  release:
-    types: [ created ]
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      create_release:
-        description: 'Create a release from this build'
-        required: false
-        default: false
-        type: boolean
-      release_tag:
-        description: 'Release tag (e.g., v1.0.0)'
-        required: false
-        default: ''
+      version_string:
+        description: 'Version string to inject (e.g., 0.9.5 or 0.9.5-dev.20260226.abc1234)'
+        required: true
         type: string
+      build_channel:
+        description: 'Build channel (RELEASE or DEV)'
+        required: false
+        type: string
+        default: 'RELEASE'
+    secrets:
+      APPLE_CERTIFICATE_APPLICATION:
+        required: false
+      APPLE_CERTIFICATE_INSTALLER:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      APPLE_APP_PASSWORD:
+        required: false
 
 jobs:
   build-windows:
     runs-on: windows-latest
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         lfs: true
-        
+
+    - name: Inject version into .jucer
+      shell: pwsh
+      run: |
+        $content = Get-Content "ChartPreview/ChartPreview.jucer" -Raw
+        $content = $content -replace 'version="[^"]*"', 'version="${{ inputs.version_string }}"'
+        Set-Content "ChartPreview/ChartPreview.jucer" $content
+        echo "Injected version: ${{ inputs.version_string }}"
+
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v1.3
-      
+
     - name: Install JUCE
       run: |
-        echo "Downloading JUCE..."
         Invoke-WebRequest -Uri "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-windows.zip" -OutFile "juce.zip"
-        echo "Extracting JUCE..."
         Expand-Archive -Path "juce.zip" -DestinationPath "C:\"
-        echo "JUCE installed at C:\JUCE"
-        dir "C:\JUCE"
 
     - name: Setup REAPER SDK headers
+      shell: cmd
       run: |
-        echo "Copying REAPER VST3 interface header from .ci directory..."
-        mkdir -p third_party\reaper-sdk\sdk
+        mkdir third_party\reaper-sdk\sdk
         copy ".ci\reaper-headers\reaper_vst3_interfaces.h" "third_party\reaper-sdk\sdk\"
-        echo "REAPER SDK header installed"
-        dir "third_party\reaper-sdk\sdk"
 
     - name: Apply JUCE patches for REAPER integration
       shell: cmd
       run: |
-        echo "Applying JUCE patches..."
         cd /D C:\JUCE
-        echo "Current directory: %CD%"
-        dir modules | findstr juce
         git init
         git config user.email "ci@github.com"
         git config user.name "GitHub Actions"
         git add .
         git commit -m "Initial JUCE 8.0.0"
-        echo "Applying patch 01-add-reaper-api-handler.patch..."
         git apply "%GITHUB_WORKSPACE%\.ci\juce-patches\01-add-reaper-api-handler.patch" || (echo "Failed to apply patch 01" && exit /b 1)
-        echo "Applying patch 02-add-reaper-handshake.patch..."
         git apply "%GITHUB_WORKSPACE%\.ci\juce-patches\02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit /b 1)
-        echo "✅ All patches applied successfully"
-        git diff --stat
 
-    - name: Create JUCE symlink for Projucer
+    - name: Create JUCE symlink
       shell: cmd
       run: |
-        echo "Creating junction from CI JUCE location to expected third_party path..."
         mkdir third_party
         mklink /J third_party\JUCE C:\JUCE
-        dir third_party\
 
-    - name: Cache JUCE
+    - name: Cache JUCE build
       uses: actions/cache@v4
       with:
         path: |
           ChartPreview/Builds
           ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-v2-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
-        restore-keys: |
-          ${{ runner.os }}-juce-v2-
+        key: ${{ runner.os }}-juce-v3-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
+        restore-keys: ${{ runner.os }}-juce-v3-
 
     - name: Generate Windows project with Projucer
-      shell: cmd  
+      shell: cmd
       run: |
         cd ChartPreview
-        echo "Generating Visual Studio 2022 project files..."
         C:\JUCE\Projucer.exe --resave ChartPreview.jucer
-        echo "Project generation complete"
-        echo "Checking for Visual Studio 2022 project files..."
-        if exist "Builds\VisualStudio2022\ChartPreview.sln" (
-          echo "✅ Visual Studio solution found"
-          dir "Builds\VisualStudio2022\*.sln"
-        ) else (
-          echo "❌ Visual Studio solution not found"
-          echo "Expected: Builds\VisualStudio2022\ChartPreview.sln"
-          dir "Builds\" /s
-          exit /b 1
-        )
 
     - name: Build with MSBuild
       shell: cmd
       run: |
         cd ChartPreview
-        echo "Building Release configuration..."
-        echo "First building shared code dependencies..."
-        msbuild "Builds/VisualStudio2022/ChartPreview_SharedCode.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:normal || (
-          echo "❌ SharedCode build failed!"
-          exit /b 1
-        )
-        echo "Checking if ChartPreview.lib was generated..."
-        if exist "Builds\VisualStudio2022\x64\Release\Shared Code\ChartPreview.lib" (
-          echo "✅ ChartPreview.lib found"
-          dir "Builds\VisualStudio2022\x64\Release\Shared Code\ChartPreview.lib"
-        ) else (
-          echo "❌ ChartPreview.lib not found, checking Shared Code directory..."
-          if exist "Builds\VisualStudio2022\x64\Release\Shared Code\" (
-            dir "Builds\VisualStudio2022\x64\Release\Shared Code\" /b
-          ) else (
-            echo "Shared Code output directory does not exist"
-            dir "Builds\VisualStudio2022\x64\Release" /b
-          )
-          exit /b 1
-        )
-        echo "Now building VST3 project..."
-        msbuild "Builds/VisualStudio2022/ChartPreview_VST3.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:minimal
-        echo "Build completed, checking output..."
-        if exist "Builds\VisualStudio2022\x64\Release\VST3" (
-          dir "Builds\VisualStudio2022\x64\Release\VST3" /s
-        ) else (
-          echo "VST3 output directory not found, checking all Release subdirectories..."
-          dir "Builds\VisualStudio2022\x64\Release" /s
-        )
-        
-    - name: Verify build artifacts
+        set CL=/DCHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\"
+        msbuild "Builds/VisualStudio2022/ChartPreview_SharedCode.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:minimal || exit /b 1
+        msbuild "Builds/VisualStudio2022/ChartPreview_VST3.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:minimal || exit /b 1
+
+    - name: Package Windows artifact
       shell: cmd
       run: |
         cd ChartPreview
-        echo "Checking for VST3 files in various locations..."
-        
-        echo "=== Checking expected VST3 location ==="
-        if exist "Builds\VisualStudio2022\x64\Release\VST3" (
-          echo "VST3 directory exists, contents:"
-          dir "Builds\VisualStudio2022\x64\Release\VST3" /b
-          if exist "Builds\VisualStudio2022\x64\Release\VST3\*.dll" (
-            echo "✅ DLL found in VST3 folder"
-            dir "Builds\VisualStudio2022\x64\Release\VST3\*.dll"
-            echo "🔍 Checking for debug symbols (cause of large artifact size):"
-            if exist "Builds\VisualStudio2022\x64\Release\VST3\*.pdb" (
-              echo "⚠️ DEBUG SYMBOLS FOUND - this makes artifacts ~30MB larger:"
-              dir "Builds\VisualStudio2022\x64\Release\VST3\*.pdb"
-            ) else (
-              echo "✅ No debug symbols in VST3 folder"
-            )
-          ) else if exist "Builds\VisualStudio2022\x64\Release\VST3\*.vst3" (
-            echo "✅ VST3 bundle found"
-            dir "Builds\VisualStudio2022\x64\Release\VST3\*.vst3" /s
-          ) else (
-            echo "❌ No VST3 files found in VST3 directory"
-          )
-        ) else (
-          echo "❌ VST3 directory not found"
-        )
-        
-        echo "=== Searching for any VST3 or DLL files ==="
-        dir "Builds\VisualStudio2022" *.dll /s 2>nul || echo "No DLL files found"
-        dir "Builds\VisualStudio2022" *.vst3 /s 2>nul || echo "No VST3 files found"
-        
-    - name: Create optimized Windows artifacts
-      shell: cmd
-      run: |
-        cd ChartPreview
-        echo "Creating clean distribution without debug symbols..."
-        
-        mkdir "dist-windows"
+        mkdir dist-windows
         if exist "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" (
-          copy "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" "dist-windows\ChartPreview.dll"
-          echo "✅ Copied main DLL only (no .pdb debug symbols)"
-          echo "Renaming DLL to VST3 extension for Windows DAW compatibility..."
-          ren "dist-windows\ChartPreview.dll" "ChartPreview.vst3"
-          echo "✅ Renamed to .vst3 extension"
+          copy "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" "dist-windows\ChartPreview.vst3"
         )
-        
-        echo "Distribution contents:"
-        dir "dist-windows"
-        
-    - name: Upload Windows VST3 artifact
+
+    - name: Build Windows installer
+      shell: cmd
+      run: |
+        choco install innosetup -y --no-progress
+        iscc /DMyAppVersion="${{ inputs.version_string }}" /DSourceDir="%GITHUB_WORKSPACE%\ChartPreview\dist-windows" "%GITHUB_WORKSPACE%\.ci\windows-installer.iss"
+
+    - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ChartPreview-VST3-Windows-x64
-        path: ChartPreview/dist-windows/
-        retention-days: 30
-      if: always()
+        name: ChartPreview-Windows
+        path: |
+          ChartPreview/dist-windows/
+          .ci/Output/ChartPreview-Windows-Installer.exe
+        retention-days: 7
 
   build-macos:
     runs-on: macos-14
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         lfs: true
-        
+
+    - name: Check signing secrets
+      id: signing
+      run: |
+        if [ -n "${{ secrets.APPLE_CERTIFICATE_APPLICATION }}" ]; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "available=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Inject version into .jucer
+      run: |
+        sed -i '' "s/version=\"[^\"]*\"/version=\"${{ inputs.version_string }}\"/" ChartPreview/ChartPreview.jucer
+        echo "Injected version: ${{ inputs.version_string }}"
+
     - name: Use latest Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: latest-stable
-        
+
     - name: Install JUCE
       run: |
-        echo "Downloading JUCE..."
         curl -L "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-osx.zip" -o juce.zip
-        echo "Extracting JUCE..."
         unzip juce.zip -d /tmp/
         sudo mkdir -p /Applications/JUCE
         sudo cp -r /tmp/JUCE/* /Applications/JUCE/
-        echo "JUCE installed at /Applications/JUCE"
-        ls -la /Applications/JUCE/
 
     - name: Setup REAPER SDK headers
       run: |
-        echo "Copying REAPER VST3 interface header from .ci directory..."
         mkdir -p third_party/reaper-sdk/sdk
         cp .ci/reaper-headers/reaper_vst3_interfaces.h third_party/reaper-sdk/sdk/
-        echo "REAPER SDK header installed"
-        ls -la third_party/reaper-sdk/sdk/
 
     - name: Apply JUCE patches for REAPER integration
       run: |
-        echo "Applying JUCE patches..."
         cd /Applications/JUCE
         sudo git init
         sudo git config user.email "ci@github.com"
         sudo git config user.name "GitHub Actions"
         sudo git add .
         sudo git commit -m "Initial JUCE 8.0.0"
-        echo "Applying patch 01-add-reaper-api-handler.patch..."
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || (echo "Failed to apply patch 01" && exit 1)
-        echo "Applying patch 02-add-reaper-handshake.patch..."
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit 1)
-        echo "✅ All patches applied successfully"
-        sudo git diff --stat
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || exit 1
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || exit 1
 
-    - name: Create JUCE symlink for Projucer
+    - name: Create JUCE symlink
       run: |
-        echo "Creating symlink from CI JUCE location to expected third_party path..."
         mkdir -p third_party
         ln -s /Applications/JUCE third_party/JUCE
-        ls -la third_party/
 
-    - name: Cache JUCE
+    - name: Cache JUCE build
       uses: actions/cache@v4
       with:
         path: |
           ChartPreview/Builds
           ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-v2-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
-        restore-keys: |
-          ${{ runner.os }}-juce-v2-
-          
+        key: ${{ runner.os }}-juce-v3-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
+        restore-keys: ${{ runner.os }}-juce-v3-
+
     - name: Generate Xcode project with Projucer
       run: |
         cd ChartPreview
-        echo "Generating Xcode project files..."
-        if [ -f "ChartPreview.jucer" ]; then
-          echo "Found ChartPreview.jucer"
-          echo "Checking if JUCE Projucer exists..."
-          ls -la /Applications/JUCE/Projucer.app/Contents/MacOS/Projucer || echo "Projucer not found at expected location"
-          echo "Checking JUCE modules..."
-          ls -la /Applications/JUCE/modules/ || echo "JUCE modules not found"
-          # Use Projucer to regenerate project
-          "/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer" --resave "ChartPreview.jucer"
-          echo "Project regenerated"
-          ls -la Builds/MacOSX/
-        else
-          echo "ChartPreview.jucer not found"
-          exit 1
-        fi
+        "/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer" --resave "ChartPreview.jucer"
 
-    - name: Build with xcodebuild (optimized for CI)
+    - name: Build VST3
       run: |
         cd ChartPreview
-        echo "Building Release configuration with modern xcodebuild..."
-        
-        # Build with universal binary support and Release optimization
         xcodebuild \
           -project "Builds/MacOSX/ChartPreview.xcodeproj" \
           -scheme "ChartPreview - VST3" \
           -configuration Release \
           -destination "generic/platform=macOS" \
           ARCHS="arm64 x86_64" \
-          VALID_ARCHS="arm64 x86_64" \
           ONLY_ACTIVE_ARCH=NO \
           MACOSX_DEPLOYMENT_TARGET=10.15 \
           GCC_OPTIMIZATION_LEVEL=3 \
-          SWIFT_OPTIMIZATION_LEVEL="-O" \
+          GCC_PREPROCESSOR_DEFINITIONS='$GCC_PREPROCESSOR_DEFINITIONS CHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\"' \
           build
-          
-    - name: Also build AU format
+
+    - name: Build AU
       run: |
         cd ChartPreview
-        echo "Building AU format..."
-        
         xcodebuild \
           -project "Builds/MacOSX/ChartPreview.xcodeproj" \
           -scheme "ChartPreview - AU" \
           -configuration Release \
           -destination "generic/platform=macOS" \
           ARCHS="arm64 x86_64" \
-          VALID_ARCHS="arm64 x86_64" \
           ONLY_ACTIVE_ARCH=NO \
           MACOSX_DEPLOYMENT_TARGET=10.15 \
           GCC_OPTIMIZATION_LEVEL=3 \
-          SWIFT_OPTIMIZATION_LEVEL="-O" \
+          GCC_PREPROCESSOR_DEFINITIONS='$GCC_PREPROCESSOR_DEFINITIONS CHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\"' \
           build
 
-    - name: Verify build artifacts
+    - name: Import signing certificates
+      if: steps.signing.outputs.available == 'true'
+      env:
+        APPLE_CERTIFICATE_APPLICATION: ${{ secrets.APPLE_CERTIFICATE_APPLICATION }}
+        APPLE_CERTIFICATE_INSTALLER: ${{ secrets.APPLE_CERTIFICATE_INSTALLER }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
       run: |
-        cd ChartPreview
-        echo "Checking for build artifacts..."
-        
-        # Check VST3 (first check actual location found by find command)
-        VST3_PATH=$(find Builds/MacOSX -name "ChartPreview.vst3" -type d | head -1)
-        if [ -d "$VST3_PATH" ]; then
-          echo "✅ VST3 build found at: $VST3_PATH"
-          ls -la "$VST3_PATH/"
-          du -sh "$VST3_PATH"
-          
-          # Check if binary has both architectures
-          echo "Checking VST3 architectures:"
-          lipo -info "$VST3_PATH/Contents/MacOS/ChartPreview" || echo "No executable found"
-          
-          # Check bundle structure
-          echo "VST3 Bundle structure:"
-          find "$VST3_PATH" -type f | head -10
-          
-          # Check for embedded resources
-          echo "Checking for embedded resources in VST3:"
-          strings "$VST3_PATH/Contents/MacOS/ChartPreview" | grep -E "\.(png|wav)" | head -5 || echo "No embedded assets found"
-        else
-          echo "❌ VST3 build not found"
-        fi
-        
-        # Check AU (first check actual location found by find command)  
-        AU_PATH=$(find Builds/MacOSX -name "ChartPreview.component" -type d | head -1)
-        if [ -d "$AU_PATH" ]; then
-          echo "✅ AU build found at: $AU_PATH"
-          ls -la "$AU_PATH/"
-          du -sh "$AU_PATH"
-          
-          # Check if binary has both architectures
-          echo "Checking AU architectures:"
-          lipo -info "$AU_PATH/Contents/MacOS/ChartPreview" || echo "No executable found"
-          
-          # Check bundle structure
-          echo "AU Bundle structure:"
-          find "$AU_PATH" -type f | head -10
-        else
-          echo "❌ AU build not found"
-        fi
-        
-        # Show build directory sizes
-        echo "Build directories:"
-        find Builds/MacOSX -name "build" -type d | head -3 | xargs -I {} du -sh {} 2>/dev/null || echo "No build directories"
-        
-    - name: Upload macOS artifacts
+        KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+        KEYCHAIN_PASSWORD=$(openssl rand -hex 32)
+
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+        echo "$APPLE_CERTIFICATE_APPLICATION" | base64 --decode > $RUNNER_TEMP/app_cert.p12
+        echo "$APPLE_CERTIFICATE_INSTALLER" | base64 --decode > $RUNNER_TEMP/installer_cert.p12
+
+        security import $RUNNER_TEMP/app_cert.p12 -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+        security import $RUNNER_TEMP/installer_cert.p12 -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+
+        security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+        rm -f $RUNNER_TEMP/app_cert.p12 $RUNNER_TEMP/installer_cert.p12
+
+    - name: Code sign plugins
+      if: steps.signing.outputs.available == 'true'
+      env:
+        APPLE_CERTIFICATE_APPLICATION: ${{ secrets.APPLE_CERTIFICATE_APPLICATION }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        APP_IDENTITY="Developer ID Application: Noah Baxter ($APPLE_TEAM_ID)"
+        BUILD_DIR="ChartPreview/Builds/MacOSX/build/Release"
+
+        codesign --force --deep --sign "$APP_IDENTITY" \
+          --options runtime --timestamp \
+          "$BUILD_DIR/ChartPreview.vst3"
+
+        codesign --force --deep --sign "$APP_IDENTITY" \
+          --options runtime --timestamp \
+          "$BUILD_DIR/ChartPreview.component"
+
+        echo "Verifying signatures..."
+        codesign --verify --deep --strict "$BUILD_DIR/ChartPreview.vst3"
+        codesign --verify --deep --strict "$BUILD_DIR/ChartPreview.component"
+
+    - name: Create signed installer package
+      if: steps.signing.outputs.available == 'true'
+      env:
+        APPLE_CERTIFICATE_APPLICATION: ${{ secrets.APPLE_CERTIFICATE_APPLICATION }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        INSTALLER_IDENTITY="Developer ID Installer: Noah Baxter ($APPLE_TEAM_ID)"
+        BUILD_DIR="ChartPreview/Builds/MacOSX/build/Release"
+        VERSION="${{ inputs.version_string }}"
+        PKG_DIR=$RUNNER_TEMP/pkg-root
+
+        # VST3 component package
+        mkdir -p "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3"
+        cp -R "$BUILD_DIR/ChartPreview.vst3" "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3/"
+        pkgbuild --root "$PKG_DIR/vst3" --identifier "com.dichoticstudios.chartpreview.vst3" \
+          --version "$VERSION" --install-location "/" \
+          "$RUNNER_TEMP/ChartPreview-VST3.pkg"
+
+        # AU component package
+        mkdir -p "$PKG_DIR/au/Library/Audio/Plug-Ins/Components"
+        cp -R "$BUILD_DIR/ChartPreview.component" "$PKG_DIR/au/Library/Audio/Plug-Ins/Components/"
+        pkgbuild --root "$PKG_DIR/au" --identifier "com.dichoticstudios.chartpreview.au" \
+          --version "$VERSION" --install-location "/" \
+          "$RUNNER_TEMP/ChartPreview-AU.pkg"
+
+        # Combined product archive
+        cat > $RUNNER_TEMP/distribution.xml << 'DISTXML'
+        <?xml version="1.0" encoding="utf-8"?>
+        <installer-gui-script minSpecVersion="2">
+            <title>Chart Preview</title>
+            <options customize="allow" require-scripts="false"/>
+            <choices-outline>
+                <line choice="vst3"/>
+                <line choice="au"/>
+            </choices-outline>
+            <choice id="vst3" title="VST3 Plugin" description="Install Chart Preview VST3 to /Library/Audio/Plug-Ins/VST3">
+                <pkg-ref id="com.dichoticstudios.chartpreview.vst3"/>
+            </choice>
+            <choice id="au" title="Audio Unit Plugin" description="Install Chart Preview AU to /Library/Audio/Plug-Ins/Components">
+                <pkg-ref id="com.dichoticstudios.chartpreview.au"/>
+            </choice>
+            <pkg-ref id="com.dichoticstudios.chartpreview.vst3" version="0" onConclusion="none">ChartPreview-VST3.pkg</pkg-ref>
+            <pkg-ref id="com.dichoticstudios.chartpreview.au" version="0" onConclusion="none">ChartPreview-AU.pkg</pkg-ref>
+        </installer-gui-script>
+        DISTXML
+
+        productbuild --distribution $RUNNER_TEMP/distribution.xml \
+          --package-path $RUNNER_TEMP \
+          "$RUNNER_TEMP/ChartPreview-unsigned.pkg"
+
+        productsign --sign "$INSTALLER_IDENTITY" \
+          "$RUNNER_TEMP/ChartPreview-unsigned.pkg" \
+          "ChartPreview/ChartPreview-macOS.pkg"
+
+    - name: Notarize installer
+      if: steps.signing.outputs.available == 'true'
+      env:
+        APPLE_CERTIFICATE_APPLICATION: ${{ secrets.APPLE_CERTIFICATE_APPLICATION }}
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      run: |
+        xcrun notarytool submit "ChartPreview/ChartPreview-macOS.pkg" \
+          --apple-id "$APPLE_ID" \
+          --team-id "$APPLE_TEAM_ID" \
+          --password "$APPLE_APP_PASSWORD" \
+          --wait --timeout 600
+
+        xcrun stapler staple "ChartPreview/ChartPreview-macOS.pkg"
+        echo "Notarization complete"
+
+    - name: Cleanup keychain
+      if: always()
+      run: |
+        security delete-keychain $RUNNER_TEMP/signing.keychain-db 2>/dev/null || true
+
+    - name: Upload macOS artifact
       uses: actions/upload-artifact@v4
       with:
         name: ChartPreview-macOS
         path: |
+          ChartPreview/ChartPreview-macOS.pkg
           ChartPreview/Builds/MacOSX/build/Release/ChartPreview.vst3
           ChartPreview/Builds/MacOSX/build/Release/ChartPreview.component
-        retention-days: 30
+        retention-days: 7
 
   build-linux:
     runs-on: ubuntu-22.04
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         lfs: true
-        
+
+    - name: Inject version into .jucer
+      run: |
+        sed -i "s/version=\"[^\"]*\"/version=\"${{ inputs.version_string }}\"/" ChartPreview/ChartPreview.jucer
+        echo "Injected version: ${{ inputs.version_string }}"
+
     - name: Install system dependencies
       run: |
-        echo "Installing system dependencies for JUCE and VST3 development..."
         sudo apt-get update
         sudo apt-get install -y \
-          build-essential \
-          cmake \
-          git \
-          libasound2-dev \
-          libcurl4-openssl-dev \
-          libfreetype6-dev \
-          libgl1-mesa-dev \
-          libglu1-mesa-dev \
-          libjack-jackd2-dev \
-          libwebkit2gtk-4.0-dev \
-          libx11-dev \
-          libxext-dev \
-          libxinerama-dev \
-          libxrandr-dev \
-          libxss-dev \
-          libxtst-dev \
-          pkg-config \
-          python3 \
-          unzip \
-          wget \
-          zip
-        
+          build-essential cmake git \
+          libasound2-dev libcurl4-openssl-dev libfreetype6-dev \
+          libgl1-mesa-dev libglu1-mesa-dev libjack-jackd2-dev \
+          libwebkit2gtk-4.0-dev libx11-dev libxext-dev \
+          libxinerama-dev libxrandr-dev libxss-dev libxtst-dev \
+          pkg-config unzip wget zip
+
     - name: Install JUCE
       run: |
-        echo "Downloading JUCE..."
-        wget -O juce.zip "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-linux.zip"
-        echo "Extracting JUCE..."
-        unzip juce.zip -d /tmp/
+        wget -q -O juce.zip "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-linux.zip"
+        unzip -q juce.zip -d /tmp/
         sudo mkdir -p /opt/JUCE
         sudo cp -r /tmp/JUCE/* /opt/JUCE/
-        echo "JUCE installed at /opt/JUCE"
-        ls -la /opt/JUCE/
-        echo "Checking modules directory..."
-        ls -la /opt/JUCE/modules/ || echo "Modules directory not found"
-        echo "Checking if Projucer exists..."
-        ls -la /opt/JUCE/Projucer || echo "Projucer not found"
 
     - name: Setup REAPER SDK headers
       run: |
-        echo "Copying REAPER VST3 interface header from .ci directory..."
         mkdir -p third_party/reaper-sdk/sdk
         cp .ci/reaper-headers/reaper_vst3_interfaces.h third_party/reaper-sdk/sdk/
-        echo "REAPER SDK header installed"
-        ls -la third_party/reaper-sdk/sdk/
 
     - name: Apply JUCE patches for REAPER integration
       run: |
-        echo "Applying JUCE patches..."
         cd /opt/JUCE
         sudo git init
         sudo git config user.email "ci@github.com"
         sudo git config user.name "GitHub Actions"
         sudo git add .
         sudo git commit -m "Initial JUCE 8.0.0"
-        echo "Applying patch 01-add-reaper-api-handler.patch..."
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || (echo "Failed to apply patch 01" && exit 1)
-        echo "Applying patch 02-add-reaper-handshake.patch..."
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit 1)
-        echo "✅ All patches applied successfully"
-        sudo git diff --stat
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || exit 1
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || exit 1
 
-    - name: Create JUCE symlink for Projucer
+    - name: Create JUCE symlink
       run: |
-        echo "Creating symlink from CI JUCE location to expected third_party path..."
         mkdir -p third_party
         ln -s /opt/JUCE third_party/JUCE
-        ls -la third_party/
 
-    - name: Cache JUCE
+    - name: Cache JUCE build
       uses: actions/cache@v4
       with:
         path: |
           ChartPreview/Builds
           ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-v2-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
-        restore-keys: |
-          ${{ runner.os }}-juce-v2-
-          
+        key: ${{ runner.os }}-juce-v3-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
+        restore-keys: ${{ runner.os }}-juce-v3-
+
     - name: Generate Linux project with Projucer
       run: |
         cd ChartPreview
-        echo "Generating Linux project files..."
-        echo "Setting JUCE environment..."
-        export JUCE_PATH=/opt/JUCE
-        export PATH=/opt/JUCE:$PATH
-        echo "Current JUCE paths:"
-        echo "JUCE_PATH=$JUCE_PATH"
-        which Projucer || echo "Projucer not in PATH"
         /opt/JUCE/Projucer --resave ChartPreview.jucer
-        echo "Project generation complete"
-        ls -la Builds/
-        
-    - name: Build VST3 with Make
-      run: |
-        cd ChartPreview
-        echo "Building VST3 with Make..."
 
-        cd Builds/LinuxMakefile
-        echo "Cleaning stale build artifacts and dependency files..."
-        make clean
-        echo "Building Release configuration..."
-        make -j$(nproc) CONFIG=Release
-        
-        if [ $? -eq 0 ]; then
-          echo "✅ Build successful"
-          ls -la build/
-        else
-          echo "❌ Build failed"
-          exit 1
-        fi
-        
-    - name: Verify Linux build artifacts
+    - name: Build VST3
       run: |
-        cd ChartPreview
-        echo "Checking for Linux build artifacts..."
-        
-        # Check for the VST3 bundle created by JUCE
-        if [ -d "Builds/LinuxMakefile/build/ChartPreview.vst3" ]; then
-          echo "✅ VST3 bundle found"
-          find Builds/LinuxMakefile/build/ChartPreview.vst3 -name "*.so" -type f
-          
-          # Check the specific .so file
-          SO_FILE="Builds/LinuxMakefile/build/ChartPreview.vst3/Contents/x86_64-linux/ChartPreview.so"
-          if [ -f "$SO_FILE" ]; then
-            echo "✅ VST3 .so file found at correct location"
-            ls -la "$SO_FILE"
-            file "$SO_FILE"
-            
-            # Check dependencies
-            echo "Checking library dependencies:"
-            ldd "$SO_FILE" | head -10
-            
-            # Check if it's a valid ELF binary
-            if file "$SO_FILE" | grep -q "ELF"; then
-              echo "Valid ELF binary confirmed"
-            else
-              echo "Not a valid ELF binary"
-            fi
-            
-            # Check embedded resources
-            echo "Checking for embedded resources:"
-            strings "$SO_FILE" | grep -E "\.(png|wav)" | head -5 || echo "No embedded assets found in strings"
-          else
-            echo "❌ VST3 .so file not found in bundle"
-          fi
-        else
-          echo "❌ VST3 bundle not found"
-          find Builds/LinuxMakefile -name "*.so" -type f 2>/dev/null || echo "No .so files found"
-        fi
-        
-    - name: Upload Linux artifacts
+        cd ChartPreview/Builds/LinuxMakefile
+        make clean
+        make -j$(nproc) CONFIG=Release CXXFLAGS='-DCHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\"'
+
+    - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ChartPreview-VST3-Linux-x64
+        name: ChartPreview-Linux
         path: ChartPreview/Builds/LinuxMakefile/build/ChartPreview.vst3
-        retention-days: 30
-
-  # Create release automatically on tags or manual trigger
-  release:
-    needs: [build-windows, build-macos, build-linux]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.create_release)
-    
-    steps:
-    - name: Download Windows artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ChartPreview-VST3-Windows-x64
-        path: ./windows-vst3/
-        
-    - name: Download macOS artifacts  
-      uses: actions/download-artifact@v4
-      with:
-        name: ChartPreview-macOS
-        path: ./macos-artifacts/
-        
-    - name: Download Linux artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ChartPreview-VST3-Linux-x64
-        path: ./linux-artifacts/
-        
-    - name: Create release archives
-      run: |
-        # Create Windows release archive
-        cd windows-vst3 && zip -r ../ChartPreview-VST3-Windows-x64.zip . && cd ..
-        
-        # Create macOS release archive  
-        cd macos-artifacts && zip -r ../ChartPreview-macOS.zip . && cd ..
-        
-        # Create Linux release archive with .vst3 extension
-        cd linux-artifacts && zip -r ../ChartPreview-VST3-Linux-x64.vst3 . && cd ..
-        
-    - name: Generate release notes
-      run: |
-        echo "## Chart Preview Release" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "### Installation" >> release_notes.md
-        echo "- **Windows**: Extract ChartPreview-VST3-Windows-x64.zip and place ChartPreview.vst3 in your VST3 directory" >> release_notes.md
-        echo "- **macOS**: Extract ChartPreview-macOS.zip and install both VST3 and AU formats" >> release_notes.md  
-        echo "- **Linux**: Extract ChartPreview-VST3-Linux-x64.vst3 to ~/.vst3/ or your DAW's VST3 directory" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "### What's New" >> release_notes.md
-        echo "See [backlog](https://github.com/noahbaxter/chart-preview/blob/main/BACKLOG.md) for roadmap and known issues." >> release_notes.md
-        echo "" >> release_notes.md
-        echo "### Files" >> release_notes.md
-        echo "- \`ChartPreview-VST3-Windows-x64.zip\` - Windows VST3 plugin" >> release_notes.md
-        echo "- \`ChartPreview-macOS.zip\` - macOS VST3 + AU plugins (Universal Binary)" >> release_notes.md
-        echo "- \`ChartPreview-VST3-Linux-x64.vst3\` - Linux VST3 plugin bundle" >> release_notes.md
-        
-    - name: Upload release assets
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-        name: ${{ github.event_name == 'workflow_dispatch' && format('Chart Preview {0}', inputs.release_tag) || format('Chart Preview {0}', github.ref_name) }}
-        body_path: release_notes.md
-        draft: ${{ github.event_name == 'workflow_dispatch' }}
-        prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
-        files: |
-          ChartPreview-VST3-Windows-x64.zip
-          ChartPreview-macOS.zip
-          ChartPreview-VST3-Linux-x64.vst3
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        retention-days: 7
