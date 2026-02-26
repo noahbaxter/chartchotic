@@ -1,0 +1,49 @@
+#pragma once
+
+#include <JuceHeader.h>
+
+#ifndef CHARTPREVIEW_BUILD_CHANNEL
+  #define CHARTPREVIEW_BUILD_CHANNEL "RELEASE"
+#endif
+
+class UpdateChecker : private juce::Thread
+{
+public:
+    struct UpdateInfo
+    {
+        bool available = false;
+        juce::String version;
+        juce::String downloadUrl;
+        juce::String releaseNotes;
+    };
+
+    UpdateChecker();
+    ~UpdateChecker() override;
+
+    void checkForUpdates();
+    UpdateInfo getLatestUpdateInfo() const;
+    bool isChecking() const;
+
+    std::function<void(const UpdateInfo&)> onUpdateCheckComplete;
+
+    // Must be called before destruction to prevent async callbacks on dead objects
+    void cancelCallbacks() { callbacksEnabled->store(false); }
+
+private:
+    void run() override;
+
+    UpdateInfo checkReleaseChannel();
+    UpdateInfo checkDevChannel();
+
+    bool isNewerVersion(const juce::String& remote, const juce::String& local) const;
+    juce::String getInstallerUrl(const juce::var& assets) const;
+
+    mutable juce::CriticalSection lock;
+    UpdateInfo lastResult;
+    std::atomic<bool> checking{false};
+    std::shared_ptr<std::atomic<bool>> callbacksEnabled = std::make_shared<std::atomic<bool>>(true);
+
+    static constexpr const char* GITHUB_API_BASE = "https://api.github.com/repos/noahbaxter/chart-preview";
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UpdateChecker)
+};
