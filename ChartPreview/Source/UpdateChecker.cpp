@@ -1,7 +1,11 @@
 #include "UpdateChecker.h"
 
-#ifndef JucePlugin_VersionString
-  #define JucePlugin_VersionString "dev"
+#ifdef CHARTPREVIEW_VERSION_STRING
+  #define CHART_PREVIEW_VERSION CHARTPREVIEW_VERSION_STRING
+#elif defined(JucePlugin_VersionString)
+  #define CHART_PREVIEW_VERSION JucePlugin_VersionString
+#else
+  #define CHART_PREVIEW_VERSION "dev"
 #endif
 
 UpdateChecker::UpdateChecker() : Thread("UpdateChecker") {}
@@ -86,7 +90,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
 
     // Strip leading 'v' for comparison
     juce::String remoteVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
-    juce::String localVersion(JucePlugin_VersionString);
+    juce::String localVersion(CHART_PREVIEW_VERSION);
 
     if (isNewerVersion(remoteVersion, localVersion))
     {
@@ -131,7 +135,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkDevChannel()
     if (openParen >= 0 && closeParen > openParen)
     {
         auto remoteDevVersion = title.substring(openParen + 1, closeParen);
-        juce::String localVersion(JucePlugin_VersionString);
+        juce::String localVersion(CHART_PREVIEW_VERSION);
 
         // Dev builds: any different version string means an update is available
         if (remoteDevVersion != localVersion)

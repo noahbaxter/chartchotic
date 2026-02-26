@@ -10,9 +10,14 @@
 #include "PluginEditor.h"
 #include "UpdateChecker.h"
 
-// Version string from JucePluginDefines.h (set in .jucer, injected by CI from VERSION file)
-#ifndef JucePlugin_VersionString
-  #define JucePlugin_VersionString "dev"
+// CI injects CHARTPREVIEW_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
+// Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
+#ifdef CHARTPREVIEW_VERSION_STRING
+  #define CHART_PREVIEW_VERSION CHARTPREVIEW_VERSION_STRING
+#elif defined(JucePlugin_VersionString)
+  #define CHART_PREVIEW_VERSION JucePlugin_VersionString
+#else
+  #define CHART_PREVIEW_VERSION "dev"
 #endif
 
 //==============================================================================
@@ -105,7 +110,7 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     addAndMakeVisible(chartSpeedLabel);
 
     // Version label
-    versionLabel.setText(juce::String("v") + JucePlugin_VersionString, juce::dontSendNotification);
+    versionLabel.setText(juce::String("v") + CHART_PREVIEW_VERSION, juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.6f));
     versionLabel.setFont(juce::Font(10.0f));
