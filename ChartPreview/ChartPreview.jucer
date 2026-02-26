@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="SvXbwJ" name="ChartPreview" projectType="audioplug" useAppConfig="0"
+              version="0.9.5"
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1"
-              companyName="Dichotic Studios" pluginVST3Category="Analyzer"
-              pluginCharacteristicsValue="pluginWantsMidiIn" cppLanguageStandard="17"
+              companyName="Dichotic Studios" pluginVST3Category="Tools"
+              pluginCharacteristicsValue="pluginWantsMidiIn,pluginIsMidiEffectPlugin" cppLanguageStandard="17"
               pluginFormats="buildVST3,buildAU,buildStandalone"
               pluginName="Chart Preview" pluginDesc="A tool for visualizing midi as guitar/drum game charts">
   <MAINGROUP id="vNZlKl" name="ChartPreview">
@@ -246,6 +247,10 @@
       <FILE id="Fw3asZ" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="Mxww5q" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="UpdChk1" name="UpdateChecker.cpp" compile="1" resource="0"
+            file="Source/UpdateChecker.cpp"/>
+      <FILE id="UpdChk2" name="UpdateChecker.h" compile="0" resource="0"
+            file="Source/UpdateChecker.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

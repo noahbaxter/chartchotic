@@ -8,9 +8,12 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "UpdateChecker.h"
 
-// Version number
-static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.5";
+// Version string from JucePluginDefines.h (set in .jucer, injected by CI from VERSION file)
+#ifndef JucePlugin_VersionString
+  #define JucePlugin_VersionString "dev"
+#endif
 
 //==============================================================================
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
@@ -102,11 +105,35 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     addAndMakeVisible(chartSpeedLabel);
 
     // Version label
-    versionLabel.setText(CHART_PREVIEW_VERSION, juce::dontSendNotification);
+    versionLabel.setText(juce::String("v") + JucePlugin_VersionString, juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.6f));
     versionLabel.setFont(juce::Font(10.0f));
     addAndMakeVisible(versionLabel);
+
+    // Update checker
+    updateBanner.setButtonText("Update Available");
+    updateBanner.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF2D7D46));
+    updateBanner.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    updateBanner.setVisible(false);
+    updateBanner.onClick = [this]()
+    {
+        auto info = updateChecker.getLatestUpdateInfo();
+        if (info.downloadUrl.isNotEmpty())
+            juce::URL(info.downloadUrl).launchInDefaultBrowser();
+    };
+    addAndMakeVisible(updateBanner);
+
+    updateChecker.onUpdateCheckComplete = [this](const UpdateChecker::UpdateInfo& info)
+    {
+        if (info.available)
+        {
+            updateBanner.setButtonText("Update: " + info.version);
+            updateBanner.setVisible(true);
+            resized();
+        }
+    };
+    updateChecker.checkForUpdates();
 
     // Toggles
     hitIndicatorsToggle.setButtonText("Hit Indicators");
@@ -380,6 +407,10 @@ void ChartPreviewAudioProcessorEditor::resized()
     const int versionWidth = 60;
     const int versionHeight = 15;
     versionLabel.setBounds(45, getHeight() - versionHeight - 12, versionWidth, versionHeight);
+
+    // Update banner (bottom-left, next to version label)
+    if (updateBanner.isVisible())
+        updateBanner.setBounds(110, getHeight() - 25, 140, 20);
 
     // Console output (responsive width and height)
     consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);

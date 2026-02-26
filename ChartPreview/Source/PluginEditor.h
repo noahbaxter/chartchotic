@@ -15,6 +15,7 @@
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/Utils.h"
 #include "Utils/TimeConverter.h"
+#include "UpdateChecker.h"
 
 //==============================================================================
 /**
@@ -355,6 +356,9 @@ private:
     juce::TextEditor consoleOutput;
     juce::ToggleButton debugToggle;
     juce::TextButton clearLogsButton;
+
+    UpdateChecker updateChecker;
+    juce::TextButton updateBanner;
 
     //==============================================================================
 
