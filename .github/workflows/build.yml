@@ -287,9 +287,31 @@ jobs:
     - name: Build
       run: cmake --build build --parallel
 
+    - name: Verify Linux plugin bundles
+      run: |
+        echo "=== Checking VST3 bundle ==="
+        VST3_PATH="build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3"
+        if [ -d "$VST3_PATH" ]; then
+          echo "[OK] VST3 bundle exists"
+          ls -la "$VST3_PATH/Contents/x86_64-linux/"
+        else
+          echo "[ERROR] VST3 not found"
+          exit 1
+        fi
+
+        echo "=== Checking Standalone ==="
+        STANDALONE_PATH="build/ChartPreview_artefacts/Release/Standalone/Chart Preview"
+        if [ -f "$STANDALONE_PATH" ]; then
+          echo "[OK] Standalone exists ($(stat -c%s "$STANDALONE_PATH") bytes)"
+        else
+          echo "[WARN] Standalone not found"
+        fi
+
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
       with:
         name: ChartPreview-Linux
-        path: build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3
+        path: |
+          build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3
+          build/ChartPreview_artefacts/Release/Standalone/Chart Preview
         retention-days: 7
