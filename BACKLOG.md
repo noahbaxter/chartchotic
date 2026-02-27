@@ -10,11 +10,12 @@ Solid foundation before shipping fixes.
 
 1. ~~**In-plugin update checker**~~ — Done. UpdateChecker.h/.cpp, checks GitHub releases API on editor open, dev/release channel support.
 2. ~~macOS code signing & notarization~~ — Done. Signing + notarization in CI, .pkg installer with VST3+AU.
-3. pluginval CI testing
+3. ~~pluginval CI testing~~ — Done locally. pluginval + Catch2 unit tests + integration tests via `scripts/test.sh`.
+4. **CI test integration** — Wire `scripts/test.sh` into GitHub Actions: unit tests after CMake build, compliance after plugin build, integration after install. All three platforms.
 4. ~~VERSION file + auto-release workflow~~ — Done. VERSION file, release-dev.yml (dev-latest prerelease on push to dev), release.yml (tagged release on VERSION change to main).
 5. ~~Windows installer (Inno Setup)~~ — Done. .iss script in .ci/, built in CI.
 6. R2 CDN upload for distribution
-7. build.sh script (standardized local build)
+7. ~~build.sh script~~ — Done. Supports `--reaper`, `--standalone`, `--vst3-only`, `--au-only`, `release`, `clean`.
 
 ---
 
@@ -25,7 +26,7 @@ Real users waiting on these. *(Discord, HopH₂O, 2026-02-21 unless noted)*
 8. **Speed slider overhaul** — Three related issues: slider is inverted (`displayWindowTimeSeconds` means higher=slower), needs "Slower/Faster" labels instead of raw number, default should be 1.15-1.20 range. Past commits went back and forth — needs investigation.
 9. **UI layout overhaul** — Controls hidden behind taskbar, highway too small, poor responsive scaling. Moving controls to top likely fixes clipping AND gives highway more space.
 10. **Window sizing persistence** — Save/restore on REAPER restart.
-11. **#17 — Linux REAPER scan failure** — [GitHub](https://github.com/noahbaxter/chart-preview/issues/17)
+11. **#17 — Linux REAPER scan failure** — [GitHub](https://github.com/noahbaxter/chart-preview/issues/17) *(may be resolved by cross-platform build fixes in 0.9.5-dev — needs verification)*
 12. **Latency offset UI cleanup**
 
 ---
@@ -47,7 +48,7 @@ Fun stuff first. These are the features that make the plugin better.
 Do between features or when touching related code.
 
 18. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
-19. **Resolve `pluginIsMidiEffectPlugin` jucer flag** — Uncommitted change in .jucer adds this flag + changes VST3 category Analyzer→Tools. Probably an attempt to fix #3 (Logic). Either test in REAPER and commit, or revert. Don't leave it dangling.
+19. ~~**Resolve `pluginIsMidiEffectPlugin` jucer flag**~~ — Moot. `.jucer` removed in CMake migration. `IS_MIDI_EFFECT TRUE` is set in CMakeLists.txt.
 20. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
 21. **Settings persistence audit** — Verify all options save/restore correctly.
 
@@ -79,7 +80,7 @@ Unordered. Pull into Up Next when the time comes.
 - 2D pitch-based karaoke display, lyrics with rhythm timing
 
 **Architecture (do when it hurts):**
-- CMake migration (from Projucer)
+- ~~CMake migration (from Projucer)~~ — Done.
 - AudioProcessorValueTreeState migration
 - Double-buffered snapshots for renderer
 - Audio-thread hygiene (remove std::function, preallocated vectors)

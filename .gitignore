@@ -111,6 +111,11 @@ examples/
 *_ANALYSIS.md
 
 # -----------------------------------------------------------------------------
+# Python
+.venv/
+__pycache__/
+*.pyc
+
 # AI stuff
 sessions/
 .claude/
