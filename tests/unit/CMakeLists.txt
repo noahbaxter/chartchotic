@@ -23,13 +23,21 @@ juce_add_console_app(unit_tests PRODUCT_NAME "Chart Preview Unit Tests")
 
 target_sources(unit_tests PRIVATE
     test_smoke.cpp
+    test_gem_calculator.cpp
+    test_chord_analyzer.cpp
+    test_lane_detector.cpp
+    test_midi_interpreter.cpp
+    test_gridline_generator.cpp
+    test_instrument_mapper.cpp
     ${SOURCE_ROOT}/Midi/Utils/ChordAnalyzer.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
     ${SOURCE_ROOT}/Midi/Utils/LaneDetector.cpp
+    ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp
 )
 
 target_include_directories(unit_tests PRIVATE
     ${SOURCE_ROOT}
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 juce_generate_juce_header(unit_tests)
