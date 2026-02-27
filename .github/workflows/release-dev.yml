@@ -36,23 +36,37 @@ jobs:
     needs: [version, build]
     runs-on: ubuntu-latest
     steps:
-    - name: Download all artifacts
+    - name: Download Windows artifacts
       uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-Windows
+        path: ./artifacts/windows/
+
+    - name: Download macOS artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-macOS
+        path: ./artifacts/macos/
+
+    - name: Download Linux artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-Linux
+        path: ./artifacts/linux/
 
     - name: Create release archives
       run: |
-        cd ChartPreview-Windows && zip -r ../ChartPreview-Windows.zip . && cd ..
-        cd ChartPreview-macOS && zip -r ../ChartPreview-macOS.zip . && cd ..
-        cd ChartPreview-Linux && zip -r ../ChartPreview-Linux.zip . && cd ..
-
-    - uses: actions/checkout@v4
+        mkdir -p release
+        cd artifacts/windows && zip -r ../../release/ChartPreview-Windows.zip . && cd ../..
+        cd artifacts/macos && zip -r ../../release/ChartPreview-macOS.zip . && cd ../..
+        cd artifacts/linux && zip -r ../../release/ChartPreview-Linux.zip . && cd ../..
+        ls -la release/
 
     - name: Delete existing dev-latest release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release delete dev-latest --repo ${{ github.repository }} --yes 2>/dev/null || true
-        git push --delete origin dev-latest 2>/dev/null || true
+        gh release delete dev-latest --repo ${{ github.repository }} --yes --cleanup-tag 2>/dev/null || true
 
     - name: Create dev-latest release
       env:
@@ -68,6 +82,6 @@ jobs:
 
         > These builds are unstable and may contain bugs. Use release builds for production." \
           --prerelease \
-          ChartPreview-Windows.zip \
-          ChartPreview-macOS.zip \
-          ChartPreview-Linux.zip
+          release/ChartPreview-Windows.zip \
+          release/ChartPreview-macOS.zip \
+          release/ChartPreview-Linux.zip

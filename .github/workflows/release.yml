@@ -34,21 +34,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        sparse-checkout: CHANGELOG.md
+        sparse-checkout-cone-mode: false
 
-    - name: Download all artifacts
+    - name: Download Windows artifacts
       uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-Windows
+        path: ./artifacts/windows/
+
+    - name: Download macOS artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-macOS
+        path: ./artifacts/macos/
+
+    - name: Download Linux artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-Linux
+        path: ./artifacts/linux/
 
     - name: Create release archives
       run: |
-        cd ChartPreview-Windows && zip -r ../ChartPreview-Windows.zip . && cd ..
-        cd ChartPreview-macOS && zip -r ../ChartPreview-macOS.zip . && cd ..
-        cd ChartPreview-Linux && zip -r ../ChartPreview-Linux.zip . && cd ..
+        mkdir -p release
+        cd artifacts/windows && zip -r ../../release/ChartPreview-Windows.zip . && cd ../..
+        cd artifacts/macos && zip -r ../../release/ChartPreview-macOS.zip . && cd ../..
+        cd artifacts/linux && zip -r ../../release/ChartPreview-Linux.zip . && cd ../..
+        ls -la release/
 
     - name: Extract changelog for this version
       id: changelog
       run: |
         VERSION="${{ needs.version.outputs.version_string }}"
-        # Extract the section between "## $VERSION" and the next "## " header
         awk "/^## ${VERSION}/{found=1; next} /^## /{if(found) exit} found{print}" CHANGELOG.md > release_notes.md
         if [ ! -s release_notes.md ]; then
           echo "No changelog entry found for ${VERSION}, using fallback"
@@ -65,6 +84,6 @@ jobs:
           --repo ${{ github.repository }} \
           --title "Chart Preview v${VERSION}" \
           --notes-file release_notes.md \
-          ChartPreview-Windows.zip \
-          ChartPreview-macOS.zip \
-          ChartPreview-Linux.zip
+          release/ChartPreview-Windows.zip \
+          release/ChartPreview-macOS.zip \
+          release/ChartPreview-Linux.zip
