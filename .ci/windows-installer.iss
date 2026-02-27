@@ -22,7 +22,7 @@ DisableDirPage=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#SourceDir}\ChartPreview.vst3"; DestDir: "{commonpf64}\Common Files\VST3"; Flags: ignoreversion
+Source: "{#SourceDir}\Chart Preview.vst3\*"; DestDir: "{commonpf64}\Common Files\VST3\Chart Preview.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"

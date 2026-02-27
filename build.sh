@@ -17,10 +17,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$SCRIPT_DIR/ChartPreview"
-JUCER_FILE="$PROJECT_DIR/ChartPreview.jucer"
-XCODE_DIR="$PROJECT_DIR/Builds/MacOSX"
-XCODE_PROJECT="$XCODE_DIR/ChartPreview.xcodeproj"
+BUILD_DIR="$SCRIPT_DIR/build"
 REAPER_TEST_PROJECT="$SCRIPT_DIR/examples/reaper/reaper-test.RPP"
 
 BUILD_CONFIG="Debug"
@@ -35,7 +32,7 @@ for arg in "$@"; do
         release)        BUILD_CONFIG="Release" ;;
         clean)
             echo "Cleaning build artifacts..."
-            rm -rf "$XCODE_DIR/build"
+            rm -rf "$BUILD_DIR"
             echo "Done."
             exit 0
             ;;
@@ -65,10 +62,12 @@ echo "========================================"
 echo "Chart Preview — $BUILD_CONFIG Build (update channel: $BUILD_CHANNEL)"
 echo "========================================"
 
-# Verify project exists
-if [ ! -f "$JUCER_FILE" ]; then
-    echo "Error: ChartPreview.jucer not found at $JUCER_FILE"
-    exit 1
+# Setup REAPER SDK header if missing
+REAPER_HEADER="$SCRIPT_DIR/third_party/reaper-sdk/sdk/reaper_vst3_interfaces.h"
+if [ ! -f "$REAPER_HEADER" ]; then
+    echo "Setting up REAPER SDK header..."
+    mkdir -p "$(dirname "$REAPER_HEADER")"
+    cp "$SCRIPT_DIR/.ci/reaper-headers/reaper_vst3_interfaces.h" "$REAPER_HEADER"
 fi
 
 # Kill REAPER before build to avoid locked files
@@ -77,77 +76,62 @@ if [ "$OPEN_REAPER" = true ]; then
     sleep 0.5
 fi
 
-# Regenerate Xcode project if .jucer is newer
-if [ "$JUCER_FILE" -nt "$XCODE_PROJECT" ] || [ ! -d "$XCODE_PROJECT" ]; then
-    echo "Regenerating Xcode project..."
-    "/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer" --resave "$JUCER_FILE"
-fi
+# Configure CMake (Xcode generator for macOS)
+echo ""
+echo "Configuring CMake..."
+cmake -B "$BUILD_DIR" -G Xcode \
+    -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
+    -DBUILD_CHANNEL="$BUILD_CHANNEL" \
+    -S "$SCRIPT_DIR"
 
-# Clean previous build
-rm -rf "$XCODE_DIR/build"
+# Build targets
+ARTIFACT_DIR="$BUILD_DIR/ChartPreview_artefacts/$BUILD_CONFIG"
 
-CHANNEL_DEFINE="GCC_PREPROCESSOR_DEFINITIONS=\$(GCC_PREPROCESSOR_DEFINITIONS) CHARTPREVIEW_BUILD_CHANNEL=\\\"${BUILD_CHANNEL}\\\""
-
-# Build VST3
 if [ "$BUILD_VST3" = true ]; then
     echo ""
     echo "Building VST3..."
-    xcodebuild -quiet \
-        -project "$XCODE_PROJECT" \
-        -target "ChartPreview - VST3" \
-        -configuration "$BUILD_CONFIG" \
-        "$CHANNEL_DEFINE"
+    cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target ChartPreview_VST3 -- -quiet
 
-    VST3_PATH="$XCODE_DIR/build/$BUILD_CONFIG/ChartPreview.vst3"
+    VST3_PATH="$ARTIFACT_DIR/VST3/Chart Preview.vst3"
     if [ -d "$VST3_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/VST3/
-        rm -rf ~/Library/Audio/Plug-Ins/VST3/ChartPreview.vst3
+        rm -rf ~/Library/Audio/Plug-Ins/VST3/Chart\ Preview.vst3
         cp -R "$VST3_PATH" ~/Library/Audio/Plug-Ins/VST3/
         echo "  VST3 installed"
     else
-        echo "  VST3 build output not found"
+        echo "  VST3 build output not found at: $VST3_PATH"
         exit 1
     fi
 fi
 
-# Build AU
 if [ "$BUILD_AU" = true ]; then
     echo ""
     echo "Building AU..."
-    xcodebuild -quiet \
-        -project "$XCODE_PROJECT" \
-        -target "ChartPreview - AU" \
-        -configuration "$BUILD_CONFIG" \
-        "$CHANNEL_DEFINE"
+    cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target ChartPreview_AU -- -quiet
 
-    AU_PATH="$XCODE_DIR/build/$BUILD_CONFIG/ChartPreview.component"
+    AU_PATH="$ARTIFACT_DIR/AU/Chart Preview.component"
     if [ -d "$AU_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/Components/
-        rm -rf ~/Library/Audio/Plug-Ins/Components/ChartPreview.component
+        rm -rf ~/Library/Audio/Plug-Ins/Components/Chart\ Preview.component
         cp -R "$AU_PATH" ~/Library/Audio/Plug-Ins/Components/
         echo "  AU installed"
     else
-        echo "  AU build output not found"
+        echo "  AU build output not found at: $AU_PATH"
         exit 1
     fi
 fi
 
-# Build Standalone
 if [ "$BUILD_STANDALONE" = true ]; then
     echo ""
     echo "Building Standalone..."
-    xcodebuild -quiet \
-        -project "$XCODE_PROJECT" \
-        -target "ChartPreview - Standalone Plugin" \
-        -configuration "$BUILD_CONFIG" \
-        "$CHANNEL_DEFINE"
+    cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target ChartPreview_Standalone -- -quiet
 
-    APP_PATH="$XCODE_DIR/build/$BUILD_CONFIG/ChartPreview.app"
+    APP_PATH="$ARTIFACT_DIR/Standalone/Chart Preview.app"
     if [ -d "$APP_PATH" ]; then
         echo "  Standalone built: $APP_PATH"
-        echo "  Run with: open \"$APP_PATH\""
     else
-        echo "  Standalone build output not found"
+        echo "  Standalone build output not found at: $APP_PATH"
         exit 1
     fi
 fi
@@ -157,9 +141,9 @@ echo ""
 echo "========================================"
 echo "Build complete! (channel: $BUILD_CHANNEL)"
 echo "========================================"
-[ "$BUILD_VST3" = true ]      && echo "  VST3:       ~/Library/Audio/Plug-Ins/VST3/ChartPreview.vst3"
-[ "$BUILD_AU" = true ]         && echo "  AU:         ~/Library/Audio/Plug-Ins/Components/ChartPreview.component"
-[ "$BUILD_STANDALONE" = true ] && echo "  Standalone: $XCODE_DIR/build/$BUILD_CONFIG/ChartPreview.app"
+[ "$BUILD_VST3" = true ]      && echo "  VST3:       ~/Library/Audio/Plug-Ins/VST3/Chart Preview.vst3"
+[ "$BUILD_AU" = true ]         && echo "  AU:         ~/Library/Audio/Plug-Ins/Components/Chart Preview.component"
+[ "$BUILD_STANDALONE" = true ] && echo "  Standalone: $APP_PATH"
 echo ""
 
 # Open REAPER (skip if standalone-only)
@@ -176,5 +160,5 @@ fi
 # Auto-open standalone if it was built
 if [ "$BUILD_STANDALONE" = true ]; then
     echo "Opening Standalone..."
-    open "$XCODE_DIR/build/$BUILD_CONFIG/ChartPreview.app"
+    open "$APP_PATH"
 fi

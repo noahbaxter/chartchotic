@@ -34,24 +34,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         lfs: true
-
-    - name: Inject version into .jucer
-      shell: pwsh
-      run: |
-        # .jucer gets base semver only (Windows RC requires numeric version)
-        $base = "${{ inputs.version_string }}" -replace '-.*', ''
-        $content = Get-Content "ChartPreview/ChartPreview.jucer" -Raw
-        $content = $content -replace 'version="[^"]*"', "version=`"$base`""
-        Set-Content "ChartPreview/ChartPreview.jucer" $content
-        echo "Jucer version: $base (full: ${{ inputs.version_string }})"
-
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1.3
-
-    - name: Install JUCE
-      run: |
-        Invoke-WebRequest -Uri "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-windows.zip" -OutFile "juce.zip"
-        Expand-Archive -Path "juce.zip" -DestinationPath "C:\"
+        submodules: recursive
 
     - name: Setup REAPER SDK headers
       shell: cmd
@@ -59,68 +42,33 @@ jobs:
         mkdir third_party\reaper-sdk\sdk
         copy ".ci\reaper-headers\reaper_vst3_interfaces.h" "third_party\reaper-sdk\sdk\"
 
-    - name: Apply JUCE patches for REAPER integration
-      shell: cmd
+    - name: Configure CMake
       run: |
-        cd /D C:\JUCE
-        git init
-        git config user.email "ci@github.com"
-        git config user.name "GitHub Actions"
-        git add .
-        git commit -m "Initial JUCE 8.0.0"
-        git apply "%GITHUB_WORKSPACE%\.ci\juce-patches\01-add-reaper-api-handler.patch" || (echo "Failed to apply patch 01" && exit /b 1)
-        git apply "%GITHUB_WORKSPACE%\.ci\juce-patches\02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit /b 1)
+        cmake -B build -G "Visual Studio 17 2022" -A x64 `
+          -DBUILD_CHANNEL="${{ inputs.build_channel }}" `
+          -DVERSION_STRING="${{ inputs.version_string }}"
 
-    - name: Create JUCE symlink
-      shell: cmd
-      run: |
-        mkdir third_party
-        mklink /J third_party\JUCE C:\JUCE
-
-    - name: Cache JUCE build
-      uses: actions/cache@v4
-      with:
-        path: |
-          ChartPreview/Builds
-          ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-v3-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
-        restore-keys: ${{ runner.os }}-juce-v3-
-
-    - name: Generate Windows project with Projucer
-      shell: cmd
-      run: |
-        cd ChartPreview
-        C:\JUCE\Projucer.exe --resave ChartPreview.jucer
-
-    - name: Build with MSBuild
-      shell: cmd
-      run: |
-        cd ChartPreview
-        set CL=/DCHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\" /DCHARTPREVIEW_VERSION_STRING=\"${{ inputs.version_string }}\"
-        msbuild "Builds/VisualStudio2022/ChartPreview_SharedCode.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:minimal || exit /b 1
-        msbuild "Builds/VisualStudio2022/ChartPreview_VST3.vcxproj" /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false /m /verbosity:minimal
+    - name: Build
+      run: cmake --build build --config Release --parallel
 
     - name: Package Windows artifact
       shell: cmd
       run: |
-        cd ChartPreview
         mkdir dist-windows
-        if exist "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" (
-          copy "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" "dist-windows\ChartPreview.vst3"
-        )
+        xcopy "build\ChartPreview_artefacts\Release\VST3\Chart Preview.vst3" "dist-windows\Chart Preview.vst3\" /E /I
 
     - name: Build Windows installer
       shell: cmd
       run: |
         choco install innosetup -y --no-progress
-        iscc /DMyAppVersion="${{ inputs.version_string }}" /DSourceDir="%GITHUB_WORKSPACE%\ChartPreview\dist-windows" "%GITHUB_WORKSPACE%\.ci\windows-installer.iss"
+        iscc /DMyAppVersion="${{ inputs.version_string }}" /DSourceDir="%GITHUB_WORKSPACE%\dist-windows" "%GITHUB_WORKSPACE%\.ci\windows-installer.iss"
 
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
       with:
         name: ChartPreview-Windows
         path: |
-          ChartPreview/dist-windows/
+          dist-windows/
           .ci/Output/ChartPreview-Windows-Installer.exe
         retention-days: 7
 
@@ -131,6 +79,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         lfs: true
+        submodules: recursive
 
     - name: Check signing secrets
       id: signing
@@ -141,88 +90,29 @@ jobs:
           echo "available=false" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Inject version into .jucer
-      run: |
-        BASE_VERSION=$(echo "${{ inputs.version_string }}" | sed 's/-.*//')
-        sed -i '' "s/version=\"[^\"]*\"/version=\"${BASE_VERSION}\"/" ChartPreview/ChartPreview.jucer
-        echo "Jucer version: ${BASE_VERSION} (full: ${{ inputs.version_string }})"
-
     - name: Use latest Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: latest-stable
-
-    - name: Install JUCE
-      run: |
-        curl -L "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-osx.zip" -o juce.zip
-        unzip juce.zip -d /tmp/
-        sudo mkdir -p /Applications/JUCE
-        sudo cp -r /tmp/JUCE/* /Applications/JUCE/
 
     - name: Setup REAPER SDK headers
       run: |
         mkdir -p third_party/reaper-sdk/sdk
         cp .ci/reaper-headers/reaper_vst3_interfaces.h third_party/reaper-sdk/sdk/
 
-    - name: Apply JUCE patches for REAPER integration
+    - name: Configure CMake
       run: |
-        cd /Applications/JUCE
-        sudo git init
-        sudo git config user.email "ci@github.com"
-        sudo git config user.name "GitHub Actions"
-        sudo git add .
-        sudo git commit -m "Initial JUCE 8.0.0"
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || exit 1
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || exit 1
-
-    - name: Create JUCE symlink
-      run: |
-        mkdir -p third_party
-        ln -s /Applications/JUCE third_party/JUCE
-
-    - name: Cache JUCE build
-      uses: actions/cache@v4
-      with:
-        path: |
-          ChartPreview/Builds
-          ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-v3-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
-        restore-keys: ${{ runner.os }}-juce-v3-
-
-    - name: Generate Xcode project with Projucer
-      run: |
-        cd ChartPreview
-        "/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer" --resave "ChartPreview.jucer"
+        cmake -B build -G Xcode \
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
+          -DBUILD_CHANNEL="${{ inputs.build_channel }}" \
+          -DVERSION_STRING="${{ inputs.version_string }}"
 
     - name: Build VST3
-      run: |
-        cd ChartPreview
-        xcodebuild \
-          -project "Builds/MacOSX/ChartPreview.xcodeproj" \
-          -scheme "ChartPreview - VST3" \
-          -configuration Release \
-          -destination "generic/platform=macOS" \
-          ARCHS="arm64 x86_64" \
-          ONLY_ACTIVE_ARCH=NO \
-          MACOSX_DEPLOYMENT_TARGET=10.15 \
-          GCC_OPTIMIZATION_LEVEL=3 \
-          GCC_PREPROCESSOR_DEFINITIONS='$GCC_PREPROCESSOR_DEFINITIONS CHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\" CHARTPREVIEW_VERSION_STRING=\"${{ inputs.version_string }}\"' \
-          build
+      run: cmake --build build --config Release --target ChartPreview_VST3
 
     - name: Build AU
-      run: |
-        cd ChartPreview
-        xcodebuild \
-          -project "Builds/MacOSX/ChartPreview.xcodeproj" \
-          -scheme "ChartPreview - AU" \
-          -configuration Release \
-          -destination "generic/platform=macOS" \
-          ARCHS="arm64 x86_64" \
-          ONLY_ACTIVE_ARCH=NO \
-          MACOSX_DEPLOYMENT_TARGET=10.15 \
-          GCC_OPTIMIZATION_LEVEL=3 \
-          GCC_PREPROCESSOR_DEFINITIONS='$GCC_PREPROCESSOR_DEFINITIONS CHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\" CHARTPREVIEW_VERSION_STRING=\"${{ inputs.version_string }}\"' \
-          build
+      run: cmake --build build --config Release --target ChartPreview_AU
 
     - name: Import signing certificates
       if: steps.signing.outputs.available == 'true'
@@ -262,19 +152,19 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
         APP_IDENTITY="Developer ID Application: Noah Baxter ($APPLE_TEAM_ID)"
-        BUILD_DIR="ChartPreview/Builds/MacOSX/build/Release"
+        BUILD_DIR="build/ChartPreview_artefacts/Release"
 
         codesign --force --deep --sign "$APP_IDENTITY" \
           --options runtime --timestamp \
-          "$BUILD_DIR/ChartPreview.vst3"
+          "$BUILD_DIR/VST3/Chart Preview.vst3"
 
         codesign --force --deep --sign "$APP_IDENTITY" \
           --options runtime --timestamp \
-          "$BUILD_DIR/ChartPreview.component"
+          "$BUILD_DIR/AU/Chart Preview.component"
 
         echo "Verifying signatures..."
-        codesign --verify --deep --strict "$BUILD_DIR/ChartPreview.vst3"
-        codesign --verify --deep --strict "$BUILD_DIR/ChartPreview.component"
+        codesign --verify --deep --strict "$BUILD_DIR/VST3/Chart Preview.vst3"
+        codesign --verify --deep --strict "$BUILD_DIR/AU/Chart Preview.component"
 
     - name: Create signed installer package
       if: steps.signing.outputs.available == 'true'
@@ -283,20 +173,20 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
         INSTALLER_IDENTITY="Developer ID Installer: Noah Baxter ($APPLE_TEAM_ID)"
-        BUILD_DIR="ChartPreview/Builds/MacOSX/build/Release"
+        BUILD_DIR="build/ChartPreview_artefacts/Release"
         VERSION="${{ inputs.version_string }}"
         PKG_DIR=$RUNNER_TEMP/pkg-root
 
         # VST3 component package
         mkdir -p "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3"
-        cp -R "$BUILD_DIR/ChartPreview.vst3" "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3/"
+        cp -R "$BUILD_DIR/VST3/Chart Preview.vst3" "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3/"
         pkgbuild --root "$PKG_DIR/vst3" --identifier "com.dichoticstudios.chartpreview.vst3" \
           --version "$VERSION" --install-location "/" \
           "$RUNNER_TEMP/ChartPreview-VST3.pkg"
 
         # AU component package
         mkdir -p "$PKG_DIR/au/Library/Audio/Plug-Ins/Components"
-        cp -R "$BUILD_DIR/ChartPreview.component" "$PKG_DIR/au/Library/Audio/Plug-Ins/Components/"
+        cp -R "$BUILD_DIR/AU/Chart Preview.component" "$PKG_DIR/au/Library/Audio/Plug-Ins/Components/"
         pkgbuild --root "$PKG_DIR/au" --identifier "com.dichoticstudios.chartpreview.au" \
           --version "$VERSION" --install-location "/" \
           "$RUNNER_TEMP/ChartPreview-AU.pkg"
@@ -328,7 +218,7 @@ jobs:
 
         productsign --sign "$INSTALLER_IDENTITY" \
           "$RUNNER_TEMP/ChartPreview-unsigned.pkg" \
-          "ChartPreview/ChartPreview-macOS.pkg"
+          "ChartPreview-macOS.pkg"
 
     - name: Notarize installer
       if: steps.signing.outputs.available == 'true'
@@ -338,13 +228,13 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       run: |
-        xcrun notarytool submit "ChartPreview/ChartPreview-macOS.pkg" \
+        xcrun notarytool submit "ChartPreview-macOS.pkg" \
           --apple-id "$APPLE_ID" \
           --team-id "$APPLE_TEAM_ID" \
           --password "$APPLE_APP_PASSWORD" \
           --wait --timeout 600
 
-        xcrun stapler staple "ChartPreview/ChartPreview-macOS.pkg"
+        xcrun stapler staple "ChartPreview-macOS.pkg"
         echo "Notarization complete"
 
     - name: Cleanup keychain
@@ -357,9 +247,9 @@ jobs:
       with:
         name: ChartPreview-macOS
         path: |
-          ChartPreview/ChartPreview-macOS.pkg
-          ChartPreview/Builds/MacOSX/build/Release/ChartPreview.vst3
-          ChartPreview/Builds/MacOSX/build/Release/ChartPreview.component
+          ChartPreview-macOS.pkg
+          build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3
+          build/ChartPreview_artefacts/Release/AU/Chart Preview.component
         retention-days: 7
 
   build-linux:
@@ -369,75 +259,37 @@ jobs:
       uses: actions/checkout@v4
       with:
         lfs: true
-
-    - name: Inject version into .jucer
-      run: |
-        BASE_VERSION=$(echo "${{ inputs.version_string }}" | sed 's/-.*//')
-        sed -i "s/version=\"[^\"]*\"/version=\"${BASE_VERSION}\"/" ChartPreview/ChartPreview.jucer
-        echo "Jucer version: ${BASE_VERSION} (full: ${{ inputs.version_string }})"
+        submodules: recursive
 
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
-          build-essential cmake git \
+          build-essential cmake ninja-build git \
           libasound2-dev libcurl4-openssl-dev libfreetype6-dev \
           libgl1-mesa-dev libglu1-mesa-dev libjack-jackd2-dev \
           libwebkit2gtk-4.0-dev libx11-dev libxext-dev \
           libxinerama-dev libxrandr-dev libxss-dev libxtst-dev \
-          pkg-config unzip wget zip
-
-    - name: Install JUCE
-      run: |
-        wget -q -O juce.zip "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-linux.zip"
-        unzip -q juce.zip -d /tmp/
-        sudo mkdir -p /opt/JUCE
-        sudo cp -r /tmp/JUCE/* /opt/JUCE/
+          pkg-config
 
     - name: Setup REAPER SDK headers
       run: |
         mkdir -p third_party/reaper-sdk/sdk
         cp .ci/reaper-headers/reaper_vst3_interfaces.h third_party/reaper-sdk/sdk/
 
-    - name: Apply JUCE patches for REAPER integration
+    - name: Configure CMake
       run: |
-        cd /opt/JUCE
-        sudo git init
-        sudo git config user.email "ci@github.com"
-        sudo git config user.name "GitHub Actions"
-        sudo git add .
-        sudo git commit -m "Initial JUCE 8.0.0"
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || exit 1
-        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || exit 1
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_CHANNEL="${{ inputs.build_channel }}" \
+          -DVERSION_STRING="${{ inputs.version_string }}"
 
-    - name: Create JUCE symlink
-      run: |
-        mkdir -p third_party
-        ln -s /opt/JUCE third_party/JUCE
-
-    - name: Cache JUCE build
-      uses: actions/cache@v4
-      with:
-        path: |
-          ChartPreview/Builds
-          ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-v3-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
-        restore-keys: ${{ runner.os }}-juce-v3-
-
-    - name: Generate Linux project with Projucer
-      run: |
-        cd ChartPreview
-        /opt/JUCE/Projucer --resave ChartPreview.jucer
-
-    - name: Build VST3
-      run: |
-        cd ChartPreview/Builds/LinuxMakefile
-        make clean
-        make -j$(nproc) CONFIG=Release CXXFLAGS='-DCHARTPREVIEW_BUILD_CHANNEL=\"${{ inputs.build_channel }}\" -DCHARTPREVIEW_VERSION_STRING=\"${{ inputs.version_string }}\"'
+    - name: Build
+      run: cmake --build build --parallel
 
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
       with:
         name: ChartPreview-Linux
-        path: ChartPreview/Builds/LinuxMakefile/build/ChartPreview.vst3
+        path: build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3
         retention-days: 7

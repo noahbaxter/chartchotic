@@ -1,0 +1,4 @@
+[submodule "third_party/JUCE"]
+	path = third_party/JUCE
+	url = https://github.com/noahbaxter/JUCE.git
+	branch = reaper-vst-handshake

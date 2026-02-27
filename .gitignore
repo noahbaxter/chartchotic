@@ -3,20 +3,19 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# JUCE/Plugin Build Artifacts
+# Build Artifacts
 # -----------------------------------------------------------------------------
-**/Builds/
 **/build/
 **/DerivedData/
-**/JuceLibraryCode/
 **/x64/
 **/Debug/
 **/Release/
-ChartPreview/build-scripts/releases/
-ChartPreview/releases/
-**/JUCE-a54535b*
 
-# -----------------------------------------------------------------------------  
+# Legacy Projucer paths (safe to remove after confirming CMake works)
+**/Builds/
+**/JuceLibraryCode/
+
+# -----------------------------------------------------------------------------
 # Compiled Binaries
 # -----------------------------------------------------------------------------
 *.exe
@@ -30,7 +29,7 @@ ChartPreview/releases/
 *.a
 
 # -----------------------------------------------------------------------------
-# Development Files  
+# Development Files
 # -----------------------------------------------------------------------------
 *.o
 *.obj
@@ -55,6 +54,9 @@ ChartPreview/releases/
 # VS Code
 .vscode/
 
+# CMake
+CMakeUserPresets.json
+
 # -----------------------------------------------------------------------------
 # Operating System Files
 # -----------------------------------------------------------------------------
@@ -74,7 +76,6 @@ Desktop.ini
 # -----------------------------------------------------------------------------
 # Project-Specific (Legacy Paths - Now Moved)
 # -----------------------------------------------------------------------------
-# These were moved during repo reorganization but keeping for compatibility
 ableton-test Project
 reaper-test
 DO NOT DISTRIBUTE
@@ -91,18 +92,16 @@ DO NOT DISTRIBUTE
 examples/
 
 # -----------------------------------------------------------------------------
-# Third-Party Dependencies (obtain via third_party/README.md)
+# Third-Party Dependencies
 # -----------------------------------------------------------------------------
-/third_party/*
+# JUCE is a git submodule — don't ignore it
+# REAPER SDK header is copied at build time from .ci/reaper-headers/
+/third_party/reaper-sdk/
+!/third_party/JUCE
 !/third_party/README.md
 !/third_party/.gitkeep
-!/third_party/reaper-sdk/
-/third_party/reaper-sdk/*
-!/third_party/reaper-sdk/sdk/
-/third_party/reaper-sdk/sdk/*
-!/third_party/reaper-sdk/sdk/reaper_vst3_interfaces.h
 
-# Legacy patterns (can be removed after confirming no issues)
+# Legacy patterns
 **/third_party/vst2sdk/
 **/third_party/sws/
 **/third_party/JUCE-reaper-embedded-fx-gui/
