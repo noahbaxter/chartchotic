@@ -57,12 +57,29 @@ ensure_venv
 
 run_unit_tests() {
     echo -e "\n${BLUE}=== Running C++ Unit Tests ===${NC}"
-    local unit_binary="$TESTS_DIR/unit/build/unit_tests_artefacts/Release/unit_tests"
+    local unit_build_dir="$TESTS_DIR/unit/build"
+    local unit_binary="$unit_build_dir/unit_tests_artefacts/Release/unit_tests"
+    local source_root="$PROJECT_ROOT/ChartPreview/Source"
 
+    # Rebuild if binary missing, or any test/source file is newer than the binary
+    local needs_build=false
     if [ ! -f "$unit_binary" ]; then
+        needs_build=true
+    else
+        local newer_files
+        newer_files=$(find "$TESTS_DIR/unit" "$source_root" \
+            -newer "$unit_binary" \
+            \( -name '*.cpp' -o -name '*.h' -o -name 'CMakeLists.txt' \) \
+            2>/dev/null | head -1)
+        if [ -n "$newer_files" ]; then
+            needs_build=true
+        fi
+    fi
+
+    if $needs_build; then
         echo -e "${YELLOW}Building unit tests...${NC}"
-        cmake -B "$TESTS_DIR/unit/build" -S "$TESTS_DIR/unit" -DCMAKE_BUILD_TYPE=Release
-        cmake --build "$TESTS_DIR/unit/build" --config Release -- -j$(cpu_count)
+        cmake -B "$unit_build_dir" -S "$TESTS_DIR/unit" -DCMAKE_BUILD_TYPE=Release
+        cmake --build "$unit_build_dir" --config Release -- -j$(cpu_count)
     fi
 
     pytest "$TESTS_DIR/unit" $VERBOSE
