@@ -32,11 +32,11 @@ public:
 private:
     void run() override;
 
+    juce::var fetchLatestRelease();
     UpdateInfo checkReleaseChannel();
     UpdateInfo checkDevChannel();
 
     bool isNewerVersion(const juce::String& remote, const juce::String& local) const;
-    juce::String getInstallerUrl(const juce::var& assets) const;
 
     mutable juce::CriticalSection lock;
     UpdateInfo lastResult;

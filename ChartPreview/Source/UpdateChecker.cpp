@@ -65,21 +65,41 @@ void UpdateChecker::run()
     }
 }
 
-UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
+juce::var UpdateChecker::fetchLatestRelease()
 {
-    UpdateInfo info;
-    juce::URL url(juce::String(GITHUB_API_BASE) + "/releases/latest");
-
     auto options = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                        .withHttpRequestCmd("GET")
                        .withExtraHeaders("Accept: application/vnd.github+json\r\nUser-Agent: ChartPreview-UpdateChecker");
 
-    auto stream = url.createInputStream(options);
-    if (stream == nullptr)
-        return info;
+    // Try stable releases first
+    auto stream = juce::URL(juce::String(GITHUB_API_BASE) + "/releases/latest")
+                      .createInputStream(options);
 
-    auto response = stream->readEntireStreamAsString();
-    auto json = juce::JSON::parse(response);
+    if (stream != nullptr)
+    {
+        auto json = juce::JSON::parse(stream->readEntireStreamAsString());
+        if (json.isObject() && json.getProperty("tag_name", "").toString().isNotEmpty())
+            return json;
+    }
+
+    // No stable release — fall back to most recent release (including pre-releases)
+    stream = juce::URL(juce::String(GITHUB_API_BASE) + "/releases?per_page=1")
+                 .createInputStream(options);
+
+    if (stream == nullptr)
+        return {};
+
+    auto json = juce::JSON::parse(stream->readEntireStreamAsString());
+    if (json.isArray() && json.getArray() != nullptr && !json.getArray()->isEmpty())
+        return json.getArray()->getFirst();
+
+    return {};
+}
+
+UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
+{
+    UpdateInfo info;
+    auto json = fetchLatestRelease();
 
     if (!json.isObject())
         return info;
@@ -88,7 +108,6 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
     if (tagName.isEmpty())
         return info;
 
-    // Strip leading 'v' for comparison
     juce::String remoteVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
     juce::String localVersion(CHART_PREVIEW_VERSION);
 
@@ -97,11 +116,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
         info.available = true;
         info.version = tagName;
         info.releaseNotes = json.getProperty("body", "").toString();
-        info.downloadUrl = getInstallerUrl(json.getProperty("assets", juce::var()));
-
-        // Fallback to HTML release page if no matching asset
-        if (info.downloadUrl.isEmpty())
-            info.downloadUrl = json.getProperty("html_url", "").toString();
+        info.downloadUrl = json.getProperty("html_url", "").toString();
     }
 
     return info;
@@ -126,27 +141,48 @@ UpdateChecker::UpdateInfo UpdateChecker::checkDevChannel()
     if (!json.isObject())
         return info;
 
-    // For dev builds, check if the release title contains a newer version string
-    auto title = json.getProperty("name", "").toString();
-
     // Extract version from title like "Dev Build (0.9.5-dev.20260226123456.abc1234)"
+    auto title = json.getProperty("name", "").toString();
     auto openParen = title.indexOfChar('(');
     auto closeParen = title.indexOfChar(')');
-    if (openParen >= 0 && closeParen > openParen)
-    {
-        auto remoteDevVersion = title.substring(openParen + 1, closeParen);
-        juce::String localVersion(CHART_PREVIEW_VERSION);
+    if (openParen < 0 || closeParen <= openParen)
+        return info;
 
-        // Dev builds: any different version string means an update is available
-        if (remoteDevVersion != localVersion)
+    auto remoteFullVersion = title.substring(openParen + 1, closeParen);
+    juce::String localVersion(CHART_PREVIEW_VERSION);
+
+    // Split into base semver and dev suffix: "0.9.5-dev.20260226123456.abc1234"
+    auto remoteBase = remoteFullVersion.upToFirstOccurrenceOf("-", false, false);
+    auto localBase = localVersion.upToFirstOccurrenceOf("-", false, false);
+
+    // If base versions differ, use semver comparison
+    if (remoteBase != localBase)
+    {
+        if (isNewerVersion(remoteBase, localBase))
         {
             info.available = true;
-            info.version = remoteDevVersion;
-            info.downloadUrl = getInstallerUrl(json.getProperty("assets", juce::var()));
-
-            if (info.downloadUrl.isEmpty())
-                info.downloadUrl = json.getProperty("html_url", "").toString();
+            info.version = remoteFullVersion;
+            info.downloadUrl = json.getProperty("html_url", "").toString();
         }
+        return info;
+    }
+
+    // Same base version — compare dev timestamps if both have them
+    // Local builds without a timestamp (e.g. "0.9.5") are local dev builds, skip update
+    auto localDevSuffix = localVersion.fromFirstOccurrenceOf("-dev.", false, false);
+    if (localDevSuffix.isEmpty())
+        return info;
+
+    auto remoteDevSuffix = remoteFullVersion.fromFirstOccurrenceOf("-dev.", false, false);
+    if (remoteDevSuffix.isEmpty())
+        return info;
+
+    // Timestamps are YYYYMMDDHHMMSS — lexicographic comparison works
+    if (remoteDevSuffix > localDevSuffix)
+    {
+        info.available = true;
+        info.version = remoteFullVersion;
+        info.downloadUrl = json.getProperty("html_url", "").toString();
     }
 
     return info;
@@ -167,48 +203,4 @@ bool UpdateChecker::isNewerVersion(const juce::String& remote, const juce::Strin
     }
 
     return false;
-}
-
-juce::String UpdateChecker::getInstallerUrl(const juce::var& assets) const
-{
-    if (!assets.isArray())
-        return {};
-
-    auto* assetsArray = assets.getArray();
-    if (assetsArray == nullptr)
-        return {};
-
-#if JUCE_MAC
-    juce::String pattern = ".pkg";
-#elif JUCE_WINDOWS
-    juce::String pattern = "Installer.exe";
-#else
-    juce::String pattern = "Linux.zip";
-#endif
-
-    // Prefer installer, fall back to zip
-    for (const auto& asset : *assetsArray)
-    {
-        auto name = asset.getProperty("name", "").toString();
-        if (name.contains(pattern))
-            return asset.getProperty("browser_download_url", "").toString();
-    }
-
-    // Fallback: any platform-matching zip
-#if JUCE_MAC
-    juce::String fallbackPattern = "macOS";
-#elif JUCE_WINDOWS
-    juce::String fallbackPattern = "Windows";
-#else
-    juce::String fallbackPattern = "Linux";
-#endif
-
-    for (const auto& asset : *assetsArray)
-    {
-        auto name = asset.getProperty("name", "").toString();
-        if (name.contains(fallbackPattern))
-            return asset.getProperty("browser_download_url", "").toString();
-    }
-
-    return {};
 }
