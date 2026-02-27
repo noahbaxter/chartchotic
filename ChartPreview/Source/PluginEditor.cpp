@@ -409,13 +409,13 @@ void ChartPreviewAudioProcessorEditor::resized()
     chartSpeedSlider.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
 
     // Version label (bottom-left, next to REAPER logo)
-    const int versionWidth = 60;
+    const int versionWidth = 250;
     const int versionHeight = 15;
     versionLabel.setBounds(45, getHeight() - versionHeight - 12, versionWidth, versionHeight);
 
     // Update banner (bottom-left, next to version label)
     if (updateBanner.isVisible())
-        updateBanner.setBounds(110, getHeight() - 25, 140, 20);
+        updateBanner.setBounds(45 + versionWidth + 5, getHeight() - 25, 140, 20);
 
     // Console output (responsive width and height)
     consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);

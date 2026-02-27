@@ -15,8 +15,24 @@ if(NOT DEFINED BUILD_CHANNEL)
 endif()
 
 # Version string: full version including prerelease suffix (passed via -DVERSION_STRING=...)
+# For local dev builds, generate a timestamped version automatically
 if(NOT DEFINED VERSION_STRING)
-    set(VERSION_STRING "${CHARTPREVIEW_VERSION}")
+    if(BUILD_CHANNEL STREQUAL "DEV")
+        string(TIMESTAMP _timestamp "%Y%m%d%H%M%S" UTC)
+        execute_process(
+            COMMAND git rev-parse --short HEAD
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            OUTPUT_VARIABLE _short_sha
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(_short_sha STREQUAL "")
+            set(_short_sha "local")
+        endif()
+        set(VERSION_STRING "${CHARTPREVIEW_VERSION}-dev.${_timestamp}.${_short_sha}")
+    else()
+        set(VERSION_STRING "${CHARTPREVIEW_VERSION}")
+    endif()
 endif()
 
 # Suppress warnings from JUCE (third-party code)
