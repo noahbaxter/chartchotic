@@ -129,10 +129,11 @@ void ChartPreviewAudioProcessor::releaseResources()
 void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages)
 {
     // Can't process if there is no playhead
-    if (getPlayHead() == nullptr)
+    auto* playHead = getPlayHead();
+    if (playHead == nullptr)
         return;
 
-    auto positionInfo = getPlayHead()->getPosition();
+    auto positionInfo = playHead->getPosition();
     if (!positionInfo.hasValue())
         return;
 

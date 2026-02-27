@@ -235,13 +235,16 @@ void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
 
+    // Capture playhead once to avoid TOCTOU null dereference
+    auto* playHead = audioProcessor.getPlayHead();
+
     // Apply latency offset to shift display position
     // Positive offset = MORE delay (notes appear higher/further from strikeline)
     // Negative offset = LESS delay (notes appear lower/closer to strikeline)
     int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
-    if (audioProcessor.getPlayHead())
+    if (playHead)
     {
-        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        auto positionInfo = playHead->getPosition();
         if (positionInfo.hasValue())
         {
             double bpm = positionInfo->getBpm().orFallback(120.0);
@@ -303,12 +306,15 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
         trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
     }
 
+    // Capture playhead once to avoid TOCTOU null dereference
+    auto* playHead = audioProcessor.getPlayHead();
+
     // Apply latency offset to shift display position (positive only for standard mode)
     // Positive offset = MORE delay (notes appear higher/further from strikeline)
     int latencyOffsetMs = std::max(0, (int)state.getProperty("latencyOffsetMs"));
-    if (audioProcessor.getPlayHead())
+    if (playHead)
     {
-        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        auto positionInfo = playHead->getPosition();
         if (positionInfo.hasValue())
         {
             double bpm = positionInfo->getBpm().orFallback(120.0);
@@ -327,9 +333,9 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 
     // In non-REAPER mode, use current BPM from playhead (no tempo map available)
     double currentBPM = 120.0;
-    if (audioProcessor.getPlayHead())
+    if (playHead)
     {
-        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        auto positionInfo = playHead->getPosition();
         if (positionInfo.hasValue())
         {
             currentBPM = positionInfo->getBpm().orFallback(120.0);

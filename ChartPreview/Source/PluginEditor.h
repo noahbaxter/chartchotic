@@ -398,9 +398,10 @@ private:
 
     PPQ latencyInPPQ()
     {
-        if (audioProcessor.getPlayHead() == nullptr) return defaultLatencyInPPQ;
+        auto* playHead = audioProcessor.getPlayHead();
+        if (playHead == nullptr) return defaultLatencyInPPQ;
 
-        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        auto positionInfo = playHead->getPosition();
         if (!positionInfo.hasValue()) return defaultLatencyInPPQ;
 
         double bpm = positionInfo->getBpm().orFallback(defaultBPM);
