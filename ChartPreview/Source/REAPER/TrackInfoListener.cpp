@@ -10,19 +10,6 @@
 #include "TrackInfoListener.h"
 #include "../PluginProcessor.h"
 
-// The shared library is built with both VST3=1 and AU=1. The VST3 code references
-// IInfoListener::iid, so the symbol must be available.
-// - For AU builds, we must define it here, as the VST3 SDK's vstinitiids.cpp is not included.
-// - For VST3 builds, vstinitiids.cpp provides the definition.
-//
-// To solve this, we define the IID only for AU builds, and mark it as a weak symbol.
-// This prevents a "duplicate symbol" linker error in VST3 builds.
-#if JucePlugin_Build_AU
-using namespace Steinberg;
-__attribute__((weak))
-DEF_CLASS_IID(Vst::ChannelContext::IInfoListener)
-#endif
-
 #if JucePlugin_Build_VST3
 using namespace Steinberg;
 
@@ -37,7 +24,7 @@ tresult TrackInfoListener::setChannelContextInfos(Vst::IAttributeList* list)
         return kInvalidArgument;
 
     // Try to get channel index (1-based)
-    int64 channelIndex = -1;
+    Steinberg::int64 channelIndex = -1;
     if (list->getInt(Vst::ChannelContext::kChannelIndexKey, channelIndex) == kResultTrue)
     {
         int trackNum = static_cast<int>(channelIndex);
@@ -57,7 +44,11 @@ tresult TrackInfoListener::setChannelContextInfos(Vst::IAttributeList* list)
 
 tresult TrackInfoListener::queryInterface(const TUID _iid, void** obj)
 {
-    if (std::memcmp(_iid, Vst::ChannelContext::IInfoListener::iid, sizeof(TUID)) == 0)
+    // Compare against IInfoListener IID bytes directly to avoid needing DEF_CLASS_IID
+    // (which conflicts with vstinitiids.cpp on the VST3 target).
+    // From ivstchannelcontextinfo.h: 0x0F194781, 0x8D984ADA, 0xBBA0C1EF, 0xC011D8D0
+    static const TUID infoListenerIID = INLINE_UID(0x0F194781, 0x8D984ADA, 0xBBA0C1EF, 0xC011D8D0);
+    if (std::memcmp(_iid, infoListenerIID, sizeof(TUID)) == 0)
     {
         ++refCount;
         *obj = this;
