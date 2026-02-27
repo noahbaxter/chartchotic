@@ -4,18 +4,17 @@ VST/AU plugin visualizing MIDI as rhythm game charts (Clone Hero/YARG style).
 
 ## JUCE Source
 
-DO NOT reference `/Applications/JUCE`. This project patches vanilla JUCE with REAPER
-modifications. Always use `third_party/JUCE/` — check `docs/REAPER_INTEGRATION.md` for
-REAPER-specific details.
+DO NOT reference `/Applications/JUCE`. JUCE is a git submodule at `third_party/JUCE/` with
+REAPER modifications baked in. Check `docs/REAPER_INTEGRATION.md` for REAPER-specific details.
 
 ## Building
 
-Local build (macOS): `./build.sh` (builds VST3+AU, installs, opens REAPER)
-Options: `release`, `clean`, `--no-reaper`, `--vst3-only`, `--au-only`
+Local build (macOS): `./build.sh` (builds VST3+AU, installs)
+Options: `release`, `clean`, `--reaper`, `--vst3-only`, `--au-only`, `--standalone`
 
 Release builds are handled by CI. Push to `dev` → `dev-latest` prerelease. Merge to `main`
-with VERSION change → tagged release. Version source of truth: `VERSION` file (injected into
-.jucer at build time). macOS builds are signed + notarized. Windows builds include Inno Setup installer.
+with VERSION change → tagged release. Version source of truth: `VERSION` file (injected via
+CMake). macOS builds are signed + notarized. Windows builds include Inno Setup installer.
 
 ## Versioning
 

@@ -4,13 +4,13 @@
 # Builds VST3 + AU for local testing and installs to plugin directories
 #
 # Usage:
-#   ./build.sh                  Build Debug VST3+AU, install, open REAPER
+#   ./build.sh                  Build Debug VST3+AU, install
 #   ./build.sh release          Build Release VST3+AU, install
 #   ./build.sh clean            Remove all build artifacts
-#   ./build.sh --no-reaper      Build without opening REAPER
+#   ./build.sh --reaper         Build and open REAPER with test project
 #   ./build.sh --vst3-only      Skip AU and Standalone builds
 #   ./build.sh --au-only        Skip VST3 and Standalone builds
-#   ./build.sh --standalone     Also build Standalone app (for testing without DAW)
+#   ./build.sh --standalone     Build Standalone app (skips VST3+AU unless specified)
 #
 # Debug builds check the DEV update channel, Release builds check RELEASE channel.
 
@@ -21,7 +21,7 @@ BUILD_DIR="$SCRIPT_DIR/build"
 REAPER_TEST_PROJECT="$SCRIPT_DIR/examples/reaper/reaper-test.RPP"
 
 BUILD_CONFIG="Debug"
-OPEN_REAPER=true
+OPEN_REAPER=false
 BUILD_VST3=true
 BUILD_AU=true
 BUILD_STANDALONE=false
@@ -36,12 +36,12 @@ for arg in "$@"; do
             echo "Done."
             exit 0
             ;;
-        --no-reaper)    OPEN_REAPER=false ;;
+        --reaper)       OPEN_REAPER=true ;;
         --vst3-only)    BUILD_AU=false; BUILD_STANDALONE=false ;;
         --au-only)      BUILD_VST3=false; BUILD_STANDALONE=false ;;
-        --standalone)   BUILD_STANDALONE=true ;;
+        --standalone)   BUILD_STANDALONE=true; BUILD_VST3=false; BUILD_AU=false ;;
         -h|--help)
-            echo "Usage: ./build.sh [release|clean] [--no-reaper] [--vst3-only] [--au-only] [--standalone]"
+            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone]"
             exit 0
             ;;
         *)
@@ -70,10 +70,12 @@ if [ ! -f "$REAPER_HEADER" ]; then
     cp "$SCRIPT_DIR/.ci/reaper-headers/reaper_vst3_interfaces.h" "$REAPER_HEADER"
 fi
 
-# Kill REAPER before build to avoid locked files
+# Kill running instances before build to avoid locked files
 if [ "$OPEN_REAPER" = true ]; then
     killall -9 REAPER 2>/dev/null || true
-    sleep 0.5
+fi
+if [ "$BUILD_STANDALONE" = true ]; then
+    killall -9 "Chart Preview" 2>/dev/null || true
 fi
 
 # Configure CMake (Xcode generator for macOS)
@@ -146,8 +148,8 @@ echo "========================================"
 [ "$BUILD_STANDALONE" = true ] && echo "  Standalone: $APP_PATH"
 echo ""
 
-# Open REAPER (skip if standalone-only)
-if [ "$OPEN_REAPER" = true ] && [ "$BUILD_STANDALONE" != true -o "$BUILD_VST3" = true -o "$BUILD_AU" = true ]; then
+# Open REAPER if requested
+if [ "$OPEN_REAPER" = true ]; then
     if [ -f "$REAPER_TEST_PROJECT" ]; then
         echo "Opening REAPER with test project..."
         open -a "REAPER" "$REAPER_TEST_PROJECT"
