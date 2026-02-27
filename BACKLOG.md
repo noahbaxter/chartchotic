@@ -6,16 +6,8 @@ Prioritized top-to-bottom. Work from the top.
 
 ## CI/CD & Infrastructure
 
-Solid foundation before shipping fixes.
-
-1. ~~**In-plugin update checker**~~ — Done. UpdateChecker.h/.cpp, checks GitHub releases API on editor open, dev/release channel support.
-2. ~~macOS code signing & notarization~~ — Done. Signing + notarization in CI, .pkg installer with VST3+AU.
-3. ~~pluginval CI testing~~ — Done locally. pluginval + Catch2 unit tests + integration tests via `scripts/test.sh`.
-4. **CI test integration** — Wire `scripts/test.sh` into GitHub Actions: unit tests after CMake build, compliance after plugin build, integration after install. All three platforms.
-4. ~~VERSION file + auto-release workflow~~ — Done. VERSION file, release-dev.yml (dev-latest prerelease on push to dev), release.yml (tagged release on VERSION change to main).
-5. ~~Windows installer (Inno Setup)~~ — Done. .iss script in .ci/, built in CI.
-6. R2 CDN upload for distribution
-7. ~~build.sh script~~ — Done. Supports `--reaper`, `--standalone`, `--vst3-only`, `--au-only`, `release`, `clean`.
+1. **CI test integration** — Wire `scripts/test.sh` into GitHub Actions: unit tests after CMake build, compliance after plugin build, integration after install. All three platforms. Low priority — tack on next time CI files are touched.
+2. **R2 CDN upload** for distribution
 
 ---
 
@@ -23,11 +15,11 @@ Solid foundation before shipping fixes.
 
 Real users waiting on these. *(Discord, HopH₂O, 2026-02-21 unless noted)*
 
-8. **Speed slider overhaul** — Three related issues: slider is inverted (`displayWindowTimeSeconds` means higher=slower), needs "Slower/Faster" labels instead of raw number, default should be 1.15-1.20 range. Past commits went back and forth — needs investigation.
-9. **UI layout overhaul** — Controls hidden behind taskbar, highway too small, poor responsive scaling. Moving controls to top likely fixes clipping AND gives highway more space.
-10. **Window sizing persistence** — Save/restore on REAPER restart.
-11. **#17 — Linux REAPER scan failure** — [GitHub](https://github.com/noahbaxter/chart-preview/issues/17) *(may be resolved by cross-platform build fixes in 0.9.5-dev — needs verification)*
-12. **Latency offset UI cleanup**
+3. **Speed slider overhaul** — Three related issues: slider is inverted (`displayWindowTimeSeconds` means higher=slower), needs "Slower/Faster" labels instead of raw number, default should be 1.15-1.20 range. Past commits went back and forth — needs investigation.
+4. **UI layout overhaul** — Controls hidden behind taskbar, highway too small, poor responsive scaling. Moving controls to top likely fixes clipping AND gives highway more space.
+5. **Window sizing persistence** — Save/restore on REAPER restart.
+6. **#17 — Linux REAPER scan failure** — [GitHub](https://github.com/noahbaxter/chart-preview/issues/17) *(may be resolved by cross-platform build fixes in 0.9.5-dev — needs verification)*
+7. **Latency offset UI cleanup**
 
 ---
 
@@ -35,11 +27,11 @@ Real users waiting on these. *(Discord, HopH₂O, 2026-02-21 unless noted)*
 
 Fun stuff first. These are the features that make the plugin better.
 
-13. **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
-14. **Solo sections** — Blue highway background during solo passages.
-15. **Time sig changes display** — Symbols on left side, scroll with highway.
-16. **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
-17. **Better mouse scrolling** — shift=faster, ctrl=precise.
+8. **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
+9. **Solo sections** — Blue highway background during solo passages.
+10. **Time sig changes display** — Symbols on left side, scroll with highway.
+11. **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
+12. **Better mouse scrolling** — shift=faster, ctrl=precise.
 
 ---
 
@@ -47,10 +39,9 @@ Fun stuff first. These are the features that make the plugin better.
 
 Do between features or when touching related code.
 
-18. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
-19. ~~**Resolve `pluginIsMidiEffectPlugin` jucer flag**~~ — Moot. `.jucer` removed in CMake migration. `IS_MIDI_EFFECT TRUE` is set in CMakeLists.txt.
-20. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
-21. **Settings persistence audit** — Verify all options save/restore correctly.
+13. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
+14. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
+15. **Settings persistence audit** — Verify all options save/restore correctly.
 
 ---
 
@@ -61,7 +52,7 @@ Unordered. Pull into Up Next when the time comes.
 **Chart Features:**
 - Info display: BPM, time sig, measure, beat position
 - Better menu system + advanced settings
-- Instrument autodetection (by track name — depends on EVENTS parsing from #13)
+- Instrument autodetection (by track name — depends on EVENTS parsing from #8)
 - Highway length control (configurable visible beats)
 - Note color customization (CH color profile templates)
 - GH style gems toggle
@@ -80,7 +71,6 @@ Unordered. Pull into Up Next when the time comes.
 - 2D pitch-based karaoke display, lyrics with rhythm timing
 
 **Architecture (do when it hurts):**
-- ~~CMake migration (from Projucer)~~ — Done.
 - AudioProcessorValueTreeState migration
 - Double-buffered snapshots for renderer
 - Audio-thread hygiene (remove std::function, preallocated vectors)
@@ -93,7 +83,7 @@ Unordered. Pull into Up Next when the time comes.
 Blocked or no clear path forward.
 
 - **#16 — FL Studio: no notes appear** — *Blocked: don't own FL Studio.* [GitHub](https://github.com/noahbaxter/chart-preview/issues/16)
-- **#3 — Logic: AU loads as Audio FX, no MIDI** — *Blocked: don't own Logic. `pluginIsMidiEffectPlugin` flag (#19) may fix.* [GitHub](https://github.com/noahbaxter/chart-preview/issues/3)
+- **#3 — Logic: AU loads as Audio FX, no MIDI** — *Blocked: don't own Logic.* [GitHub](https://github.com/noahbaxter/chart-preview/issues/3)
 - Multi-instrument view (multiple MIDI streams in one plugin)
 - Elite Drums (beyond Real Drums)
 - Extended memory for standard pipeline (notes visible when transport stops)
@@ -108,4 +98,4 @@ Blocked or no clear path forward.
 ## Notes
 
 - **Moonscraper overlap**: Community consensus is Chart Preview is for preview, not charting.
-- **Key dependency chain**: EVENTS parsing (#13) → section detection → autodetection → Real Drums MIDI refactor → generic gem system
+- **Key dependency chain**: EVENTS parsing (#8) → section detection → autodetection → Real Drums MIDI refactor → generic gem system
