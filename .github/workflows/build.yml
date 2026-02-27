@@ -287,6 +287,14 @@ jobs:
     - name: Build
       run: cmake --build build --parallel
 
+    - name: Build unit tests
+      run: |
+        cmake -B tests/unit/build -S tests/unit -G Ninja -DCMAKE_BUILD_TYPE=Release
+        cmake --build tests/unit/build --config Release --parallel
+
+    - name: Run unit tests
+      run: tests/unit/build/unit_tests_artefacts/Release/unit_tests --reporter console
+
     - name: Verify Linux plugin bundles
       run: |
         echo "=== Checking VST3 bundle ==="
