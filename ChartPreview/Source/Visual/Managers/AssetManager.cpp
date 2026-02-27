@@ -142,6 +142,7 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
             case 4:
             case 5: return getHopoWhiteImage();
             } break;
+        default: break;
         }
     }
     else
@@ -178,6 +179,7 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
             case 4: return getHopoBlueImage();
             case 5: return getHopoOrangeImage();
             } break;
+        default: break;
         }
     }
 
@@ -223,6 +225,7 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
             case 3:
             case 4: return getCymWhiteImage();
             } break;
+        default: break;
         }
     }
     else
@@ -257,6 +260,7 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
             case 3: return getCymBlueImage();
             case 4: return getCymGreenImage();
             } break;
+        default: break;
         }
     }
 
@@ -282,6 +286,7 @@ juce::Image* AssetManager::getOverlayImage(Gem gem, Part part)
         switch (gem)
         {
         case Gem::TAP_ACCENT: return getOverlayNoteTapImage();
+        default: break;
         }
     }
     else // if (part == Part::DRUMS)
@@ -292,6 +297,7 @@ juce::Image* AssetManager::getOverlayImage(Gem gem, Part part)
         case Gem::TAP_ACCENT: return getOverlayNoteAccentImage();
         case Gem::CYM_GHOST: return getOverlayCymGhostImage();
         case Gem::CYM_ACCENT: return getOverlayCymAccentImage();
+        default: break;
         }
     }
 
