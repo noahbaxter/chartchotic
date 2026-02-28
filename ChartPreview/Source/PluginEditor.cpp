@@ -99,14 +99,15 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     latencyOffsetInput.setSelectAllWhenFocused(true);
     addAndMakeVisible(latencyOffsetInput);
 
-    // Speed slider (time-based only)
-    chartSpeedSlider.setRange(0.4, 2.5, 0.05);
+    // Note speed slider (integer, higher = faster)
+    chartSpeedSlider.setRange(2, 20, 1);
+    chartSpeedSlider.setValue(7, juce::dontSendNotification);
     chartSpeedSlider.setSliderStyle(juce::Slider::LinearVertical);
     chartSpeedSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
     chartSpeedSlider.addListener(this);
     addAndMakeVisible(chartSpeedSlider);
 
-    chartSpeedLabel.setText("Speed", juce::dontSendNotification);
+    chartSpeedLabel.setText("Note Speed", juce::dontSendNotification);
     addAndMakeVisible(chartSpeedLabel);
 
     // Version label
@@ -411,7 +412,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     latencyOffsetInput.setBounds(getWidth() - 100, getHeight() - 50, 80, controlHeight);
     
     // Speed controls (anchored to bottom-right)
-    chartSpeedLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
+    chartSpeedLabel.setBounds(getWidth() - 105, getHeight() - 270, 70, controlHeight);
     chartSpeedSlider.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
 
     // Version label (bottom-left, next to REAPER logo)
@@ -429,8 +430,9 @@ void ChartPreviewAudioProcessorEditor::resized()
 
 void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
-    // Slider directly represents seconds for rendering
-    displayWindowTimeSeconds = chartSpeedSlider.getValue();
+    // Convert note speed to highway time: 7.87 is the default highway length in world units,
+    // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
+    displayWindowTimeSeconds = 7.87 / chartSpeedSlider.getValue();
 
     // Use a generous worst-case PPQ window for MIDI fetching to prevent pop-in at extreme tempos
     const double WORST_CASE_PPQ_WINDOW = 30.0;  // quarter notes
@@ -458,7 +460,8 @@ void ChartPreviewAudioProcessorEditor::loadState()
     kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
     dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
 
-    chartSpeedSlider.setValue((double)state["speedTime"], juce::dontSendNotification);
+    int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;
+    chartSpeedSlider.setValue(noteSpeed, juce::dontSendNotification);
 
     // Apply side-effects that your listeners would normally do
     applyLatencySetting((int)state["latency"]);

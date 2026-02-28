@@ -142,7 +142,7 @@ public:
     {
         if (slider == &chartSpeedSlider)
         {
-            state.setProperty("speedTime", slider->getValue(), nullptr);
+            state.setProperty("noteSpeed", (int)slider->getValue(), nullptr);
             updateDisplaySizeFromSpeedSlider();
 
             // In REAPER mode, invalidate cache to immediately fetch new data window
