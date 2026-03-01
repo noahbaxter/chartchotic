@@ -325,11 +325,11 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
 
     float posRange = highwayPosEnd - HIGHWAY_POS_START;
 
-    // Use enough strips for ~2px each to eliminate visible seams
+    // Use enough strips for ~4px each to balance quality vs performance
     auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd);
     auto edgeFar = PositionMath::getFretboardEdge(isDrums, highwayPosEnd, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd);
     int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
-    int stripCount = std::clamp(pixelHeight / 2, (int)HIGHWAY_MIN_STRIPS, 300);
+    int stripCount = std::clamp(pixelHeight / 4, (int)HIGHWAY_MIN_STRIPS, 150);
 
     // Precompute edge positions for all strip boundaries (adjacent strips share edges)
     using LaneCorners = PositionConstants::LaneCorners;
@@ -348,7 +348,7 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
 
     {
         juce::Graphics og(highwayOffscreen);
-        og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+        og.setImageResamplingQuality(juce::Graphics::mediumResamplingQuality);
 
         for (int i = 0; i < stripCount; i++)
         {
@@ -365,6 +365,14 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
             float destW = destRight - destLeft;
             float destH = destBottom - destTop;
             if (destW <= 0) continue;
+
+            // Fade out at far end, matching note opacity behavior
+            float stripMidPos = (botPos + topPos) * 0.5f;
+            float fadeAlpha = 1.0f;
+            if (stripMidPos >= OPACITY_FADE_START)
+                fadeAlpha = std::max(0.0f, 1.0f - (stripMidPos - OPACITY_FADE_START) / (1.0f - OPACITY_FADE_START));
+            if (fadeAlpha <= 0.0f) continue;
+            og.setOpacity(fadeAlpha);
 
             // Texture V coordinates (vBot > vTop because lower position = larger V)
             float vTop = (1.0f - topPos) * HIGHWAY_TILES_PER_HIGHWAY + (float)scrollOffset;
@@ -384,20 +392,13 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
                 float splitY = destTop + destH * splitFrac;
 
                 if (h1 > 0)
-                {
-                    auto src1 = highwayTexture.getClippedImage({0, srcY, texW, h1});
-                    og.drawImage(src1, {destLeft, destTop, destW, splitY - destTop});
-                }
+                    og.drawImage(highwayTexture, (int)destLeft, (int)destTop, (int)std::ceil(destW), (int)std::ceil(splitY - destTop), 0, srcY, texW, h1);
                 if (h2 > 0)
-                {
-                    auto src2 = highwayTexture.getClippedImage({0, 0, texW, h2});
-                    og.drawImage(src2, {destLeft, splitY, destW, destBottom - splitY});
-                }
+                    og.drawImage(highwayTexture, (int)destLeft, (int)splitY, (int)std::ceil(destW), (int)std::ceil(destBottom - splitY), 0, 0, texW, h2);
             }
             else
             {
-                auto srcRegion = highwayTexture.getClippedImage({0, srcY, texW, srcH});
-                og.drawImage(srcRegion, {destLeft, destTop, destW, destH});
+                og.drawImage(highwayTexture, (int)destLeft, (int)destTop, (int)std::ceil(destW), (int)std::ceil(destH), 0, srcY, texW, srcH);
             }
         }
     }
