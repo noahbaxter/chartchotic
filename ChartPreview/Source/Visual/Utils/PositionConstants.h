@@ -79,11 +79,18 @@ namespace PositionConstants
     constexpr float FRETBOARD_SCALE = 1.25f;              // Fretboard reference expansion for notes/sustains
     constexpr float GRIDLINE_TIME_OFFSET = 0.02f;        // Nudge gridlines forward in time
     constexpr float BAR_NOTE_TIME_OFFSET = 0.0f;        // Nudge bar notes forward in time
+    constexpr float NOTE_CURVATURE = -0.02f;               // Regular note arc height as fraction of width
+    constexpr float BAR_CURVATURE = 0.0f;                 // Bar note arc height as fraction of width
     constexpr float GRIDLINE_SIZE = 0.9f;               // Gridline scaling factor
     constexpr float SUSTAIN_WIDTH = 0.15f;              // Sustain width multiplier
     constexpr float SUSTAIN_OPEN_WIDTH = 0.8f;          // Open sustain width multiplier
     constexpr float LANE_WIDTH = 1.1f;                  // Lane width multiplier
     constexpr float LANE_OPEN_WIDTH = 0.9f;             // Open lane width multiplier
+
+    //==============================================================================
+    // Offscreen Rendering
+    constexpr int NOTE_RENDER_SCALE = 2;                 // Supersampling for curved note offscreen
+    constexpr int HIGHWAY_RENDER_SCALE = 2;              // Supersampling for highway texture offscreen
 
     //==============================================================================
     // Sustain Geometry Constants

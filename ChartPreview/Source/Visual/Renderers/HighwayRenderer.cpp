@@ -201,16 +201,24 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
     if (glyphImage == nullptr) return;
 
     float opacity = calculateOpacity(position);
+
+    // Fretboard arc: parabola centered on fretboard, peak toward strikeline
+    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    auto fbEdge = getColumnEdge(adjustedPosition, fbCoords, 1.0f);
+    float fbCenterX = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
+    float fbHalfWidth = (fbEdge.rightX - fbEdge.leftX) * 0.5f;
+    float arcHeight = fbHalfWidth * 2.0f * (barNote ? BAR_CURVATURE : NOTE_CURVATURE);
+
     if (barNote)
     {
         drawCallMap[DrawOrder::BAR][gemColumn].push_back([=](juce::Graphics &g) {
-            draw(g, glyphImage, glyphRect, opacity);
+            drawCurved(g, glyphImage, glyphRect, opacity, fbCenterX, fbHalfWidth, arcHeight);
         });
     }
     else
     {
         drawCallMap[DrawOrder::NOTE][gemColumn].push_back([=](juce::Graphics &g) {
-            draw(g, glyphImage, glyphRect, opacity);
+            drawCurved(g, glyphImage, glyphRect, opacity, fbCenterX, fbHalfWidth, arcHeight);
         });
     }
 
@@ -222,7 +230,7 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
         juce::Rectangle<float> overlayRect = glyphRenderer.getOverlayGlyphRect(glyphRect, isDrumAccent);
 
         drawCallMap[DrawOrder::OVERLAY][gemColumn].push_back([=](juce::Graphics &g) {
-            draw(g, overlayImage, overlayRect, opacity);
+            drawCurved(g, overlayImage, overlayRect, opacity, fbCenterX, fbHalfWidth, arcHeight);
         });
     }
 }
@@ -362,28 +370,31 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
         edges[i] = {PositionMath::getFretboardEdge(isDrums, pos, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd), pos};
     }
 
-    // Render strips into offscreen image (no clip path) for clean compositing
-    if (highwayOffscreen.getWidth() != (int)width || highwayOffscreen.getHeight() != (int)height)
-        highwayOffscreen = juce::Image(juce::Image::ARGB, width, height, true);
+    // Render strips into supersampled offscreen image for clean compositing
+    constexpr int HS = HIGHWAY_RENDER_SCALE;
+    int offW = (int)width * HS;
+    int offH = (int)height * HS;
+    if (highwayOffscreen.getWidth() != offW || highwayOffscreen.getHeight() != offH)
+        highwayOffscreen = juce::Image(juce::Image::ARGB, offW, offH, true);
     else
-        highwayOffscreen.clear({0, 0, (int)width, (int)height});
+        highwayOffscreen.clear({0, 0, offW, offH});
 
     {
         juce::Graphics og(highwayOffscreen);
-        og.setImageResamplingQuality(juce::Graphics::mediumResamplingQuality);
+        og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
 
         for (int i = 0; i < stripCount; i++)
         {
             auto& [bot, botPos] = edges[i];      // bottom (near strikeline)
             auto& [top, topPos] = edges[i + 1];  // top (far end)
 
-            float destTop = top.centerY;
-            float destBottom = bot.centerY;
+            float destTop = top.centerY * HS;
+            float destBottom = bot.centerY * HS;
             if (destBottom <= destTop) continue;
 
             // Average top/bottom edges for horizontal span — eliminates width jumps between strips
-            float destLeft = (bot.leftX + top.leftX) * 0.5f;
-            float destRight = (bot.rightX + top.rightX) * 0.5f;
+            float destLeft = (bot.leftX + top.leftX) * 0.5f * HS;
+            float destRight = (bot.rightX + top.rightX) * 0.5f * HS;
             float destW = destRight - destLeft;
             float destH = destBottom - destTop;
             if (destW <= 0) continue;
@@ -425,13 +436,14 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
         }
     }
 
-    // Composite offscreen with fretboard clip path — single image = clean AA on edges
+    // Composite supersampled offscreen with fretboard clip path — downsample to canvas
     auto fretboardPath = PositionMath::getFretboardPath(isDrums, HIGHWAY_POS_START, highwayPosEnd,
                                                         width, height, wNear, wMid, wFar);
     g.saveState();
     g.reduceClipRegion(fretboardPath);
     g.setOpacity(HIGHWAY_OPACITY);
-    g.drawImageAt(highwayOffscreen, 0, 0);
+    g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+    g.drawImage(highwayOffscreen, juce::Rectangle<float>(0, 0, (float)width, (float)height));
     g.restoreState();
 }
 

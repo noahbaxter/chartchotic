@@ -108,6 +108,54 @@ class HighwayRenderer
             g.drawImage(*image, position);
         };
 
+        // Draw image curved along the fretboard-wide arc. Renders strips into a
+        // supersampled offscreen image for clean compositing.
+        void drawCurved(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> rect,
+                        float opacity, float fbCenterX, float fbHalfWidth, float arcHeight)
+        {
+            if (arcHeight == 0.0f || fbHalfWidth == 0.0f) { draw(g, image, rect, opacity); return; }
+
+            constexpr int S = PositionConstants::NOTE_RENDER_SCALE;
+            constexpr int STRIPS = 12;
+            float absArc = std::abs(arcHeight);
+            int offW = ((int)std::ceil(rect.getWidth()) + 2) * S;
+            int offH = ((int)std::ceil(rect.getHeight() + absArc) + 2) * S;
+            if (offW <= 0 || offH <= 0) return;
+
+            juce::Image offscreen(juce::Image::ARGB, offW, offH, true);
+            {
+                juce::Graphics og(offscreen);
+                og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+
+                float stripW = rect.getWidth() * S / STRIPS;
+                int imgW = image->getWidth();
+                float srcStripW = (float)imgW / STRIPS;
+                float baseY = ((arcHeight > 0.0f) ? absArc : 0.0f) * S;
+
+                for (int i = 0; i < STRIPS; i++)
+                {
+                    float stripCenterX = rect.getX() + (rect.getWidth() / STRIPS) * (i + 0.5f);
+                    float dist = (stripCenterX - fbCenterX) / fbHalfWidth;
+                    float yOff = arcHeight * (1.0f - dist * dist) * S;
+
+                    int srcX = (int)(srcStripW * i);
+                    int srcEnd = std::min((int)(srcStripW * (i + 1) + 0.5f), imgW);
+
+                    og.drawImage(*image,
+                                 (int)(stripW * i), (int)(baseY + yOff),
+                                 (int)std::ceil(stripW), (int)std::ceil(rect.getHeight() * S),
+                                 srcX, 0, srcEnd - srcX, image->getHeight());
+                }
+            }
+
+            float drawY = rect.getY() - ((arcHeight > 0.0f) ? absArc : 0.0f);
+            g.setOpacity(opacity);
+            g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+            juce::Rectangle<float> destRect(rect.getX() - 1, drawY,
+                                             (float)offW / S, (float)offH / S);
+            g.drawImage(offscreen, destRect);
+        };
+
         // Sustain rendering helper functions (delegated to ColumnRenderer)
         using LaneCorners = PositionConstants::LaneCorners;
         using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
