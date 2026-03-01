@@ -110,6 +110,20 @@ class HighwayRenderer
 
         // Sustain rendering helper functions (delegated to ColumnRenderer)
         using LaneCorners = PositionConstants::LaneCorners;
+        using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
+
+        LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
+                                  float sizeScale, float fretboardScale = 1.0f)
+        {
+            bool isDrums = isPart(state, Part::DRUMS);
+            float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
+            float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
+            float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+            return PositionMath::getColumnPosition(isDrums, position, width, height,
+                                                    wNear, wMid, wFar,
+                                                    HIGHWAY_POS_START, highwayPosEnd,
+                                                    colCoords, sizeScale, fretboardScale);
+        }
 
         // Testing helper functions
         TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)

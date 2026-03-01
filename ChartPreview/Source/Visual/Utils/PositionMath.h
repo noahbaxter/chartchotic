@@ -29,14 +29,6 @@ public:
     ~PositionMath() = default;
 
     //==============================================================================
-    // Guitar Lane Coordinates (for column rendering)
-    static PositionConstants::LaneCorners getGuitarLaneCoordinates(uint gemColumn, float position, uint width, uint height);
-
-    //==============================================================================
-    // Drum Lane Coordinates (for column rendering)
-    static PositionConstants::LaneCorners getDrumLaneCoordinates(uint gemColumn, float position, uint width, uint height);
-
-    //==============================================================================
     // Fretboard Boundary
     // widthScaleNear/Mid/Far = width scales at bottom/middle/top of the fretboard range.
     // posStart/posEnd define the full fretboard range for bezier interpolation.
@@ -45,6 +37,16 @@ public:
                                                            float widthScaleNear, float widthScaleMid,
                                                            float widthScaleFar,
                                                            float posStart, float posEnd);
+
+    // Column position using bezier fretboard edges — maps a column's strikeline
+    // coordinates onto the curved fretboard at any position along the highway.
+    static PositionConstants::LaneCorners getColumnPosition(bool isDrums, float position,
+                                                             uint width, uint height,
+                                                             float wNear, float wMid, float wFar,
+                                                             float posStart, float posEnd,
+                                                             const PositionConstants::NormalizedCoordinates& colCoords,
+                                                             float sizeScale,
+                                                             float fretboardScale = 1.0f);
 
     // Builds a closed Path tracing the fretboard boundary from posStart to posEnd.
     static juce::Path getFretboardPath(bool isDrums, float posStart, float posEnd,
@@ -78,10 +80,4 @@ private:
         float scaler
     );
 
-    //==============================================================================
-    // Generic lane coordinate lookup
-    static const PositionConstants::NormalizedCoordinates& lookupLaneCoords(
-        const PositionConstants::NormalizedCoordinates* coordTable,
-        uint gemColumn
-    );
 };

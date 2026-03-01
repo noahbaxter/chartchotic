@@ -16,11 +16,6 @@
 using namespace PositionConstants;
 
 //==============================================================================
-// Static coordinate table array bounds
-static constexpr size_t GUITAR_GLYPH_SIZE = 6;  // Open + 5 columns
-static constexpr size_t DRUM_GLYPH_SIZE = 5;    // Kick + 4 columns
-
-//==============================================================================
 // Helper to apply scaling and centering to coordinates
 
 NormalizedCoordinates PositionMath::applyWidthScaling(
@@ -36,54 +31,7 @@ NormalizedCoordinates PositionMath::applyWidthScaling(
 }
 
 //==============================================================================
-// Generic lane coordinate lookup
-
-const NormalizedCoordinates& PositionMath::lookupLaneCoords(
-    const NormalizedCoordinates* coordTable,
-    uint gemColumn)
-{
-    // All tables have column 0 (open/kick), so clamping to valid range
-    return coordTable[gemColumn];
-}
-
-//==============================================================================
-// Guitar Lane Coordinates (for column rendering)
-
-LaneCorners PositionMath::getGuitarLaneCoordinates(uint gemColumn, float position, uint width, uint height)
-{
-    bool isOpen = (gemColumn == 0);
-    const auto& baseCoords = lookupLaneCoords(guitarLaneCoords, gemColumn);
-
-    float scaler = isOpen ? 0.95f : 0.9f;
-    auto coords = applyWidthScaling(baseCoords, scaler);
-
-    auto rect = createPerspectiveGlyphRect(position, coords.normY1, coords.normY2,
-                                           coords.normX1, coords.normX2,
-                                           coords.normWidth1, coords.normWidth2,
-                                           isOpen, width, height);
-    return {rect.getX(), rect.getRight(), rect.getCentreY()};
-}
-
-//==============================================================================
-// Drum Lane Coordinates (for column rendering)
-
-LaneCorners PositionMath::getDrumLaneCoordinates(uint gemColumn, float position, uint width, uint height)
-{
-    bool isKick = (gemColumn == 0 || gemColumn == 6);
-    const auto& baseCoords = lookupLaneCoords(drumLaneCoords, gemColumn);
-
-    float scaler = isKick ? 0.95f : 0.9f;
-    auto coords = applyWidthScaling(baseCoords, scaler);
-
-    auto rect = createPerspectiveGlyphRect(position, coords.normY1, coords.normY2,
-                                           coords.normX1, coords.normX2,
-                                           coords.normWidth1, coords.normWidth2,
-                                           isKick, width, height);
-    return {rect.getX(), rect.getRight(), rect.getCentreY()};
-}
-
-//==============================================================================
-// Core 3D Perspective Calculation (used for lane coordinates)
+// Core 3D Perspective Calculation (used by getFretboardEdge)
 
 juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
     float position,
@@ -175,6 +123,35 @@ LaneCorners PositionMath::getFretboardEdge(bool isDrums, float position,
                                            coords.normWidth1, coords.normWidth2,
                                            true, width, height);
     return {rect.getX(), rect.getRight(), rect.getCentreY()};
+}
+
+LaneCorners PositionMath::getColumnPosition(bool isDrums, float position,
+                                             uint width, uint height,
+                                             float wNear, float wMid, float wFar,
+                                             float posStart, float posEnd,
+                                             const NormalizedCoordinates& colCoords,
+                                             float sizeScale,
+                                             float fretboardScale)
+{
+    auto edge = getFretboardEdge(isDrums, position, width, height,
+                                 wNear, wMid, wFar, posStart, posEnd);
+
+    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+
+    // Column center and width as fractions of fretboard (derived from strikeline coords)
+    float colCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
+    float centerFrac = (colCenterNorm - fbCoords.normX1) / fbCoords.normWidth1;
+    float widthFrac = (colCoords.normWidth1 / fbCoords.normWidth1) * sizeScale;
+
+    // Expand fretboard reference from center (matches visual highway width)
+    float edgeCenter = (edge.leftX + edge.rightX) * 0.5f;
+    float edgeWidth = (edge.rightX - edge.leftX) * fretboardScale;
+    float scaledLeftX = edgeCenter - edgeWidth * 0.5f;
+
+    float actualCenter = scaledLeftX + centerFrac * edgeWidth;
+    float actualWidth = widthFrac * edgeWidth;
+
+    return {actualCenter - actualWidth * 0.5f, actualCenter + actualWidth * 0.5f, edge.centerY};
 }
 
 juce::Path PositionMath::getFretboardPath(bool isDrums, float posStart, float posEnd,
