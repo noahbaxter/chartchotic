@@ -44,6 +44,7 @@ public:
     std::function<void(int offsetMs)> onLatencyOffsetChanged;
     std::function<void(bool useRed)> onRedBackgroundChanged;
     std::function<void(const juce::String& textureName)> onHighwayTextureChanged;
+    std::function<void(float scale)> onGemScaleChanged;
 
     // Debug callbacks — forwarded through DebugToolbarPanel
     std::function<void(bool playing)> onDebugPlayChanged;
@@ -82,6 +83,12 @@ private:
     HighwayTextureLabel highwayTextureLabel;
     juce::StringArray highwayTextureNames;
     int highwayTextureIndex = -1; // -1 = None
+
+    // Gem scale selector (scrollable label in Display popup)
+    HighwayTextureLabel gemScaleLabel; // reuse scrollable label class
+    static constexpr float gemScaleValues[] = { 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f };
+    static constexpr int gemScaleDefault = 3; // index of 1.0
+    int gemScaleIndex = gemScaleDefault;
 
     // Settings popup children
     juce::Slider chartSpeedSlider;

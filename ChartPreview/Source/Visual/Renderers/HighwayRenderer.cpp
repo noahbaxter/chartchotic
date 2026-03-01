@@ -180,7 +180,8 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
         colCoords = barNote ? PositionMath::getGuitarOpenNoteCoords()
                             : PositionMath::getGuitarNoteCoords(gemColumn);
 
-    float sizeScale = barNote ? BAR_SIZE : GEM_SIZE;
+    float gemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;
+    float sizeScale = (barNote ? BAR_SIZE : GEM_SIZE) * gemScale;
     float adjustedPosition = barNote ? position + BAR_NOTE_TIME_OFFSET : position;
     auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, FRETBOARD_SCALE);
 

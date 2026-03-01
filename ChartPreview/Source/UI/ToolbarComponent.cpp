@@ -96,6 +96,19 @@ void ToolbarComponent::initControls()
             onHighwayTextureChanged(highwayTextureIndex < 0 ? "" : highwayTextureNames[highwayTextureIndex]);
     };
 
+    // Gem scale label
+    gemScaleLabel.setText("Gem Size: 100%", juce::dontSendNotification);
+    gemScaleLabel.setJustificationType(juce::Justification::centredLeft);
+    gemScaleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    gemScaleLabel.setInterceptsMouseClicks(true, true);
+    gemScaleLabel.onScroll = [this](int delta) {
+        int count = (int)std::size(gemScaleValues);
+        gemScaleIndex = juce::jlimit(0, count - 1, gemScaleIndex + delta);
+        float scale = gemScaleValues[gemScaleIndex];
+        gemScaleLabel.setText("Gem Size: " + juce::String((int)(scale * 100)) + "%", juce::dontSendNotification);
+        if (onGemScaleChanged) onGemScaleChanged(scale);
+    };
+
     // Display button
     displayButton.addPanelChild(&hitIndicatorsToggle);
     displayButton.addPanelChild(&starPowerToggle);
@@ -103,6 +116,7 @@ void ToolbarComponent::initControls()
     displayButton.addPanelChild(&dynamicsToggle);
     displayButton.addPanelChild(&redBackgroundToggle);
     displayButton.addPanelChild(&highwayTextureLabel);
+    displayButton.addPanelChild(&gemScaleLabel);
     displayButton.setPanelSize(160, 120);
     displayButton.onLayoutPanel = [this](juce::Component* panel) { layoutDisplayPanel(panel); };
     addAndMakeVisible(displayButton);
@@ -250,6 +264,19 @@ void ToolbarComponent::loadState()
     int latencyOffsetMs = (int)state["latencyOffsetMs"];
     latencyOffsetInput.setText(juce::String(latencyOffsetMs), false);
 
+    // Restore gem scale selection
+    float savedGemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;
+    gemScaleIndex = gemScaleDefault;
+    for (int i = 0; i < (int)std::size(gemScaleValues); i++)
+    {
+        if (std::abs(gemScaleValues[i] - savedGemScale) < 0.01f)
+        {
+            gemScaleIndex = i;
+            break;
+        }
+    }
+    gemScaleLabel.setText("Gem Size: " + juce::String((int)(gemScaleValues[gemScaleIndex] * 100)) + "%", juce::dontSendNotification);
+
     // Restore highway texture selection
     juce::String savedTexture = state.getProperty("highwayTexture").toString();
     if (savedTexture.isNotEmpty())
@@ -303,6 +330,9 @@ void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
     y += rowHeight + gap;
 
     highwayTextureLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    gemScaleLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight;
 
     // Resize panel to fit content
