@@ -26,19 +26,41 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
       state(state),
       audioProcessor(p),
       midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock()),
-      highwayRenderer(state, midiInterpreter)
+      highwayRenderer(state, midiInterpreter),
+      toolbar(state)
 {
+    setLookAndFeel(&chartPreviewLnF);
+
     // Set up resize constraints
     constrainer.setMinimumSize(minWidth, minHeight);
     constrainer.setFixedAspectRatio(aspectRatio);
     setConstrainer(&constrainer);
     setResizable(true, true);
-    
+
     setSize(defaultWidth, defaultHeight);
 
     latencyInSeconds = audioProcessor.latencyInSeconds;
     initAssets();
-    initMenus();
+    initToolbarCallbacks();
+    initBottomBar();
+
+    addAndMakeVisible(toolbar);
+
+    #ifdef DEBUG
+    consoleOutput.setMultiLine(true);
+    consoleOutput.setReadOnly(true);
+    consoleOutput.setVisible(false);
+    addAndMakeVisible(consoleOutput);
+
+    clearLogsButton.setButtonText("Clear Logs");
+    clearLogsButton.onClick = [this]() {
+        audioProcessor.clearDebugText();
+        consoleOutput.clear();
+    };
+    clearLogsButton.setVisible(false);
+    addAndMakeVisible(clearLogsButton);
+    #endif
+
     loadState();
 
     startTimerHz(60);
@@ -46,12 +68,14 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
 
 ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
 {
+    setLookAndFeel(nullptr);
 }
 
 
 void ChartPreviewAudioProcessorEditor::initAssets()
 {
-    backgroundImage = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
+    backgroundImageDefault = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
+    backgroundImageRed = juce::ImageCache::getFromMemory(BinaryData::background_red_jpg, BinaryData::background_red_jpgSize);
     trackDrumImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
     trackGuitarImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
 
@@ -59,57 +83,90 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
 }
 
-void ChartPreviewAudioProcessorEditor::initMenus()
+void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 {
-    // Create menus
-    skillMenu.addItemList(skillLevelLabels, 1);
-    skillMenu.addListener(this);
-    addAndMakeVisible(skillMenu);
+    toolbar.onSkillChanged = [this](int id) {
+        state.setProperty("skillLevel", id, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    partMenu.addItemList(partLabels, 1);
-    partMenu.addListener(this);
-    addAndMakeVisible(partMenu);
+    toolbar.onPartChanged = [this](int id) {
+        state.setProperty("part", id, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    drumTypeMenu.addItemList(drumTypeLabels, 1);
-    drumTypeMenu.addListener(this);
-    addAndMakeVisible(drumTypeMenu);
+    toolbar.onDrumTypeChanged = [this](int id) {
+        state.setProperty("drumType", id, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    framerateMenu.addItemList({"15 FPS", "30 FPS", "60 FPS", "120 FPS", "144 FPS"}, 1);
-    framerateMenu.addListener(this);
-    addAndMakeVisible(framerateMenu);
+    toolbar.onAutoHopoChanged = [this](int id) {
+        state.setProperty("autoHopo", id, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    latencyMenu.addItemList({"250ms", "500ms", "750ms", "1000ms", "1500ms"}, 1);
-    latencyMenu.addListener(this);
-    addAndMakeVisible(latencyMenu);
-    
-    autoHopoMenu.addItemList(hopoModeLabels, 1);
-    autoHopoMenu.addListener(this);
-    addAndMakeVisible(autoHopoMenu);
+    toolbar.onHitIndicatorsChanged = [this](bool on) {
+        state.setProperty("hitIndicators", on ? 1 : 0, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    // Latency offset input (-2000 to +2000ms for REAPER, 0 to +2000ms for normal)
-    latencyOffsetLabel.setText("Offset (ms):", juce::dontSendNotification);
-    latencyOffsetLabel.setJustificationType(juce::Justification::centredRight);
-    addAndMakeVisible(latencyOffsetLabel);
+    toolbar.onStarPowerChanged = [this](bool on) {
+        state.setProperty("starPower", on ? 1 : 0, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    latencyOffsetInput.setInputRestrictions(5, "-0123456789");  // Max 5 chars, numbers and minus sign
-    latencyOffsetInput.setJustification(juce::Justification::centred);
-    latencyOffsetInput.setText("0", false);
-    latencyOffsetInput.addListener(this);
-    latencyOffsetInput.setWantsKeyboardFocus(true);
-    latencyOffsetInput.setSelectAllWhenFocused(true);
-    addAndMakeVisible(latencyOffsetInput);
+    toolbar.onKick2xChanged = [this](bool on) {
+        state.setProperty("kick2x", on ? 1 : 0, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    // Note speed slider (integer, higher = faster)
-    chartSpeedSlider.setRange(2, 20, 1);
-    chartSpeedSlider.setValue(7, juce::dontSendNotification);
-    chartSpeedSlider.setSliderStyle(juce::Slider::LinearVertical);
-    chartSpeedSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
-    chartSpeedSlider.addListener(this);
-    addAndMakeVisible(chartSpeedSlider);
+    toolbar.onDynamicsChanged = [this](bool on) {
+        state.setProperty("dynamics", on ? 1 : 0, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
 
-    chartSpeedLabel.setText("Note Speed", juce::dontSendNotification);
-    addAndMakeVisible(chartSpeedLabel);
+    toolbar.onNoteSpeedChanged = [this](int speed) {
+        state.setProperty("noteSpeed", speed, nullptr);
+        updateDisplaySizeFromSpeedSlider();
 
+        if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
+            audioProcessor.invalidateReaperCache();
+
+        repaint();
+    };
+
+    toolbar.onFramerateChanged = [this](int id) {
+        state.setProperty("framerate", id, nullptr);
+        int frameRate;
+        switch (id)
+        {
+        case 1: frameRate = 15; break;
+        case 2: frameRate = 30; break;
+        case 3: frameRate = 60; break;
+        case 4: frameRate = 120; break;
+        case 5: frameRate = 144; break;
+        default: frameRate = 60; break;
+        }
+        startTimerHz(frameRate);
+    };
+
+    toolbar.onLatencyChanged = [this](int id) {
+        state.setProperty("latency", id, nullptr);
+        applyLatencySetting(id);
+    };
+
+    toolbar.onLatencyOffsetChanged = [this](int offsetMs) {
+        applyLatencyOffsetChange();
+    };
+
+    toolbar.onRedBackgroundChanged = [this](bool useRed) {
+        state.setProperty("redBackground", useRed ? 1 : 0, nullptr);
+        repaint();
+    };
+}
+
+void ChartPreviewAudioProcessorEditor::initBottomBar()
+{
     // Version label
     versionLabel.setText(juce::String("v") + CHART_PREVIEW_VERSION, juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
@@ -119,7 +176,7 @@ void ChartPreviewAudioProcessorEditor::initMenus()
 
     // Update checker
     updateBanner.setButtonText("Update Available");
-    updateBanner.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF2D7D46));
+    updateBanner.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFFE85D45));
     updateBanner.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
     updateBanner.setVisible(false);
     updateBanner.onClick = [this]()
@@ -140,46 +197,13 @@ void ChartPreviewAudioProcessorEditor::initMenus()
         }
     };
     updateChecker.checkForUpdates();
-
-    // Toggles
-    hitIndicatorsToggle.setButtonText("Hit Indicators");
-    hitIndicatorsToggle.addListener(this);
-    addAndMakeVisible(hitIndicatorsToggle);
-
-    starPowerToggle.setButtonText("Star Power");
-    starPowerToggle.addListener(this);
-    addAndMakeVisible(starPowerToggle);
-    
-    kick2xToggle.setButtonText("Kick 2x");
-    kick2xToggle.addListener(this);
-    addAndMakeVisible(kick2xToggle);
-    
-    dynamicsToggle.setButtonText("Dynamics");
-    dynamicsToggle.addListener(this);
-    addAndMakeVisible(dynamicsToggle);
-
-    #ifdef DEBUG
-    // Debug toggle
-    debugToggle.setButtonText("Debug");
-    debugToggle.addListener(this);
-    addAndMakeVisible(debugToggle);
-
-    // Clear Logs button
-    clearLogsButton.setButtonText("Clear Logs");
-    clearLogsButton.addListener(this);
-    addAndMakeVisible(clearLogsButton);
-
-    // Create console output
-    consoleOutput.setMultiLine(true);
-    consoleOutput.setReadOnly(true);
-    addAndMakeVisible(consoleOutput);
-    #endif
 }
 
 //==============================================================================
 void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.drawImage(backgroundImage, getLocalBounds().toFloat());
+    auto& bg = (bool)state["redBackground"] ? backgroundImageRed : backgroundImageDefault;
+    g.drawImage(bg, getLocalBounds().toFloat());
 
     // Visual feedback for REAPER connection status
     if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
@@ -204,23 +228,8 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawImage(trackGuitarImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
 
-    // Hit indicators toggle is always visible for both guitar and drums
-    drumTypeMenu.setVisible(isPart(state, Part::DRUMS));
-    kick2xToggle.setVisible(isPart(state, Part::DRUMS));
-    dynamicsToggle.setVisible(isPart(state, Part::DRUMS));
-    autoHopoMenu.setVisible(isPart(state, Part::GUITAR));
-
-    // Hide latency menu in REAPER mode (no latency compensation needed)
-    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-    latencyMenu.setVisible(!isReaperMode);
-
-    #ifdef DEBUG
-    bool debugMode = debugToggle.getToggleState();
-    consoleOutput.setVisible(debugMode);
-    clearLogsButton.setVisible(debugMode);
-    #endif
-
     // Draw the highway - delegate to mode-specific rendering
+    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
     if (isReaperMode)
     {
         paintReaperMode(g);
@@ -384,55 +393,30 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 
 void ChartPreviewAudioProcessorEditor::resized()
 {
-    // Keep original control sizes but use responsive positioning
-    const int controlWidth = 100;
-    const int controlHeight = 20;
     const int margin = 10;
-    
-    // Top row - left side controls (fixed positions, will bunch up or spread out naturally)
-    skillMenu.setBounds(10, 10, controlWidth, controlHeight);
-    partMenu.setBounds(120, 10, controlWidth, controlHeight);
-    drumTypeMenu.setBounds(230, 10, controlWidth, controlHeight);
-    autoHopoMenu.setBounds(230, 10, controlWidth, controlHeight);
-    debugToggle.setBounds(340, 10, controlWidth, controlHeight);
-    clearLogsButton.setBounds(450, 10, controlWidth, controlHeight);
 
-    // Top row - right side controls (anchored to right edge)
-    hitIndicatorsToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
-    starPowerToggle.setBounds(getWidth() - 120, 35, controlWidth, controlHeight);
-    kick2xToggle.setBounds(getWidth() - 120, 60, controlWidth, controlHeight);
-    dynamicsToggle.setBounds(getWidth() - 120, 85, controlWidth, controlHeight);
-
-    // Bottom right controls (anchored to bottom-right corner)
-    framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
-    latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
-
-    // Latency offset input (label + text box) - positioned below latency menu
-    latencyOffsetLabel.setBounds(getWidth() - 100, getHeight() - 75, 80, controlHeight);
-    latencyOffsetInput.setBounds(getWidth() - 100, getHeight() - 50, 80, controlHeight);
-    
-    // Speed controls (anchored to bottom-right)
-    chartSpeedLabel.setBounds(getWidth() - 105, getHeight() - 270, 70, controlHeight);
-    chartSpeedSlider.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
+    // Toolbar at top
+    toolbar.setBounds(0, 0, getWidth(), ToolbarComponent::toolbarHeight);
 
     // Version label (bottom-left, next to REAPER logo)
     const int versionWidth = 250;
     const int versionHeight = 15;
     versionLabel.setBounds(45, getHeight() - versionHeight - 12, versionWidth, versionHeight);
 
-    // Update banner (bottom-left, next to version label)
-    if (updateBanner.isVisible())
-        updateBanner.setBounds(45 + versionWidth + 5, getHeight() - 25, 140, 20);
+    // Update banner (bottom-right) — always set bounds so it appears when toggled visible
+    updateBanner.setBounds(getWidth() - 150, getHeight() - 30, 140, 22);
 
-    // Console output (responsive width and height)
-    consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);
+    #ifdef DEBUG
+    clearLogsButton.setBounds(margin, ToolbarComponent::toolbarHeight + 4, 100, 20);
+    consoleOutput.setBounds(margin, ToolbarComponent::toolbarHeight + 28, getWidth() - (2 * margin), getHeight() - ToolbarComponent::toolbarHeight - 38);
+    #endif
 }
 
 void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
     // Convert note speed to highway time: 7.87 is the default highway length in world units,
     // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
-    displayWindowTimeSeconds = 7.87 / chartSpeedSlider.getValue();
+    displayWindowTimeSeconds = 7.87 / toolbar.getChartSpeedSlider().getValue();
 
     // Use a generous worst-case PPQ window for MIDI fetching to prevent pop-in at extreme tempos
     const double WORST_CASE_PPQ_WINDOW = 30.0;  // quarter notes
@@ -444,26 +428,9 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 
 void ChartPreviewAudioProcessorEditor::loadState()
 {
-    skillMenu.setSelectedId((int)state["skillLevel"], juce::dontSendNotification);
-    partMenu.setSelectedId((int)state["part"], juce::dontSendNotification);
-    drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
-    framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
-    latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
-    autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
+    toolbar.loadState();
 
-    // Load latency offset
-    int latencyOffsetMs = (int)state["latencyOffsetMs"];
-    latencyOffsetInput.setText(juce::String(latencyOffsetMs), false);
-
-    hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
-    starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
-    kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
-    dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
-
-    int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;
-    chartSpeedSlider.setValue(noteSpeed, juce::dontSendNotification);
-
-    // Apply side-effects that your listeners would normally do
+    // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);
     int fr = ((int)state["framerate"] == 1) ? 15 :
              ((int)state["framerate"] == 2) ? 30 :
@@ -486,6 +453,36 @@ void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
     default: latencyInSeconds = 0.500; break;
     }
     audioProcessor.setLatencyInSeconds(latencyInSeconds);
+}
+
+void ChartPreviewAudioProcessorEditor::applyLatencyOffsetChange()
+{
+    auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
+    int offsetValue = latencyOffsetInput.getText().getIntValue();
+
+    // Get pipeline type to determine valid range
+    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+    int minValue = isReaperMode ? -2000 : 0;
+    int maxValue = 2000;
+
+    if (offsetValue >= minValue && offsetValue <= maxValue)
+    {
+        state.setProperty("latencyOffsetMs", offsetValue, nullptr);
+        audioProcessor.refreshMidiDisplay();
+
+        // In REAPER mode, invalidate cache to immediately apply offset
+        if (isReaperMode)
+        {
+            audioProcessor.invalidateReaperCache();
+        }
+
+        repaint();
+    }
+    else
+    {
+        // Invalid value, restore previous
+        latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
+    }
 }
 
 juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrainer()

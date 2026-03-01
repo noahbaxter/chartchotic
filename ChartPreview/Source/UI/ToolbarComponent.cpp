@@ -1,0 +1,368 @@
+#include "ToolbarComponent.h"
+
+ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
+    : state(state)
+{
+    initControls();
+}
+
+ToolbarComponent::~ToolbarComponent()
+{
+    displayButton.dismissPanel();
+    settingsButton.dismissPanel();
+#ifdef DEBUG
+    debugButton.dismissPanel();
+#endif
+}
+
+void ToolbarComponent::initControls()
+{
+    // Skill menu
+    skillMenu.addItemList(skillLevelLabels, 1);
+    skillMenu.onChange = [this]() {
+        if (onSkillChanged) onSkillChanged(skillMenu.getSelectedId());
+    };
+    addAndMakeVisible(skillMenu);
+
+    // Part menu
+    partMenu.addItemList(partLabels, 1);
+    partMenu.onChange = [this]() {
+        if (onPartChanged) onPartChanged(partMenu.getSelectedId());
+        updateVisibility();
+        // Re-layout display panel if open to show/hide drums-only toggles
+        if (displayButton.isPanelVisible())
+        {
+            displayButton.dismissPanel();
+            displayButton.showPanel();
+        }
+    };
+    addAndMakeVisible(partMenu);
+
+    // Drum type menu
+    drumTypeMenu.addItemList(drumTypeLabels, 1);
+    drumTypeMenu.onChange = [this]() {
+        if (onDrumTypeChanged) onDrumTypeChanged(drumTypeMenu.getSelectedId());
+    };
+    addAndMakeVisible(drumTypeMenu);
+
+    // Auto HOPO menu
+    autoHopoMenu.addItemList(hopoModeLabels, 1);
+    autoHopoMenu.onChange = [this]() {
+        if (onAutoHopoChanged) onAutoHopoChanged(autoHopoMenu.getSelectedId());
+    };
+    addAndMakeVisible(autoHopoMenu);
+
+    // Display popup children
+    hitIndicatorsToggle.setButtonText("Hit Indicators");
+    hitIndicatorsToggle.onClick = [this]() {
+        if (onHitIndicatorsChanged) onHitIndicatorsChanged(hitIndicatorsToggle.getToggleState());
+    };
+
+    starPowerToggle.setButtonText("Star Power");
+    starPowerToggle.onClick = [this]() {
+        if (onStarPowerChanged) onStarPowerChanged(starPowerToggle.getToggleState());
+    };
+
+    kick2xToggle.setButtonText("Kick 2x");
+    kick2xToggle.onClick = [this]() {
+        if (onKick2xChanged) onKick2xChanged(kick2xToggle.getToggleState());
+    };
+
+    dynamicsToggle.setButtonText("Dynamics");
+    dynamicsToggle.onClick = [this]() {
+        if (onDynamicsChanged) onDynamicsChanged(dynamicsToggle.getToggleState());
+    };
+
+    redBackgroundToggle.setButtonText("Red Theme");
+    redBackgroundToggle.onClick = [this]() {
+        if (onRedBackgroundChanged) onRedBackgroundChanged(redBackgroundToggle.getToggleState());
+    };
+
+    // Highway texture label
+    highwayTextureLabel.setText("Highway: None", juce::dontSendNotification);
+    highwayTextureLabel.setJustificationType(juce::Justification::centredLeft);
+    highwayTextureLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    highwayTextureLabel.setInterceptsMouseClicks(true, true);
+    highwayTextureLabel.onScroll = [this](int delta) {
+        int count = highwayTextureNames.size();
+        if (count == 0) return;
+
+        // Cycle: -1 (None) -> 0 -> 1 -> ... -> count-1 -> -1 (wraps)
+        highwayTextureIndex += delta;
+        if (highwayTextureIndex < -1) highwayTextureIndex = count - 1;
+        if (highwayTextureIndex >= count) highwayTextureIndex = -1;
+
+        juce::String name = (highwayTextureIndex < 0) ? "None" : highwayTextureNames[highwayTextureIndex];
+        highwayTextureLabel.setText("Highway: " + name, juce::dontSendNotification);
+
+        if (onHighwayTextureChanged)
+            onHighwayTextureChanged(highwayTextureIndex < 0 ? "" : highwayTextureNames[highwayTextureIndex]);
+    };
+
+    // Display button
+    displayButton.addPanelChild(&hitIndicatorsToggle);
+    displayButton.addPanelChild(&starPowerToggle);
+    displayButton.addPanelChild(&kick2xToggle);
+    displayButton.addPanelChild(&dynamicsToggle);
+    displayButton.addPanelChild(&redBackgroundToggle);
+    displayButton.addPanelChild(&highwayTextureLabel);
+    displayButton.setPanelSize(160, 120);
+    displayButton.onLayoutPanel = [this](juce::Component* panel) { layoutDisplayPanel(panel); };
+    addAndMakeVisible(displayButton);
+
+    // Settings popup children
+    chartSpeedSlider.setRange(2, 20, 1);
+    chartSpeedSlider.setValue(7, juce::dontSendNotification);
+    chartSpeedSlider.setSliderStyle(juce::Slider::LinearVertical);
+    chartSpeedSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
+    chartSpeedSlider.onValueChange = [this]() {
+        if (onNoteSpeedChanged) onNoteSpeedChanged((int)chartSpeedSlider.getValue());
+    };
+
+    chartSpeedLabel.setText("Note Speed", juce::dontSendNotification);
+    chartSpeedLabel.setJustificationType(juce::Justification::centred);
+
+    framerateMenu.addItemList({"15 FPS", "30 FPS", "60 FPS", "120 FPS", "144 FPS"}, 1);
+    framerateMenu.onChange = [this]() {
+        if (onFramerateChanged) onFramerateChanged(framerateMenu.getSelectedId());
+    };
+
+    latencyMenu.addItemList({"250ms", "500ms", "750ms", "1000ms", "1500ms"}, 1);
+    latencyMenu.onChange = [this]() {
+        if (onLatencyChanged) onLatencyChanged(latencyMenu.getSelectedId());
+    };
+
+    latencyOffsetLabel.setText("Offset (ms):", juce::dontSendNotification);
+    latencyOffsetLabel.setJustificationType(juce::Justification::centred);
+
+    latencyOffsetInput.setInputRestrictions(5, "-0123456789");
+    latencyOffsetInput.setJustification(juce::Justification::centred);
+    latencyOffsetInput.setText("0", false);
+    latencyOffsetInput.setWantsKeyboardFocus(true);
+    latencyOffsetInput.setSelectAllWhenFocused(true);
+    latencyOffsetInput.onReturnKey = [this]() {
+        if (onLatencyOffsetChanged)
+            onLatencyOffsetChanged(latencyOffsetInput.getText().getIntValue());
+        latencyOffsetInput.giveAwayKeyboardFocus();
+    };
+    latencyOffsetInput.onFocusLost = [this]() {
+        if (onLatencyOffsetChanged)
+            onLatencyOffsetChanged(latencyOffsetInput.getText().getIntValue());
+    };
+    latencyOffsetInput.onEscapeKey = [this]() {
+        latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
+        latencyOffsetInput.giveAwayKeyboardFocus();
+    };
+
+    // Settings button
+    settingsButton.addPanelChild(&chartSpeedLabel);
+    settingsButton.addPanelChild(&chartSpeedSlider);
+    settingsButton.addPanelChild(&framerateMenu);
+    settingsButton.addPanelChild(&latencyMenu);
+    settingsButton.addPanelChild(&latencyOffsetLabel);
+    settingsButton.addPanelChild(&latencyOffsetInput);
+    settingsButton.setPanelSize(160, 310);
+    settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
+    addAndMakeVisible(settingsButton);
+
+#ifdef DEBUG
+    debugPlayToggle.setButtonText("Play");
+    debugPlayToggle.onClick = [this]() {
+        if (onDebugPlayChanged) onDebugPlayChanged(debugPlayToggle.getToggleState());
+    };
+
+    debugConsoleToggle.setButtonText("Console");
+    debugConsoleToggle.onClick = [this]() {
+        if (onDebugConsoleChanged) onDebugConsoleChanged(debugConsoleToggle.getToggleState());
+    };
+
+    debugButton.addPanelChild(&debugPlayToggle);
+    debugButton.addPanelChild(&debugConsoleToggle);
+    debugButton.setPanelSize(120, 66);
+    debugButton.onLayoutPanel = [this](juce::Component* panel) { layoutDebugPanel(panel); };
+    addAndMakeVisible(debugButton);
+#endif
+}
+
+void ToolbarComponent::paint(juce::Graphics& g)
+{
+    g.setColour(juce::Colour(0xCC111111));
+    g.fillRect(getLocalBounds());
+}
+
+void ToolbarComponent::resized()
+{
+    auto area = getLocalBounds().reduced(6, 4);
+    const int controlHeight = 28;
+    const int comboWidth = 90;
+    const int gap = 6;
+
+    // Left side: dropdowns
+    skillMenu.setBounds(area.removeFromLeft(comboWidth).withHeight(controlHeight).withCentre({area.getX() - comboWidth / 2 - gap, area.getCentreY()}));
+
+    // Recalculate — simpler approach
+    int x = 6;
+    int y = (getHeight() - controlHeight) / 2;
+
+    skillMenu.setBounds(x, y, comboWidth, controlHeight);
+    x += comboWidth + gap;
+
+    partMenu.setBounds(x, y, comboWidth, controlHeight);
+    x += comboWidth + gap;
+
+    // Context control (only one visible at a time)
+    drumTypeMenu.setBounds(x, y, comboWidth, controlHeight);
+    autoHopoMenu.setBounds(x, y, comboWidth, controlHeight);
+
+    // Right side: popup buttons
+    const int btnWidth = 72;
+    int rx = getWidth() - 6;
+
+    rx -= btnWidth;
+    settingsButton.setBounds(rx, y, btnWidth, controlHeight);
+    rx -= (gap + btnWidth);
+    displayButton.setBounds(rx, y, btnWidth, controlHeight);
+
+#ifdef DEBUG
+    rx -= (gap + btnWidth);
+    debugButton.setBounds(rx, y, btnWidth, controlHeight);
+#endif
+}
+
+void ToolbarComponent::loadState()
+{
+    skillMenu.setSelectedId((int)state["skillLevel"], juce::dontSendNotification);
+    partMenu.setSelectedId((int)state["part"], juce::dontSendNotification);
+    drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
+    autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
+
+    hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
+    starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
+    kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
+    dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
+    redBackgroundToggle.setToggleState((bool)state["redBackground"], juce::dontSendNotification);
+
+    int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;
+    chartSpeedSlider.setValue(noteSpeed, juce::dontSendNotification);
+
+    framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
+    latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
+
+    int latencyOffsetMs = (int)state["latencyOffsetMs"];
+    latencyOffsetInput.setText(juce::String(latencyOffsetMs), false);
+
+    // Restore highway texture selection
+    juce::String savedTexture = state.getProperty("highwayTexture").toString();
+    if (savedTexture.isNotEmpty())
+    {
+        highwayTextureIndex = highwayTextureNames.indexOf(savedTexture);
+        if (highwayTextureIndex >= 0)
+            highwayTextureLabel.setText("Highway: " + savedTexture, juce::dontSendNotification);
+        else
+            highwayTextureLabel.setText("Highway: None", juce::dontSendNotification);
+    }
+
+    updateVisibility();
+}
+
+void ToolbarComponent::updateVisibility()
+{
+    bool isDrums = isPart(state, Part::DRUMS);
+    drumTypeMenu.setVisible(isDrums);
+    autoHopoMenu.setVisible(!isDrums);
+}
+
+void ToolbarComponent::setReaperMode(bool isReaper)
+{
+    reaperMode = isReaper;
+}
+
+void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
+{
+    const int margin = 8;
+    const int rowHeight = 22;
+    const int gap = 4;
+    int y = margin;
+    int w = panel->getWidth() - margin * 2;
+    bool isDrums = isPart(state, Part::DRUMS);
+
+    hitIndicatorsToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    starPowerToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    kick2xToggle.setBounds(margin, y, w, rowHeight);
+    kick2xToggle.setVisible(isDrums);
+    y += isDrums ? (rowHeight + gap) : 0;
+
+    dynamicsToggle.setBounds(margin, y, w, rowHeight);
+    dynamicsToggle.setVisible(isDrums);
+    y += isDrums ? (rowHeight + gap) : 0;
+
+    redBackgroundToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    highwayTextureLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight;
+
+    // Resize panel to fit content
+    int totalHeight = y + margin;
+    panel->setSize(panel->getWidth(), totalHeight);
+}
+
+#ifdef DEBUG
+void ToolbarComponent::layoutDebugPanel(juce::Component* panel)
+{
+    const int margin = 8;
+    const int rowHeight = 22;
+    const int gap = 4;
+    int y = margin;
+    int w = panel->getWidth() - margin * 2;
+
+    debugPlayToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    debugConsoleToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight;
+
+    panel->setSize(panel->getWidth(), y + margin);
+}
+#endif
+
+void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
+{
+    const int margin = 8;
+    const int rowHeight = 22;
+    const int gap = 4;
+    int y = margin;
+    int w = panel->getWidth() - margin * 2;
+
+    chartSpeedLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + 2;
+
+    chartSpeedSlider.setBounds(margin, y, w, 130);
+    y += 130 + gap;
+
+    framerateMenu.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    if (!reaperMode)
+    {
+        latencyMenu.setBounds(margin, y, w, rowHeight);
+        latencyMenu.setVisible(true);
+        y += rowHeight + gap;
+    }
+    else
+    {
+        latencyMenu.setVisible(false);
+    }
+
+    latencyOffsetLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + 2;
+
+    latencyOffsetInput.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + margin;
+
+    panel->setSize(panel->getWidth(), y);
+}
