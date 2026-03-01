@@ -47,7 +47,7 @@ public:
 
 private:
     bool playActive = false;
-    bool notesActive = false;
+    bool notesActive = true;
     double playPPQ = 0.0;
     juce::int64 lastTick = 0;
     double bpm = 120.0;
