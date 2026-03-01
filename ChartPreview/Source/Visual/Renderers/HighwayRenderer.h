@@ -75,10 +75,10 @@ class HighwayRenderer
         static constexpr int HIGHWAY_MIN_STRIPS = 40;
         static constexpr float HIGHWAY_TILES_PER_HIGHWAY = 1.0f;
         static constexpr float HIGHWAY_OPACITY = 0.45f;
-        static constexpr float HIGHWAY_POS_START = -0.3f;
         void drawHighwayTexture(juce::Graphics &g);
 
     public:
+        static constexpr float HIGHWAY_POS_START = -0.3f;
         // Tunable fretboard boundary scales (exposed for debug UI)
         // Near = strikeline (bottom), Mid = midpoint, Far = far end (top)
         float fretboardWidthScaleNearGuitar = 0.785f;

@@ -36,7 +36,7 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
 
     // Set up resize constraints
     constrainer.setMinimumSize(minWidth, minHeight);
-    constrainer.setFixedAspectRatio(aspectRatio);
+    constrainer.setFixedAspectRatio(1.0);
     setConstrainer(&constrainer);
     setResizable(true, true);
 
@@ -346,6 +346,9 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         clearLogsButton.setVisible(show);
     };
 
+    dbg.onScaleChanged = [this](float v) { highwayScaleOverride = v; repaint(); };
+    dbg.onYPositionChanged = [this](float v) { highwayYPosition = v; repaint(); };
+
     // Bind debug float tunables directly to renderer fields
     auto bindFloat = [this](std::function<void(float)>& cb, float& field) {
         cb = [this, &field](float v) { field = v; repaint(); };
@@ -437,26 +440,57 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         }
     }
 
-    // Draw the track
-    if (isPart(state, Part::DRUMS))
+    // Compute scale: how much to zoom the 4:3 canvas so the highway strikeline fills window width.
+    // Use a small reference canvas just for the scale calculation (aspect ratio is what matters).
+    constexpr int refW = 800, refH = 600;
+    bool isDrums = isPart(state, Part::DRUMS);
+    float wNear = isDrums ? highwayRenderer.fretboardWidthScaleNearDrums : highwayRenderer.fretboardWidthScaleNearGuitar;
+    float wMid  = isDrums ? highwayRenderer.fretboardWidthScaleMidDrums  : highwayRenderer.fretboardWidthScaleMidGuitar;
+    float wFar  = isDrums ? highwayRenderer.fretboardWidthScaleFarDrums  : highwayRenderer.fretboardWidthScaleFarGuitar;
+    auto refEdge = PositionMath::getFretboardEdge(isDrums, 0.0f, refW, refH,
+                                                   wNear, wMid, wFar,
+                                                   HighwayRenderer::HIGHWAY_POS_START,
+                                                   highwayRenderer.highwayPosEnd);
+    float hwFraction = (refEdge.rightX - refEdge.leftX) / (float)refW;
+    float strikelineFracY = refEdge.centerY / (float)refH;
+
+    float scale = 1.0f / hwFraction;
+#ifdef DEBUG
+    scale *= highwayScaleOverride;
+#endif
+
+    // Render to a 4:3 offscreen at the final display resolution (no image upscaling).
+    int osWidth  = (int)(getWidth() * scale);
+    int osHeight = (int)(osWidth * 3.0 / 4.0);
+    juce::Image offscreen(juce::Image::ARGB, osWidth, osHeight, true);
     {
-        g.drawImage(trackDrumImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
-    }
-    else if (isPart(state, Part::GUITAR))
-    {
-        g.drawImage(trackGuitarImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
+        juce::Graphics og(offscreen);
+
+        // Draw the track image (centred preserves 1:1 image aspect in 4:3 canvas)
+        auto osBounds = offscreen.getBounds().toFloat();
+        if (isPart(state, Part::DRUMS))
+            og.drawImage(trackDrumImage, osBounds, juce::RectanglePlacement::centred);
+        else if (isPart(state, Part::GUITAR))
+            og.drawImage(trackGuitarImage, osBounds, juce::RectanglePlacement::centred);
+
+        // Draw the highway
+        bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+        if (isReaperMode)
+            paintReaperMode(og);
+        else
+            paintStandardMode(og);
     }
 
-    // Draw the highway - delegate to mode-specific rendering
-    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-    if (isReaperMode)
-    {
-        paintReaperMode(g);
-    }
-    else
-    {
-        paintStandardMode(g);
-    }
+    // Draw offscreen 1:1 (no scaling), centered horizontally, strikeline near window bottom
+    float x = (getWidth() - osWidth) * 0.5f;
+    float strikelinePixelY = strikelineFracY * osHeight;
+#ifdef DEBUG
+    float yFrac = highwayYPosition;
+#else
+    float yFrac = 0.88f;
+#endif
+    float y = getHeight() * yFrac - strikelinePixelY;
+    g.drawImageAt(offscreen, (int)x, (int)y);
 }
 
 void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)

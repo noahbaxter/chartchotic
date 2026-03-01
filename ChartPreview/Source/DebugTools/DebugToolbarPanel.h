@@ -47,6 +47,9 @@ public:
     // Lane coord callbacks: (col, pos, width)
     std::function<void(int, float, float)> onGuitarLaneCoordChanged;
     std::function<void(int, float, float)> onDrumLaneCoordChanged;
+    // Highway scale/position callbacks
+    std::function<void(float)> onScaleChanged;
+    std::function<void(float)> onYPositionChanged;
 
 private:
     juce::ValueTree& state;
@@ -153,6 +156,12 @@ private:
             setText((expanded ? "- " : "+ ") + sectionTitle + " -", juce::dontSendNotification);
         }
     };
+
+    // Scale/position sliders
+    ScrollableLabel scaleLabel;
+    float scaleVal = 0.74f;
+    ScrollableLabel yPosLabel;
+    float yPosVal = 0.815f;
 
     SectionHeader curvatureHeader, positionHeader, clipHeader, laneHeader, laneCoordsHeader;
     void setupSectionHeader(SectionHeader& header, const juce::String& text);

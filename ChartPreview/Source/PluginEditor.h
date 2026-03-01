@@ -146,10 +146,9 @@ private:
 
     //==============================================================================
     // UI Elements
-    static constexpr int defaultWidth = 800;
+    static constexpr int defaultWidth = 600;
     static constexpr int defaultHeight = 600;
-    static constexpr double aspectRatio = (double)defaultWidth / defaultHeight;
-    static constexpr int minWidth = 400;
+    static constexpr int minWidth = 300;
     static constexpr int minHeight = 300;
 
     // Background Assets
@@ -215,6 +214,8 @@ private:
 #ifdef DEBUG
     DebugPlaybackController debugController;
     bool debugStandalone = false;
+    float highwayScaleOverride = 0.74f;
+    float highwayYPosition = 0.815f;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)

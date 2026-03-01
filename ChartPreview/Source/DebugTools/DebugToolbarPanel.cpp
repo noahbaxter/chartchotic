@@ -84,6 +84,11 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     bpmValueLabel.setInterceptsMouseClicks(true, true);
     bpmValueLabel.onScroll = [this](int delta) { adjustBpm(delta); };
 
+    // Scale/position sliders
+    setupCurveLabel(scaleLabel, "Scale", scaleVal, onScaleChanged);
+    setupCurveLabel(yPosLabel, "Y.Pos", yPosVal, onYPositionChanged);
+
+
     // Section headers (collapsible)
     setupSectionHeader(curvatureHeader, "Curvature");
     setupSectionHeader(positionHeader, "Position");
@@ -151,6 +156,8 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     debugButton.addPanelChild(&bpmValueLabel);
     debugButton.addPanelChild(&bpmPlusButton);
 
+    debugButton.addPanelChild(&scaleLabel);
+    debugButton.addPanelChild(&yPosLabel);
     // Curvature section
     debugButton.addPanelChild(&curvatureHeader);
     debugButton.addPanelChild(&sustainStartLabel);
@@ -268,6 +275,12 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
     bpmValueLabel.setBounds(x, y, labelW, rowHeight);
     x += labelW + gap;
     bpmPlusButton.setBounds(x, y, btnW, rowHeight);
+    y += rowHeight + gap;
+
+    // Scale / Y-position
+    scaleLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    yPosLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     // --- Curvature section ---
