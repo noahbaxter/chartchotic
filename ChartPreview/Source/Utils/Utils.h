@@ -45,6 +45,7 @@ enum class DrawOrder
 {
     BACKGROUND,
     TRACK,
+    HIGHWAY_OVERLAY,
     GRID,
     LANE,
     BAR,

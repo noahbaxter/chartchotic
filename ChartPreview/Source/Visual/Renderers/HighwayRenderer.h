@@ -31,6 +31,10 @@ class HighwayRenderer
 
         void paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
+        void setHighwayTexture(const juce::Image& texture) { highwayTexture = texture; }
+        void clearHighwayTexture() { highwayTexture = juce::Image(); }
+        void setScrollOffset(double offset) { scrollOffset = offset; }
+
     private:
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
@@ -63,6 +67,29 @@ class HighwayRenderer
 
             return 1.0;
         }
+
+        // Highway texture overlay
+        juce::Image highwayTexture;
+        juce::Image highwayOffscreen;
+        double scrollOffset = 0.0;
+        static constexpr int HIGHWAY_MIN_STRIPS = 40;
+        static constexpr float HIGHWAY_TILES_PER_HIGHWAY = 1.0f;
+        static constexpr float HIGHWAY_OPACITY = 0.45f;
+        static constexpr float HIGHWAY_POS_START = -0.3f;
+        void drawHighwayTexture(juce::Graphics &g);
+
+    public:
+        // Tunable fretboard boundary scales (exposed for debug UI)
+        // Near = strikeline (bottom), Mid = midpoint, Far = far end (top)
+        float fretboardWidthScaleNearGuitar = 0.785f;
+        float fretboardWidthScaleMidGuitar  = 0.820f;
+        float fretboardWidthScaleFarGuitar  = 0.855f;
+        float fretboardWidthScaleNearDrums  = 0.800f;
+        float fretboardWidthScaleMidDrums   = 0.820f;
+        float fretboardWidthScaleFarDrums   = 0.840f;
+        float highwayPosEnd = 1.12f;
+
+    private:
 
         DrawCallMap drawCallMap;
         void drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime);

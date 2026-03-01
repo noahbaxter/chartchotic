@@ -68,6 +68,9 @@ public:
             }
         }
 
+        // Update highway texture scroll offset
+        highwayRenderer.setScrollOffset(computeScrollOffset());
+
         repaint();
     }
 
@@ -176,6 +179,13 @@ private:
     juce::Image trackDrumImage;
     juce::Image trackGuitarImage;
     std::unique_ptr<juce::Drawable> reaperLogo;
+
+    // Highway texture overlay
+    juce::StringArray highwayTextureNames;
+    juce::File highwayTextureDir;
+    void scanHighwayTextures();
+    void loadHighwayTexture(const juce::String& filename);
+    double computeScrollOffset();
 
     juce::Label versionLabel;
 

@@ -148,3 +148,59 @@ NormalizedCoordinates PositionMath::getDrumPadCoords(uint gemColumn)
 {
     return PositionConstants::getDrumPadCoords(gemColumn);
 }
+
+//==============================================================================
+// Fretboard Boundary
+
+LaneCorners PositionMath::getFretboardEdge(bool isDrums, float position,
+                                           uint width, uint height,
+                                           float widthScaleNear, float widthScaleMid,
+                                           float widthScaleFar,
+                                           float posStart, float posEnd)
+{
+    const auto& baseCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+
+    // Normalize t across the full fretboard range (posStart to posEnd)
+    // so the bezier curve spans the entire visible fretboard
+    float t = std::clamp((position - posStart) / (posEnd - posStart), 0.0f, 1.0f);
+
+    // Quadratic bezier interpolation through near (t=0), mid (t=0.5), far (t=1)
+    // Solve for bezier control point P1 such that B(0.5) = mid
+    float P1 = 2.0f * widthScaleMid - 0.5f * widthScaleNear - 0.5f * widthScaleFar;
+    float widthScale = (1 - t) * (1 - t) * widthScaleNear + 2 * (1 - t) * t * P1 + t * t * widthScaleFar;
+
+    auto coords = applyWidthScaling(baseCoords, widthScale);
+    auto rect = createPerspectiveGlyphRect(position, coords.normY1, coords.normY2,
+                                           coords.normX1, coords.normX2,
+                                           coords.normWidth1, coords.normWidth2,
+                                           true, width, height);
+    return {rect.getX(), rect.getRight(), rect.getCentreY()};
+}
+
+juce::Path PositionMath::getFretboardPath(bool isDrums, float posStart, float posEnd,
+                                          uint width, uint height,
+                                          float widthScaleNear, float widthScaleMid,
+                                          float widthScaleFar, int segments)
+{
+    juce::Path path;
+
+    std::vector<LaneCorners> edges;
+    edges.reserve(segments + 1);
+    for (int i = 0; i <= segments; i++)
+    {
+        float pos = posStart + (posEnd - posStart) * (float)i / (float)segments;
+        edges.push_back(getFretboardEdge(isDrums, pos, width, height, widthScaleNear, widthScaleMid, widthScaleFar, posStart, posEnd));
+    }
+
+    // Left edge: from posStart (bottom) up to posEnd (top)
+    path.startNewSubPath(edges[0].leftX, edges[0].centerY);
+    for (int i = 1; i <= segments; i++)
+        path.lineTo(edges[i].leftX, edges[i].centerY);
+
+    // Right edge: from posEnd (top) back down to posStart (bottom)
+    for (int i = segments; i >= 0; i--)
+        path.lineTo(edges[i].rightX, edges[i].centerY);
+
+    path.closeSubPath();
+    return path;
+}

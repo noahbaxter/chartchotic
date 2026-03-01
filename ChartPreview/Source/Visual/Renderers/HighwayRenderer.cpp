@@ -45,6 +45,12 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
         animationRenderer.reset();
     }
 
+    // Draw highway texture overlay (between track image and gridlines)
+    if (highwayTexture.isValid())
+    {
+        drawHighwayTexture(g);
+    }
+
     // Repopulate drawCallMap
     drawCallMap.clear();
     drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
@@ -302,4 +308,108 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     auto bounds = trapezoid.getBounds().getUnion(startCap.getBounds()).getUnion(endCap.getBounds());
     g.drawImageAt(sustainImage, (int)bounds.getX() - 1, (int)bounds.getY() - 1);
 }
+
+//==============================================================================
+// Highway Texture Overlay
+
+void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
+{
+    int texW = highwayTexture.getWidth();
+    int texH = highwayTexture.getHeight();
+    if (texW == 0 || texH == 0) return;
+
+    bool isDrums = isPart(state, Part::DRUMS);
+    float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
+    float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
+    float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+
+    float posRange = highwayPosEnd - HIGHWAY_POS_START;
+
+    // Use enough strips for ~2px each to eliminate visible seams
+    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd);
+    auto edgeFar = PositionMath::getFretboardEdge(isDrums, highwayPosEnd, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd);
+    int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
+    int stripCount = std::clamp(pixelHeight / 2, (int)HIGHWAY_MIN_STRIPS, 300);
+
+    // Precompute edge positions for all strip boundaries (adjacent strips share edges)
+    using LaneCorners = PositionConstants::LaneCorners;
+    std::vector<std::pair<LaneCorners, float>> edges(stripCount + 1);
+    for (int i = 0; i <= stripCount; i++)
+    {
+        float pos = HIGHWAY_POS_START + posRange * (float)i / (float)stripCount;
+        edges[i] = {PositionMath::getFretboardEdge(isDrums, pos, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd), pos};
+    }
+
+    // Render strips into offscreen image (no clip path) for clean compositing
+    if (highwayOffscreen.getWidth() != (int)width || highwayOffscreen.getHeight() != (int)height)
+        highwayOffscreen = juce::Image(juce::Image::ARGB, width, height, true);
+    else
+        highwayOffscreen.clear({0, 0, (int)width, (int)height});
+
+    {
+        juce::Graphics og(highwayOffscreen);
+        og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+
+        for (int i = 0; i < stripCount; i++)
+        {
+            auto& [bot, botPos] = edges[i];      // bottom (near strikeline)
+            auto& [top, topPos] = edges[i + 1];  // top (far end)
+
+            float destTop = top.centerY;
+            float destBottom = bot.centerY;
+            if (destBottom <= destTop) continue;
+
+            // Average top/bottom edges for horizontal span — eliminates width jumps between strips
+            float destLeft = (bot.leftX + top.leftX) * 0.5f;
+            float destRight = (bot.rightX + top.rightX) * 0.5f;
+            float destW = destRight - destLeft;
+            float destH = destBottom - destTop;
+            if (destW <= 0) continue;
+
+            // Texture V coordinates (vBot > vTop because lower position = larger V)
+            float vTop = (1.0f - topPos) * HIGHWAY_TILES_PER_HIGHWAY + (float)scrollOffset;
+            float vBot = (1.0f - botPos) * HIGHWAY_TILES_PER_HIGHWAY + (float)scrollOffset;
+
+            float srcYf = fmod(vTop * texH, (float)texH);
+            if (srcYf < 0) srcYf += texH;
+            int srcY = (int)srcYf;
+            int srcH = std::max(1, (int)((vBot - vTop) * texH));
+
+            // Split draw at texture wrap boundary instead of clipping
+            if (srcY + srcH > texH)
+            {
+                int h1 = texH - srcY;
+                int h2 = srcH - h1;
+                float splitFrac = (float)h1 / (float)srcH;
+                float splitY = destTop + destH * splitFrac;
+
+                if (h1 > 0)
+                {
+                    auto src1 = highwayTexture.getClippedImage({0, srcY, texW, h1});
+                    og.drawImage(src1, {destLeft, destTop, destW, splitY - destTop});
+                }
+                if (h2 > 0)
+                {
+                    auto src2 = highwayTexture.getClippedImage({0, 0, texW, h2});
+                    og.drawImage(src2, {destLeft, splitY, destW, destBottom - splitY});
+                }
+            }
+            else
+            {
+                auto srcRegion = highwayTexture.getClippedImage({0, srcY, texW, srcH});
+                og.drawImage(srcRegion, {destLeft, destTop, destW, destH});
+            }
+        }
+    }
+
+    // Composite offscreen with fretboard clip path — single image = clean AA on edges
+    auto fretboardPath = PositionMath::getFretboardPath(isDrums, HIGHWAY_POS_START, highwayPosEnd,
+                                                        width, height, wNear, wMid, wFar);
+    g.saveState();
+    g.reduceClipRegion(fretboardPath);
+    g.setOpacity(HIGHWAY_OPACITY);
+    g.drawImageAt(highwayOffscreen, 0, 0);
+    g.restoreState();
+}
+
 

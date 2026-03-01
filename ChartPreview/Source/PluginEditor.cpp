@@ -61,6 +61,13 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     addAndMakeVisible(clearLogsButton);
     #endif
 
+    // Default to first highway texture if none saved
+    juce::String savedTexture = state.getProperty("highwayTexture").toString();
+    if (savedTexture.isEmpty() && highwayTextureNames.size() > 0)
+        loadHighwayTexture(highwayTextureNames[0]);
+    else if (savedTexture.isNotEmpty())
+        loadHighwayTexture(savedTexture);
+
     loadState();
 
     startTimerHz(60);
@@ -81,6 +88,73 @@ void ChartPreviewAudioProcessorEditor::initAssets()
 
     // Load REAPER logo SVG
     reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
+
+    // Scan highway textures
+    scanHighwayTextures();
+    toolbar.setHighwayTextureList(highwayTextureNames);
+}
+
+void ChartPreviewAudioProcessorEditor::scanHighwayTextures()
+{
+    // Look for highways in Application Support first, fall back to source assets dir for dev
+#if JUCE_MAC
+    highwayTextureDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("Chart Preview").getChildFile("highways");
+    if (!highwayTextureDir.isDirectory())
+        highwayTextureDir = juce::File("/Users/noahbaxter/Code/personal/plugins/chart-preview/ChartPreview/Assets/highways");
+#elif JUCE_WINDOWS
+    highwayTextureDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("Chart Preview").getChildFile("highways");
+#endif
+
+    highwayTextureNames.clear();
+    if (highwayTextureDir.isDirectory())
+    {
+        auto files = highwayTextureDir.findChildFiles(juce::File::findFiles, false, "*.png");
+        files.sort();
+        for (const auto& f : files)
+            highwayTextureNames.add(f.getFileNameWithoutExtension());
+    }
+}
+
+void ChartPreviewAudioProcessorEditor::loadHighwayTexture(const juce::String& filename)
+{
+    if (filename.isEmpty())
+    {
+        highwayRenderer.clearHighwayTexture();
+        state.setProperty("highwayTexture", "", nullptr);
+        return;
+    }
+
+    auto file = highwayTextureDir.getChildFile(filename + ".png");
+    if (file.existsAsFile())
+    {
+        auto img = juce::ImageFileFormat::loadFrom(file);
+        if (img.isValid())
+        {
+            highwayRenderer.setHighwayTexture(img);
+            state.setProperty("highwayTexture", filename, nullptr);
+        }
+    }
+}
+
+double ChartPreviewAudioProcessorEditor::computeScrollOffset()
+{
+    // Convert lastKnownPosition (PPQ) to absolute time in seconds
+    double bpm = 120.0;
+    if (auto* playHead = audioProcessor.getPlayHead())
+    {
+        auto positionInfo = playHead->getPosition();
+        if (positionInfo.hasValue())
+            bpm = positionInfo->getBpm().orFallback(120.0);
+    }
+
+    double absoluteTimeSeconds = lastKnownPosition.toDouble() * (60.0 / bpm);
+
+    // Scroll rate derived from note speed: one full texture tile per displayWindowTimeSeconds
+    // Negate so the texture scrolls toward the player (matching note direction)
+    double scrollRate = 1.0 / displayWindowTimeSeconds;
+    return std::fmod(-absoluteTimeSeconds * scrollRate, 1.0) + 1.0;
 }
 
 void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
@@ -161,6 +235,11 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onRedBackgroundChanged = [this](bool useRed) {
         state.setProperty("redBackground", useRed ? 1 : 0, nullptr);
+        repaint();
+    };
+
+    toolbar.onHighwayTextureChanged = [this](const juce::String& textureName) {
+        loadHighwayTexture(textureName);
         repaint();
     };
 }

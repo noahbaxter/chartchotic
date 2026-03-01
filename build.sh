@@ -138,6 +138,15 @@ if [ "$BUILD_STANDALONE" = true ]; then
     fi
 fi
 
+# Copy highway textures to Application Support for dev usage
+HIGHWAY_SRC="$SCRIPT_DIR/ChartPreview/Assets/highways"
+HIGHWAY_DST="$HOME/Library/Application Support/Chart Preview/highways"
+if [ -d "$HIGHWAY_SRC" ]; then
+    mkdir -p "$HIGHWAY_DST"
+    rsync -a --delete "$HIGHWAY_SRC/" "$HIGHWAY_DST/"
+    echo "  Highway textures installed to Application Support"
+fi
+
 # Summary
 echo ""
 echo "========================================"

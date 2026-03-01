@@ -37,6 +37,22 @@ public:
     static PositionConstants::LaneCorners getDrumLaneCoordinates(uint gemColumn, float position, uint width, uint height);
 
     //==============================================================================
+    // Fretboard Boundary
+    // widthScaleNear/Mid/Far = width scales at bottom/middle/top of the fretboard range.
+    // posStart/posEnd define the full fretboard range for bezier interpolation.
+    static PositionConstants::LaneCorners getFretboardEdge(bool isDrums, float position,
+                                                           uint width, uint height,
+                                                           float widthScaleNear, float widthScaleMid,
+                                                           float widthScaleFar,
+                                                           float posStart, float posEnd);
+
+    // Builds a closed Path tracing the fretboard boundary from posStart to posEnd.
+    static juce::Path getFretboardPath(bool isDrums, float posStart, float posEnd,
+                                       uint width, uint height,
+                                       float widthScaleNear, float widthScaleMid,
+                                       float widthScaleFar, int segments = 50);
+
+    //==============================================================================
     // Public access for GlyphRenderer
     static PositionConstants::NormalizedCoordinates getGuitarOpenNoteCoords();
     static PositionConstants::NormalizedCoordinates getGuitarNoteCoords(uint gemColumn);

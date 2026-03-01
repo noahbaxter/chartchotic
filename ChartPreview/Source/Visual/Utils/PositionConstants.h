@@ -131,6 +131,18 @@ namespace PositionConstants
     };
 
     //==============================================================================
+    // Fretboard Boundary Coordinates
+    // These define the visual edges of the fretboard, independent of note/lane sizing.
+    // Used for highway overlay clipping and debug visualization.
+    // Width scale can be tuned to match the track image edges.
+
+    constexpr NormalizedCoordinates guitarFretboardCoords =
+        {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f};
+
+    constexpr NormalizedCoordinates drumFretboardCoords =
+        {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
+
+    //==============================================================================
     // Animation Positioning & Scaling Factors
 
     constexpr CoordinateOffset GUITAR_ANIMATION_OFFSETS[] = {
