@@ -49,16 +49,14 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     #ifdef DEBUG
     consoleOutput.setMultiLine(true);
     consoleOutput.setReadOnly(true);
-    consoleOutput.setVisible(false);
-    addAndMakeVisible(consoleOutput);
+    addChildComponent(consoleOutput);
 
     clearLogsButton.setButtonText("Clear Logs");
     clearLogsButton.onClick = [this]() {
         audioProcessor.clearDebugText();
         consoleOutput.clear();
     };
-    clearLogsButton.setVisible(false);
-    addAndMakeVisible(clearLogsButton);
+    addChildComponent(clearLogsButton);
     #endif
 
     // Default to first highway texture if none saved
@@ -242,6 +240,26 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         loadHighwayTexture(textureName);
         repaint();
     };
+
+#ifdef DEBUG
+    toolbar.onDebugPlayChanged = [this](bool playing) {
+        debugPlayActive = playing;
+        if (playing)
+        {
+            debugPlayPPQ = 0.0;
+            debugPlayLastTick = juce::Time::getHighResolutionTicks();
+        }
+    };
+
+    toolbar.onDebugNotesChanged = [this](bool notes) {
+        debugNotesActive = notes;
+    };
+
+    toolbar.onDebugConsoleChanged = [this](bool show) {
+        consoleOutput.setVisible(show);
+        clearLogsButton.setVisible(show);
+    };
+#endif
 }
 
 void ChartPreviewAudioProcessorEditor::initBottomBar()
@@ -386,6 +404,58 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 {
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
+
+#ifdef DEBUG
+    if (debugPlayActive || debugNotesActive)
+    {
+        constexpr double debugBPM = 120.0;
+        bool isDrums = isPart(state, Part::DRUMS);
+        double patternLength = isDrums ? 56.0 : 72.0;
+
+        PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+        PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
+
+        TrackWindow ppqTrackWindow;
+        SustainWindow ppqSustainWindow;
+
+        // Only generate notes when the Notes toggle is on
+        if (debugNotesActive)
+        {
+            double viewStart = extendedStart.toDouble();
+            double viewEnd = trackWindowEndPPQ.toDouble() + 8.0; // 2 extra measures
+
+            int firstCopy = (int)std::floor(viewStart / patternLength);
+            int lastCopy = (int)std::floor(viewEnd / patternLength);
+
+            for (int i = firstCopy; i <= lastCopy; ++i)
+            {
+                PPQ offset(i * patternLength);
+                TrackWindow chunk = generateDebugChart(offset);
+                ppqTrackWindow.insert(chunk.begin(), chunk.end());
+
+                SustainWindow sustainChunk = generateDebugSustains(offset);
+                ppqSustainWindow.insert(ppqSustainWindow.end(), sustainChunk.begin(), sustainChunk.end());
+            }
+        }
+
+        auto ppqToTime = [debugBPM](double ppq) { return ppq * (60.0 / debugBPM); };
+
+        TempoTimeSignatureMap tempoTimeSigMap;
+        tempoTimeSigMap[PPQ(0.0)] = TempoTimeSignatureEvent(PPQ(0.0), debugBPM, 4, 4);
+
+        PPQ cursorPPQ = trackWindowStartPPQ;
+        TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
+        TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
+        TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
+            tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
+
+        double windowStartTime = 0.0;
+        double windowEndTime = displayWindowTimeSeconds;
+
+        highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, debugPlayActive);
+        return;
+    }
+#endif
 
     // Apply latency compensation when playing
     if (audioProcessor.isPlaying)
@@ -575,3 +645,220 @@ void ChartPreviewAudioProcessorEditor::parentSizeChanged()
     // We can use this to handle host-specific resize behavior if needed
     AudioProcessorEditor::parentSizeChanged();
 }
+
+#ifdef DEBUG
+
+// Helper to make a sustain event
+static SustainEvent makeSustain(PPQ start, PPQ end, uint col, SustainType type, Gem gem = Gem::NOTE, bool sp = false)
+{
+    SustainEvent s;
+    s.startPPQ = start;
+    s.endPPQ = end;
+    s.gemColumn = col;
+    s.sustainType = type;
+    s.gemType = GemWrapper(gem, sp);
+    return s;
+}
+
+TrackWindow ChartPreviewAudioProcessorEditor::generateDebugChart(PPQ startPPQ)
+{
+    TrackWindow tw;
+    bool isDrums = isPart(state, Part::DRUMS);
+    auto b = [&](double beat) { return startPPQ + PPQ(beat); };
+    auto N  = [](Gem g = Gem::NOTE, bool sp = false) { return GemWrapper(g, sp); };
+    auto _  = []() { return GemWrapper(); };
+
+    // Helper: build a frame from column+gem pairs
+    auto frame = [&](std::initializer_list<std::pair<uint, GemWrapper>> gems) {
+        TrackFrame f = {_(), _(), _(), _(), _(), _(), _()};
+        for (auto& [col, g] : gems) f[col] = g;
+        return f;
+    };
+
+    if (isDrums)
+    {
+        // Drum lanes: 0=kick, 1=red/snare, 2=yellow, 3=blue, 4=green, 6=2xkick
+        // Pads use NOTE/HOPO_GHOST/TAP_ACCENT; cymbals use CYM/CYM_GHOST/CYM_ACCENT
+
+        // ── Individual pads (0-5) ──
+        tw[b(0)] = frame({{0, N()}});                 // Kick
+        tw[b(1)] = frame({{1, N()}});                 // Red (snare)
+        tw[b(2)] = frame({{2, N()}});                 // Yellow tom
+        tw[b(3)] = frame({{3, N()}});                 // Blue tom
+        tw[b(4)] = frame({{4, N()}});                 // Green tom
+        tw[b(5)] = frame({{6, N()}});                 // 2x Kick
+
+        // ── Individual cymbals (6-8) ──
+        tw[b(6)] = frame({{2, N(Gem::CYM)}});        // Yellow cymbal
+        tw[b(7)] = frame({{3, N(Gem::CYM)}});        // Blue cymbal
+        tw[b(8)] = frame({{4, N(Gem::CYM)}});        // Green cymbal
+
+        // ── All pads — ghost / normal / accent (9-20) ──
+        for (int i = 0; i < 4; ++i)
+            tw[b(9 + i)]  = frame({{1, N(Gem::HOPO_GHOST)}, {2, N(Gem::HOPO_GHOST)}, {3, N(Gem::HOPO_GHOST)}, {4, N(Gem::HOPO_GHOST)}});
+        for (int i = 0; i < 4; ++i)
+            tw[b(13 + i)] = frame({{1, N()}, {2, N()}, {3, N()}, {4, N()}});
+        for (int i = 0; i < 4; ++i)
+            tw[b(17 + i)] = frame({{1, N(Gem::TAP_ACCENT)}, {2, N(Gem::TAP_ACCENT)}, {3, N(Gem::TAP_ACCENT)}, {4, N(Gem::TAP_ACCENT)}});
+
+        // ── All cymbals — ghost / normal / accent (21-32) ──
+        for (int i = 0; i < 4; ++i)
+            tw[b(21 + i)] = frame({{2, N(Gem::CYM_GHOST)}, {3, N(Gem::CYM_GHOST)}, {4, N(Gem::CYM_GHOST)}});
+        for (int i = 0; i < 4; ++i)
+            tw[b(25 + i)] = frame({{2, N(Gem::CYM)}, {3, N(Gem::CYM)}, {4, N(Gem::CYM)}});
+        for (int i = 0; i < 4; ++i)
+            tw[b(29 + i)] = frame({{2, N(Gem::CYM_ACCENT)}, {3, N(Gem::CYM_ACCENT)}, {4, N(Gem::CYM_ACCENT)}});
+
+        // ── Double bass 16ths (33-36) ──
+        for (int i = 0; i < 16; ++i)
+            tw[b(33.0 + i * 0.25)] = frame({{(uint)(i % 2 == 0 ? 0 : 6), N()}});
+
+        // ── Snare lane with snare notes (37-42) ──
+        for (int i = 0; i < 6; ++i)
+            tw[b(37 + i)] = frame({{1, N()}});
+
+        // ── Yellow cymbal swell with lane (43-48) ──
+        tw[b(43)] = frame({{2, N(Gem::CYM)}});       // Quarter
+        tw[b(44)] = frame({{2, N(Gem::CYM)}});
+        tw[b(45)]   = frame({{2, N(Gem::CYM)}});     // Eighths
+        tw[b(45.5)] = frame({{2, N(Gem::CYM)}});
+        for (int i = 0; i < 6; ++i)                  // Triplets
+            tw[b(46.0 + i * (1.0 / 3.0))] = frame({{2, N(Gem::CYM)}});
+        for (int i = 0; i < 4; ++i)                  // Sixteenths
+            tw[b(48.0 + i * 0.25)] = frame({{2, N(Gem::CYM)}});
+
+        // ── Dual cymbal lane alternating blue+green (49-54) ──
+        for (int i = 0; i < 12; ++i)
+            tw[b(49.0 + i * 0.5)] = frame({{(uint)(i % 2 == 0 ? 3 : 4), N(Gem::CYM)}});
+    }
+    else
+    {
+        // Guitar lanes: 0=open, 1=green, 2=red, 3=yellow, 4=blue, 5=orange
+
+        // ── Single notes (0-5) ──
+        tw[b(0)] = frame({{0, N()}});                 // Open
+        tw[b(1)] = frame({{1, N()}});                 // Green
+        tw[b(2)] = frame({{2, N()}});                 // Red
+        tw[b(3)] = frame({{3, N()}});                 // Yellow
+        tw[b(4)] = frame({{4, N()}});                 // Blue
+        tw[b(5)] = frame({{5, N()}});                 // Orange
+
+        // ── All 2-note chords (6-15) ──
+        tw[b(6)]  = frame({{1, N()}, {2, N()}});      // GR
+        tw[b(7)]  = frame({{1, N()}, {3, N()}});      // GY
+        tw[b(8)]  = frame({{1, N()}, {4, N()}});      // GB
+        tw[b(9)]  = frame({{1, N()}, {5, N()}});      // GO
+        tw[b(10)] = frame({{2, N()}, {3, N()}});      // RY
+        tw[b(11)] = frame({{2, N()}, {4, N()}});      // RB
+        tw[b(12)] = frame({{2, N()}, {5, N()}});      // RO
+        tw[b(13)] = frame({{3, N()}, {4, N()}});      // YB
+        tw[b(14)] = frame({{3, N()}, {5, N()}});      // YO
+        tw[b(15)] = frame({{4, N()}, {5, N()}});      // BO
+
+        // ── All 3-note chords (16-25) ──
+        tw[b(16)] = frame({{1, N()}, {2, N()}, {3, N()}});       // GRY
+        tw[b(17)] = frame({{1, N()}, {2, N()}, {4, N()}});       // GRB
+        tw[b(18)] = frame({{1, N()}, {2, N()}, {5, N()}});       // GRO
+        tw[b(19)] = frame({{1, N()}, {3, N()}, {4, N()}});       // GYB
+        tw[b(20)] = frame({{1, N()}, {3, N()}, {5, N()}});       // GYO
+        tw[b(21)] = frame({{1, N()}, {4, N()}, {5, N()}});       // GBO
+        tw[b(22)] = frame({{2, N()}, {3, N()}, {4, N()}});       // RYB
+        tw[b(23)] = frame({{2, N()}, {3, N()}, {5, N()}});       // RYO
+        tw[b(24)] = frame({{2, N()}, {4, N()}, {5, N()}});       // RBO
+        tw[b(25)] = frame({{3, N()}, {4, N()}, {5, N()}});       // YBO
+
+        // ── All 4-note chords + 5-note chord (26-31) ──
+        tw[b(26)] = frame({{1, N()}, {2, N()}, {3, N()}, {4, N()}});              // GRYB
+        tw[b(27)] = frame({{1, N()}, {2, N()}, {3, N()}, {5, N()}});              // GRYO
+        tw[b(28)] = frame({{1, N()}, {2, N()}, {4, N()}, {5, N()}});              // GRBO
+        tw[b(29)] = frame({{1, N()}, {3, N()}, {4, N()}, {5, N()}});              // GYBO
+        tw[b(30)] = frame({{2, N()}, {3, N()}, {4, N()}, {5, N()}});              // RYBO
+        tw[b(31)] = frame({{1, N()}, {2, N()}, {3, N()}, {4, N()}, {5, N()}});    // GRYBO
+
+        // ── Open note chords (32-36) ──
+        tw[b(32)] = frame({{0, N()}, {1, N()}});      // Open+G
+        tw[b(33)] = frame({{0, N()}, {2, N()}});      // Open+R
+        tw[b(34)] = frame({{0, N()}, {3, N()}});      // Open+Y
+        tw[b(35)] = frame({{0, N()}, {4, N()}});      // Open+B
+        tw[b(36)] = frame({{0, N()}, {5, N()}});      // Open+O
+
+        // ── Single sustains (37-48, 2 beats each) ──
+        tw[b(37)] = frame({{0, N()}});                // Open sustain
+        tw[b(39)] = frame({{1, N()}});                // Green sustain
+        tw[b(41)] = frame({{2, N()}});                // Red sustain
+        tw[b(43)] = frame({{3, N()}});                // Yellow sustain
+        tw[b(45)] = frame({{4, N()}});                // Blue sustain
+        tw[b(47)] = frame({{5, N()}});                // Orange sustain
+
+        // ── HOPOs (49-53) ──
+        tw[b(49)] = frame({{1, N(Gem::HOPO_GHOST)}});   // Green HOPO
+        tw[b(50)] = frame({{2, N(Gem::HOPO_GHOST)}});   // Red HOPO
+        tw[b(51)] = frame({{3, N(Gem::HOPO_GHOST)}});   // Yellow HOPO
+        tw[b(52)] = frame({{4, N(Gem::HOPO_GHOST)}});   // Blue HOPO
+        tw[b(53)] = frame({{5, N(Gem::HOPO_GHOST)}});   // Orange HOPO
+
+        // ── Tap notes (54-58) ──
+        tw[b(54)] = frame({{1, N(Gem::TAP_ACCENT)}});   // Green tap
+        tw[b(55)] = frame({{2, N(Gem::TAP_ACCENT)}});   // Red tap
+        tw[b(56)] = frame({{3, N(Gem::TAP_ACCENT)}});   // Yellow tap
+        tw[b(57)] = frame({{4, N(Gem::TAP_ACCENT)}});   // Blue tap
+        tw[b(58)] = frame({{5, N(Gem::TAP_ACCENT)}});   // Orange tap
+
+        // ── Star Power (59-63) ──
+        tw[b(59)] = frame({{1, N(Gem::NOTE, true)}});    // Green SP
+        tw[b(60)] = frame({{2, N(Gem::NOTE, true)}});    // Red SP
+        tw[b(61)] = frame({{3, N(Gem::NOTE, true)}});    // Yellow SP
+        tw[b(62)] = frame({{4, N(Gem::NOTE, true)}});    // Blue SP
+        tw[b(63)] = frame({{5, N(Gem::NOTE, true)}});    // Orange SP
+
+        // ── Lanes with notes (64-71) ──
+        tw[b(64)] = frame({{1, N()}});
+        tw[b(65)] = frame({{2, N()}});
+        tw[b(66)] = frame({{3, N()}});
+        tw[b(67)] = frame({{4, N()}});
+        tw[b(68)] = frame({{5, N()}});
+        tw[b(69)] = frame({{3, N()}});
+        tw[b(70)] = frame({{2, N()}});
+        tw[b(71)] = frame({{1, N()}});
+    }
+
+    return tw;
+}
+
+SustainWindow ChartPreviewAudioProcessorEditor::generateDebugSustains(PPQ startPPQ)
+{
+    SustainWindow sw;
+    bool isDrums = isPart(state, Part::DRUMS);
+    auto b = [&](double beat) { return startPPQ + PPQ(beat); };
+
+    if (isDrums)
+    {
+        // Snare lane (37-42)
+        sw.push_back(makeSustain(b(37), b(42), 1, SustainType::LANE));
+        // Yellow cymbal swell lane (43-48)
+        sw.push_back(makeSustain(b(43), b(49), 2, SustainType::LANE));
+        // Dual cymbal lane (49-54)
+        sw.push_back(makeSustain(b(49), b(55), 3, SustainType::LANE));
+        sw.push_back(makeSustain(b(49), b(55), 4, SustainType::LANE));
+    }
+    else
+    {
+        // Single sustains (37-48, 2 beats each)
+        sw.push_back(makeSustain(b(37), b(39), 0, SustainType::SUSTAIN));  // Open
+        sw.push_back(makeSustain(b(39), b(41), 1, SustainType::SUSTAIN));  // Green
+        sw.push_back(makeSustain(b(41), b(43), 2, SustainType::SUSTAIN));  // Red
+        sw.push_back(makeSustain(b(43), b(45), 3, SustainType::SUSTAIN));  // Yellow
+        sw.push_back(makeSustain(b(45), b(47), 4, SustainType::SUSTAIN));  // Blue
+        sw.push_back(makeSustain(b(47), b(49), 5, SustainType::SUSTAIN));  // Orange
+
+        // Lane markers (64-71)
+        sw.push_back(makeSustain(b(64), b(68), 1, SustainType::LANE));  // Green lane
+        sw.push_back(makeSustain(b(64), b(68), 2, SustainType::LANE));  // Red lane
+        sw.push_back(makeSustain(b(64), b(68), 3, SustainType::LANE));  // Yellow lane
+        sw.push_back(makeSustain(b(68), b(71), 4, SustainType::LANE));  // Blue lane
+        sw.push_back(makeSustain(b(68), b(71), 5, SustainType::LANE));  // Orange lane
+    }
+
+    return sw;
+}
+#endif

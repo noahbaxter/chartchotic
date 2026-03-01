@@ -68,6 +68,22 @@ public:
             }
         }
 
+        // Debug standalone playback: advance simulated playhead
+#ifdef DEBUG
+        if (debugPlayActive)
+        {
+            juce::int64 now = juce::Time::getHighResolutionTicks();
+            double deltaSeconds = (now - debugPlayLastTick) / (double)juce::Time::getHighResolutionTicksPerSecond();
+            debugPlayLastTick = now;
+
+            // Advance at 120 BPM (2 beats per second)
+            debugPlayPPQ += deltaSeconds * (120.0 / 60.0);
+
+            lastKnownPosition = PPQ(debugPlayPPQ);
+            lastPlayingState = true;
+        }
+#endif
+
         // Update highway texture scroll offset
         highwayRenderer.setScrollOffset(computeScrollOffset());
 
@@ -226,6 +242,17 @@ private:
     // Scroll wheel timeline control
     static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note
     static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
+
+    // Debug standalone playback simulation
+#ifdef DEBUG
+    bool debugPlayActive = false;
+    bool debugNotesActive = false;
+    double debugPlayPPQ = 0.0;
+    juce::int64 debugPlayLastTick = 0;
+
+    TrackWindow generateDebugChart(PPQ startPPQ);
+    SustainWindow generateDebugSustains(PPQ startPPQ);
+#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 

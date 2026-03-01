@@ -171,14 +171,20 @@ void ToolbarComponent::initControls()
         if (onDebugPlayChanged) onDebugPlayChanged(debugPlayToggle.getToggleState());
     };
 
+    debugNotesToggle.setButtonText("Notes");
+    debugNotesToggle.onClick = [this]() {
+        if (onDebugNotesChanged) onDebugNotesChanged(debugNotesToggle.getToggleState());
+    };
+
     debugConsoleToggle.setButtonText("Console");
     debugConsoleToggle.onClick = [this]() {
         if (onDebugConsoleChanged) onDebugConsoleChanged(debugConsoleToggle.getToggleState());
     };
 
     debugButton.addPanelChild(&debugPlayToggle);
+    debugButton.addPanelChild(&debugNotesToggle);
     debugButton.addPanelChild(&debugConsoleToggle);
-    debugButton.setPanelSize(120, 66);
+    debugButton.setPanelSize(120, 92);
     debugButton.onLayoutPanel = [this](juce::Component* panel) { layoutDebugPanel(panel); };
     addAndMakeVisible(debugButton);
 #endif
@@ -321,6 +327,9 @@ void ToolbarComponent::layoutDebugPanel(juce::Component* panel)
     int w = panel->getWidth() - margin * 2;
 
     debugPlayToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    debugNotesToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     debugConsoleToggle.setBounds(margin, y, w, rowHeight);

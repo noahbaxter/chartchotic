@@ -42,6 +42,7 @@ public:
     std::function<void(bool useRed)> onRedBackgroundChanged;
     std::function<void(const juce::String& textureName)> onHighwayTextureChanged;
     std::function<void(bool playing)> onDebugPlayChanged;
+    std::function<void(bool)> onDebugNotesChanged;
     std::function<void(bool)> onDebugConsoleChanged;
 
     // Set available highway texture names (called by editor after scanning directory)
@@ -107,6 +108,7 @@ private:
 #ifdef DEBUG
     PopupMenuButton debugButton{"Debug"};
     juce::ToggleButton debugPlayToggle;
+    juce::ToggleButton debugNotesToggle;
     juce::ToggleButton debugConsoleToggle;
     void layoutDebugPanel(juce::Component* panel);
 #endif
