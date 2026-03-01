@@ -346,6 +346,97 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         consoleOutput.setVisible(show);
         clearLogsButton.setVisible(show);
     };
+
+    toolbar.onSustainStartCurveChanged = [this](float v) {
+        highwayRenderer.sustainStartCurve = v;
+        repaint();
+    };
+    toolbar.onSustainEndCurveChanged = [this](float v) {
+        highwayRenderer.sustainEndCurve = v;
+        repaint();
+    };
+    toolbar.onBarSustainStartCurveChanged = [this](float v) {
+        highwayRenderer.barSustainStartCurve = v;
+        repaint();
+    };
+    toolbar.onBarSustainEndCurveChanged = [this](float v) {
+        highwayRenderer.barSustainEndCurve = v;
+        repaint();
+    };
+    toolbar.onNoteCurveChanged = [this](float v) {
+        highwayRenderer.noteCurvature = v;
+        repaint();
+    };
+    toolbar.onBarCurveChanged = [this](float v) {
+        highwayRenderer.barCurvature = v;
+        repaint();
+    };
+    toolbar.onSustainStartOffsetChanged = [this](float v) {
+        highwayRenderer.sustainStartOffset = v;
+        repaint();
+    };
+    toolbar.onSustainEndOffsetChanged = [this](float v) {
+        highwayRenderer.sustainEndOffset = v;
+        repaint();
+    };
+    toolbar.onBarSustainStartOffsetChanged = [this](float v) {
+        highwayRenderer.barSustainStartOffset = v;
+        repaint();
+    };
+    toolbar.onBarSustainEndOffsetChanged = [this](float v) {
+        highwayRenderer.barSustainEndOffset = v;
+        repaint();
+    };
+    toolbar.onSustainClipChanged = [this](float v) {
+        highwayRenderer.sustainClip = v;
+        repaint();
+    };
+    toolbar.onBarSustainClipChanged = [this](float v) {
+        highwayRenderer.barSustainClip = v;
+        repaint();
+    };
+    toolbar.onLaneStartCurveChanged = [this](float v) {
+        highwayRenderer.laneStartCurve = v;
+        repaint();
+    };
+    toolbar.onLaneEndCurveChanged = [this](float v) {
+        highwayRenderer.laneEndCurve = v;
+        repaint();
+    };
+    toolbar.onLaneInnerStartCurveChanged = [this](float v) {
+        highwayRenderer.laneInnerStartCurve = v;
+        repaint();
+    };
+    toolbar.onLaneInnerEndCurveChanged = [this](float v) {
+        highwayRenderer.laneInnerEndCurve = v;
+        repaint();
+    };
+    toolbar.onLaneSideCurveChanged = [this](float v) {
+        highwayRenderer.laneSideCurve = v;
+        repaint();
+    };
+    toolbar.onLaneStartOffsetChanged = [this](float v) {
+        highwayRenderer.laneStartOffset = v;
+        repaint();
+    };
+    toolbar.onLaneEndOffsetChanged = [this](float v) {
+        highwayRenderer.laneEndOffset = v;
+        repaint();
+    };
+    toolbar.onLaneClipChanged = [this](float v) {
+        highwayRenderer.laneClip = v;
+        repaint();
+    };
+    toolbar.onGuitarLaneCoordChanged = [this](int col, float pos, float width) {
+        highwayRenderer.guitarLaneCoordsLocal[col].normX1 = pos;
+        highwayRenderer.guitarLaneCoordsLocal[col].normWidth1 = width;
+        repaint();
+    };
+    toolbar.onDrumLaneCoordChanged = [this](int col, float pos, float width) {
+        highwayRenderer.drumLaneCoordsLocal[col].normX1 = pos;
+        highwayRenderer.drumLaneCoordsLocal[col].normWidth1 = width;
+        repaint();
+    };
 #endif
 }
 

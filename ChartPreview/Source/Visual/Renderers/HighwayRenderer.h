@@ -89,6 +89,60 @@ class HighwayRenderer
         float fretboardWidthScaleFarDrums   = 0.840f;
         float highwayPosEnd = 1.12f;
 
+        // Tunable sustain arc curves (exposed for debug UI)
+        float sustainStartCurve    = 0.015f;
+        float sustainEndCurve      = -0.010f;
+        float barSustainStartCurve = -0.015f;
+        float barSustainEndCurve   = -0.015f;
+
+        // Tunable sustain position offsets (normalized position nudge)
+        float sustainStartOffset    = 0.0f;
+        float sustainEndOffset      = -0.050f;
+        float barSustainStartOffset = 0.0f;
+        float barSustainEndOffset   = -0.050f;
+
+        // Tunable strikeline clip (how far past strikeline before clamping, in normalized position)
+        float sustainClip    = -0.015f;
+        float barSustainClip = -0.015f;
+
+        // Tunable lane arc curves (exposed for debug UI)
+        // Fretboard-wide: offsets lane corners to follow gridline curve
+        float laneStartCurve = -0.025f;
+        float laneEndCurve   = -0.035f;
+        // Individual: lane-local arc within each lane's own width
+        float laneInnerStartCurve = 0.040f;
+        float laneInnerEndCurve   = -0.040f;
+        float laneSideCurve  = 0.0f;    // Side edge curvature (follows neck curve)
+
+        // Tunable lane position offsets
+        float laneStartOffset = -0.010f;
+        float laneEndOffset   = -0.010f;
+
+        // Tunable lane clip (how far past strikeline lanes extend)
+        // -0.3 matches gridline range (HIGHWAY_POS_START)
+        float laneClip = -0.3f;
+
+        // Tunable note/bar curvature (exposed for debug UI)
+        float noteCurvature = PositionConstants::NOTE_CURVATURE;
+        float barCurvature  = PositionConstants::BAR_CURVATURE;
+
+        // Mutable lane coord arrays (exposed for debug UI tuning)
+        PositionConstants::NormalizedCoordinates guitarLaneCoordsLocal[6] = {
+            {0.179f, 0.34f, 0.73f, 0.234f, 0.639f, 0.32f},   // Open
+            {0.228f, 0.363f, 0.71f, 0.22f, 0.099f, 0.055f}, // Green
+            {0.330f, 0.412f, 0.71f, 0.22f, 0.112f, 0.065f}, // Red
+            {0.445f, 0.465f, 0.71f, 0.22f, 0.111f, 0.065f}, // Yellow
+            {0.558f, 0.524f, 0.71f, 0.22f, 0.112f, 0.065f}, // Blue
+            {0.674f, 0.580f, 0.71f, 0.22f, 0.100f, 0.065f}  // Orange
+        };
+        PositionConstants::NormalizedCoordinates drumLaneCoordsLocal[5] = {
+            {0.182f, 0.34f, 0.735f, 0.239f, 0.636f, 0.32f},  // Kick
+            {0.228f, 0.37f, 0.70f, 0.22f, 0.136f, 0.0714f},  // Red
+            {0.365f, 0.430f, 0.70f, 0.22f, 0.134f, 0.0714f}, // Yellow
+            {0.501f, 0.495f, 0.70f, 0.22f, 0.134f, 0.0714f}, // Blue
+            {0.636f, 0.564f, 0.70f, 0.22f, 0.137f, 0.0714f}  // Green
+        };
+
     private:
 
         DrawCallMap drawCallMap;
@@ -101,7 +155,7 @@ class HighwayRenderer
 
         void drawSustainFromWindow(juce::Graphics &g, const TimeBasedSustainWindow& sustainWindow, double windowStartTime, double windowEndTime);
         void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
-        void drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour);
+        void drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane = false);
         void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
         {
             g.setOpacity(opacity);

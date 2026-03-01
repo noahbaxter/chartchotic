@@ -189,6 +189,72 @@ void ToolbarComponent::initControls()
     debugPanel.onDebugBpmChanged = [this](int bpm) {
         if (onDebugBpmChanged) onDebugBpmChanged(bpm);
     };
+    debugPanel.onSustainStartCurveChanged = [this](float v) {
+        if (onSustainStartCurveChanged) onSustainStartCurveChanged(v);
+    };
+    debugPanel.onSustainEndCurveChanged = [this](float v) {
+        if (onSustainEndCurveChanged) onSustainEndCurveChanged(v);
+    };
+    debugPanel.onBarSustainStartCurveChanged = [this](float v) {
+        if (onBarSustainStartCurveChanged) onBarSustainStartCurveChanged(v);
+    };
+    debugPanel.onBarSustainEndCurveChanged = [this](float v) {
+        if (onBarSustainEndCurveChanged) onBarSustainEndCurveChanged(v);
+    };
+    debugPanel.onNoteCurveChanged = [this](float v) {
+        if (onNoteCurveChanged) onNoteCurveChanged(v);
+    };
+    debugPanel.onBarCurveChanged = [this](float v) {
+        if (onBarCurveChanged) onBarCurveChanged(v);
+    };
+    debugPanel.onSustainStartOffsetChanged = [this](float v) {
+        if (onSustainStartOffsetChanged) onSustainStartOffsetChanged(v);
+    };
+    debugPanel.onSustainEndOffsetChanged = [this](float v) {
+        if (onSustainEndOffsetChanged) onSustainEndOffsetChanged(v);
+    };
+    debugPanel.onBarSustainStartOffsetChanged = [this](float v) {
+        if (onBarSustainStartOffsetChanged) onBarSustainStartOffsetChanged(v);
+    };
+    debugPanel.onBarSustainEndOffsetChanged = [this](float v) {
+        if (onBarSustainEndOffsetChanged) onBarSustainEndOffsetChanged(v);
+    };
+    debugPanel.onSustainClipChanged = [this](float v) {
+        if (onSustainClipChanged) onSustainClipChanged(v);
+    };
+    debugPanel.onBarSustainClipChanged = [this](float v) {
+        if (onBarSustainClipChanged) onBarSustainClipChanged(v);
+    };
+    debugPanel.onLaneStartCurveChanged = [this](float v) {
+        if (onLaneStartCurveChanged) onLaneStartCurveChanged(v);
+    };
+    debugPanel.onLaneEndCurveChanged = [this](float v) {
+        if (onLaneEndCurveChanged) onLaneEndCurveChanged(v);
+    };
+    debugPanel.onLaneInnerStartCurveChanged = [this](float v) {
+        if (onLaneInnerStartCurveChanged) onLaneInnerStartCurveChanged(v);
+    };
+    debugPanel.onLaneInnerEndCurveChanged = [this](float v) {
+        if (onLaneInnerEndCurveChanged) onLaneInnerEndCurveChanged(v);
+    };
+    debugPanel.onLaneSideCurveChanged = [this](float v) {
+        if (onLaneSideCurveChanged) onLaneSideCurveChanged(v);
+    };
+    debugPanel.onLaneStartOffsetChanged = [this](float v) {
+        if (onLaneStartOffsetChanged) onLaneStartOffsetChanged(v);
+    };
+    debugPanel.onLaneEndOffsetChanged = [this](float v) {
+        if (onLaneEndOffsetChanged) onLaneEndOffsetChanged(v);
+    };
+    debugPanel.onLaneClipChanged = [this](float v) {
+        if (onLaneClipChanged) onLaneClipChanged(v);
+    };
+    debugPanel.onGuitarLaneCoordChanged = [this](int col, float pos, float width) {
+        if (onGuitarLaneCoordChanged) onGuitarLaneCoordChanged(col, pos, width);
+    };
+    debugPanel.onDrumLaneCoordChanged = [this](int col, float pos, float width) {
+        if (onDrumLaneCoordChanged) onDrumLaneCoordChanged(col, pos, width);
+    };
     addAndMakeVisible(debugPanel.getButton());
 #endif
 }

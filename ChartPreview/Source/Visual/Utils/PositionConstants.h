@@ -86,8 +86,8 @@ namespace PositionConstants
     constexpr float SUSTAIN_OPEN_WIDTH = 0.7f;          // Open sustain width multiplier
     constexpr float LANE_WIDTH = 1.1f;                  // Lane width multiplier
     constexpr float LANE_OPEN_WIDTH = 0.9f;             // Open lane width multiplier
-    constexpr float SUSTAIN_START_CURVE = 0.015f;       // Start edge (strikeline) arc as fraction of width
-    constexpr float SUSTAIN_END_CURVE = -0.01f;         // End edge (far) arc as fraction of width
+    constexpr float SUSTAIN_START_CURVE = 0.02f;        // Start edge (strikeline) arc as fraction of width
+    constexpr float SUSTAIN_END_CURVE = -0.02f;         // End edge (far) arc as fraction of width
     constexpr float LANE_START_OFFSET = -0.05f;         // Shift lane start forward (seconds toward note)
 
     //==============================================================================

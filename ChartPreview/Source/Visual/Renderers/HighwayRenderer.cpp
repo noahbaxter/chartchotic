@@ -88,13 +88,18 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
 void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime)
 {
     double windowTimeSpan = windowEndTime - windowStartTime;
+    bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
+    // When hit indicators are off, let notes scroll past the strikeline to match
+    // the lane/gridline range (HIGHWAY_POS_START = -0.3 in normalized position space)
+    double minFrameTime = hitIndicatorsEnabled ? 0.0 : (HIGHWAY_POS_START * windowTimeSpan);
 
     for (const auto &frameItem : trackWindow)
     {
         double frameTime = frameItem.first;  // Time in seconds from cursor
 
-        // Don't render notes in the past (below the strikeline at time 0)
-        if (frameTime < 0.0) continue;
+        // Don't render notes too far past the strikeline
+        // When hit indicators are off, allow notes to scroll slightly past for visual feedback
+        if (frameTime < minFrameTime) continue;
 
         // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
         float normalizedPosition = (float)((frameTime - windowStartTime) / windowTimeSpan);
@@ -208,7 +213,7 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
     auto fbEdge = getColumnEdge(adjustedPosition, fbCoords, 1.0f);
     float fbCenterX = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
     float fbHalfWidth = (fbEdge.rightX - fbEdge.leftX) * 0.5f;
-    float arcHeight = fbHalfWidth * 2.0f * (barNote ? BAR_CURVATURE : NOTE_CURVATURE);
+    float arcHeight = fbHalfWidth * 2.0f * (barNote ? barCurvature : noteCurvature);
 
     if (barNote)
     {
@@ -251,26 +256,47 @@ void HighwayRenderer::drawSustainFromWindow(juce::Graphics &g, const TimeBasedSu
 void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime)
 {
     double windowTimeSpan = windowEndTime - windowStartTime;
+    bool isDrums = isPart(state, Part::DRUMS);
+    bool isBar = isDrums ? (sustain.gemColumn == 0 || sustain.gemColumn == 6) : (sustain.gemColumn == 0);
+
+    bool isLane = sustain.sustainType == SustainType::LANE;
 
     // Don't render sustains that are fully past the strikeline (small grace period)
-    if (sustain.endTime < -0.15) return;
+    // Lanes get a much wider window since they extend past strikeline
+    if (!isLane && sustain.endTime < -0.15) return;
 
     // Clip sustain start to slightly past the strikeline for smooth exit
+    // Lanes don't clip — they extend to laneClip in position space later
     double startTime = sustain.startTime;
-    if (sustain.sustainType == SustainType::LANE)
+    if (isLane)
         startTime += LANE_START_OFFSET;
-    double clippedStartTime = std::max(-0.15, startTime);
+    double clippedStartTime = isLane ? startTime : std::max(-0.15, startTime);
 
     // Calculate normalized positions for start and end of sustain
     float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan);
     float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan);
 
-    // Only draw sustains that are visible in our window
-    if (endPosition < -0.05f || startPosition > 1.0f) return;
+    // Apply position offsets (nudge start/end in normalized position space)
+    if (isLane) {
+        startPosition += laneStartOffset;
+        endPosition   += laneEndOffset;
+    } else {
+        startPosition += isBar ? barSustainStartOffset : sustainStartOffset;
+        endPosition   += isBar ? barSustainEndOffset   : sustainEndOffset;
+    }
 
-    // Clamp to visible area (allow slight past-strikeline for smooth exit)
-    startPosition = std::max(-0.05f, startPosition);
-    endPosition = std::min(1.0f, endPosition);
+    if (isLane) {
+        // Lanes extend past strikeline (tunable, well beyond strikeline)
+        if (endPosition < laneClip || startPosition > 1.0f) return;
+        startPosition = std::max(laneClip, startPosition);
+        endPosition = std::min(1.0f, endPosition);
+    } else {
+        // Strikeline clip (separately tunable from position offset)
+        float clip = isBar ? barSustainClip : sustainClip;
+        if (endPosition < clip || startPosition > 1.0f) return;
+        startPosition = std::max(clip, startPosition);
+        endPosition = std::min(1.0f, endPosition);
+    }
 
     // Get sustain color based on gem column and star power state
     bool starPowerActive = state.getProperty("starPower");
@@ -299,11 +325,11 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     }
 
     drawCallMap[sustainDrawOrder][sustain.gemColumn].push_back([=](juce::Graphics &g) {
-        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour);
+        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
 }
 
-void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour)
+void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
     // Look up lane coords (separate table from glyph — slightly different widths)
     bool isDrums = isPart(state, Part::DRUMS);
@@ -311,10 +337,10 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     float laneScale;
     if (isDrums) {
         bool isKick = (gemColumn == 0 || gemColumn == 6);
-        colCoords = isKick ? drumLaneCoords[0] : drumLaneCoords[gemColumn];
+        colCoords = isKick ? drumLaneCoordsLocal[0] : drumLaneCoordsLocal[gemColumn];
         laneScale = isKick ? BAR_SIZE : GEM_SIZE;
     } else {
-        colCoords = guitarLaneCoords[gemColumn];
+        colCoords = guitarLaneCoordsLocal[gemColumn];
         laneScale = (gemColumn == 0) ? BAR_SIZE : GEM_SIZE;
     }
 
@@ -334,26 +360,96 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     auto endFb = getColumnEdge(endPosition, fbCoords, 1.0f);
     float startFbHalfW = (startFb.rightX - startFb.leftX) * 0.5f;
     float endFbHalfW = (endFb.rightX - endFb.leftX) * 0.5f;
-    float startArc = startFbHalfW * 2.0f * SUSTAIN_START_CURVE;
-    float endArc = endFbHalfW * 2.0f * SUSTAIN_END_CURVE;
+    bool isBar = isDrums ? (gemColumn == 0 || gemColumn == 6) : (gemColumn == 0);
+    float startCurveVal, endCurveVal;
+    if (isLane) {
+        startCurveVal = laneStartCurve;
+        endCurveVal   = laneEndCurve;
+    } else {
+        startCurveVal = isBar ? barSustainStartCurve : sustainStartCurve;
+        endCurveVal   = isBar ? barSustainEndCurve   : sustainEndCurve;
+    }
+    float startArc = startFbHalfW * 2.0f * startCurveVal;
+    float endArc   = endFbHalfW   * 2.0f * endCurveVal;
 
-    // Build curved sustain path — edges follow the highway arc
+    // Fretboard center X at start and end positions
+    float startFbCenterX = (startFb.leftX + startFb.rightX) * 0.5f;
+    float endFbCenterX   = (endFb.leftX   + endFb.rightX)   * 0.5f;
+
+    // For lanes: compute Y offsets at each corner from a fretboard-wide parabola
+    // so adjacent lanes share the same curve. For sustains: use lane-local quadratic.
+    auto parabolicOffset = [](float x, float centerX, float halfW, float arc) -> float {
+        if (halfW == 0.0f) return 0.0f;
+        float dist = (x - centerX) / halfW;
+        return arc * (1.0f - dist * dist);
+    };
+
+    // Build curved path
     juce::Path path;
 
-    // Bottom edge (start, near strikeline): left → right
-    path.startNewSubPath(startCenterX - startWidth / 2.0f, startLane.centerY);
-    path.quadraticTo(startCenterX, startLane.centerY + 2.0f * startArc,
-                     startCenterX + startWidth / 2.0f, startLane.centerY);
+    if (isLane) {
+        // Lane corners
+        float startLeftX  = startCenterX - startWidth / 2.0f;
+        float startRightX = startCenterX + startWidth / 2.0f;
+        float endLeftX    = endCenterX   - endWidth   / 2.0f;
+        float endRightX   = endCenterX   + endWidth   / 2.0f;
 
-    // Right edge: straight line to top-right
-    path.lineTo(endCenterX + endWidth / 2.0f, endLane.centerY);
+        // Fretboard-wide parabolic Y offsets (aligns lanes to gridline curve)
+        float startLeftY  = startLane.centerY + parabolicOffset(startLeftX,  startFbCenterX, startFbHalfW, startArc);
+        float startRightY = startLane.centerY + parabolicOffset(startRightX, startFbCenterX, startFbHalfW, startArc);
+        float startMidY   = startLane.centerY + parabolicOffset(startCenterX, startFbCenterX, startFbHalfW, startArc);
+        float endLeftY    = endLane.centerY   + parabolicOffset(endLeftX,    endFbCenterX,   endFbHalfW,   endArc);
+        float endRightY   = endLane.centerY   + parabolicOffset(endRightX,   endFbCenterX,   endFbHalfW,   endArc);
+        float endMidY     = endLane.centerY   + parabolicOffset(endCenterX,  endFbCenterX,   endFbHalfW,   endArc);
 
-    // Top edge (end, far from strikeline): right → left
-    path.quadraticTo(endCenterX, endLane.centerY + 2.0f * endArc,
-                     endCenterX - endWidth / 2.0f, endLane.centerY);
+        // Individual lane-local arc (additional curve within the lane's own width)
+        float startInnerArc = startFbHalfW * 2.0f * laneInnerStartCurve;
+        float endInnerArc   = endFbHalfW   * 2.0f * laneInnerEndCurve;
 
-    // Left edge: close back to start
-    path.closeSubPath();
+        // Bottom edge (start, near strikeline): left → right
+        path.startNewSubPath(startLeftX, startLeftY);
+        path.quadraticTo(startCenterX, startMidY + startInnerArc, startRightX, startRightY);
+
+        // Right edge
+        if (laneSideCurve != 0.0f) {
+            float midPos = (startPosition + endPosition) * 0.5f;
+            auto midEdge = getColumnEdge(midPos, colCoords, laneScale, FRETBOARD_SCALE);
+            float midWidth = (midEdge.rightX - midEdge.leftX) * sustainWidth;
+            float midCenterX = (midEdge.leftX + midEdge.rightX) * 0.5f;
+            float sideOffset = (startFbHalfW + endFbHalfW) * laneSideCurve;
+            path.quadraticTo(midCenterX + midWidth / 2.0f + sideOffset, midEdge.centerY,
+                             endRightX, endRightY);
+        } else {
+            path.lineTo(endRightX, endRightY);
+        }
+
+        // Top edge (end, far from strikeline): right → left
+        path.quadraticTo(endCenterX, endMidY + endInnerArc, endLeftX, endLeftY);
+
+        // Left edge
+        if (laneSideCurve != 0.0f) {
+            float midPos = (startPosition + endPosition) * 0.5f;
+            auto midEdge = getColumnEdge(midPos, colCoords, laneScale, FRETBOARD_SCALE);
+            float midWidth = (midEdge.rightX - midEdge.leftX) * sustainWidth;
+            float midCenterX = (midEdge.leftX + midEdge.rightX) * 0.5f;
+            float sideOffset = (startFbHalfW + endFbHalfW) * laneSideCurve;
+            path.quadraticTo(midCenterX - midWidth / 2.0f - sideOffset, midEdge.centerY,
+                             startLeftX, startLeftY);
+        }
+        path.closeSubPath();
+    } else {
+        // Sustains: lane-local quadratic (original behavior)
+        path.startNewSubPath(startCenterX - startWidth / 2.0f, startLane.centerY);
+        path.quadraticTo(startCenterX, startLane.centerY + 2.0f * startArc,
+                         startCenterX + startWidth / 2.0f, startLane.centerY);
+
+        path.lineTo(endCenterX + endWidth / 2.0f, endLane.centerY);
+
+        path.quadraticTo(endCenterX, endLane.centerY + 2.0f * endArc,
+                         endCenterX - endWidth / 2.0f, endLane.centerY);
+
+        path.closeSubPath();
+    }
 
     // Draw with opacity baked into the colour
     g.setColour(colour.withMultipliedAlpha(opacity));
