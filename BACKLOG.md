@@ -6,8 +6,7 @@ Prioritized top-to-bottom. Work from the top.
 
 ## CI/CD & Infrastructure
 
-1. **CI test integration** — Wire `scripts/test.sh` into GitHub Actions: unit tests after CMake build, compliance after plugin build, integration after install. All three platforms. Low priority — tack on next time CI files are touched.
-2. **R2 CDN upload** for distribution
+1. **R2 CDN upload** for distribution
 
 ---
 
@@ -15,11 +14,11 @@ Prioritized top-to-bottom. Work from the top.
 
 Real users waiting on these. *(Discord, HopH₂O, 2026-02-21 unless noted)*
 
-3. **Speed slider overhaul** — Three related issues: slider is inverted (`displayWindowTimeSeconds` means higher=slower), needs "Slower/Faster" labels instead of raw number, default should be 1.15-1.20 range. Past commits went back and forth — needs investigation.
-4. **UI layout overhaul** — Controls hidden behind taskbar, highway too small, poor responsive scaling. Moving controls to top likely fixes clipping AND gives highway more space.
-5. **Window sizing persistence** — Save/restore on REAPER restart.
-6. **#17 — Linux REAPER scan failure** — [GitHub](https://github.com/noahbaxter/chart-preview/issues/17) *(may be resolved by cross-platform build fixes in 0.9.5-dev — needs verification)*
-7. **Latency offset UI cleanup**
+2. **Speed slider polish** — Reworked to integer note speed (2–20, default 7). Remaining: verify feel with users, consider whether range/default needs adjustment.
+3. **UI layout overhaul** — Controls hidden behind taskbar, highway too small, poor responsive scaling. Moving controls to top likely fixes clipping AND gives highway more space.
+4. **Window sizing persistence** — Save/restore on REAPER restart.
+5. **#17 — Linux REAPER scan failure** — [GitHub](https://github.com/noahbaxter/chart-preview/issues/17) *(may be resolved by cross-platform build fixes in 0.9.5-dev — needs verification)*
+6. **Latency offset UI cleanup**
 
 ---
 
@@ -27,11 +26,11 @@ Real users waiting on these. *(Discord, HopH₂O, 2026-02-21 unless noted)*
 
 Fun stuff first. These are the features that make the plugin better.
 
-8. **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
-9. **Solo sections** — Blue highway background during solo passages.
-10. **Time sig changes display** — Symbols on left side, scroll with highway.
-11. **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
-12. **Better mouse scrolling** — shift=faster, ctrl=precise.
+7. **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
+8. **Solo sections** — Blue highway background during solo passages.
+9. **Time sig changes display** — Symbols on left side, scroll with highway.
+10. **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
+11. **Better mouse scrolling** — shift=faster, ctrl=precise.
 
 ---
 
@@ -39,9 +38,9 @@ Fun stuff first. These are the features that make the plugin better.
 
 Do between features or when touching related code.
 
-13. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
-14. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
-15. **Settings persistence audit** — Verify all options save/restore correctly.
+12. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
+13. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
+14. **Settings persistence audit** — Verify all options save/restore correctly.
 
 ---
 
@@ -52,7 +51,7 @@ Unordered. Pull into Up Next when the time comes.
 **Chart Features:**
 - Info display: BPM, time sig, measure, beat position
 - Better menu system + advanced settings
-- Instrument autodetection (by track name — depends on EVENTS parsing from #8)
+- Instrument autodetection (by track name — depends on EVENTS parsing from #7)
 - Highway length control (configurable visible beats)
 - Note color customization (CH color profile templates)
 - GH style gems toggle
@@ -98,4 +97,4 @@ Blocked or no clear path forward.
 ## Notes
 
 - **Moonscraper overlap**: Community consensus is Chart Preview is for preview, not charting.
-- **Key dependency chain**: EVENTS parsing (#8) → section detection → autodetection → Real Drums MIDI refactor → generic gem system
+- **Key dependency chain**: EVENTS parsing (#7) → section detection → autodetection → Real Drums MIDI refactor → generic gem system

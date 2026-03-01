@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.9.6
 
+- Rework speed slider to integer note speed (2–20), matching YARG/CH conventions
+- CI: unit tests run on Linux build
+- Fix playhead null dereference in standalone mode
+- Fix compiler warnings in AssetManager gem/overlay switches
+- CMake migration from Projucer
 - CI/CD pipeline: automated dev + release builds on all platforms
 - macOS code signing + notarization, .pkg installer
 - Windows installer (Inno Setup)
