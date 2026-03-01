@@ -162,53 +162,8 @@ class HighwayRenderer
             g.drawImage(*image, position);
         };
 
-        // Draw image curved along the fretboard-wide arc. Renders strips into a
-        // supersampled offscreen image for clean compositing.
         void drawCurved(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> rect,
-                        float opacity, float fbCenterX, float fbHalfWidth, float arcHeight)
-        {
-            if (arcHeight == 0.0f || fbHalfWidth == 0.0f) { draw(g, image, rect, opacity); return; }
-
-            constexpr int S = PositionConstants::NOTE_RENDER_SCALE;
-            constexpr int STRIPS = 12;
-            float absArc = std::abs(arcHeight);
-            int offW = ((int)std::ceil(rect.getWidth()) + 2) * S;
-            int offH = ((int)std::ceil(rect.getHeight() + absArc) + 2) * S;
-            if (offW <= 0 || offH <= 0) return;
-
-            juce::Image offscreen(juce::Image::ARGB, offW, offH, true);
-            {
-                juce::Graphics og(offscreen);
-                og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-
-                float stripW = rect.getWidth() * S / STRIPS;
-                int imgW = image->getWidth();
-                float srcStripW = (float)imgW / STRIPS;
-                float baseY = ((arcHeight > 0.0f) ? absArc : 0.0f) * S;
-
-                for (int i = 0; i < STRIPS; i++)
-                {
-                    float stripCenterX = rect.getX() + (rect.getWidth() / STRIPS) * (i + 0.5f);
-                    float dist = (stripCenterX - fbCenterX) / fbHalfWidth;
-                    float yOff = arcHeight * (1.0f - dist * dist) * S;
-
-                    int srcX = (int)(srcStripW * i);
-                    int srcEnd = std::min((int)(srcStripW * (i + 1) + 0.5f), imgW);
-
-                    og.drawImage(*image,
-                                 (int)(stripW * i), (int)(baseY + yOff),
-                                 (int)std::ceil(stripW), (int)std::ceil(rect.getHeight() * S),
-                                 srcX, 0, srcEnd - srcX, image->getHeight());
-                }
-            }
-
-            float drawY = rect.getY() - ((arcHeight > 0.0f) ? absArc : 0.0f);
-            g.setOpacity(opacity);
-            g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-            juce::Rectangle<float> destRect(rect.getX() - 1, drawY,
-                                             (float)offW / S, (float)offH / S);
-            g.drawImage(offscreen, destRect);
-        };
+                        float opacity, float fbCenterX, float fbHalfWidth, float arcHeight);
 
         // Sustain rendering helper functions (delegated to ColumnRenderer)
         using LaneCorners = PositionConstants::LaneCorners;
@@ -225,81 +180,6 @@ class HighwayRenderer
                                                     wNear, wMid, wFar,
                                                     HIGHWAY_POS_START, highwayPosEnd,
                                                     colCoords, sizeScale, fretboardScale);
-        }
-
-        // Testing helper functions
-        TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
-        {
-            TrackWindow fakeTrackWindow;
-
-            // Use PPQ values, not floats - create notes every 0.25 PPQ starting from trackWindowStartPPQ
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.00)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.25)] = {Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.50)] = {Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.75)] = {Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.00)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.25)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.50)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.75)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE};
-
-            return fakeTrackWindow;
-        }
-
-        TrackWindow generateFullFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
-        {
-            TrackWindow fakeTrackWindow;
-
-            // Use PPQ values, not floats - create notes every 0.25 PPQ starting from trackWindowStartPPQ
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.00)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.25)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.50)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.75)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.00)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.25)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.50)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.75)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(2.00)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(2.25)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(2.50)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(2.75)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(3.00)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(3.25)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(3.50)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(3.75)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-            fakeTrackWindow[trackWindowStartPPQ + PPQ(4.00)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
-
-            return fakeTrackWindow;
-        }
-
-        SustainWindow generateFakeSustainWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
-        {
-            SustainWindow fakeSustainWindow;
-
-            if (isPart(state, Part::GUITAR)) {
-                // Guitar uses lanes 0-5 (6 lanes total)
-                for (uint i = 0; i < 6; i++)
-                {
-                    SustainEvent sustain;
-                    sustain.startPPQ = trackWindowStartPPQ + PPQ(0.0);
-                    sustain.endPPQ = trackWindowStartPPQ + PPQ(2.0);
-                    sustain.gemColumn = i;
-                    sustain.gemType = Gem::NOTE;
-                    fakeSustainWindow.push_back(sustain);
-                }
-            } else {
-                // Drums uses lanes 0,1,2,3,4 (5 lanes total)
-                for (uint i = 0; i < 5; i++)
-                {
-                    SustainEvent sustain;
-                    sustain.startPPQ = trackWindowStartPPQ + PPQ(0.0);
-                    sustain.endPPQ = trackWindowStartPPQ + PPQ(2.0);
-                    sustain.gemColumn = i;
-                    sustain.gemType = Gem::NOTE;
-                    fakeSustainWindow.push_back(sustain);
-                }
-            }
-
-            return fakeSustainWindow;
         }
 
 };

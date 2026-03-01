@@ -46,34 +46,6 @@ public:
     std::function<void(const juce::String& textureName)> onHighwayTextureChanged;
     std::function<void(float scale)> onGemScaleChanged;
 
-    // Debug callbacks — forwarded through DebugToolbarPanel
-    std::function<void(bool playing)> onDebugPlayChanged;
-    std::function<void(bool)> onDebugNotesChanged;
-    std::function<void(bool)> onDebugConsoleChanged;
-    std::function<void(int bpm)> onDebugBpmChanged;
-    std::function<void(float)> onSustainStartCurveChanged;
-    std::function<void(float)> onSustainEndCurveChanged;
-    std::function<void(float)> onBarSustainStartCurveChanged;
-    std::function<void(float)> onBarSustainEndCurveChanged;
-    std::function<void(float)> onNoteCurveChanged;
-    std::function<void(float)> onBarCurveChanged;
-    std::function<void(float)> onSustainStartOffsetChanged;
-    std::function<void(float)> onSustainEndOffsetChanged;
-    std::function<void(float)> onBarSustainStartOffsetChanged;
-    std::function<void(float)> onBarSustainEndOffsetChanged;
-    std::function<void(float)> onSustainClipChanged;
-    std::function<void(float)> onBarSustainClipChanged;
-    std::function<void(float)> onLaneStartCurveChanged;
-    std::function<void(float)> onLaneEndCurveChanged;
-    std::function<void(float)> onLaneInnerStartCurveChanged;
-    std::function<void(float)> onLaneInnerEndCurveChanged;
-    std::function<void(float)> onLaneSideCurveChanged;
-    std::function<void(float)> onLaneStartOffsetChanged;
-    std::function<void(float)> onLaneEndOffsetChanged;
-    std::function<void(float)> onLaneClipChanged;
-    std::function<void(int, float, float)> onGuitarLaneCoordChanged;
-    std::function<void(int, float, float)> onDrumLaneCoordChanged;
-
     // Set available highway texture names (called by editor after scanning directory)
     void setHighwayTextureList(const juce::StringArray& names) { highwayTextureNames = names; }
 
@@ -143,6 +115,7 @@ private:
 #ifdef DEBUG
     DebugToolbarPanel debugPanel{state};
 public:
+    DebugToolbarPanel& getDebugPanel() { return debugPanel; }
     void setDebugPlay(bool playing);
 private:
 #endif
