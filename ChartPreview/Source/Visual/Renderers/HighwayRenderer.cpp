@@ -115,7 +115,7 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
         // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
         float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan);
 
-        if (normalizedPosition >= 0.0f && normalizedPosition <= 1.0f)
+        if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= 1.0f)
         {
             juce::Image *markerImage = assetManager.getGridlineImage(gridlineType);
 
@@ -138,16 +138,23 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
         case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
     }
 
-    if (isPart(state, Part::GUITAR))
-    {
-        juce::Rectangle<float> rect = glyphRenderer.getGuitarGridlineRect(position, width, height);
-        draw(g, markerImage, rect, opacity);
-    }
-    else // if (isPart(state, Part::DRUMS))
-    {
-        juce::Rectangle<float> rect = glyphRenderer.getDrumGridlineRect(position, width, height);
-        draw(g, markerImage, rect, opacity);
-    }
+    bool isDrums = isPart(state, Part::DRUMS);
+    float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
+    float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
+    float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+
+    auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
+                                                wNear, wMid, wFar,
+                                                HIGHWAY_POS_START, highwayPosEnd);
+    float fullWidth = edge.rightX - edge.leftX;
+    float gridWidth = fullWidth * 1.1f;
+    float gridHeight = gridWidth / getPerspectiveParams().barNoteHeightRatio;
+    float centerX = (edge.leftX + edge.rightX) * 0.5f;
+
+    juce::Rectangle<float> rect(centerX - gridWidth * 0.5f,
+                                 edge.centerY - gridHeight * 0.5f,
+                                 gridWidth, gridHeight);
+    draw(g, markerImage, rect, opacity);
 }
 
 
