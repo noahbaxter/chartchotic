@@ -119,7 +119,7 @@ void ToolbarComponent::initControls()
     chartSpeedLabel.setText("Note Speed", juce::dontSendNotification);
     chartSpeedLabel.setJustificationType(juce::Justification::centred);
 
-    framerateMenu.addItemList({"15 FPS", "30 FPS", "60 FPS", "120 FPS", "144 FPS"}, 1);
+    framerateMenu.addItemList({"15 FPS", "30 FPS", "60 FPS", "Native"}, 1);
     framerateMenu.onChange = [this]() {
         if (onFramerateChanged) onFramerateChanged(framerateMenu.getSelectedId());
     };
@@ -240,7 +240,11 @@ void ToolbarComponent::loadState()
     int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;
     chartSpeedSlider.setValue(noteSpeed, juce::dontSendNotification);
 
-    framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
+    int savedFramerate = (int)state["framerate"];
+    // Migrate old 120/144 FPS options (ids 4,5) and unset (0) to Native (id 4)
+    if (savedFramerate < 1 || savedFramerate > 4)
+        savedFramerate = 4;
+    framerateMenu.setSelectedId(savedFramerate, juce::dontSendNotification);
     latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
 
     int latencyOffsetMs = (int)state["latencyOffsetMs"];

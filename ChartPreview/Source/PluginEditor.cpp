@@ -77,7 +77,7 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
 
     loadState();
 
-    startTimerHz(60);
+    vblankAttachment = juce::VBlankAttachment(this, [this]() { onFrame(); });
 }
 
 ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
@@ -85,6 +85,69 @@ ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
     setLookAndFeel(nullptr);
 }
 
+void ChartPreviewAudioProcessorEditor::onFrame()
+{
+    if (targetFrameInterval > 0.0)
+    {
+        juce::int64 now = juce::Time::getHighResolutionTicks();
+        double elapsed = (now - lastFrameTicks)
+            / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        if (elapsed < targetFrameInterval)
+            return;
+        lastFrameTicks = now;
+    }
+
+    printCallback();
+
+    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+    toolbar.setReaperMode(isReaperMode);
+    toolbar.updateVisibility();
+
+    // Track position changes for render logic
+    if (auto* playHead = audioProcessor.getPlayHead()) {
+        auto positionInfo = playHead->getPosition();
+        if (positionInfo.hasValue()) {
+            PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
+            bool isCurrentlyPlaying = positionInfo->getIsPlaying();
+
+            lastKnownPosition = currentPosition;
+            lastPlayingState = isCurrentlyPlaying;
+
+            // In REAPER mode, throttled cache invalidation while paused to pick up MIDI edits
+            // Time-based: ~50ms interval regardless of display refresh rate
+            if (isReaperMode && !isCurrentlyPlaying)
+            {
+                juce::int64 now = juce::Time::getHighResolutionTicks();
+                double elapsed = (now - lastCacheInvalidationTicks)
+                    / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+                if (elapsed >= 0.05)
+                {
+                    lastCacheInvalidationTicks = now;
+                    audioProcessor.invalidateReaperCache();
+                }
+            }
+            else
+            {
+                lastCacheInvalidationTicks = 0;
+            }
+        }
+    }
+
+#ifdef DEBUG
+    if (debugStandalone)
+    {
+        debugController.advancePlayhead();
+        lastKnownPosition = debugController.getCurrentPPQ();
+        if (debugController.isPlaying())
+            lastPlayingState = true;
+    }
+#endif
+
+    // Update highway texture scroll offset
+    highwayRenderer.setScrollOffset(computeScrollOffset());
+
+    repaint();
+}
 
 void ChartPreviewAudioProcessorEditor::initAssets()
 {
@@ -233,17 +296,13 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onFramerateChanged = [this](int id) {
         state.setProperty("framerate", id, nullptr);
-        int frameRate;
         switch (id)
         {
-        case 1: frameRate = 15; break;
-        case 2: frameRate = 30; break;
-        case 3: frameRate = 60; break;
-        case 4: frameRate = 120; break;
-        case 5: frameRate = 144; break;
-        default: frameRate = 60; break;
+        case 1: targetFrameInterval = 1.0 / 15.0; break;
+        case 2: targetFrameInterval = 1.0 / 30.0; break;
+        case 3: targetFrameInterval = 1.0 / 60.0; break;
+        default: targetFrameInterval = 0.0; break;  // Native
         }
-        startTimerHz(frameRate);
     };
 
     toolbar.onLatencyChanged = [this](int id) {
@@ -603,12 +662,10 @@ void ChartPreviewAudioProcessorEditor::loadState()
 
     // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);
-    int fr = ((int)state["framerate"] == 1) ? 15 :
-             ((int)state["framerate"] == 2) ? 30 :
-             ((int)state["framerate"] == 3) ? 60 :
-             ((int)state["framerate"] == 4) ? 120 :
-             ((int)state["framerate"] == 5) ? 144 : 60;
-    startTimerHz(fr);
+    int frId = (int)state["framerate"];
+    targetFrameInterval = (frId == 1) ? 1.0 / 15.0 :
+                          (frId == 2) ? 1.0 / 30.0 :
+                          (frId == 3) ? 1.0 / 60.0 : 0.0;
 
     updateDisplaySizeFromSpeedSlider();
 }
