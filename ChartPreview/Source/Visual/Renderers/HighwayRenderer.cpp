@@ -252,21 +252,24 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 {
     double windowTimeSpan = windowEndTime - windowStartTime;
 
-    // Don't render sustains that end before the strikeline (time 0)
-    if (sustain.endTime < 0.0) return;
+    // Don't render sustains that are fully past the strikeline (small grace period)
+    if (sustain.endTime < -0.15) return;
 
-    // Clip sustain start to the strikeline if it extends into the past
-    double clippedStartTime = std::max(0.0, sustain.startTime);
+    // Clip sustain start to slightly past the strikeline for smooth exit
+    double startTime = sustain.startTime;
+    if (sustain.sustainType == SustainType::LANE)
+        startTime += LANE_START_OFFSET;
+    double clippedStartTime = std::max(-0.15, startTime);
 
     // Calculate normalized positions for start and end of sustain
     float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan);
     float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan);
 
     // Only draw sustains that are visible in our window
-    if (endPosition < 0.0f || startPosition > 1.0f) return;
+    if (endPosition < -0.05f || startPosition > 1.0f) return;
 
-    // Clamp to visible area
-    startPosition = std::max(0.0f, startPosition);
+    // Clamp to visible area (allow slight past-strikeline for smooth exit)
+    startPosition = std::max(-0.05f, startPosition);
     endPosition = std::min(1.0f, endPosition);
 
     // Get sustain color based on gem column and star power state
@@ -321,23 +324,40 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     // Calculate lane widths based on sustain width parameter
     float startWidth = (startLane.rightX - startLane.leftX) * sustainWidth;
     float endWidth = (endLane.rightX - endLane.leftX) * sustainWidth;
-    float radius = std::min(startWidth, endWidth) * SUSTAIN_CAP_RADIUS_SCALE;
-    
-    // Create paths for trapezoid and rounded caps
-    auto trapezoid = columnRenderer.createTrapezoidPath(startLane, endLane, startWidth, endWidth);
-    auto startCap = columnRenderer.createRoundedCapPath(startLane, startWidth, radius);
 
-    // Scale end cap height proportionally to width for natural perspective
-    float endCapHeightScale = endWidth / startWidth;
-    auto endCap = columnRenderer.createRoundedCapPath(endLane, endWidth, radius, endCapHeightScale);
+    float startCenterX = (startLane.leftX + startLane.rightX) / 2.0f;
+    float endCenterX = (endLane.leftX + endLane.rightX) / 2.0f;
 
-    // Render to offscreen image for perfect compositing
-    auto sustainImage = columnRenderer.createOffscreenColumnImage(trapezoid, startCap, endCap, colour);
-    
-    // Draw final result
-    g.setOpacity(opacity);
-    auto bounds = trapezoid.getBounds().getUnion(startCap.getBounds()).getUnion(endCap.getBounds());
-    g.drawImageAt(sustainImage, (int)bounds.getX() - 1, (int)bounds.getY() - 1);
+    // Fretboard arc at start and end positions
+    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    auto startFb = getColumnEdge(startPosition, fbCoords, 1.0f);
+    auto endFb = getColumnEdge(endPosition, fbCoords, 1.0f);
+    float startFbHalfW = (startFb.rightX - startFb.leftX) * 0.5f;
+    float endFbHalfW = (endFb.rightX - endFb.leftX) * 0.5f;
+    float startArc = startFbHalfW * 2.0f * SUSTAIN_START_CURVE;
+    float endArc = endFbHalfW * 2.0f * SUSTAIN_END_CURVE;
+
+    // Build curved sustain path — edges follow the highway arc
+    juce::Path path;
+
+    // Bottom edge (start, near strikeline): left → right
+    path.startNewSubPath(startCenterX - startWidth / 2.0f, startLane.centerY);
+    path.quadraticTo(startCenterX, startLane.centerY + 2.0f * startArc,
+                     startCenterX + startWidth / 2.0f, startLane.centerY);
+
+    // Right edge: straight line to top-right
+    path.lineTo(endCenterX + endWidth / 2.0f, endLane.centerY);
+
+    // Top edge (end, far from strikeline): right → left
+    path.quadraticTo(endCenterX, endLane.centerY + 2.0f * endArc,
+                     endCenterX - endWidth / 2.0f, endLane.centerY);
+
+    // Left edge: close back to start
+    path.closeSubPath();
+
+    // Draw with opacity baked into the colour
+    g.setColour(colour.withMultipliedAlpha(opacity));
+    g.fillPath(path);
 }
 
 //==============================================================================
