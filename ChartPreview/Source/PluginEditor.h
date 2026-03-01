@@ -18,6 +18,9 @@
 #include "UpdateChecker.h"
 #include "UI/ChartPreviewLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
+#ifdef DEBUG
+#include "DebugTools/DebugPlaybackController.h"
+#endif
 
 //==============================================================================
 /**
@@ -68,19 +71,13 @@ public:
             }
         }
 
-        // Debug standalone playback: advance simulated playhead
 #ifdef DEBUG
-        if (debugPlayActive)
+        if (debugStandalone)
         {
-            juce::int64 now = juce::Time::getHighResolutionTicks();
-            double deltaSeconds = (now - debugPlayLastTick) / (double)juce::Time::getHighResolutionTicksPerSecond();
-            debugPlayLastTick = now;
-
-            // Advance at 120 BPM (2 beats per second)
-            debugPlayPPQ += deltaSeconds * (120.0 / 60.0);
-
-            lastKnownPosition = PPQ(debugPlayPPQ);
-            lastPlayingState = true;
+            debugController.advancePlayhead();
+            lastKnownPosition = debugController.getCurrentPPQ();
+            if (debugController.isPlaying())
+                lastPlayingState = true;
         }
 #endif
 
@@ -102,6 +99,15 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
+#ifdef DEBUG
+        if (debugStandalone && key == juce::KeyPress::spaceKey)
+        {
+            debugController.togglePlay();
+            toolbar.setDebugPlay(debugController.isPlaying());
+            return true;
+        }
+#endif
+
         // Handle arrow keys for latency offset when text box has focus
         auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
         if (latencyOffsetInput.hasKeyboardFocus(true))
@@ -146,6 +152,16 @@ public:
         auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
         if (latencyOffsetInput.isMouseOver(true))
             return;
+
+#ifdef DEBUG
+        if (debugStandalone)
+        {
+            double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
+            double jumpBeats = event.mods.isShiftDown() ? SCROLL_SHIFT_BEATS : SCROLL_NORMAL_BEATS;
+            debugController.nudgePlayhead(wheelDelta * jumpBeats);
+            return;
+        }
+#endif
 
         // Get the current playhead position
         if (auto* playHead = audioProcessor.getPlayHead())
@@ -243,15 +259,9 @@ private:
     static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note
     static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
 
-    // Debug standalone playback simulation
 #ifdef DEBUG
-    bool debugPlayActive = false;
-    bool debugNotesActive = false;
-    double debugPlayPPQ = 0.0;
-    juce::int64 debugPlayLastTick = 0;
-
-    TrackWindow generateDebugChart(PPQ startPPQ);
-    SustainWindow generateDebugSustains(PPQ startPPQ);
+    DebugPlaybackController debugController;
+    bool debugStandalone = false;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
