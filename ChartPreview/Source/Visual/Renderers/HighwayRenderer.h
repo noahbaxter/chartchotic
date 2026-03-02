@@ -42,6 +42,10 @@ class HighwayRenderer
         // Used by SVG track mode to insert the track overlay behind notes.
         std::function<void(juce::Graphics&)> onAfterLanes;
 
+        // Draw an image at destRect with per-strip highway fade applied.
+        // Uses the same position-based opacity as notes/gridlines/highway texture.
+        void drawImageWithFade(juce::Graphics& g, const juce::Image& img, juce::Rectangle<float> destRect);
+
     private:
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;

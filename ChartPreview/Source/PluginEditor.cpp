@@ -499,7 +499,20 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
                     float svgH = svgW / svgAspect;
                     float sx = (osWidth - svgW) * 0.5f;
                     float sy = svgTrackYOffset * osHeight;
-                    svg->drawWithin(g2, {sx, sy, svgW, svgH}, juce::RectanglePlacement::stretchToFit, 1.0f);
+
+                    // Cache SVG rasterization — rebuild when dimensions or instrument change
+                    int cw = (int)svgW, ch = (int)svgH;
+                    if (svgTrackCachedW != cw || svgTrackCachedH != ch || svgTrackCachedSrc != svg || !svgTrackCached.isValid())
+                    {
+                        svgTrackCached = juce::Image(juce::Image::ARGB, cw, ch, true);
+                        juce::Graphics ig(svgTrackCached);
+                        svg->drawWithin(ig, {0, 0, svgW, svgH}, juce::RectanglePlacement::stretchToFit, 1.0f);
+                        svgTrackCachedW = cw;
+                        svgTrackCachedH = ch;
+                        svgTrackCachedSrc = svg;
+                    }
+
+                    highwayRenderer.drawImageWithFade(g2, svgTrackCached, {sx, sy, svgW, svgH});
                 }
             };
         }

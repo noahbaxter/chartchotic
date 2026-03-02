@@ -626,4 +626,67 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
     g.restoreState();
 }
 
+//==============================================================================
+// Draw image with per-strip highway fade
+
+void HighwayRenderer::drawImageWithFade(juce::Graphics& g, const juce::Image& img, juce::Rectangle<float> destRect)
+{
+    if (!img.isValid()) return;
+
+    bool isDrums = isPart(state, Part::DRUMS);
+    float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
+    float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
+    float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+
+    float effectiveEnd = std::max(highwayPosEnd, farFadeEnd);
+    float posRange = effectiveEnd - HIGHWAY_POS_START;
+
+    // Build position→Y edge table (same approach as highway texture strips)
+    constexpr int stripCount = 40;
+    std::pair<float, float> strips[stripCount + 1]; // {Y, position}
+    for (int i = 0; i <= stripCount; i++)
+    {
+        float pos = HIGHWAY_POS_START + posRange * (float)i / (float)stripCount;
+        auto edge = PositionMath::getFretboardEdge(isDrums, pos, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd);
+        strips[i] = {edge.centerY, pos};
+    }
+
+    int imgW = img.getWidth(), imgH = img.getHeight();
+    float dstTop = destRect.getY();
+    float dstBot = destRect.getBottom();
+    float dstH = destRect.getHeight();
+
+    for (int i = 0; i < stripCount; i++)
+    {
+        float yBot = strips[i].first;    // bottom (near strikeline, large Y)
+        float yTop = strips[i + 1].first; // top (far end, small Y)
+        float posBot = strips[i].second;
+        float posTop = strips[i + 1].second;
+
+        // Skip strips entirely outside the destination rect
+        if (yBot <= dstTop || yTop >= dstBot) continue;
+
+        float midPos = (posBot + posTop) * 0.5f;
+        float opacity = calculateOpacity(midPos);
+        if (opacity <= 0.0f) continue;
+
+        // Clamp strip bounds to destination rect
+        float clampedTop = std::max(yTop, dstTop);
+        float clampedBot = std::min(yBot, dstBot);
+
+        // Map screen Y to source image coordinates
+        float srcFracTop = (clampedTop - dstTop) / dstH;
+        float srcFracBot = (clampedBot - dstTop) / dstH;
+        int srcY = (int)(srcFracTop * imgH);
+        int srcH = std::max(1, (int)(srcFracBot * imgH) - srcY);
+
+        g.setOpacity(opacity);
+        g.drawImage(img,
+                    (int)destRect.getX(), (int)clampedTop,
+                    (int)std::ceil(destRect.getWidth()), (int)std::ceil(clampedBot - clampedTop),
+                    0, srcY, imgW, srcH);
+    }
+    g.setOpacity(1.0f);
+}
+
 

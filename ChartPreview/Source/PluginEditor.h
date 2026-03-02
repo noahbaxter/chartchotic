@@ -162,6 +162,9 @@ private:
     float svgTrackScale = 1.0f;
     float svgTrackYOffset = 0.215f;
     float svgTrackFade = 0.3f;
+    juce::Image svgTrackCached;
+    int svgTrackCachedW = 0, svgTrackCachedH = 0;
+    const juce::Drawable* svgTrackCachedSrc = nullptr;
     std::unique_ptr<juce::Drawable> reaperLogo;
 
     // Highway texture overlay

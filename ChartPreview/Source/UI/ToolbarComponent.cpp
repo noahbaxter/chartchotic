@@ -115,7 +115,7 @@ void ToolbarComponent::initControls()
     highwayLengthLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     highwayLengthLabel.setInterceptsMouseClicks(true, true);
     highwayLengthLabel.onScroll = [this](int delta) {
-        highwayLengthVal = juce::jlimit(0.70f, 2.35f, highwayLengthVal + delta * 0.05f);
+        highwayLengthVal = juce::jlimit(0.50f, 2.50f, highwayLengthVal + delta * 0.05f);
         highwayLengthLabel.setText("Hwy Length: " + juce::String(highwayLengthVal, 2), juce::dontSendNotification);
         if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthVal);
     };
