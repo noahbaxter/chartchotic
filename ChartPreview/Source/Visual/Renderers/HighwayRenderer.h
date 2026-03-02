@@ -38,8 +38,8 @@ class HighwayRenderer
         bool skipHighwayTexture = false;
         float highwayTextureOpacity = 0.7f;
 
-        // Called after lanes are drawn but before notes/sustains/gridlines.
-        // Used by SVG track mode to insert the track overlay between layers.
+        // Called after lanes+gridlines are drawn but before notes/sustains.
+        // Used by SVG track mode to insert the track overlay behind notes.
         std::function<void(juce::Graphics&)> onAfterLanes;
 
     private:
@@ -64,8 +64,15 @@ class HighwayRenderer
             }
         }
 
-        // Per-element opacity fade removed — whole-frame fade applied in PluginEditor
-        float calculateOpacity(float) { return 1.0f; }
+        // Per-element opacity fade based on far-end position
+        float calculateOpacity(float position)
+        {
+            float fadeStart = farFadeEnd - farFadeLen;
+            if (position <= fadeStart) return 1.0f;
+            if (position >= farFadeEnd) return 0.0f;
+            float t = (position - fadeStart) / farFadeLen;
+            return 1.0f - std::pow(t, farFadeCurve);
+        }
 
         // Highway texture overlay
         juce::Image highwayTexture;
@@ -87,6 +94,14 @@ class HighwayRenderer
         float fretboardWidthScaleMidDrums   = 0.820f;
         float fretboardWidthScaleFarDrums   = 0.840f;
         float highwayPosEnd = 1.12f;
+
+        // Far-end fade parameters (exposed for debug UI)
+        // farFadeLen: length of fade zone (fade starts at farFadeEnd - farFadeLen)
+        // farFadeEnd: normalized position where elements are fully transparent and clipped
+        // farFadeCurve: exponent for fade curve (1=linear, >1=late fade, <1=early fade)
+        float farFadeLen   = 0.35f;
+        float farFadeEnd   = 1.05f;
+        float farFadeCurve = 1.0f;
 
         // Tunable sustain arc curves (exposed for debug UI)
         float sustainStartCurve    = 0.015f;
@@ -146,7 +161,7 @@ class HighwayRenderer
 
         DrawCallMap drawCallMap;
         void drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime);
-        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType);
+        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType, float fadeOpacity = 1.0f);
 
         void drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
         void drawFrame(const TimeBasedTrackFrame &gems, float position, double frameTime);

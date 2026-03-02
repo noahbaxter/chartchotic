@@ -55,6 +55,10 @@ public:
     std::function<void(float)> onSvgTrackYOffsetChanged;
     std::function<void(float)> onSvgTrackOpacityChanged;
     std::function<void(float)> onSvgTrackFadeChanged;
+    // Far fade callbacks
+    std::function<void(float)> onFarFadeStartChanged;
+    std::function<void(float)> onFarFadeEndChanged;
+    std::function<void(float)> onFarFadeCurveChanged;
 
 private:
     juce::ValueTree& state;
@@ -88,6 +92,12 @@ private:
     float svgYOffsetVal = 0.215f;
     float svgOpacityVal = 0.7f;
     float svgFadeVal = 0.3f;
+
+    // Far fade sliders
+    ScrollableLabel farFadeLenLabel, farFadeEndLabel, farFadeCurveLabel;
+    float farFadeLenVal   = 0.35f;
+    float farFadeEndVal   = 1.05f;
+    float farFadeCurveVal = 1.0f;
 
     int bpm = 120;
 
@@ -178,7 +188,7 @@ private:
     ScrollableLabel yPosLabel;
     float yPosVal = 0.815f;
 
-    SectionHeader curvatureHeader, positionHeader, clipHeader, laneHeader, laneCoordsHeader;
+    SectionHeader farFadeHeader, curvatureHeader, positionHeader, clipHeader, laneHeader, laneCoordsHeader;
     void setupSectionHeader(SectionHeader& header, const juce::String& text);
 
     void setupCurveLabel(ScrollableLabel& label, const juce::String& prefix, float& value,

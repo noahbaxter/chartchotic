@@ -70,13 +70,6 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
     bool calledAfterLanes = false;
     for (const auto& drawOrder : drawCallMap)
     {
-        // Insert SVG track overlay after highway texture but before gridlines/lanes/notes
-        if (!calledAfterLanes && drawOrder.first > DrawOrder::HIGHWAY_OVERLAY && onAfterLanes)
-        {
-            onAfterLanes(g);
-            calledAfterLanes = true;
-        }
-
         for (const auto& column : drawOrder.second)
         {
             // Draw each layer from back to front
@@ -85,8 +78,15 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
                 (*it)(g);
             }
         }
+
+        // Insert SVG track overlay after lanes but before notes/sustains/gridlines
+        if (!calledAfterLanes && drawOrder.first >= DrawOrder::LANE && onAfterLanes)
+        {
+            onAfterLanes(g);
+            calledAfterLanes = true;
+        }
     }
-    // If no layers above LANE existed, still call it
+    // If no LANE layer existed, still call it
     if (!calledAfterLanes && onAfterLanes)
         onAfterLanes(g);
 
@@ -132,19 +132,20 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
         // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
         float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan);
 
-        if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= 1.0f)
+        if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= farFadeEnd)
         {
             juce::Image *markerImage = assetManager.getGridlineImage(gridlineType);
 
             if (markerImage != nullptr)
             {
-                drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType); });
+                float fadeOpacity = calculateOpacity(normalizedPosition);
+                drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity); });
             }
         }
     }
 }
 
-void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType)
+void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity)
 {
     if (!markerImage) return;
 
@@ -154,6 +155,7 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
         case Gridline::BEAT: opacity = BEAT_OPACITY; break;
         case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
     }
+    opacity *= fadeOpacity;
 
     bool isDrums = isPart(state, Part::DRUMS);
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
@@ -346,15 +348,15 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     if (isLane) {
         // Lanes extend past strikeline (tunable, well beyond strikeline)
-        if (endPosition < laneClip || startPosition > 1.0f) return;
+        if (endPosition < laneClip || startPosition > farFadeEnd) return;
         startPosition = std::max(laneClip, startPosition);
-        endPosition = std::min(1.0f, endPosition);
+        endPosition = std::min(farFadeEnd, endPosition);
     } else {
         // Strikeline clip (separately tunable from position offset)
         float clip = isBar ? barSustainClip : sustainClip;
-        if (endPosition < clip || startPosition > 1.0f) return;
+        if (endPosition < clip || startPosition > farFadeEnd) return;
         startPosition = std::max(clip, startPosition);
-        endPosition = std::min(1.0f, endPosition);
+        endPosition = std::min(farFadeEnd, endPosition);
     }
 
     // Get sustain color based on gem column and star power state
@@ -530,11 +532,13 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
     float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
     float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
 
-    float posRange = highwayPosEnd - HIGHWAY_POS_START;
+    // Extend texture to cover the full fade range
+    float effectiveEnd = std::max(highwayPosEnd, farFadeEnd);
+    float posRange = effectiveEnd - HIGHWAY_POS_START;
 
     // Use enough strips for ~4px each to balance quality vs performance
-    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd);
-    auto edgeFar = PositionMath::getFretboardEdge(isDrums, highwayPosEnd, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd);
+    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd);
+    auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd);
     int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
     int stripCount = std::clamp(pixelHeight / 4, (int)HIGHWAY_MIN_STRIPS, 150);
 
@@ -544,7 +548,7 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
     for (int i = 0; i <= stripCount; i++)
     {
         float pos = HIGHWAY_POS_START + posRange * (float)i / (float)stripCount;
-        edges[i] = {PositionMath::getFretboardEdge(isDrums, pos, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, highwayPosEnd), pos};
+        edges[i] = {PositionMath::getFretboardEdge(isDrums, pos, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd), pos};
     }
 
     // Render strips into supersampled offscreen image for clean compositing
@@ -576,7 +580,11 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
             float destH = destBottom - destTop;
             if (destW <= 0) continue;
 
-            // Per-strip fade removed — whole-frame fade applied in PluginEditor
+            // Per-strip fade based on far-end position
+            float stripMidPos = (botPos + topPos) * 0.5f;
+            float stripAlpha = calculateOpacity(stripMidPos);
+            if (stripAlpha <= 0.0f) continue;
+            og.setOpacity(stripAlpha);
 
             // Texture V coordinates (vBot > vTop because lower position = larger V)
             float vTop = (1.0f - topPos) * HIGHWAY_TILES_PER_HIGHWAY + (float)scrollOffset;
@@ -608,7 +616,7 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
     }
 
     // Composite supersampled offscreen with fretboard clip path — downsample to canvas
-    auto fretboardPath = PositionMath::getFretboardPath(isDrums, HIGHWAY_POS_START, highwayPosEnd,
+    auto fretboardPath = PositionMath::getFretboardPath(isDrums, HIGHWAY_POS_START, effectiveEnd,
                                                         width, height, wNear, wMid, wFar);
     g.saveState();
     g.reduceClipRegion(fretboardPath);

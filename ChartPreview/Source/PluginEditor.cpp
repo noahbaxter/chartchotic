@@ -331,6 +331,12 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         repaint();
     };
 
+    toolbar.onHighwayLengthChanged = [this](float length) {
+        highwayRenderer.farFadeEnd = length;
+        state.setProperty("highwayLength", length, nullptr);
+        repaint();
+    };
+
 #ifdef DEBUG
     auto& dbg = toolbar.getDebugPanel();
 
@@ -360,6 +366,9 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     auto bindFloat = [this](std::function<void(float)>& cb, float& field) {
         cb = [this, &field](float v) { field = v; repaint(); };
     };
+    bindFloat(dbg.onFarFadeStartChanged, highwayRenderer.farFadeLen);
+    bindFloat(dbg.onFarFadeEndChanged, highwayRenderer.farFadeEnd);
+    bindFloat(dbg.onFarFadeCurveChanged, highwayRenderer.farFadeCurve);
     bindFloat(dbg.onSustainStartCurveChanged, highwayRenderer.sustainStartCurve);
     bindFloat(dbg.onSustainEndCurveChanged, highwayRenderer.sustainEndCurve);
     bindFloat(dbg.onBarSustainStartCurveChanged, highwayRenderer.barSustainStartCurve);
@@ -512,25 +521,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
             paintStandardMode(og);
     }
 
-    // Fade the top of the entire offscreen frame (highway vanishing point)
-    if (svgTrackFade > 0.0f)
-    {
-        int fadeEndY = (int)(osHeight * svgTrackFade);
-        if (fadeEndY > 0)
-        {
-            juce::Image::BitmapData bmp(offscreen, juce::Image::BitmapData::readWrite);
-            for (int row = 0; row < fadeEndY; ++row)
-            {
-                float t = (float)row / (float)fadeEndY;
-                float alpha = t * t; // quadratic ease-in
-                for (int col = 0; col < osWidth; ++col)
-                {
-                    auto px = bmp.getPixelColour(col, row);
-                    bmp.setPixelColour(col, row, px.withMultipliedAlpha(alpha));
-                }
-            }
-        }
-    }
+    // Per-element fade now handled by HighwayRenderer::calculateOpacity()
 
     // Draw offscreen 1:1 (no scaling), centered horizontally, strikeline near window bottom
     float x = (getWidth() - osWidth) * 0.5f;
@@ -784,6 +775,14 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 void ChartPreviewAudioProcessorEditor::loadState()
 {
     toolbar.loadState();
+
+    // Restore highway length
+    if (state.hasProperty("highwayLength"))
+    {
+        float len = (float)state["highwayLength"];
+        highwayRenderer.farFadeEnd = len;
+        toolbar.setHighwayLength(len);
+    }
 
     // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);

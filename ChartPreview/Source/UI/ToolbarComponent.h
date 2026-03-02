@@ -45,9 +45,16 @@ public:
     std::function<void(bool useRed)> onRedBackgroundChanged;
     std::function<void(const juce::String& textureName)> onHighwayTextureChanged;
     std::function<void(float scale)> onGemScaleChanged;
+    std::function<void(float length)> onHighwayLengthChanged;
 
     // Set available highway texture names (called by editor after scanning directory)
     void setHighwayTextureList(const juce::StringArray& names) { highwayTextureNames = names; }
+
+    void setHighwayLength(float val)
+    {
+        highwayLengthVal = val;
+        highwayLengthLabel.setText("Hwy Length: " + juce::String(val, 2), juce::dontSendNotification);
+    }
 
     // Expose latencyOffsetInput for arrow-key handling in editor
     juce::TextEditor& getLatencyOffsetInput() { return latencyOffsetInput; }
@@ -83,6 +90,10 @@ private:
     static constexpr float gemScaleValues[] = { 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f };
     static constexpr int gemScaleDefault = 3; // index of 1.0
     int gemScaleIndex = gemScaleDefault;
+
+    // Highway length selector (scrollable label in Display popup)
+    HighwayTextureLabel highwayLengthLabel;
+    float highwayLengthVal = 1.05f;
 
     // Settings popup children
     juce::Slider chartSpeedSlider;

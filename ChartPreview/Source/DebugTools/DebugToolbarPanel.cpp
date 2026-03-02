@@ -99,7 +99,24 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     setupCurveLabel(yPosLabel, "Y.Pos", yPosVal, onYPositionChanged);
 
 
+    // Far fade sliders
+    setupCurveLabel(farFadeLenLabel, "F.Len", farFadeLenVal, onFarFadeStartChanged);
+    setupCurveLabel(farFadeEndLabel, "F.End", farFadeEndVal, onFarFadeEndChanged);
+    setupCurveLabel(farFadeCurveLabel, "F.Curve", farFadeCurveVal, onFarFadeCurveChanged);
+    // F.End and F.Curve need coarser steps
+    farFadeEndLabel.onScroll = [this](int delta) {
+        farFadeEndVal += delta * 0.020f;
+        farFadeEndLabel.setText("F.End: " + juce::String(farFadeEndVal, 3), juce::dontSendNotification);
+        if (onFarFadeEndChanged) onFarFadeEndChanged(farFadeEndVal);
+    };
+    farFadeCurveLabel.onScroll = [this](int delta) {
+        farFadeCurveVal += delta * 0.10f;
+        farFadeCurveLabel.setText("F.Curve: " + juce::String(farFadeCurveVal, 3), juce::dontSendNotification);
+        if (onFarFadeCurveChanged) onFarFadeCurveChanged(farFadeCurveVal);
+    };
+
     // Section headers (collapsible)
+    setupSectionHeader(farFadeHeader, "Far Fade");
     setupSectionHeader(curvatureHeader, "Curvature");
     setupSectionHeader(positionHeader, "Position");
     setupSectionHeader(clipHeader, "Clip");
@@ -173,6 +190,12 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
 
     debugButton.addPanelChild(&scaleLabel);
     debugButton.addPanelChild(&yPosLabel);
+    // Far fade section
+    debugButton.addPanelChild(&farFadeHeader);
+    debugButton.addPanelChild(&farFadeLenLabel);
+    debugButton.addPanelChild(&farFadeEndLabel);
+    debugButton.addPanelChild(&farFadeCurveLabel);
+
     // Curvature section
     debugButton.addPanelChild(&curvatureHeader);
     debugButton.addPanelChild(&sustainStartLabel);
@@ -309,6 +332,20 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
     y += rowHeight + gap;
     yPosLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
+
+    // --- Far Fade section ---
+    y += headerGap;
+    farFadeHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    if (farFadeHeader.expanded)
+    {
+        farFadeLenLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+        farFadeEndLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+        farFadeCurveLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+    }
+    farFadeLenLabel.setVisible(farFadeHeader.expanded);
+    farFadeEndLabel.setVisible(farFadeHeader.expanded);
+    farFadeCurveLabel.setVisible(farFadeHeader.expanded);
 
     // --- Curvature section ---
     y += headerGap;
