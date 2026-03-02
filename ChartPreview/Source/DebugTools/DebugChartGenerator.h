@@ -167,15 +167,17 @@ inline TrackWindow generateDebugChart(PPQ startPPQ, bool isDrums)
         tw[b(62)] = frame({{4, N(Gem::NOTE, true)}});
         tw[b(63)] = frame({{5, N(Gem::NOTE, true)}});
 
-        // Lanes with notes (64-71)
-        tw[b(64)] = frame({{1, N()}});
-        tw[b(65)] = frame({{2, N()}});
-        tw[b(66)] = frame({{3, N()}});
-        tw[b(67)] = frame({{4, N()}});
-        tw[b(68)] = frame({{5, N()}});
-        tw[b(69)] = frame({{3, N()}});
-        tw[b(70)] = frame({{2, N()}});
-        tw[b(71)] = frame({{1, N()}});
+        // Green tremolo lane (64-68)
+        for (int i = 0; i < 16; ++i)
+            tw[b(64.0 + i * 0.25)] = frame({{1, N()}});
+
+        // RY trill lane (68-72)
+        for (int i = 0; i < 16; ++i)
+            tw[b(68.0 + i * 0.25)] = frame({{(uint)(i % 2 == 0 ? 2 : 3), N()}});
+
+        // All 5 lanes — BRE (72-76)
+        for (int i = 0; i < 16; ++i)
+            tw[b(72.0 + i * 0.25)] = frame({{1, N()}, {2, N()}, {3, N()}, {4, N()}, {5, N()}});
     }
 
     return tw;
@@ -188,6 +190,8 @@ inline SustainWindow generateDebugSustains(PPQ startPPQ, bool isDrums)
 
     if (isDrums)
     {
+        // Kick lane (33-36)
+        sw.push_back(makeSustain(b(33), b(37), 0, SustainType::LANE));
         // Snare lane (37-42)
         sw.push_back(makeSustain(b(37), b(42), 1, SustainType::LANE));
         // Yellow cymbal swell lane (43-48)
@@ -206,12 +210,22 @@ inline SustainWindow generateDebugSustains(PPQ startPPQ, bool isDrums)
         sw.push_back(makeSustain(b(45), b(47), 4, SustainType::SUSTAIN));
         sw.push_back(makeSustain(b(47), b(49), 5, SustainType::SUSTAIN));
 
-        // Lane markers (64-71)
+        // Open note lane (59-63, overlaps SP notes visually but separate sustain type)
+        sw.push_back(makeSustain(b(59), b(64), 0, SustainType::LANE));
+
+        // Green tremolo lane (64-68)
         sw.push_back(makeSustain(b(64), b(68), 1, SustainType::LANE));
-        sw.push_back(makeSustain(b(64), b(68), 2, SustainType::LANE));
-        sw.push_back(makeSustain(b(64), b(68), 3, SustainType::LANE));
-        sw.push_back(makeSustain(b(68), b(71), 4, SustainType::LANE));
-        sw.push_back(makeSustain(b(68), b(71), 5, SustainType::LANE));
+
+        // RY trill lane (68-72)
+        sw.push_back(makeSustain(b(68), b(72), 2, SustainType::LANE));
+        sw.push_back(makeSustain(b(68), b(72), 3, SustainType::LANE));
+
+        // All 5 lanes — BRE (72-76)
+        sw.push_back(makeSustain(b(72), b(76), 1, SustainType::LANE));
+        sw.push_back(makeSustain(b(72), b(76), 2, SustainType::LANE));
+        sw.push_back(makeSustain(b(72), b(76), 3, SustainType::LANE));
+        sw.push_back(makeSustain(b(72), b(76), 4, SustainType::LANE));
+        sw.push_back(makeSustain(b(72), b(76), 5, SustainType::LANE));
     }
 
     return sw;
