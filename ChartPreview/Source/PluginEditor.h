@@ -156,6 +156,12 @@ private:
     juce::Image backgroundImageRed;
     juce::Image trackDrumImage;
     juce::Image trackGuitarImage;
+    std::unique_ptr<juce::Drawable> trackDrumSvg;
+    std::unique_ptr<juce::Drawable> trackGuitarSvg;
+    bool useSvgTracks = false;
+    float svgTrackScale = 1.0f;
+    float svgTrackYOffset = 0.215f;
+    float svgTrackFade = 0.3f;
     std::unique_ptr<juce::Drawable> reaperLogo;
 
     // Highway texture overlay

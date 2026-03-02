@@ -74,6 +74,16 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
         if (onDebugConsoleChanged) onDebugConsoleChanged(debugConsoleToggle.getToggleState());
     };
 
+    svgTracksToggle.setButtonText("SVG Tracks");
+    svgTracksToggle.onClick = [this]() {
+        if (onSvgTracksChanged) onSvgTracksChanged(svgTracksToggle.getToggleState());
+    };
+
+    setupCurveLabel(svgScaleLabel, "SVG.Scl", svgScaleVal, onSvgTrackScaleChanged);
+    setupCurveLabel(svgYOffsetLabel, "SVG.Y", svgYOffsetVal, onSvgTrackYOffsetChanged);
+    setupCurveLabel(svgOpacityLabel, "SVG.Opa", svgOpacityVal, onSvgTrackOpacityChanged);
+    setupCurveLabel(svgFadeLabel, "SVG.Fde", svgFadeVal, onSvgTrackFadeChanged);
+
     // BPM control row
     bpmMinusButton.onClick = [this]() { adjustBpm(-5); };
     bpmPlusButton.onClick = [this]() { adjustBpm(5); };
@@ -152,6 +162,11 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     debugButton.addPanelChild(&debugPlayToggle);
     debugButton.addPanelChild(&debugNotesToggle);
     debugButton.addPanelChild(&debugConsoleToggle);
+    debugButton.addPanelChild(&svgTracksToggle);
+    debugButton.addPanelChild(&svgScaleLabel);
+    debugButton.addPanelChild(&svgYOffsetLabel);
+    debugButton.addPanelChild(&svgOpacityLabel);
+    debugButton.addPanelChild(&svgFadeLabel);
     debugButton.addPanelChild(&bpmMinusButton);
     debugButton.addPanelChild(&bpmValueLabel);
     debugButton.addPanelChild(&bpmPlusButton);
@@ -264,6 +279,18 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
     y += rowHeight + gap;
 
     debugConsoleToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    svgTracksToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    svgScaleLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    svgYOffsetLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    svgOpacityLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    svgFadeLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     // BPM row: [ - ] [ 120 ] [ + ]

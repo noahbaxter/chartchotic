@@ -155,6 +155,8 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     backgroundImageRed = juce::ImageCache::getFromMemory(BinaryData::background_red_jpg, BinaryData::background_red_jpgSize);
     trackDrumImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
     trackGuitarImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
+    trackDrumSvg = juce::Drawable::createFromImageData(BinaryData::track_drum_svg, BinaryData::track_drum_svgSize);
+    trackGuitarSvg = juce::Drawable::createFromImageData(BinaryData::track_guitar_svg, BinaryData::track_guitar_svgSize);
 
     // Load REAPER logo SVG
     reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
@@ -180,7 +182,7 @@ void ChartPreviewAudioProcessorEditor::scanHighwayTextures()
     highwayTextureDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
         .getChildFile("Chart Preview").getChildFile("highways");
     if (!highwayTextureDir.isDirectory())
-        highwayTextureDir = juce::File("/Users/noahbaxter/Code/personal/plugins/chart-preview/ChartPreview/Assets/highways");
+        highwayTextureDir = juce::File("/Users/noahbaxter/Code/personal/plugins/chart-preview/ChartPreview/Assets-Bank/highways");
 #elif JUCE_WINDOWS
     highwayTextureDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
         .getChildFile("Chart Preview").getChildFile("highways");
@@ -346,6 +348,11 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         clearLogsButton.setVisible(show);
     };
 
+    dbg.onSvgTracksChanged = [this](bool useSvg) { useSvgTracks = useSvg; repaint(); };
+    dbg.onSvgTrackScaleChanged = [this](float v) { svgTrackScale = v; repaint(); };
+    dbg.onSvgTrackYOffsetChanged = [this](float v) { svgTrackYOffset = v; repaint(); };
+    dbg.onSvgTrackOpacityChanged = [this](float v) { highwayRenderer.highwayTextureOpacity = v; repaint(); };
+    dbg.onSvgTrackFadeChanged = [this](float v) { svgTrackFade = v; repaint(); };
     dbg.onScaleChanged = [this](float v) { highwayScaleOverride = v; repaint(); };
     dbg.onYPositionChanged = [this](float v) { highwayYPosition = v; repaint(); };
 
@@ -468,10 +475,34 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
         // Draw the track image (centred preserves 1:1 image aspect in 4:3 canvas)
         auto osBounds = offscreen.getBounds().toFloat();
-        if (isPart(state, Part::DRUMS))
-            og.drawImage(trackDrumImage, osBounds, juce::RectanglePlacement::centred);
-        else if (isPart(state, Part::GUITAR))
-            og.drawImage(trackGuitarImage, osBounds, juce::RectanglePlacement::centred);
+        if (useSvgTracks)
+        {
+            // SVG tracks have transparency — texture and lanes render behind,
+            // SVG track draws after lanes (via callback), notes/gridlines on top
+            highwayRenderer.skipHighwayTexture = false;
+            highwayRenderer.onAfterLanes = [&](juce::Graphics& g2)
+            {
+                auto* svg = isPart(state, Part::DRUMS) ? trackDrumSvg.get() : trackGuitarSvg.get();
+                if (svg)
+                {
+                    float svgAspect = 551.9f / 436.53f;
+                    float svgW = osHeight * svgTrackScale;
+                    float svgH = svgW / svgAspect;
+                    float sx = (osWidth - svgW) * 0.5f;
+                    float sy = svgTrackYOffset * osHeight;
+                    svg->drawWithin(g2, {sx, sy, svgW, svgH}, juce::RectanglePlacement::stretchToFit, 1.0f);
+                }
+            };
+        }
+        else
+        {
+            highwayRenderer.skipHighwayTexture = false;
+            highwayRenderer.onAfterLanes = nullptr;
+            if (isPart(state, Part::DRUMS))
+                og.drawImage(trackDrumImage, osBounds, juce::RectanglePlacement::centred);
+            else if (isPart(state, Part::GUITAR))
+                og.drawImage(trackGuitarImage, osBounds, juce::RectanglePlacement::centred);
+        }
 
         // Draw the highway
         bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
@@ -479,6 +510,26 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
             paintReaperMode(og);
         else
             paintStandardMode(og);
+    }
+
+    // Fade the top of the entire offscreen frame (highway vanishing point)
+    if (svgTrackFade > 0.0f)
+    {
+        int fadeEndY = (int)(osHeight * svgTrackFade);
+        if (fadeEndY > 0)
+        {
+            juce::Image::BitmapData bmp(offscreen, juce::Image::BitmapData::readWrite);
+            for (int row = 0; row < fadeEndY; ++row)
+            {
+                float t = (float)row / (float)fadeEndY;
+                float alpha = t * t; // quadratic ease-in
+                for (int col = 0; col < osWidth; ++col)
+                {
+                    auto px = bmp.getPixelColour(col, row);
+                    bmp.setPixelColour(col, row, px.withMultipliedAlpha(alpha));
+                }
+            }
+        }
     }
 
     // Draw offscreen 1:1 (no scaling), centered horizontally, strikeline near window bottom

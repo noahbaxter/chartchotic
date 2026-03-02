@@ -50,6 +50,11 @@ public:
     // Highway scale/position callbacks
     std::function<void(float)> onScaleChanged;
     std::function<void(float)> onYPositionChanged;
+    std::function<void(bool)> onSvgTracksChanged;
+    std::function<void(float)> onSvgTrackScaleChanged;
+    std::function<void(float)> onSvgTrackYOffsetChanged;
+    std::function<void(float)> onSvgTrackOpacityChanged;
+    std::function<void(float)> onSvgTrackFadeChanged;
 
 private:
     juce::ValueTree& state;
@@ -57,6 +62,7 @@ private:
     juce::ToggleButton debugPlayToggle;
     juce::ToggleButton debugNotesToggle;
     juce::ToggleButton debugConsoleToggle;
+    juce::ToggleButton svgTracksToggle;
 
     // BPM control row: [- ] [120] [+ ]
     juce::TextButton bpmMinusButton{"-"};
@@ -73,6 +79,15 @@ private:
         }
     };
     ScrollableLabel bpmValueLabel;
+
+    ScrollableLabel svgScaleLabel;
+    ScrollableLabel svgYOffsetLabel;
+    ScrollableLabel svgOpacityLabel;
+    ScrollableLabel svgFadeLabel;
+    float svgScaleVal = 1.0f;
+    float svgYOffsetVal = 0.215f;
+    float svgOpacityVal = 0.7f;
+    float svgFadeVal = 0.3f;
 
     int bpm = 120;
 

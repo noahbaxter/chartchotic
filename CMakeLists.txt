@@ -205,7 +205,9 @@ juce_add_binary_data(ChartPreviewData
         ChartPreview/Assets/sustain_white.png
         ChartPreview/Assets/sustain_yellow.png
         ChartPreview/Assets/track_drum.png
+        ChartPreview/Assets/track_drum.svg
         ChartPreview/Assets/track_guitar.png
+        ChartPreview/Assets/track_guitar.svg
         ChartPreview/Assets/logo-reaper.svg
         ChartPreview/Assets/hit_1.png
         ChartPreview/Assets/hit_2.png

@@ -124,9 +124,5 @@ sessions/
 # -----------------------------------------------------------------------------
 # Assets (large/non-distributable)
 # -----------------------------------------------------------------------------
-# Highway textures — bulk pack lives outside git, only sample committed
-ChartPreview/Assets/highways/*
-!ChartPreview/Assets/highways/sample_highway.png
-
-# Scratch / working asset files
-ChartPreview/Assets/echo stuff/
+# Non-production assets (SVGs, highway textures, scratch files)
+ChartPreview/Assets-Bank/

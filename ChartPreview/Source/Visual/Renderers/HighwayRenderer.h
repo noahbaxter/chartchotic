@@ -34,6 +34,13 @@ class HighwayRenderer
         void setHighwayTexture(const juce::Image& texture) { highwayTexture = texture; }
         void clearHighwayTexture() { highwayTexture = juce::Image(); }
         void setScrollOffset(double offset) { scrollOffset = offset; }
+        void paintHighwayTextureOnly(juce::Graphics& g) { if (highwayTexture.isValid()) drawHighwayTexture(g); }
+        bool skipHighwayTexture = false;
+        float highwayTextureOpacity = 0.7f;
+
+        // Called after lanes are drawn but before notes/sustains/gridlines.
+        // Used by SVG track mode to insert the track overlay between layers.
+        std::function<void(juce::Graphics&)> onAfterLanes;
 
     private:
         juce::ValueTree &state;
@@ -57,16 +64,8 @@ class HighwayRenderer
             }
         }
 
-        float calculateOpacity(float position)
-        {
-            // Make the gem fade out as it gets closer to the end
-            if (position >= OPACITY_FADE_START)
-            {
-                return 1.0 - ((position - OPACITY_FADE_START) / (1.0f - OPACITY_FADE_START));
-            }
-
-            return 1.0;
-        }
+        // Per-element opacity fade removed — whole-frame fade applied in PluginEditor
+        float calculateOpacity(float) { return 1.0f; }
 
         // Highway texture overlay
         juce::Image highwayTexture;

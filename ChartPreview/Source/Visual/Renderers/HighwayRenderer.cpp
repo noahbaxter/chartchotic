@@ -46,7 +46,8 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
     }
 
     // Draw highway texture overlay (between track image and gridlines)
-    if (highwayTexture.isValid())
+    // When skipHighwayTexture is set, the editor draws the texture before the SVG track
+    if (highwayTexture.isValid() && !skipHighwayTexture)
     {
         drawHighwayTexture(g);
     }
@@ -66,8 +67,16 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
     }
 
     // Draw layer by layer, then column by column within each layer
+    bool calledAfterLanes = false;
     for (const auto& drawOrder : drawCallMap)
     {
+        // Insert SVG track overlay after highway texture but before gridlines/lanes/notes
+        if (!calledAfterLanes && drawOrder.first > DrawOrder::HIGHWAY_OVERLAY && onAfterLanes)
+        {
+            onAfterLanes(g);
+            calledAfterLanes = true;
+        }
+
         for (const auto& column : drawOrder.second)
         {
             // Draw each layer from back to front
@@ -77,6 +86,9 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
             }
         }
     }
+    // If no layers above LANE existed, still call it
+    if (!calledAfterLanes && onAfterLanes)
+        onAfterLanes(g);
 
     // Advance animation frames after rendering
     if (hitIndicatorsEnabled)
@@ -564,13 +576,7 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
             float destH = destBottom - destTop;
             if (destW <= 0) continue;
 
-            // Fade out at far end, matching note opacity behavior
-            float stripMidPos = (botPos + topPos) * 0.5f;
-            float fadeAlpha = 1.0f;
-            if (stripMidPos >= OPACITY_FADE_START)
-                fadeAlpha = std::max(0.0f, 1.0f - (stripMidPos - OPACITY_FADE_START) / (1.0f - OPACITY_FADE_START));
-            if (fadeAlpha <= 0.0f) continue;
-            og.setOpacity(fadeAlpha);
+            // Per-strip fade removed — whole-frame fade applied in PluginEditor
 
             // Texture V coordinates (vBot > vTop because lower position = larger V)
             float vTop = (1.0f - topPos) * HIGHWAY_TILES_PER_HIGHWAY + (float)scrollOffset;
@@ -606,7 +612,7 @@ void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
                                                         width, height, wNear, wMid, wFar);
     g.saveState();
     g.reduceClipRegion(fretboardPath);
-    g.setOpacity(HIGHWAY_OPACITY);
+    g.setOpacity(highwayTextureOpacity);
     g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
     g.drawImage(highwayOffscreen, juce::Rectangle<float>(0, 0, (float)width, (float)height));
     g.restoreState();
