@@ -13,15 +13,11 @@ public:
     ~DebugToolbarPanel();
 
     PopupMenuButton& getButton() { return debugButton; }
-    int getBpm() const { return bpm; }
-
     void setDebugPlay(bool playing);
-    void adjustBpm(int delta);
 
     // Callbacks — the editor wires these
     std::function<void(bool playing)> onDebugPlayChanged;
-    std::function<void(int bpm)> onDebugBpmChanged;
-    std::function<void(bool)> onDebugNotesChanged;
+    std::function<void(int)> onDebugChartChanged;
     std::function<void(bool)> onDebugConsoleChanged;
     std::function<void(float)> onSustainStartCurveChanged;
     std::function<void(float)> onSustainEndCurveChanged;
@@ -66,13 +62,8 @@ private:
     juce::ValueTree& state;
     PopupMenuButton debugButton{"Debug"};
     juce::ToggleButton debugPlayToggle;
-    juce::ToggleButton debugNotesToggle;
     juce::ToggleButton debugConsoleToggle;
     juce::ToggleButton svgTracksToggle;
-
-    // BPM control row: [- ] [120] [+ ]
-    juce::TextButton bpmMinusButton{"-"};
-    juce::TextButton bpmPlusButton{"+"};
 
     class ScrollableLabel : public juce::Label
     {
@@ -84,7 +75,14 @@ private:
             if (onScroll) onScroll(delta);
         }
     };
-    ScrollableLabel bpmValueLabel;
+    // Chart selector
+    static constexpr int CHART_COUNT = 8;
+    const juce::String chartNames[CHART_COUNT] = {
+        "None", "Test", "Stress", "Sleepy Tea",
+        "Further Side", "Scarlet", "Everything", "Akroasis"
+    };
+    int chartIndex = 1;
+    ScrollableLabel chartSelectLabel;
 
     ScrollableLabel svgScaleLabel;
     ScrollableLabel svgYOffsetLabel;
@@ -104,8 +102,6 @@ private:
     // Gridline position offset slider
     ScrollableLabel gridlinePosOffsetLabel;
     float gridlinePosOffsetVal = -0.020f;
-
-    int bpm = 120;
 
     // Sustain curve sliders
     ScrollableLabel sustainStartLabel, sustainEndLabel;
@@ -201,7 +197,6 @@ private:
                          std::function<void(float)>& callback);
 
     void layoutPanel(juce::Component* panel);
-    void updateBpmLabel();
     void refreshLaneCoordVisibility();
 };
 

@@ -226,6 +226,14 @@ private:
     bool debugStandalone = false;
     float highwayScaleOverride = 0.74f;
     float highwayYPosition = 0.815f;
+
+    // Debug chart loading
+    TempoTimeSignatureMap debugMidiTempoMap;
+    double debugChartLengthInBeats = 0.0;
+    void loadDebugChart(int index);
+
+    struct DebugChartEntry { const char* data; int size; };
+    static const DebugChartEntry debugChartRegistry[];
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)

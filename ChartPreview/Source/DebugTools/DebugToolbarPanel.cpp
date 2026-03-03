@@ -63,10 +63,15 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
         if (onDebugPlayChanged) onDebugPlayChanged(debugPlayToggle.getToggleState());
     };
 
-    debugNotesToggle.setButtonText("Notes");
-    debugNotesToggle.setToggleState(true, juce::dontSendNotification);
-    debugNotesToggle.onClick = [this]() {
-        if (onDebugNotesChanged) onDebugNotesChanged(debugNotesToggle.getToggleState());
+    // Chart selector (scroll to cycle)
+    chartSelectLabel.setText("Chart: " + chartNames[chartIndex], juce::dontSendNotification);
+    chartSelectLabel.setJustificationType(juce::Justification::centredLeft);
+    chartSelectLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    chartSelectLabel.setInterceptsMouseClicks(true, true);
+    chartSelectLabel.onScroll = [this](int delta) {
+        chartIndex = (chartIndex + delta + CHART_COUNT) % CHART_COUNT;
+        chartSelectLabel.setText("Chart: " + chartNames[chartIndex], juce::dontSendNotification);
+        if (onDebugChartChanged) onDebugChartChanged(chartIndex);
     };
 
     debugConsoleToggle.setButtonText("Console");
@@ -83,16 +88,6 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     setupCurveLabel(svgYOffsetLabel, "SVG.Y", svgYOffsetVal, onSvgTrackYOffsetChanged);
     setupCurveLabel(svgOpacityLabel, "SVG.Opa", svgOpacityVal, onSvgTrackOpacityChanged);
     setupCurveLabel(svgFadeLabel, "SVG.Fde", svgFadeVal, onSvgTrackFadeChanged);
-
-    // BPM control row
-    bpmMinusButton.onClick = [this]() { adjustBpm(-5); };
-    bpmPlusButton.onClick = [this]() { adjustBpm(5); };
-
-    bpmValueLabel.setText("120", juce::dontSendNotification);
-    bpmValueLabel.setJustificationType(juce::Justification::centred);
-    bpmValueLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-    bpmValueLabel.setInterceptsMouseClicks(true, true);
-    bpmValueLabel.onScroll = [this](int delta) { adjustBpm(delta); };
 
     // Scale/position sliders
     setupCurveLabel(scaleLabel, "Scale", scaleVal, onScaleChanged);
@@ -180,16 +175,13 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
 
     // Add panel children — basic controls
     debugButton.addPanelChild(&debugPlayToggle);
-    debugButton.addPanelChild(&debugNotesToggle);
+    debugButton.addPanelChild(&chartSelectLabel);
     debugButton.addPanelChild(&debugConsoleToggle);
     debugButton.addPanelChild(&svgTracksToggle);
     debugButton.addPanelChild(&svgScaleLabel);
     debugButton.addPanelChild(&svgYOffsetLabel);
     debugButton.addPanelChild(&svgOpacityLabel);
     debugButton.addPanelChild(&svgFadeLabel);
-    debugButton.addPanelChild(&bpmMinusButton);
-    debugButton.addPanelChild(&bpmValueLabel);
-    debugButton.addPanelChild(&bpmPlusButton);
 
     debugButton.addPanelChild(&scaleLabel);
     debugButton.addPanelChild(&yPosLabel);
@@ -262,13 +254,6 @@ void DebugToolbarPanel::setDebugPlay(bool playing)
     if (onDebugPlayChanged) onDebugPlayChanged(playing);
 }
 
-void DebugToolbarPanel::adjustBpm(int delta)
-{
-    bpm = juce::jlimit(20, 300, bpm + delta);
-    updateBpmLabel();
-    if (onDebugBpmChanged) onDebugBpmChanged(bpm);
-}
-
 void DebugToolbarPanel::refreshLaneCoordVisibility()
 {
     bool isDrums = isPart(state, Part::DRUMS);
@@ -302,7 +287,7 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
     debugPlayToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
-    debugNotesToggle.setBounds(margin, y, w, rowHeight);
+    chartSelectLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     debugConsoleToggle.setBounds(margin, y, w, rowHeight);
@@ -318,17 +303,6 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
     svgOpacityLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
     svgFadeLabel.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-
-    // BPM row: [ - ] [ 120 ] [ + ]
-    const int btnW = 24;
-    const int labelW = w - btnW * 2 - gap * 2;
-    int x = margin;
-    bpmMinusButton.setBounds(x, y, btnW, rowHeight);
-    x += btnW + gap;
-    bpmValueLabel.setBounds(x, y, labelW, rowHeight);
-    x += labelW + gap;
-    bpmPlusButton.setBounds(x, y, btnW, rowHeight);
     y += rowHeight + gap;
 
     // Scale / Y-position
@@ -485,11 +459,6 @@ void DebugToolbarPanel::setupCurveLabel(ScrollableLabel& label, const juce::Stri
         label.setText(prefix + ": " + juce::String(value, 3), juce::dontSendNotification);
         if (callback) callback(value);
     };
-}
-
-void DebugToolbarPanel::updateBpmLabel()
-{
-    bpmValueLabel.setText(juce::String(bpm), juce::dontSendNotification);
 }
 
 #endif

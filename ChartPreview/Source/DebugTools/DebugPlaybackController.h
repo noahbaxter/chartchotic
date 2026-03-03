@@ -9,9 +9,12 @@ class DebugPlaybackController
 {
 public:
     bool isPlaying() const { return playActive; }
-    bool isNotesActive() const { return notesActive; }
+    bool isNotesActive() const { return chartIndex > 0; }
     PPQ getCurrentPPQ() const { return PPQ(playPPQ); }
     double getBPM() const { return bpm; }
+
+    int getChartIndex() const { return chartIndex; }
+    void setChartIndex(int index) { chartIndex = index; }
 
     void setPlaying(bool active)
     {
@@ -24,8 +27,6 @@ public:
     {
         setPlaying(!playActive);
     }
-
-    void setNotesActive(bool active) { notesActive = active; }
 
     void advancePlayhead()
     {
@@ -47,10 +48,10 @@ public:
 
 private:
     bool playActive = false;
-    bool notesActive = true;
+    int chartIndex = 1;
     double playPPQ = 0.0;
     juce::int64 lastTick = 0;
-    double bpm = 120.0;
+    double bpm = 150.0;
 };
 
 #endif

@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 #include "UpdateChecker.h"
 #ifdef DEBUG
-#include "DebugTools/DebugChartGenerator.h"
+#include "DebugTools/DebugMidiFilePlayer.h"
 #endif
 
 // CI injects CHARTPREVIEW_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
@@ -56,6 +56,9 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     addAndMakeVisible(toolbar);
 
     #ifdef DEBUG
+    if (debugStandalone)
+        loadDebugChart(debugController.getChartIndex());
+
     consoleOutput.setMultiLine(true);
     consoleOutput.setReadOnly(true);
     addChildComponent(consoleOutput);
@@ -137,6 +140,8 @@ void ChartPreviewAudioProcessorEditor::onFrame()
     if (debugStandalone)
     {
         debugController.advancePlayhead();
+        if (debugChartLengthInBeats > 0.0 && debugController.getCurrentPPQ().toDouble() > debugChartLengthInBeats)
+            debugController.nudgePlayhead(-debugChartLengthInBeats);
         lastKnownPosition = debugController.getCurrentPPQ();
         if (debugController.isPlaying())
             lastPlayingState = true;
@@ -254,6 +259,10 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onPartChanged = [this](int id) {
         state.setProperty("part", id, nullptr);
         audioProcessor.refreshMidiDisplay();
+#ifdef DEBUG
+        if (debugStandalone && debugController.isNotesActive())
+            loadDebugChart(debugController.getChartIndex());
+#endif
     };
 
     toolbar.onDrumTypeChanged = [this](int id) {
@@ -343,11 +352,9 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     dbg.onDebugPlayChanged = [this](bool playing) {
         debugController.setPlaying(playing);
     };
-    dbg.onDebugBpmChanged = [this](int bpm) {
-        debugController.setBPM((double)bpm);
-    };
-    dbg.onDebugNotesChanged = [this](bool notes) {
-        debugController.setNotesActive(notes);
+    dbg.onDebugChartChanged = [this](int index) {
+        debugController.setChartIndex(index);
+        loadDebugChart(index);
     };
     dbg.onDebugConsoleChanged = [this](bool show) {
         consoleOutput.setVisible(show);
@@ -621,41 +628,21 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     PPQ trackWindowStartPPQ = lastKnownPosition;
 
 #ifdef DEBUG
-    if (debugStandalone && (debugController.isPlaying() || debugController.isNotesActive()))
+    if (debugStandalone && debugController.isNotesActive())
     {
-        bool isDrums = isPart(state, Part::DRUMS);
-        double patternLength = isDrums ? 56.0 : 72.0;
-
         PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
         PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
 
-        TrackWindow ppqTrackWindow;
-        SustainWindow ppqSustainWindow;
-
-        if (debugController.isNotesActive())
-        {
-            double viewStart = extendedStart.toDouble();
-            double viewEnd = trackWindowEndPPQ.toDouble() + 8.0;
-
-            int firstCopy = (int)std::floor(viewStart / patternLength);
-            int lastCopy = (int)std::floor(viewEnd / patternLength);
-
-            for (int i = firstCopy; i <= lastCopy; ++i)
-            {
-                PPQ offset(i * patternLength);
-                TrackWindow chunk = DebugChartGenerator::generateDebugChart(offset, isDrums);
-                ppqTrackWindow.insert(chunk.begin(), chunk.end());
-
-                SustainWindow sustainChunk = DebugChartGenerator::generateDebugSustains(offset, isDrums);
-                ppqSustainWindow.insert(ppqSustainWindow.end(), sustainChunk.begin(), sustainChunk.end());
-            }
-        }
+        const juce::ScopedLock lock(audioProcessor.getNoteStateMapLock());
+        TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+        SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, trackWindowStartPPQ);
 
         double bpm = debugController.getBPM();
         auto ppqToTime = [bpm](double ppq) { return ppq * (60.0 / bpm); };
 
-        TempoTimeSignatureMap tempoTimeSigMap;
-        tempoTimeSigMap[PPQ(0.0)] = TempoTimeSignatureEvent(PPQ(0.0), bpm, 4, 4);
+        TempoTimeSignatureMap tempoTimeSigMap = debugMidiTempoMap;
+        if (tempoTimeSigMap.empty())
+            tempoTimeSigMap[PPQ(0.0)] = TempoTimeSignatureEvent(PPQ(0.0), bpm, 4, 4);
 
         PPQ cursorPPQ = trackWindowStartPPQ;
         TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
@@ -753,6 +740,50 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 
     highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
+
+#ifdef DEBUG
+const ChartPreviewAudioProcessorEditor::DebugChartEntry ChartPreviewAudioProcessorEditor::debugChartRegistry[] = {
+    {nullptr,                               0},
+    {BinaryData::test_mid,                  BinaryData::test_midSize},
+    {BinaryData::stress_mid,                BinaryData::stress_midSize},
+    {BinaryData::sleepy_tea_mid,            BinaryData::sleepy_tea_midSize},
+    {BinaryData::further_side_mid,          BinaryData::further_side_midSize},
+    {BinaryData::scarlet_mid,              BinaryData::scarlet_midSize},
+    {BinaryData::everything_went_black_mid, BinaryData::everything_went_black_midSize},
+    {BinaryData::akroasis_mid,              BinaryData::akroasis_midSize},
+};
+
+void ChartPreviewAudioProcessorEditor::loadDebugChart(int index)
+{
+    constexpr int registrySize = (int)(sizeof(debugChartRegistry) / sizeof(debugChartRegistry[0]));
+    if (index <= 0 || index >= registrySize)
+    {
+        // Clear everything
+        {
+            const juce::ScopedLock lock(audioProcessor.getNoteStateMapLock());
+            for (auto& map : audioProcessor.getNoteStateMapArray())
+                map.clear();
+        }
+        debugMidiTempoMap.clear();
+        return;
+    }
+
+    const auto& entry = debugChartRegistry[index];
+    bool isDrums = isPart(state, Part::DRUMS);
+
+    auto result = DebugMidiFilePlayer::loadMidiFile(
+        entry.data, entry.size,
+        isDrums,
+        audioProcessor.getNoteStateMapArray(),
+        audioProcessor.getNoteStateMapLock(),
+        audioProcessor.getMidiProcessor(),
+        state);
+
+    debugMidiTempoMap = result.tempoMap;
+    debugChartLengthInBeats = result.lengthInBeats;
+    debugController.setBPM(result.initialBPM);
+}
+#endif
 
 void ChartPreviewAudioProcessorEditor::resized()
 {
