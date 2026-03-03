@@ -81,6 +81,7 @@ class HighwayRenderer
         // Highway texture overlay
         juce::Image highwayTexture;
         juce::Image highwayOffscreen;
+        juce::Image curvedOffscreen;
         double scrollOffset = 0.0;
         static constexpr int HIGHWAY_MIN_STRIPS = 40;
         static constexpr float HIGHWAY_TILES_PER_HIGHWAY = 1.0f;

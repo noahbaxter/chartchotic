@@ -53,16 +53,13 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
     float targetWidth = normWidth2 * width;
     float targetHeight = isBarNote ? targetWidth / perspParams.barNoteHeightRatio : targetWidth / perspParams.regularNoteHeightRatio;
 
-    // Width calculation: both note types use exponential interpolation
-    float widthProgress = (std::pow(10, perspParams.exponentialCurve * (1 - depth)) - 1) / (std::pow(10, perspParams.exponentialCurve) - 1);
-    float interpolatedWidth = normWidth2 + (normWidth1 - normWidth2) * widthProgress;
+    // Exponential interpolation (shared by width and position)
+    float progress = (std::pow(10, perspParams.exponentialCurve * (1 - depth)) - 1) / (std::pow(10, perspParams.exponentialCurve) - 1);
+    float interpolatedWidth = normWidth2 + (normWidth1 - normWidth2) * progress;
     float finalWidth = interpolatedWidth * width;
 
     // Height uses perspective scaling for 3D effect
     float currentHeight = targetHeight * perspectiveScale;
-
-    // Position calculation using exponential curve
-    float progress = (std::pow(10, perspParams.exponentialCurve * (1 - depth)) - 1) / (std::pow(10, perspParams.exponentialCurve) - 1);
     float yPos = normY2 * height + (normY1 - normY2) * height * progress;
     float xPos = normX2 * width + (normX1 - normX2) * width * progress;
 

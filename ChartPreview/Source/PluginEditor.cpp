@@ -478,12 +478,15 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     // Render to a 4:3 offscreen at the final display resolution (no image upscaling).
     int osWidth  = (int)(getWidth() * scale);
     int osHeight = (int)(osWidth * 3.0 / 4.0);
-    juce::Image offscreen(juce::Image::ARGB, osWidth, osHeight, true);
+    if (canvasOffscreen.getWidth() != osWidth || canvasOffscreen.getHeight() != osHeight)
+        canvasOffscreen = juce::Image(juce::Image::ARGB, osWidth, osHeight, true);
+    else
+        canvasOffscreen.clear({0, 0, osWidth, osHeight});
     {
-        juce::Graphics og(offscreen);
+        juce::Graphics og(canvasOffscreen);
 
         // Draw the track image (centred preserves 1:1 image aspect in 4:3 canvas)
-        auto osBounds = offscreen.getBounds().toFloat();
+        auto osBounds = canvasOffscreen.getBounds().toFloat();
         if (useSvgTracks)
         {
             // SVG tracks have transparency — texture and lanes render behind,
@@ -545,7 +548,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     float yFrac = 0.88f;
 #endif
     float y = getHeight() * yFrac - strikelinePixelY;
-    g.drawImageAt(offscreen, (int)x, (int)y);
+    g.drawImageAt(canvasOffscreen, (int)x, (int)y);
 }
 
 void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)

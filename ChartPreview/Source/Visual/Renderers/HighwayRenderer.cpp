@@ -270,9 +270,12 @@ void HighwayRenderer::drawCurved(juce::Graphics &g, juce::Image *image, juce::Re
     int offH = ((int)std::ceil(rect.getHeight() + absArc) + 2) * S;
     if (offW <= 0 || offH <= 0) return;
 
-    juce::Image offscreen(juce::Image::ARGB, offW, offH, true);
+    if (curvedOffscreen.getWidth() < offW || curvedOffscreen.getHeight() < offH)
+        curvedOffscreen = juce::Image(juce::Image::ARGB, offW, offH, true);
+    else
+        curvedOffscreen.clear({0, 0, curvedOffscreen.getWidth(), curvedOffscreen.getHeight()});
     {
-        juce::Graphics og(offscreen);
+        juce::Graphics og(curvedOffscreen);
         og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
 
         float stripW = rect.getWidth() * S / STRIPS;
@@ -301,7 +304,7 @@ void HighwayRenderer::drawCurved(juce::Graphics &g, juce::Image *image, juce::Re
     g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
     juce::Rectangle<float> destRect(rect.getX() - 1, drawY,
                                      (float)offW / S, (float)offH / S);
-    g.drawImage(offscreen, destRect);
+    g.drawImage(curvedOffscreen.getClippedImage({0, 0, offW, offH}), destRect);
 }
 
 //==============================================================================
