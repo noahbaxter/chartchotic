@@ -77,7 +77,6 @@ namespace PositionConstants
     constexpr float GEM_SIZE = 0.9f;                    // Regular gem/note scaling factor
     constexpr float BAR_SIZE = 0.95f;                   // Bar note (kick/open) scaling factor
     constexpr float FRETBOARD_SCALE = 1.25f;            // Fretboard reference expansion for notes/sustains
-    constexpr float GRIDLINE_TIME_OFFSET = 0.02f;       // Nudge gridlines forward in time
     constexpr float BAR_NOTE_TIME_OFFSET = 0.0f;        // Nudge bar notes forward in time
     constexpr float NOTE_CURVATURE = -0.02f;            // Regular note arc height as fraction of width
     constexpr float BAR_CURVATURE = 0.0f;               // Bar note arc height as fraction of width

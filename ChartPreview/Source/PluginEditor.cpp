@@ -369,6 +369,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     bindFloat(dbg.onFarFadeStartChanged, highwayRenderer.farFadeLen);
     bindFloat(dbg.onFarFadeEndChanged, highwayRenderer.farFadeEnd);
     bindFloat(dbg.onFarFadeCurveChanged, highwayRenderer.farFadeCurve);
+    bindFloat(dbg.onGridlinePosOffsetChanged, highwayRenderer.gridlinePosOffset);
     bindFloat(dbg.onSustainStartCurveChanged, highwayRenderer.sustainStartCurve);
     bindFloat(dbg.onSustainEndCurveChanged, highwayRenderer.sustainEndCurve);
     bindFloat(dbg.onBarSustainStartCurveChanged, highwayRenderer.barSustainStartCurve);

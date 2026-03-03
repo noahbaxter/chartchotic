@@ -59,6 +59,8 @@ public:
     std::function<void(float)> onFarFadeStartChanged;
     std::function<void(float)> onFarFadeEndChanged;
     std::function<void(float)> onFarFadeCurveChanged;
+    // Gridline position offset callback
+    std::function<void(float)> onGridlinePosOffsetChanged;
 
 private:
     juce::ValueTree& state;
@@ -98,6 +100,10 @@ private:
     float farFadeLenVal   = 0.35f;
     float farFadeEndVal   = 1.05f;
     float farFadeCurveVal = 1.0f;
+
+    // Gridline position offset slider
+    ScrollableLabel gridlinePosOffsetLabel;
+    float gridlinePosOffsetVal = -0.020f;
 
     int bpm = 120;
 

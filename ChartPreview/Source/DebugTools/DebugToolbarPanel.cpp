@@ -115,6 +115,9 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
         if (onFarFadeCurveChanged) onFarFadeCurveChanged(farFadeCurveVal);
     };
 
+    // Gridline position offset slider
+    setupCurveLabel(gridlinePosOffsetLabel, "G.Pos", gridlinePosOffsetVal, onGridlinePosOffsetChanged);
+
     // Section headers (collapsible)
     setupSectionHeader(farFadeHeader, "Far Fade");
     setupSectionHeader(curvatureHeader, "Curvature");
@@ -195,6 +198,7 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     debugButton.addPanelChild(&farFadeLenLabel);
     debugButton.addPanelChild(&farFadeEndLabel);
     debugButton.addPanelChild(&farFadeCurveLabel);
+    debugButton.addPanelChild(&gridlinePosOffsetLabel);
 
     // Curvature section
     debugButton.addPanelChild(&curvatureHeader);
@@ -342,10 +346,12 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
         farFadeLenLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
         farFadeEndLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
         farFadeCurveLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+        gridlinePosOffsetLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
     }
     farFadeLenLabel.setVisible(farFadeHeader.expanded);
     farFadeEndLabel.setVisible(farFadeHeader.expanded);
     farFadeCurveLabel.setVisible(farFadeHeader.expanded);
+    gridlinePosOffsetLabel.setVisible(farFadeHeader.expanded);
 
     // --- Curvature section ---
     y += headerGap;

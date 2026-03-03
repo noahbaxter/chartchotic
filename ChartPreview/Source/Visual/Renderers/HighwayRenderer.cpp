@@ -126,11 +126,10 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
 
     for (const auto &gridline : gridlines)
     {
-        double gridlineTime = gridline.time - GRIDLINE_TIME_OFFSET;
         Gridline gridlineType = gridline.type;
 
         // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
-        float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan);
+        float normalizedPosition = (float)((gridline.time - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
 
         if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= farFadeEnd)
         {

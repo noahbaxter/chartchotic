@@ -108,6 +108,9 @@ class HighwayRenderer
         float farFadeEnd   = 1.05f;
         float farFadeCurve = 1.0f;
 
+        // Gridline position nudge (normalized position space, exposed for debug UI)
+        float gridlinePosOffset = -0.020f;
+
         // Tunable sustain arc curves (exposed for debug UI)
         float sustainStartCurve    = 0.015f;
         float sustainEndCurve      = -0.010f;
