@@ -44,6 +44,17 @@ def unit_tests_binary():
 
 
 @pytest.fixture
+def benchmark_binary():
+    if sys.platform == "win32":
+        path = TESTS_DIR / "benchmark/build/Release/bench_rendering.exe"
+    else:
+        path = TESTS_DIR / "benchmark/build/bench_rendering_artefacts/Release/bench_rendering"
+    if not path.exists():
+        pytest.skip(f"Benchmark binary not found at {path}. Build with cmake first.")
+    return str(path)
+
+
+@pytest.fixture
 def pluginval_path():
     import shutil
 

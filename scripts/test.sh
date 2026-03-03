@@ -7,6 +7,7 @@
 #   ./scripts/test.sh unit         # Run only unit tests
 #   ./scripts/test.sh integration  # Run only integration tests
 #   ./scripts/test.sh compliance   # Run only compliance tests
+#   ./scripts/test.sh performance  # Run rendering profiler
 
 set -e
 
@@ -16,7 +17,6 @@ source "$SCRIPT_DIR/_common.sh"
 # Parse arguments
 VERBOSE=""
 TEST_TYPE="all"
-
 for arg in "$@"; do
     case $arg in
         -v|--verbose)
@@ -31,6 +31,9 @@ for arg in "$@"; do
         compliance|Compliance|COMPLIANCE)
             TEST_TYPE="compliance"
             ;;
+        performance|Performance|PERFORMANCE|perf|bench|benchmark|profile)
+            TEST_TYPE="performance"
+            ;;
         all|All|ALL)
             TEST_TYPE="all"
             ;;
@@ -38,10 +41,11 @@ for arg in "$@"; do
             echo "Usage: ./scripts/test.sh [options] [test_type]"
             echo ""
             echo "Test types:"
-            echo "  all          Run all tests (default)"
+            echo "  all          Run all tests except performance (default)"
             echo "  unit         Run C++ unit tests only"
             echo "  integration  Run Python integration tests only"
             echo "  compliance   Run pluginval compliance tests only"
+            echo "  performance  Run rendering profiler"
             echo ""
             echo "Options:"
             echo "  -v, --verbose  Verbose output"
@@ -95,6 +99,36 @@ run_compliance_tests() {
     pytest "$TESTS_DIR/compliance" $VERBOSE
 }
 
+run_performance_tests() {
+    echo -e "\n${BLUE}=== Running Rendering Benchmarks ===${NC}"
+    local bench_build_dir="$TESTS_DIR/benchmark/build"
+    local bench_binary="$bench_build_dir/bench_rendering_artefacts/Release/bench_rendering"
+    local source_root="$PROJECT_ROOT/ChartPreview/Source"
+
+    # Rebuild if binary missing, or any source file is newer than the binary
+    local needs_build=false
+    if [ ! -f "$bench_binary" ]; then
+        needs_build=true
+    else
+        local newer_files
+        newer_files=$(find "$TESTS_DIR/benchmark" "$source_root" \
+            -newer "$bench_binary" \
+            \( -name '*.cpp' -o -name '*.h' -o -name 'CMakeLists.txt' \) \
+            2>/dev/null | head -1)
+        if [ -n "$newer_files" ]; then
+            needs_build=true
+        fi
+    fi
+
+    if $needs_build; then
+        echo -e "${YELLOW}Building benchmark binary...${NC}"
+        cmake -B "$bench_build_dir" -S "$TESTS_DIR/benchmark" -DCMAKE_BUILD_TYPE=Release
+        cmake --build "$bench_build_dir" --config Release -- -j$(cpu_count)
+    fi
+
+    pytest "$TESTS_DIR/benchmark" $VERBOSE -s
+}
+
 case "$TEST_TYPE" in
     unit)
         run_unit_tests
@@ -104,6 +138,9 @@ case "$TEST_TYPE" in
         ;;
     compliance)
         run_compliance_tests
+        ;;
+    performance)
+        run_performance_tests
         ;;
     all)
         run_unit_tests

@@ -28,6 +28,9 @@ HighwayRenderer::~HighwayRenderer()
 
 void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying)
 {
+    using Clock = std::chrono::high_resolution_clock;
+    auto tTotal = collectPhaseTiming ? Clock::now() : Clock::time_point{};
+
     // Set the drawing area dimensions from the graphics context
     auto clipBounds = g.getClipBounds();
     width = clipBounds.getWidth();
@@ -47,16 +50,31 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
 
     // Draw highway texture overlay (between track image and gridlines)
     // When skipHighwayTexture is set, the editor draws the texture before the SVG track
-    if (highwayTexture.isValid() && !skipHighwayTexture)
+    auto tTex = collectPhaseTiming ? Clock::now() : Clock::time_point{};
+    if (highwayTextureRenderer.hasTexture() && !skipHighwayTexture)
     {
-        drawHighwayTexture(g);
+        highwayTextureRenderer.drawTexture(g, buildTextureParams());
     }
+    if (collectPhaseTiming)
+        lastPhaseTiming.texture_us = std::chrono::duration<double, std::micro>(Clock::now() - tTex).count();
 
     // Repopulate drawCallMap
     drawCallMap.clear();
+
+    auto tNotes = collectPhaseTiming ? Clock::now() : Clock::time_point{};
     drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
+    if (collectPhaseTiming)
+        lastPhaseTiming.build_notes_us = std::chrono::duration<double, std::micro>(Clock::now() - tNotes).count();
+
+    auto tSustains = collectPhaseTiming ? Clock::now() : Clock::time_point{};
     drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime);
+    if (collectPhaseTiming)
+        lastPhaseTiming.build_sustains_us = std::chrono::duration<double, std::micro>(Clock::now() - tSustains).count();
+
+    auto tGridlines = collectPhaseTiming ? Clock::now() : Clock::time_point{};
     drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
+    if (collectPhaseTiming)
+        lastPhaseTiming.build_gridlines_us = std::chrono::duration<double, std::micro>(Clock::now() - tGridlines).count();
 
     // Detect and add animations to drawCallMap (if enabled)
     bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
@@ -67,9 +85,15 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
     }
 
     // Draw layer by layer, then column by column within each layer
+    if (collectPhaseTiming)
+        lastPhaseTiming.layer_us.clear();
+
+    auto tExec = collectPhaseTiming ? Clock::now() : Clock::time_point{};
     bool calledAfterLanes = false;
     for (const auto& drawOrder : drawCallMap)
     {
+        auto tLayer = collectPhaseTiming ? Clock::now() : Clock::time_point{};
+
         for (const auto& column : drawOrder.second)
         {
             // Draw each layer from back to front
@@ -78,6 +102,9 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
                 (*it)(g);
             }
         }
+
+        if (collectPhaseTiming)
+            lastPhaseTiming.layer_us[drawOrder.first] += std::chrono::duration<double, std::micro>(Clock::now() - tLayer).count();
 
         // Insert SVG track overlay after lanes but before notes/sustains/gridlines
         if (!calledAfterLanes && drawOrder.first >= DrawOrder::LANE && onAfterLanes)
@@ -90,11 +117,17 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
     if (!calledAfterLanes && onAfterLanes)
         onAfterLanes(g);
 
+    if (collectPhaseTiming)
+        lastPhaseTiming.execute_draws_us = std::chrono::duration<double, std::micro>(Clock::now() - tExec).count();
+
     // Advance animation frames after rendering
     if (hitIndicatorsEnabled)
     {
         animationRenderer.advanceFrames();
     }
+
+    if (collectPhaseTiming)
+        lastPhaseTiming.total_us = std::chrono::duration<double, std::micro>(Clock::now() - tTotal).count();
 }
 
 void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime)
@@ -518,177 +551,6 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     // Draw with opacity baked into the colour
     g.setColour(colour.withMultipliedAlpha(opacity));
     g.fillPath(path);
-}
-
-//==============================================================================
-// Highway Texture Overlay
-
-void HighwayRenderer::drawHighwayTexture(juce::Graphics &g)
-{
-    int texW = highwayTexture.getWidth();
-    int texH = highwayTexture.getHeight();
-    if (texW == 0 || texH == 0) return;
-
-    bool isDrums = isPart(state, Part::DRUMS);
-    float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
-    float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
-    float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
-
-    // Extend texture to cover the full fade range
-    float effectiveEnd = std::max(highwayPosEnd, farFadeEnd);
-    float posRange = effectiveEnd - HIGHWAY_POS_START;
-
-    // Use enough strips for ~4px each to balance quality vs performance
-    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd);
-    auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd);
-    int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
-    int stripCount = std::clamp(pixelHeight / 4, (int)HIGHWAY_MIN_STRIPS, 150);
-
-    // Precompute edge positions for all strip boundaries (adjacent strips share edges)
-    using LaneCorners = PositionConstants::LaneCorners;
-    std::vector<std::pair<LaneCorners, float>> edges(stripCount + 1);
-    for (int i = 0; i <= stripCount; i++)
-    {
-        float pos = HIGHWAY_POS_START + posRange * (float)i / (float)stripCount;
-        edges[i] = {PositionMath::getFretboardEdge(isDrums, pos, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd), pos};
-    }
-
-    // Render strips into supersampled offscreen image for clean compositing
-    constexpr int HS = HIGHWAY_RENDER_SCALE;
-    int offW = (int)width * HS;
-    int offH = (int)height * HS;
-    if (highwayOffscreen.getWidth() != offW || highwayOffscreen.getHeight() != offH)
-        highwayOffscreen = juce::Image(juce::Image::ARGB, offW, offH, true);
-    else
-        highwayOffscreen.clear({0, 0, offW, offH});
-
-    {
-        juce::Graphics og(highwayOffscreen);
-        og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-
-        for (int i = 0; i < stripCount; i++)
-        {
-            auto& [bot, botPos] = edges[i];      // bottom (near strikeline)
-            auto& [top, topPos] = edges[i + 1];  // top (far end)
-
-            float destTop = top.centerY * HS;
-            float destBottom = bot.centerY * HS;
-            if (destBottom <= destTop) continue;
-
-            // Average top/bottom edges for horizontal span — eliminates width jumps between strips
-            float destLeft = (bot.leftX + top.leftX) * 0.5f * HS;
-            float destRight = (bot.rightX + top.rightX) * 0.5f * HS;
-            float destW = destRight - destLeft;
-            float destH = destBottom - destTop;
-            if (destW <= 0) continue;
-
-            // Per-strip fade based on far-end position
-            float stripMidPos = (botPos + topPos) * 0.5f;
-            float stripAlpha = calculateOpacity(stripMidPos);
-            if (stripAlpha <= 0.0f) continue;
-            og.setOpacity(stripAlpha);
-
-            // Texture V coordinates (vBot > vTop because lower position = larger V)
-            float vTop = (1.0f - topPos) * HIGHWAY_TILES_PER_HIGHWAY + (float)scrollOffset;
-            float vBot = (1.0f - botPos) * HIGHWAY_TILES_PER_HIGHWAY + (float)scrollOffset;
-
-            float srcYf = fmod(vTop * texH, (float)texH);
-            if (srcYf < 0) srcYf += texH;
-            int srcY = (int)srcYf;
-            int srcH = std::max(1, (int)((vBot - vTop) * texH));
-
-            // Split draw at texture wrap boundary instead of clipping
-            if (srcY + srcH > texH)
-            {
-                int h1 = texH - srcY;
-                int h2 = srcH - h1;
-                float splitFrac = (float)h1 / (float)srcH;
-                float splitY = destTop + destH * splitFrac;
-
-                if (h1 > 0)
-                    og.drawImage(highwayTexture, (int)destLeft, (int)destTop, (int)std::ceil(destW), (int)std::ceil(splitY - destTop), 0, srcY, texW, h1);
-                if (h2 > 0)
-                    og.drawImage(highwayTexture, (int)destLeft, (int)splitY, (int)std::ceil(destW), (int)std::ceil(destBottom - splitY), 0, 0, texW, h2);
-            }
-            else
-            {
-                og.drawImage(highwayTexture, (int)destLeft, (int)destTop, (int)std::ceil(destW), (int)std::ceil(destH), 0, srcY, texW, srcH);
-            }
-        }
-    }
-
-    // Composite supersampled offscreen with fretboard clip path — downsample to canvas
-    auto fretboardPath = PositionMath::getFretboardPath(isDrums, HIGHWAY_POS_START, effectiveEnd,
-                                                        width, height, wNear, wMid, wFar);
-    g.saveState();
-    g.reduceClipRegion(fretboardPath);
-    g.setOpacity(highwayTextureOpacity);
-    g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-    g.drawImage(highwayOffscreen, juce::Rectangle<float>(0, 0, (float)width, (float)height));
-    g.restoreState();
-}
-
-//==============================================================================
-// Draw image with per-strip highway fade
-
-void HighwayRenderer::drawImageWithFade(juce::Graphics& g, const juce::Image& img, juce::Rectangle<float> destRect)
-{
-    if (!img.isValid()) return;
-
-    bool isDrums = isPart(state, Part::DRUMS);
-    float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
-    float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
-    float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
-
-    float effectiveEnd = std::max(highwayPosEnd, farFadeEnd);
-    float posRange = effectiveEnd - HIGHWAY_POS_START;
-
-    // Build position→Y edge table (same approach as highway texture strips)
-    constexpr int stripCount = 40;
-    std::pair<float, float> strips[stripCount + 1]; // {Y, position}
-    for (int i = 0; i <= stripCount; i++)
-    {
-        float pos = HIGHWAY_POS_START + posRange * (float)i / (float)stripCount;
-        auto edge = PositionMath::getFretboardEdge(isDrums, pos, width, height, wNear, wMid, wFar, HIGHWAY_POS_START, effectiveEnd);
-        strips[i] = {edge.centerY, pos};
-    }
-
-    int imgW = img.getWidth(), imgH = img.getHeight();
-    float dstTop = destRect.getY();
-    float dstBot = destRect.getBottom();
-    float dstH = destRect.getHeight();
-
-    for (int i = 0; i < stripCount; i++)
-    {
-        float yBot = strips[i].first;    // bottom (near strikeline, large Y)
-        float yTop = strips[i + 1].first; // top (far end, small Y)
-        float posBot = strips[i].second;
-        float posTop = strips[i + 1].second;
-
-        // Skip strips entirely outside the destination rect
-        if (yBot <= dstTop || yTop >= dstBot) continue;
-
-        float midPos = (posBot + posTop) * 0.5f;
-        float opacity = calculateOpacity(midPos);
-        if (opacity <= 0.0f) continue;
-
-        // Clamp strip bounds to destination rect
-        float clampedTop = std::max(yTop, dstTop);
-        float clampedBot = std::min(yBot, dstBot);
-
-        // Map screen Y to source image coordinates
-        float srcFracTop = (clampedTop - dstTop) / dstH;
-        float srcFracBot = (clampedBot - dstTop) / dstH;
-        int srcY = (int)(srcFracTop * imgH);
-        int srcH = std::max(1, (int)(srcFracBot * imgH) - srcY);
-
-        g.setOpacity(opacity);
-        g.drawImage(img,
-                    (int)destRect.getX(), (int)clampedTop,
-                    (int)std::ceil(destRect.getWidth()), (int)std::ceil(clampedBot - clampedTop),
-                    0, srcY, imgW, srcH);
-    }
-    g.setOpacity(1.0f);
 }
 
 

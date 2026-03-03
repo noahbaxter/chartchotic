@@ -21,7 +21,21 @@
 #include "../Utils/DrawingConstants.h"
 #include "GlyphRenderer.h"
 #include "ColumnRenderer.h"
+#include "HighwayTextureRenderer.h"
 
+#include <chrono>
+#include <map>
+
+struct PhaseTiming
+{
+    double texture_us = 0;
+    double build_notes_us = 0;
+    double build_sustains_us = 0;
+    double build_gridlines_us = 0;
+    double execute_draws_us = 0;
+    std::map<DrawOrder, double> layer_us;  // per-DrawOrder execution breakdown
+    double total_us = 0;
+};
 
 class HighwayRenderer
 {
@@ -31,12 +45,16 @@ class HighwayRenderer
 
         void paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
-        void setHighwayTexture(const juce::Image& texture) { highwayTexture = texture; }
-        void clearHighwayTexture() { highwayTexture = juce::Image(); }
-        void setScrollOffset(double offset) { scrollOffset = offset; }
-        void paintHighwayTextureOnly(juce::Graphics& g) { if (highwayTexture.isValid()) drawHighwayTexture(g); }
+        void setHighwayTexture(const juce::Image& texture) { highwayTextureRenderer.setTexture(texture); }
+        void clearHighwayTexture() { highwayTextureRenderer.clearTexture(); }
+        void setScrollOffset(double offset) { highwayTextureRenderer.setScrollOffset(offset); }
+        void paintHighwayTextureOnly(juce::Graphics& g) { if (highwayTextureRenderer.hasTexture()) highwayTextureRenderer.drawTexture(g, buildTextureParams()); }
         bool skipHighwayTexture = false;
         float highwayTextureOpacity = 0.7f;
+
+        // Opt-in per-phase profiling (zero overhead when false)
+        bool collectPhaseTiming = false;
+        PhaseTiming lastPhaseTiming;
 
         // Called after lanes+gridlines are drawn but before notes/sustains.
         // Used by SVG track mode to insert the track overlay behind notes.
@@ -44,7 +62,10 @@ class HighwayRenderer
 
         // Draw an image at destRect with per-strip highway fade applied.
         // Uses the same position-based opacity as notes/gridlines/highway texture.
-        void drawImageWithFade(juce::Graphics& g, const juce::Image& img, juce::Rectangle<float> destRect);
+        void drawImageWithFade(juce::Graphics& g, const juce::Image& img, juce::Rectangle<float> destRect)
+        {
+            highwayTextureRenderer.drawImageWithFade(g, img, destRect, buildTextureParams());
+        }
 
     private:
         juce::ValueTree &state;
@@ -53,6 +74,20 @@ class HighwayRenderer
         AnimationRenderer animationRenderer;
         GlyphRenderer glyphRenderer;
         ColumnRenderer columnRenderer;
+        HighwayTextureRenderer highwayTextureRenderer;
+
+        HighwayTextureRenderer::Params buildTextureParams() const
+        {
+            bool isDrums = isPart(state, Part::DRUMS);
+            return {
+                (int)width, (int)height, isDrums,
+                isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar,
+                isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar,
+                isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar,
+                highwayPosEnd, farFadeEnd, farFadeLen, farFadeCurve,
+                highwayTextureOpacity
+            };
+        }
 
         uint width = 0, height = 0;
 
@@ -78,15 +113,7 @@ class HighwayRenderer
             return 1.0f - std::pow(t, farFadeCurve);
         }
 
-        // Highway texture overlay
-        juce::Image highwayTexture;
-        juce::Image highwayOffscreen;
         juce::Image curvedOffscreen;
-        double scrollOffset = 0.0;
-        static constexpr int HIGHWAY_MIN_STRIPS = 40;
-        static constexpr float HIGHWAY_TILES_PER_HIGHWAY = 1.0f;
-        static constexpr float HIGHWAY_OPACITY = 0.45f;
-        void drawHighwayTexture(juce::Graphics &g);
 
     public:
         static constexpr float HIGHWAY_POS_START = -0.3f;
