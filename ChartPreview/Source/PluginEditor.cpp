@@ -210,6 +210,11 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         repaint();
     };
 
+    toolbar.onGemScaleChanged = [this](float scale) {
+        state.setProperty("gemScale", scale, nullptr);
+        repaint();
+    };
+
 #ifdef DEBUG
     toolbar.onDebugConsoleChanged = [this](bool show) {
         consoleOutput.setVisible(show);

@@ -185,6 +185,17 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
         return;
     }
 
+    // Apply gem scale from state
+    float gemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;
+    if (std::abs(gemScale - 1.0f) > 0.001f)
+    {
+        float cx = glyphRect.getCentreX();
+        float cy = glyphRect.getCentreY();
+        float newW = glyphRect.getWidth() * gemScale;
+        float newH = glyphRect.getHeight() * gemScale;
+        glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
+    }
+
     float opacity = calculateOpacity(position);
     if (barNote)
     {

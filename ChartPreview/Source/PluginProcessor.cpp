@@ -59,6 +59,7 @@ void ChartPreviewAudioProcessor::initializeDefaultState()
     state.setProperty("kick2x", 1, nullptr);
     state.setProperty("dynamics", 1, nullptr);
     state.setProperty("noteSpeed", 7, nullptr);
+    state.setProperty("gemScale", 1.0f, nullptr);
     state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
 }
 
