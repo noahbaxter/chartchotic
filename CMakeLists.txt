@@ -134,6 +134,8 @@ target_sources(ChartPreview
         ChartPreview/Source/Visual/Renderers/GlyphRenderer.h
         ChartPreview/Source/Visual/Renderers/HighwayRenderer.cpp
         ChartPreview/Source/Visual/Renderers/HighwayRenderer.h
+        ChartPreview/Source/Visual/Renderers/HighwayTextureRenderer.cpp
+        ChartPreview/Source/Visual/Renderers/HighwayTextureRenderer.h
         # Visual / Utils
         ChartPreview/Source/Visual/Utils/DrawingConstants.h
         ChartPreview/Source/Visual/Utils/PositionConstants.h
@@ -157,82 +159,88 @@ target_sources(ChartPreview
         ChartPreview/Source/Utils/Utils.h
 )
 
-# Binary data (images + SVG)
+# Binary data (raster images, vector SVGs, MIDI)
 juce_add_binary_data(ChartPreviewData
     NAMESPACE BinaryData
     SOURCES
-        ChartPreview/Assets/background.png
-        ChartPreview/Assets/background_red.jpg
-        ChartPreview/Assets/bar_kick.png
-        ChartPreview/Assets/bar_kick_2x.png
-        ChartPreview/Assets/bar_open.png
-        ChartPreview/Assets/bar_white.png
-        ChartPreview/Assets/cym_blue.png
-        ChartPreview/Assets/cym_green.png
-        ChartPreview/Assets/cym_red.png
-        ChartPreview/Assets/cym_white.png
-        ChartPreview/Assets/cym_yellow.png
-        ChartPreview/Assets/hopo_blue.png
-        ChartPreview/Assets/hopo_green.png
-        ChartPreview/Assets/hopo_orange.png
-        ChartPreview/Assets/hopo_red.png
-        ChartPreview/Assets/hopo_white.png
-        ChartPreview/Assets/hopo_yellow.png
-        ChartPreview/Assets/lane_end.png
-        ChartPreview/Assets/lane_mid.png
-        ChartPreview/Assets/lane_start.png
-        ChartPreview/Assets/marker_beat.png
-        ChartPreview/Assets/marker_half_beat.png
-        ChartPreview/Assets/marker_measure.png
-        ChartPreview/Assets/note_blue.png
-        ChartPreview/Assets/note_green.png
-        ChartPreview/Assets/note_orange.png
-        ChartPreview/Assets/note_red.png
-        ChartPreview/Assets/note_white.png
-        ChartPreview/Assets/note_yellow.png
-        ChartPreview/Assets/overlay_cym_accent.png
-        ChartPreview/Assets/overlay_cym_ghost.png
-        ChartPreview/Assets/overlay_cym_ghost_80scale.png
-        ChartPreview/Assets/overlay_note_accent.png
-        ChartPreview/Assets/overlay_note_ghost.png
-        ChartPreview/Assets/overlay_note_tap.png
-        ChartPreview/Assets/sustain_blue.png
-        ChartPreview/Assets/sustain_green.png
-        ChartPreview/Assets/sustain_open.png
-        ChartPreview/Assets/sustain_open_white.png
-        ChartPreview/Assets/sustain_orange.png
-        ChartPreview/Assets/sustain_red.png
-        ChartPreview/Assets/sustain_white.png
-        ChartPreview/Assets/sustain_yellow.png
-        ChartPreview/Assets/track_drum.png
-        ChartPreview/Assets/track_drum.svg
-        ChartPreview/Assets/track_guitar.png
-        ChartPreview/Assets/track_guitar.svg
-        ChartPreview/Assets/logo-reaper.svg
-        ChartPreview/Assets/hit_1.png
-        ChartPreview/Assets/hit_2.png
-        ChartPreview/Assets/hit_3.png
-        ChartPreview/Assets/hit_4.png
-        ChartPreview/Assets/hit_5.png
-        ChartPreview/Assets/hit_flare_blue.png
-        ChartPreview/Assets/hit_flare_green.png
-        ChartPreview/Assets/hit_flare_orange.png
-        ChartPreview/Assets/hit_flare_red.png
-        ChartPreview/Assets/hit_flare_yellow.png
-        ChartPreview/Assets/hit_kick_1.png
-        ChartPreview/Assets/hit_kick_2.png
-        ChartPreview/Assets/hit_kick_3.png
-        ChartPreview/Assets/hit_kick_4.png
-        ChartPreview/Assets/hit_kick_5.png
-        ChartPreview/Assets/hit_kick_6.png
-        ChartPreview/Assets/hit_kick_7.png
-        ChartPreview/Assets/hit_open_1.png
-        ChartPreview/Assets/hit_open_2.png
-        ChartPreview/Assets/hit_open_3.png
-        ChartPreview/Assets/hit_open_4.png
-        ChartPreview/Assets/hit_open_5.png
-        ChartPreview/Assets/hit_open_6.png
-        ChartPreview/Assets/hit_open_7.png
+        # Raster assets (PNG/JPG)
+        ChartPreview/Assets/raster/background.png
+        ChartPreview/Assets/raster/background_red.jpg
+        ChartPreview/Assets/raster/bar_kick.png
+        ChartPreview/Assets/raster/bar_kick_2x.png
+        ChartPreview/Assets/raster/bar_open.png
+        ChartPreview/Assets/raster/bar_white.png
+        ChartPreview/Assets/raster/cym_blue.png
+        ChartPreview/Assets/raster/cym_green.png
+        ChartPreview/Assets/raster/cym_red.png
+        ChartPreview/Assets/raster/cym_white.png
+        ChartPreview/Assets/raster/cym_yellow.png
+        ChartPreview/Assets/raster/hopo_blue.png
+        ChartPreview/Assets/raster/hopo_green.png
+        ChartPreview/Assets/raster/hopo_orange.png
+        ChartPreview/Assets/raster/hopo_red.png
+        ChartPreview/Assets/raster/hopo_white.png
+        ChartPreview/Assets/raster/hopo_yellow.png
+        ChartPreview/Assets/raster/lane_end.png
+        ChartPreview/Assets/raster/lane_mid.png
+        ChartPreview/Assets/raster/lane_start.png
+        ChartPreview/Assets/raster/marker_beat.png
+        ChartPreview/Assets/raster/marker_half_beat.png
+        ChartPreview/Assets/raster/marker_measure.png
+        ChartPreview/Assets/raster/note_blue.png
+        ChartPreview/Assets/raster/note_green.png
+        ChartPreview/Assets/raster/note_orange.png
+        ChartPreview/Assets/raster/note_red.png
+        ChartPreview/Assets/raster/note_white.png
+        ChartPreview/Assets/raster/note_yellow.png
+        ChartPreview/Assets/raster/overlay_cym_accent.png
+        ChartPreview/Assets/raster/overlay_cym_ghost.png
+        ChartPreview/Assets/raster/overlay_cym_ghost_80scale.png
+        ChartPreview/Assets/raster/overlay_note_accent.png
+        ChartPreview/Assets/raster/overlay_note_ghost.png
+        ChartPreview/Assets/raster/overlay_note_tap.png
+        ChartPreview/Assets/raster/sustain_blue.png
+        ChartPreview/Assets/raster/sustain_green.png
+        ChartPreview/Assets/raster/sustain_open.png
+        ChartPreview/Assets/raster/sustain_open_white.png
+        ChartPreview/Assets/raster/sustain_orange.png
+        ChartPreview/Assets/raster/sustain_red.png
+        ChartPreview/Assets/raster/sustain_white.png
+        ChartPreview/Assets/raster/sustain_yellow.png
+        ChartPreview/Assets/raster/track_drum.png
+        ChartPreview/Assets/raster/track_guitar.png
+        ChartPreview/Assets/raster/hit_1.png
+        ChartPreview/Assets/raster/hit_2.png
+        ChartPreview/Assets/raster/hit_3.png
+        ChartPreview/Assets/raster/hit_4.png
+        ChartPreview/Assets/raster/hit_5.png
+        ChartPreview/Assets/raster/hit_flare_blue.png
+        ChartPreview/Assets/raster/hit_flare_green.png
+        ChartPreview/Assets/raster/hit_flare_orange.png
+        ChartPreview/Assets/raster/hit_flare_red.png
+        ChartPreview/Assets/raster/hit_flare_yellow.png
+        ChartPreview/Assets/raster/hit_kick_1.png
+        ChartPreview/Assets/raster/hit_kick_2.png
+        ChartPreview/Assets/raster/hit_kick_3.png
+        ChartPreview/Assets/raster/hit_kick_4.png
+        ChartPreview/Assets/raster/hit_kick_5.png
+        ChartPreview/Assets/raster/hit_kick_6.png
+        ChartPreview/Assets/raster/hit_kick_7.png
+        ChartPreview/Assets/raster/hit_open_1.png
+        ChartPreview/Assets/raster/hit_open_2.png
+        ChartPreview/Assets/raster/hit_open_3.png
+        ChartPreview/Assets/raster/hit_open_4.png
+        ChartPreview/Assets/raster/hit_open_5.png
+        ChartPreview/Assets/raster/hit_open_6.png
+        ChartPreview/Assets/raster/hit_open_7.png
+        # Vector assets (SVG)
+        ChartPreview/Assets/svg/gridline_beat.svg
+        ChartPreview/Assets/svg/gridline_half_beat.svg
+        ChartPreview/Assets/svg/gridline_measure.svg
+        ChartPreview/Assets/svg/track_drum.svg
+        ChartPreview/Assets/svg/track_guitar.svg
+        ChartPreview/Assets/svg/logo-reaper.svg
+        # MIDI files
         ChartPreview/Assets/midi/test.mid
         ChartPreview/Assets/midi/stress.mid
         ChartPreview/Assets/midi/sleepy_tea.mid
