@@ -1,0 +1,53 @@
+/*
+  ==============================================================================
+
+    RenderTiming.h
+    Created: 4 Mar 2026
+    Author:  Noah Baxter
+
+    Phase timing for HighwayRenderer. Header-only.
+
+  ==============================================================================
+*/
+
+#pragma once
+
+#include <chrono>
+#include <map>
+#include "../../Utils/Utils.h"
+
+struct PhaseTiming
+{
+    double notes_us = 0.0;
+    double sustains_us = 0.0;
+    double gridlines_us = 0.0;
+    double animation_us = 0.0;
+    double execute_us = 0.0;
+    double total_us = 0.0;
+    std::map<DrawOrder, double> layer_us;
+};
+
+class ScopedPhaseMeasure
+{
+public:
+    ScopedPhaseMeasure(double& target, bool enabled)
+        : target(target), enabled(enabled)
+    {
+        if (enabled)
+            start = std::chrono::high_resolution_clock::now();
+    }
+
+    ~ScopedPhaseMeasure()
+    {
+        if (enabled)
+        {
+            auto end = std::chrono::high_resolution_clock::now();
+            target = std::chrono::duration<double, std::micro>(end - start).count();
+        }
+    }
+
+private:
+    double& target;
+    bool enabled;
+    std::chrono::high_resolution_clock::time_point start;
+};

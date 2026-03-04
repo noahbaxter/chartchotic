@@ -28,6 +28,8 @@ HighwayRenderer::~HighwayRenderer()
 
 void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying)
 {
+    ScopedPhaseMeasure totalMeasure(lastPhaseTiming.total_us, collectPhaseTiming);
+
     // Set the drawing area dimensions from the graphics context
     auto clipBounds = g.getClipBounds();
     width = clipBounds.getWidth();
@@ -47,32 +49,55 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
 
     // Repopulate drawCallMap
     drawCallMap.clear();
-    if (showNotes) drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
-    drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime); // lane/sustain gating inside drawSustain()
-    if (showGridlines) drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
+
+    {
+        ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
+        if (showNotes) drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
+    }
+
+    {
+        ScopedPhaseMeasure m(lastPhaseTiming.sustains_us, collectPhaseTiming);
+        drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime); // lane/sustain gating inside drawSustain()
+    }
+
+    {
+        ScopedPhaseMeasure m(lastPhaseTiming.gridlines_us, collectPhaseTiming);
+        if (showGridlines) drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
+    }
 
     // Detect and add animations to drawCallMap (if enabled)
-    bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
-    if (hitIndicatorsEnabled)
     {
-        if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
-        animationRenderer.renderToDrawCallMap(drawCallMap, width, height);
+        ScopedPhaseMeasure m(lastPhaseTiming.animation_us, collectPhaseTiming);
+        bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
+        if (hitIndicatorsEnabled)
+        {
+            if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
+            animationRenderer.renderToDrawCallMap(drawCallMap, width, height);
+        }
     }
 
     // Draw layer by layer, then column by column within each layer
-    for (const auto& drawOrder : drawCallMap)
     {
-        for (const auto& column : drawOrder.second)
+        ScopedPhaseMeasure m(lastPhaseTiming.execute_us, collectPhaseTiming);
+        if (collectPhaseTiming)
+            lastPhaseTiming.layer_us.clear();
+
+        for (const auto& drawOrder : drawCallMap)
         {
-            // Draw each layer from back to front
-            for (auto it = column.second.rbegin(); it != column.second.rend(); ++it)
+            ScopedPhaseMeasure lm(lastPhaseTiming.layer_us[drawOrder.first], collectPhaseTiming);
+            for (const auto& column : drawOrder.second)
             {
-                (*it)(g);
+                // Draw each layer from back to front
+                for (auto it = column.second.rbegin(); it != column.second.rend(); ++it)
+                {
+                    (*it)(g);
+                }
             }
         }
     }
 
     // Advance animation frames after rendering
+    bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
     if (hitIndicatorsEnabled)
     {
         animationRenderer.advanceFrames();

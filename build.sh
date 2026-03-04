@@ -25,6 +25,7 @@ OPEN_REAPER=false
 BUILD_VST3=true
 BUILD_AU=true
 BUILD_STANDALONE=false
+BUILD_BENCHMARK=false
 
 # Parse arguments
 for arg in "$@"; do
@@ -40,8 +41,9 @@ for arg in "$@"; do
         --vst3-only)    BUILD_AU=false; BUILD_STANDALONE=false ;;
         --au-only)      BUILD_VST3=false; BUILD_STANDALONE=false ;;
         --standalone)   BUILD_STANDALONE=true; BUILD_VST3=false; BUILD_AU=false ;;
+        --benchmark)    BUILD_BENCHMARK=true; BUILD_VST3=false; BUILD_AU=false ;;
         -h|--help)
-            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone]"
+            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark]"
             exit 0
             ;;
         *)
@@ -138,6 +140,30 @@ if [ "$BUILD_STANDALONE" = true ]; then
     fi
 fi
 
+if [ "$BUILD_BENCHMARK" = true ]; then
+    echo ""
+    echo "Building Benchmark..."
+    BENCH_BUILD_DIR="$SCRIPT_DIR/build-benchmark"
+    cmake -B "$BENCH_BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -S "$SCRIPT_DIR/tests/benchmark"
+    cmake --build "$BENCH_BUILD_DIR" --config Release
+
+    BENCH_BIN="$BENCH_BUILD_DIR/bench_rendering_artefacts/Release/bench_rendering"
+    if [ ! -f "$BENCH_BIN" ]; then
+        # Try without Release subdirectory (Makefile generator)
+        BENCH_BIN="$BENCH_BUILD_DIR/bench_rendering_artefacts/bench_rendering"
+    fi
+    if [ -f "$BENCH_BIN" ]; then
+        echo "  Benchmark built: $BENCH_BIN"
+    else
+        echo "  Benchmark build output not found"
+        echo "  Searched: $BENCH_BUILD_DIR/bench_rendering_artefacts/"
+        ls -R "$BENCH_BUILD_DIR/bench_rendering_artefacts/" 2>/dev/null || true
+        exit 1
+    fi
+fi
+
 # Summary
 echo ""
 echo "========================================"
@@ -146,6 +172,7 @@ echo "========================================"
 [ "$BUILD_VST3" = true ]      && echo "  VST3:       ~/Library/Audio/Plug-Ins/VST3/Chart Preview.vst3"
 [ "$BUILD_AU" = true ]         && echo "  AU:         ~/Library/Audio/Plug-Ins/Components/Chart Preview.component"
 [ "$BUILD_STANDALONE" = true ] && echo "  Standalone: $APP_PATH"
+[ "$BUILD_BENCHMARK" = true ]  && echo "  Benchmark:  $BENCH_BIN"
 echo ""
 
 # Open REAPER if requested

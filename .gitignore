@@ -6,6 +6,7 @@
 # Build Artifacts
 # -----------------------------------------------------------------------------
 **/build/
+build-benchmark/
 **/DerivedData/
 **/x64/
 **/Debug/
@@ -115,6 +116,9 @@ examples/
 .venv/
 __pycache__/
 *.pyc
+
+# Benchmark baselines (machine-specific)
+tests/benchmark/baseline.json
 
 # AI stuff
 sessions/

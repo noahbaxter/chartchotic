@@ -280,6 +280,9 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         consoleOutput.setVisible(show);
         clearLogsButton.setVisible(show);
     };
+    dbg.onProfilerChanged = [this](bool on) {
+        highwayRenderer.collectPhaseTiming = on;
+    };
 #endif
 }
 
@@ -356,6 +359,11 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     {
         paintStandardMode(g);
     }
+
+#ifdef DEBUG
+    if (highwayRenderer.collectPhaseTiming)
+        drawProfilerOverlay(g);
+#endif
 }
 
 void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
@@ -651,6 +659,58 @@ void ChartPreviewAudioProcessorEditor::parentSizeChanged()
 }
 
 #ifdef DEBUG
+void ChartPreviewAudioProcessorEditor::drawProfilerOverlay(juce::Graphics& g)
+{
+    auto& t = highwayRenderer.lastPhaseTiming;
+
+    // Update FPS ring buffer
+    profilerRing[profilerRingIndex] = t.total_us;
+    profilerRingIndex = (profilerRingIndex + 1) % PROFILER_RING_SIZE;
+
+    // Calculate rolling average FPS
+    double sum = 0.0;
+    int count = 0;
+    for (int i = 0; i < PROFILER_RING_SIZE; ++i)
+    {
+        if (profilerRing[i] > 0.0)
+        {
+            sum += profilerRing[i];
+            ++count;
+        }
+    }
+    double avgTotal = count > 0 ? sum / count : 0.0;
+    double fps = avgTotal > 0.0 ? 1000000.0 / avgTotal : 0.0;
+
+    juce::String text;
+    text << "FPS: " << juce::String(fps, 1) << "\n"
+         << "Notes:   " << juce::String((int)t.notes_us) << " us\n"
+         << "Sustain: " << juce::String((int)t.sustains_us) << " us\n"
+         << "Grid:    " << juce::String((int)t.gridlines_us) << " us\n"
+         << "Anim:    " << juce::String((int)t.animation_us) << " us\n"
+         << "Execute: " << juce::String((int)t.execute_us) << " us\n"
+         << "Total:   " << juce::String((int)t.total_us) << " us";
+
+    // Layer breakdown — fixed list so it doesn't jump around
+    auto layerUs = [&](DrawOrder d) -> int {
+        auto it = t.layer_us.find(d);
+        return it != t.layer_us.end() ? (int)it->second : 0;
+    };
+
+    text << "\n---\n"
+         << "Grid:    " << layerUs(DrawOrder::GRID) << " us\n"
+         << "Lane:    " << layerUs(DrawOrder::LANE) << " us\n"
+         << "Bar:     " << layerUs(DrawOrder::BAR) << " us\n"
+         << "Sustain: " << layerUs(DrawOrder::SUSTAIN) << " us\n"
+         << "Note:    " << layerUs(DrawOrder::NOTE) << " us\n"
+         << "Overlay: " << layerUs(DrawOrder::OVERLAY) << " us";
+
+    g.setFont(juce::Font(12.0f));
+    g.setColour(juce::Colours::black.withAlpha(0.6f));
+    g.fillRect(4, 40, 140, 210);
+    g.setColour(juce::Colours::white);
+    g.drawFittedText(text, 8, 42, 132, 206, juce::Justification::topLeft, 15);
+}
+
 const ChartPreviewAudioProcessorEditor::DebugChartEntry ChartPreviewAudioProcessorEditor::debugChartRegistry[] = {
     {nullptr,                               0},
     {BinaryData::test_mid,                  BinaryData::test_midSize},

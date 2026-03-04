@@ -205,6 +205,11 @@ private:
     static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
 
 #ifdef DEBUG
+    static constexpr int PROFILER_RING_SIZE = 60;
+    double profilerRing[PROFILER_RING_SIZE] = {};
+    int profilerRingIndex = 0;
+    void drawProfilerOverlay(juce::Graphics& g);
+
     DebugPlaybackController debugController;
     bool debugStandalone = false;
 

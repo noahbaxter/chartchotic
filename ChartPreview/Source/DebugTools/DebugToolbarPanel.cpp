@@ -26,10 +26,16 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
         if (onDebugConsoleChanged) onDebugConsoleChanged(debugConsoleToggle.getToggleState());
     };
 
+    profilerToggle.setButtonText("Profiler");
+    profilerToggle.onClick = [this]() {
+        if (onProfilerChanged) onProfilerChanged(profilerToggle.getToggleState());
+    };
+
     debugButton.addPanelChild(&debugPlayToggle);
     debugButton.addPanelChild(&chartSelectLabel);
     debugButton.addPanelChild(&debugConsoleToggle);
-    debugButton.setPanelSize(150, 90);
+    debugButton.addPanelChild(&profilerToggle);
+    debugButton.setPanelSize(150, 112);
     debugButton.onLayoutPanel = [this](juce::Component* panel) { layoutPanel(panel); };
 }
 
@@ -59,6 +65,9 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
     y += rowHeight + gap;
 
     debugConsoleToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    profilerToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight;
 
     panel->setSize(panel->getWidth(), y + margin);

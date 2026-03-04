@@ -21,6 +21,7 @@
 #include "../Utils/DrawingConstants.h"
 #include "GlyphRenderer.h"
 #include "ColumnRenderer.h"
+#include "../Utils/RenderTiming.h"
 
 
 class HighwayRenderer
@@ -35,6 +36,9 @@ class HighwayRenderer
         bool showSustains = true;
         bool showLanes = true;
         bool showGridlines = true;
+
+        bool collectPhaseTiming = false;
+        PhaseTiming lastPhaseTiming;
 
     private:
         juce::ValueTree &state;

@@ -19,12 +19,14 @@ public:
     std::function<void(bool playing)> onDebugPlayChanged;
     std::function<void(int)> onDebugChartChanged;
     std::function<void(bool)> onDebugConsoleChanged;
+    std::function<void(bool)> onProfilerChanged;
 
 private:
     juce::ValueTree& state;
     PopupMenuButton debugButton{"Debug"};
     juce::ToggleButton debugPlayToggle;
     juce::ToggleButton debugConsoleToggle;
+    juce::ToggleButton profilerToggle;
 
     class ScrollableLabel : public juce::Label
     {
