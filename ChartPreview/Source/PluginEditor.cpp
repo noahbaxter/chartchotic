@@ -9,7 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "UpdateChecker.h"
-#include "Visual/Utils/PositionMath.h"
+
 #ifdef DEBUG
 #include "DebugTools/DebugMidiFilePlayer.h"
 #endif
@@ -30,7 +30,8 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
       state(state),
       audioProcessor(p),
       midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock()),
-      highwayRenderer(state, midiInterpreter),
+      sceneRenderer(state, midiInterpreter),
+      trackRenderer(state),
       toolbar(state)
 {
     setLookAndFeel(&chartPreviewLnF);
@@ -150,8 +151,6 @@ void ChartPreviewAudioProcessorEditor::initAssets()
 {
     backgroundImageDefault = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
     backgroundImageRed = juce::ImageCache::getFromMemory(BinaryData::background_red_jpg, BinaryData::background_red_jpgSize);
-    trackDrumImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
-    trackGuitarImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
 
     // Load REAPER logo SVG
     reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
@@ -159,75 +158,14 @@ void ChartPreviewAudioProcessorEditor::initAssets()
 
 void ChartPreviewAudioProcessorEditor::rebuildFadedTrackImage()
 {
-    int w = getWidth();
-    int h = getHeight();
-    if (w <= 0 || h <= 0) return;
-
     bool isDrums = isPart(state, Part::DRUMS);
-    juce::Image& sourceTrack = isDrums ? trackDrumImage : trackGuitarImage;
+    float wNear = isDrums ? sceneRenderer.fretboardWidthScaleNearDrums : sceneRenderer.fretboardWidthScaleNearGuitar;
+    float wMid  = isDrums ? sceneRenderer.fretboardWidthScaleMidDrums  : sceneRenderer.fretboardWidthScaleMidGuitar;
+    float wFar  = isDrums ? sceneRenderer.fretboardWidthScaleFarDrums  : sceneRenderer.fretboardWidthScaleFarGuitar;
 
-    // Draw source track onto ARGB offscreen image
-    fadedTrackImage = juce::Image(juce::Image::ARGB, w, h, true);
-    {
-        juce::Graphics offG(fadedTrackImage);
-        offG.drawImage(sourceTrack, juce::Rectangle<float>(0, 0, (float)w, (float)h),
-                       juce::RectanglePlacement::centred);
-    }
-
-    // Compute fade zone Y boundaries via bezier position system
-    float fadeEnd = highwayRenderer.farFadeEnd;
-    float fadeStart = fadeEnd - highwayRenderer.farFadeLen;
-    float fadeCurve = highwayRenderer.farFadeCurve;
-
-    float wNear = isDrums ? highwayRenderer.fretboardWidthScaleNearDrums : highwayRenderer.fretboardWidthScaleNearGuitar;
-    float wMid  = isDrums ? highwayRenderer.fretboardWidthScaleMidDrums  : highwayRenderer.fretboardWidthScaleMidGuitar;
-    float wFar  = isDrums ? highwayRenderer.fretboardWidthScaleFarDrums  : highwayRenderer.fretboardWidthScaleFarGuitar;
-
-    auto edgeAtFadeStart = PositionMath::getFretboardEdge(isDrums, fadeStart, w, h, wNear, wMid, wFar,
-        PositionConstants::HIGHWAY_POS_START, highwayRenderer.highwayPosEnd);
-    auto edgeAtFadeEnd = PositionMath::getFretboardEdge(isDrums, fadeEnd, w, h, wNear, wMid, wFar,
-        PositionConstants::HIGHWAY_POS_START, highwayRenderer.highwayPosEnd);
-
-    int fadeStartRow = juce::jlimit(0, h - 1, (int)edgeAtFadeStart.centerY);
-    int fadeEndRow   = juce::jlimit(0, h - 1, (int)edgeAtFadeEnd.centerY);
-
-    // fadeEndRow < fadeStartRow (top of screen = smaller Y)
-    if (fadeEndRow > fadeStartRow) std::swap(fadeEndRow, fadeStartRow);
-
-    // Apply per-row alpha: full alpha below fadeStartRow, gradient in fade zone, zero above fadeEndRow
-    juce::Image::BitmapData pixels(fadedTrackImage, juce::Image::BitmapData::readWrite);
-
-    for (int y = 0; y < h; ++y)
-    {
-        float alpha;
-        if (y >= fadeStartRow)
-        {
-            alpha = 1.0f;  // Below fade zone — full opacity
-        }
-        else if (y <= fadeEndRow)
-        {
-            alpha = 0.0f;  // Above fade zone — fully transparent
-        }
-        else
-        {
-            // In the fade zone: lerp from 1 (at fadeStartRow) to 0 (at fadeEndRow)
-            float t = (float)(fadeStartRow - y) / (float)(fadeStartRow - fadeEndRow);
-            alpha = 1.0f - std::pow(t, fadeCurve);
-        }
-
-        if (alpha >= 1.0f) continue;  // Skip rows that don't need modification
-
-        auto* row = pixels.getLinePointer(y);
-        for (int x = 0; x < w; ++x)
-        {
-            auto* pixel = row + x * pixels.pixelStride;
-            // ARGB premultiplied: multiply all channels by alpha
-            pixel[0] = (uint8_t)(pixel[0] * alpha);  // B
-            pixel[1] = (uint8_t)(pixel[1] * alpha);  // G
-            pixel[2] = (uint8_t)(pixel[2] * alpha);  // R
-            pixel[3] = (uint8_t)(pixel[3] * alpha);  // A
-        }
-    }
+    trackRenderer.rebuild(getWidth(), getHeight(),
+                             sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
+                             wNear, wMid, wFar, sceneRenderer.highwayPosEnd);
 }
 
 void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
@@ -259,25 +197,25 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onNotesChanged = [this](bool on) {
         state.setProperty("showNotes", on ? 1 : 0, nullptr);
-        highwayRenderer.showNotes = on;
+        sceneRenderer.showNotes = on;
         repaint();
     };
 
     toolbar.onSustainsChanged = [this](bool on) {
         state.setProperty("showSustains", on ? 1 : 0, nullptr);
-        highwayRenderer.showSustains = on;
+        sceneRenderer.showSustains = on;
         repaint();
     };
 
     toolbar.onLanesChanged = [this](bool on) {
         state.setProperty("showLanes", on ? 1 : 0, nullptr);
-        highwayRenderer.showLanes = on;
+        sceneRenderer.showLanes = on;
         repaint();
     };
 
     toolbar.onGridlinesChanged = [this](bool on) {
         state.setProperty("showGridlines", on ? 1 : 0, nullptr);
-        highwayRenderer.showGridlines = on;
+        sceneRenderer.showGridlines = on;
         repaint();
     };
 
@@ -343,7 +281,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onHighwayLengthChanged = [this](float length) {
         state.setProperty("highwayLength", length, nullptr);
-        highwayRenderer.farFadeEnd = length;
+        sceneRenderer.farFadeEnd = length;
         updateDisplaySizeFromSpeedSlider();  // PPQ window scales with highway length
         rebuildFadedTrackImage();
         repaint();
@@ -364,7 +302,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         clearLogsButton.setVisible(show);
     };
     dbg.onProfilerChanged = [this](bool on) {
-        highwayRenderer.collectPhaseTiming = on;
+        sceneRenderer.collectPhaseTiming = on;
     };
 #endif
 }
@@ -422,9 +360,8 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         }
     }
 
-    // Draw pre-rendered faded track image (rebuilt on highway length / resize / instrument change)
-    if (fadedTrackImage.isValid())
-        g.drawImageAt(fadedTrackImage, 0, 0);
+    // Draw highway (faded track background)
+    trackRenderer.paint(g);
 
     // Draw the highway - delegate to mode-specific rendering
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
@@ -438,7 +375,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     }
 
 #ifdef DEBUG
-    if (highwayRenderer.collectPhaseTiming)
+    if (sceneRenderer.collectPhaseTiming)
         drawProfilerOverlay(g);
 #endif
 }
@@ -503,7 +440,7 @@ void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
+    sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
@@ -536,7 +473,7 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
         double windowStartTime = 0.0;
         double windowEndTime = displayWindowTimeSeconds;
 
-        highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, debugController.isPlaying());
+        sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, debugController.isPlaying());
         return;
     }
 #endif
@@ -621,7 +558,7 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
+    sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartPreviewAudioProcessorEditor::resized()
@@ -656,7 +593,7 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
     // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.
     const double BASE_PPQ_WINDOW = 30.0;
-    double hwScale = std::max(1.0, (double)highwayRenderer.farFadeEnd);
+    double hwScale = std::max(1.0, (double)sceneRenderer.farFadeEnd);
     displaySizeInPPQ = PPQ(BASE_PPQ_WINDOW * hwScale);
 
     // Sync the display size to the processor so processBlock can use it
@@ -668,14 +605,14 @@ void ChartPreviewAudioProcessorEditor::loadState()
     toolbar.loadState();
 
     // Restore render toggle flags (default ON if property missing from saved state)
-    highwayRenderer.showNotes = !state.hasProperty("showNotes") || (bool)state["showNotes"];
-    highwayRenderer.showSustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
-    highwayRenderer.showLanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
-    highwayRenderer.showGridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
+    sceneRenderer.showNotes = !state.hasProperty("showNotes") || (bool)state["showNotes"];
+    sceneRenderer.showSustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
+    sceneRenderer.showLanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
+    sceneRenderer.showGridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
 
     // Restore highway length
     if (state.hasProperty("highwayLength"))
-        highwayRenderer.farFadeEnd = juce::jlimit(FAR_FADE_MIN, FAR_FADE_MAX, (float)state["highwayLength"]);
+        sceneRenderer.farFadeEnd = juce::jlimit(FAR_FADE_MIN, FAR_FADE_MAX, (float)state["highwayLength"]);
 
     // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);
@@ -747,7 +684,7 @@ void ChartPreviewAudioProcessorEditor::parentSizeChanged()
 #ifdef DEBUG
 void ChartPreviewAudioProcessorEditor::drawProfilerOverlay(juce::Graphics& g)
 {
-    auto& t = highwayRenderer.lastPhaseTiming;
+    auto& t = sceneRenderer.lastPhaseTiming;
 
     // Update FPS ring buffer
     profilerRing[profilerRingIndex] = t.total_us;

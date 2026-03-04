@@ -31,6 +31,6 @@ between calls and you'll get flicker/race conditions. (Burned us in v0.8.6.)
 **Perspective math**: All perspective/positioning now flows through the bezier system in
 `PositionMath` (via `getColumnPosition` → `getFretboardEdge` → `createPerspectiveGlyphRect`).
 `GlyphRenderer` only handles overlay positioning (drum accent scale). Fretboard width scales
-are tunable via debug sliders on `HighwayRenderer` and passed through to `AnimationRenderer`.
+are tunable via debug sliders on `SceneRenderer` and passed through to `AnimationRenderer`.
 
 **Roadmap & Bugs**: `BACKLOG.md` — check before starting work to avoid duplicating known issues.

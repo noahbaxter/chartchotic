@@ -15,9 +15,11 @@ juce_add_console_app(bench_rendering PRODUCT_NAME "Chart Preview Benchmark")
 
 target_sources(bench_rendering PRIVATE
     bench_main.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/HighwayRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/SceneRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/AnimationRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/GlyphRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/NoteRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/SustainRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
     ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp

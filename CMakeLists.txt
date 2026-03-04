@@ -81,6 +81,7 @@ target_sources(ChartPreview
         ChartPreview/Source/DebugTools/DebugToolbarPanel.cpp
         ChartPreview/Source/DebugTools/DebugToolbarPanel.h
         ChartPreview/Source/DebugTools/Logger.h
+        ChartPreview/Source/DebugTools/DataGenerators.h
         # Midi / Processing
         ChartPreview/Source/Midi/Processing/MidiInterpreter.cpp
         ChartPreview/Source/Midi/Processing/MidiInterpreter.h
@@ -128,15 +129,23 @@ target_sources(ChartPreview
         # Visual / Renderers
         ChartPreview/Source/Visual/Renderers/AnimationRenderer.cpp
         ChartPreview/Source/Visual/Renderers/AnimationRenderer.h
-        ChartPreview/Source/Visual/Renderers/GlyphRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/GlyphRenderer.h
-        ChartPreview/Source/Visual/Renderers/HighwayRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/HighwayRenderer.h
+        ChartPreview/Source/Visual/Renderers/SceneRenderer.cpp
+        ChartPreview/Source/Visual/Renderers/SceneRenderer.h
+        ChartPreview/Source/Visual/Renderers/GridlineRenderer.cpp
+        ChartPreview/Source/Visual/Renderers/GridlineRenderer.h
+        ChartPreview/Source/Visual/Renderers/TrackRenderer.cpp
+        ChartPreview/Source/Visual/Renderers/TrackRenderer.h
+        ChartPreview/Source/Visual/Renderers/NoteRenderer.cpp
+        ChartPreview/Source/Visual/Renderers/NoteRenderer.h
+        ChartPreview/Source/Visual/Renderers/SustainRenderer.cpp
+        ChartPreview/Source/Visual/Renderers/SustainRenderer.h
         # Visual / Utils
         ChartPreview/Source/Visual/Utils/DrawingConstants.h
         ChartPreview/Source/Visual/Utils/PositionConstants.h
         ChartPreview/Source/Visual/Utils/PositionMath.cpp
         ChartPreview/Source/Visual/Utils/PositionMath.h
+        ChartPreview/Source/Visual/Utils/RenderTiming.h
+        ChartPreview/Source/Visual/Renderers/TrackFade.h
         # Visual / Managers
         ChartPreview/Source/Visual/Managers/AnimationManager.h
         ChartPreview/Source/Visual/Managers/AssetManager.cpp
@@ -149,6 +158,7 @@ target_sources(ChartPreview
         ChartPreview/Source/UI/ToolbarComponent.cpp
         ChartPreview/Source/UI/ToolbarComponent.h
         # Utils
+        ChartPreview/Source/Visual/Utils/LatencySmoother.h
         ChartPreview/Source/Utils/PPQ.h
         ChartPreview/Source/Utils/TempoTimeSignatureEventHelper.h
         ChartPreview/Source/Utils/TimeConverter.h

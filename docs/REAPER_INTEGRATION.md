@@ -165,7 +165,7 @@ Other DAWs     → StandardMidiPipeline (VST buffer processing)
 - **No special extensions** — standard VST APIs only
 
 ### Shared Components (Both Pipelines)
-`MidiInterpreter`, `MidiProcessor`, `HighwayRenderer`, `GridlineMap`, `MidiUtility`
+`MidiInterpreter`, `MidiProcessor`, `SceneRenderer`, `GridlineMap`, `MidiUtility`
 
 ### REAPER-Only Components
 `ReaperMidiProvider`, `MidiCache`, `ReaperVST2Extensions`, `ReaperVST3Extensions`, `ReaperTrackDetector`

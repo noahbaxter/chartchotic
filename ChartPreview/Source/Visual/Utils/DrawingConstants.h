@@ -38,3 +38,12 @@ constexpr float FAR_FADE_MIN     = 0.50f;     // Minimum highway length
 constexpr float FAR_FADE_MAX     = 3.00f;     // Maximum highway length
 constexpr float FAR_FADE_LEN     = 0.35f;     // Length of fade zone
 constexpr float FAR_FADE_CURVE   = 1.0f;      // Fade exponent (1=linear)
+
+inline float calculateFarFade(float position, float fadeEnd, float fadeLen, float fadeCurve)
+{
+    float fadeStart = fadeEnd - fadeLen;
+    if (position <= fadeStart) return 1.0f;
+    if (position >= fadeEnd)   return 0.0f;
+    float t = (position - fadeStart) / fadeLen;
+    return 1.0f - std::pow(t, fadeCurve);
+}

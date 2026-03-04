@@ -13,7 +13,7 @@
 */
 
 #include <JuceHeader.h>
-#include "Visual/Renderers/HighwayRenderer.h"
+#include "Visual/Renderers/SceneRenderer.h"
 #include "Midi/Processing/MidiInterpreter.h"
 #include "bench_helpers.h"
 
@@ -318,7 +318,7 @@ std::string resultsToJson(const std::vector<BenchResult>& results)
 //==============================================================================
 
 void runInstrument(const char* instrumentName, Part part, int maxColumn, bool noSustains,
-                   juce::ValueTree& state, MidiInterpreter& midiInterpreter, HighwayRenderer& renderer,
+                   juce::ValueTree& state, MidiInterpreter& midiInterpreter, SceneRenderer& renderer,
                    int iterationCount, int warmupCount, double windowStart, double windowEnd,
                    std::vector<BenchResult>& results, int& combo, int totalCombos)
 {
@@ -436,7 +436,7 @@ int main(int argc, char* argv[])
     NoteStateMapArray noteStateMapArray{};
     juce::CriticalSection noteStateMapLock;
     MidiInterpreter midiInterpreter(state, noteStateMapArray, noteStateMapLock);
-    HighwayRenderer renderer(state, midiInterpreter);
+    SceneRenderer renderer(state, midiInterpreter);
     renderer.collectPhaseTiming = true;
 
     double windowStart = 0.0;

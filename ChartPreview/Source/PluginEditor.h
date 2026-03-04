@@ -11,10 +11,12 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Midi/Processing/MidiInterpreter.h"
-#include "Visual/Renderers/HighwayRenderer.h"
+#include "Visual/Renderers/SceneRenderer.h"
+#include "Visual/Renderers/TrackRenderer.h"
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/Utils.h"
 #include "Utils/TimeConverter.h"
+#include "Visual/Utils/LatencySmoother.h"
 #include "UpdateChecker.h"
 #include "UI/ChartPreviewLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
@@ -135,7 +137,8 @@ private:
 
     ChartPreviewAudioProcessor& audioProcessor;
     MidiInterpreter midiInterpreter;
-    HighwayRenderer highwayRenderer;
+    SceneRenderer sceneRenderer;
+    TrackRenderer trackRenderer;
 
     // Custom look and feel
     ChartPreviewLookAndFeel chartPreviewLnF;
@@ -154,9 +157,6 @@ private:
     // Background Assets
     juce::Image backgroundImageDefault;
     juce::Image backgroundImageRed;
-    juce::Image trackDrumImage;
-    juce::Image trackGuitarImage;
-    juce::Image fadedTrackImage;  // Pre-rendered track with far-end fade baked in
     std::unique_ptr<juce::Drawable> reaperLogo;
 
     juce::Label versionLabel;
@@ -242,61 +242,11 @@ private:
         return PPQ(audioProcessor.latencyInSeconds * (bpm / 60.0));
     }
 
-    // Multi-buffer smoothing state
-    PPQ lastSmoothedLatencyPPQ = 0.0;
-    PPQ smoothingTargetLatencyPPQ = 0.0;
-    PPQ smoothingStartLatencyPPQ = 0.0;
-    double smoothingProgress = 1.0;
-    double smoothingDurationSeconds = 2.0;
-    juce::int64 lastSmoothingUpdateTime = 0;
-    void setSmoothingDurationSeconds(double duration) { smoothingDurationSeconds = duration; }
+    // Multi-buffer latency smoothing
+    LatencySmoother latencySmoother;
     PPQ smoothedLatencyInPPQ()
     {
-        PPQ targetLatency = latencyInPPQ();
-        juce::int64 currentTime = juce::Time::getHighResolutionTicks();
-
-        double targetDifference = std::abs((targetLatency - smoothingTargetLatencyPPQ).toDouble());
-        bool targetChanged = targetDifference > 0.01;
-        bool isFirstFrame = lastSmoothedLatencyPPQ == 0.0;
-
-        if (isFirstFrame || targetChanged)
-        {
-            if (isFirstFrame)
-            {
-                lastSmoothedLatencyPPQ = targetLatency;
-                smoothingTargetLatencyPPQ = targetLatency;
-                smoothingStartLatencyPPQ = targetLatency;
-                smoothingProgress = 1.0;
-                lastSmoothingUpdateTime = currentTime;
-                return targetLatency;
-            }
-            else
-            {
-                smoothingStartLatencyPPQ = lastSmoothedLatencyPPQ;
-                smoothingTargetLatencyPPQ = targetLatency;
-                smoothingProgress = 0.0;
-                lastSmoothingUpdateTime = currentTime;
-            }
-        }
-
-        double timeElapsedSeconds = (currentTime - lastSmoothingUpdateTime) / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
-        lastSmoothingUpdateTime = currentTime;
-
-        if (smoothingProgress < 1.0)
-        {
-            double progressIncrement = timeElapsedSeconds / smoothingDurationSeconds;
-            smoothingProgress = std::min(1.0, smoothingProgress + progressIncrement);
-
-            double totalAdjustment = (smoothingTargetLatencyPPQ - smoothingStartLatencyPPQ).toDouble();
-            PPQ currentAdjustment = PPQ(totalAdjustment * smoothingProgress);
-            lastSmoothedLatencyPPQ = smoothingStartLatencyPPQ + currentAdjustment;
-        }
-        else
-        {
-            lastSmoothedLatencyPPQ = smoothingTargetLatencyPPQ;
-        }
-
-        return lastSmoothedLatencyPPQ;
+        return latencySmoother.smooth(latencyInPPQ());
     }
 
     //==============================================================================

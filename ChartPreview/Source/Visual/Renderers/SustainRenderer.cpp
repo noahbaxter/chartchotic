@@ -1,0 +1,283 @@
+/*
+    ==============================================================================
+
+        SustainRenderer.cpp
+        Author:  Noah Baxter
+
+        Sustain and lane rendering extracted from SceneRenderer.
+
+    ==============================================================================
+*/
+
+#include "SustainRenderer.h"
+
+using namespace PositionConstants;
+
+SustainRenderer::SustainRenderer(juce::ValueTree& state, AssetManager& assetManager)
+    : state(state), assetManager(assetManager)
+{
+}
+
+void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainWindow& sustainWindow,
+                               double windowStartTime, double windowEndTime,
+                               uint width, uint height, bool showLanes, bool showSustains,
+                               float wNear, float wMid, float wFar, float posEnd,
+                               float farFadeEnd, float farFadeLen, float farFadeCurve,
+                               const NormalizedCoordinates* laneCoordsGuitar,
+                               const NormalizedCoordinates* laneCoordsDrums)
+{
+    currentDrawCallMap = &drawCallMap;
+    this->width = width;
+    this->height = height;
+    this->showLanes = showLanes;
+    this->showSustains = showSustains;
+    this->wNear = wNear;
+    this->wMid = wMid;
+    this->wFar = wFar;
+    this->posEnd = posEnd;
+    this->farFadeEnd = farFadeEnd;
+    this->farFadeLen = farFadeLen;
+    this->farFadeCurve = farFadeCurve;
+    this->laneCoordsGuitar = laneCoordsGuitar;
+    this->laneCoordsDrums = laneCoordsDrums;
+
+    for (const auto& sustain : sustainWindow)
+    {
+        drawSustain(sustain, windowStartTime, windowEndTime);
+    }
+}
+
+void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime)
+{
+    double windowTimeSpan = windowEndTime - windowStartTime;
+
+    bool isLane = (sustain.sustainType == SustainType::LANE);
+
+    // Gate by render toggle
+    if (isLane && !showLanes) return;
+    if (!isLane && !showSustains) return;
+
+    bool hitAnimationsOn = state.getProperty("hitIndicators");
+
+    // Determine clip position
+    float clipPos;
+    if (isLane)
+    {
+        clipPos = HIGHWAY_POS_START;
+    }
+    else if (hitAnimationsOn)
+    {
+        clipPos = isBarNote(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS)
+            ? BAR_SUSTAIN_CLIP : SUSTAIN_CLIP;
+    }
+    else
+    {
+        clipPos = HIGHWAY_POS_START;
+    }
+
+    double clipTime = clipPos * windowTimeSpan;
+    if (sustain.endTime < clipTime) return;
+
+    double clippedStartTime = std::max(clipTime, sustain.startTime);
+
+    // Position offsets differ for lanes vs sustains
+    float startOffset, endOffset;
+    if (isLane)
+    {
+        startOffset = LANE_START_OFFSET;
+        endOffset = LANE_END_OFFSET;
+    }
+    else if (isBarNote(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS))
+    {
+        startOffset = BAR_SUSTAIN_START_OFFSET;
+        endOffset = BAR_SUSTAIN_END_OFFSET;
+    }
+    else
+    {
+        startOffset = SUSTAIN_START_OFFSET;
+        endOffset = SUSTAIN_END_OFFSET;
+    }
+
+    float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan) + startOffset;
+    float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan) + endOffset;
+
+    if (endPosition < clipPos || startPosition > farFadeEnd) return;
+
+    startPosition = std::max(clipPos, startPosition);
+    endPosition = std::min(farFadeEnd, endPosition);
+
+    bool starPowerActive = state.getProperty("starPower");
+    bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
+    auto colour = assetManager.getLaneColour(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
+
+    float opacity, sustainWidth;
+    DrawOrder sustainDrawOrder;
+    switch (sustain.sustainType) {
+        case SustainType::LANE:
+            opacity = LANE_OPACITY;
+            sustainWidth = (sustain.gemColumn == 0) ? LANE_OPEN_WIDTH : LANE_WIDTH;
+            sustainDrawOrder = DrawOrder::LANE;
+            break;
+        case SustainType::SUSTAIN:
+        default:
+            opacity = SUSTAIN_OPACITY;
+            sustainWidth = (sustain.gemColumn == 0) ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
+            sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
+            break;
+    }
+
+    (*currentDrawCallMap)[sustainDrawOrder][sustain.gemColumn].push_back([=](juce::Graphics& g) {
+        this->drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
+    });
+}
+
+void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
+{
+    bool isDrums = isPart(state, Part::DRUMS);
+    bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+
+    // Look up lane coords
+    NormalizedCoordinates colCoords;
+    float laneScale;
+    if (isDrums) {
+        bool isKick = (gemColumn == 0 || gemColumn == 6);
+        colCoords = isKick ? laneCoordsDrums[0] : laneCoordsDrums[gemColumn];
+        laneScale = isKick ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    } else {
+        colCoords = laneCoordsGuitar[gemColumn];
+        laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    }
+
+    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE);
+    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE);
+
+    float startWidth = (startLane.rightX - startLane.leftX) * sustainWidth;
+    float endWidth = (endLane.rightX - endLane.leftX) * sustainWidth;
+
+    float startCenterX = (startLane.leftX + startLane.rightX) * 0.5f;
+    float endCenterX = (endLane.leftX + endLane.rightX) * 0.5f;
+
+    float startLeftX  = startCenterX - startWidth * 0.5f;
+    float startRightX = startCenterX + startWidth * 0.5f;
+    float endLeftX    = endCenterX - endWidth * 0.5f;
+    float endRightX   = endCenterX + endWidth * 0.5f;
+
+    float startY = startLane.centerY;
+    float endY   = endLane.centerY;
+
+    float startCurve, endCurve;
+    if (isLane)
+    {
+        startCurve = LANE_INNER_START_CURVE;
+        endCurve = LANE_INNER_END_CURVE;
+    }
+    else if (isBar)
+    {
+        startCurve = BAR_SUSTAIN_START_CURVE;
+        endCurve = BAR_SUSTAIN_END_CURVE;
+    }
+    else
+    {
+        startCurve = SUSTAIN_START_CURVE;
+        endCurve = SUSTAIN_END_CURVE;
+    }
+
+    const auto& fbCoords = isDrums
+        ? PositionConstants::drumFretboardCoords
+        : PositionConstants::guitarFretboardCoords;
+    auto startFretboard = getColumnEdge(startPosition, fbCoords, 1.0f);
+    auto endFretboard = getColumnEdge(endPosition, fbCoords, 1.0f);
+
+    float startFretboardWidth = startFretboard.rightX - startFretboard.leftX;
+    float endFretboardWidth = endFretboard.rightX - endFretboard.leftX;
+
+    float startArcY = startCurve * startFretboardWidth;
+    float endArcY = endCurve * endFretboardWidth;
+
+    float laneStartParabolaY = 0.0f;
+    float laneEndParabolaY = 0.0f;
+    if (isLane)
+    {
+        float startT = (startFretboardWidth > 0.0f) ? (startCenterX - startFretboard.leftX) / startFretboardWidth : 0.5f;
+        float endT = (endFretboardWidth > 0.0f) ? (endCenterX - endFretboard.leftX) / endFretboardWidth : 0.5f;
+
+        laneStartParabolaY = LANE_START_CURVE * startFretboardWidth * 4.0f * startT * (1.0f - startT);
+        laneEndParabolaY = LANE_END_CURVE * endFretboardWidth * 4.0f * endT * (1.0f - endT);
+    }
+
+    juce::Path path;
+
+    float adjStartY = startY + laneStartParabolaY;
+    float adjEndY = endY + laneEndParabolaY;
+
+    path.startNewSubPath(startLeftX, adjStartY);
+
+    float startMidX = (startLeftX + startRightX) * 0.5f;
+    path.quadraticTo(startMidX, adjStartY + startArcY, startRightX, adjStartY);
+
+    if (isLane && std::abs(LANE_SIDE_CURVE) > 0.001f)
+    {
+        float sideMidY = (adjStartY + adjEndY) * 0.5f;
+        float sideArc = LANE_SIDE_CURVE * (startFretboardWidth + endFretboardWidth) * 0.5f;
+        path.quadraticTo(startRightX + sideArc, sideMidY, endRightX, adjEndY);
+    }
+    else
+    {
+        path.lineTo(endRightX, adjEndY);
+    }
+
+    float endMidX = (endLeftX + endRightX) * 0.5f;
+    path.quadraticTo(endMidX, adjEndY + endArcY, endLeftX, adjEndY);
+
+    if (isLane && std::abs(LANE_SIDE_CURVE) > 0.001f)
+    {
+        float sideMidY = (adjStartY + adjEndY) * 0.5f;
+        float sideArc = LANE_SIDE_CURVE * (startFretboardWidth + endFretboardWidth) * 0.5f;
+        path.quadraticTo(endLeftX - sideArc, sideMidY, startLeftX, adjStartY);
+    }
+    else
+    {
+        path.closeSubPath();
+    }
+
+    // Fill the path — use gradient if sustain extends into the fade zone
+    float fadeStart = farFadeEnd - farFadeLen;
+    if (endPosition > fadeStart)
+    {
+        float fadeStartClamped = std::max(fadeStart, startPosition);
+        auto fadeStartEdge = PositionMath::getFretboardEdge(isDrums, fadeStartClamped, width, height,
+            wNear, wMid, wFar, PositionConstants::HIGHWAY_POS_START, posEnd);
+        auto fadeEndEdge = PositionMath::getFretboardEdge(isDrums, farFadeEnd, width, height,
+            wNear, wMid, wFar, PositionConstants::HIGHWAY_POS_START, posEnd);
+
+        float gradStartY = fadeStartEdge.centerY;
+        float gradEndY   = fadeEndEdge.centerY;
+
+        float startOpacity = calculateOpacity(fadeStartClamped) * opacity;
+
+        juce::ColourGradient gradient(
+            colour.withAlpha(startOpacity), 0.0f, gradStartY,
+            colour.withAlpha(0.0f), 0.0f, gradEndY,
+            false);
+
+        if (startPosition < fadeStart)
+        {
+            float fullRange = adjStartY - gradEndY;
+            float opaqueRange = adjStartY - gradStartY;
+            float opaqueT = (fullRange > 0.0f) ? opaqueRange / fullRange : 0.0f;
+
+            gradient = juce::ColourGradient(
+                colour.withAlpha(opacity), 0.0f, adjStartY,
+                colour.withAlpha(0.0f), 0.0f, gradEndY,
+                false);
+            gradient.addColour(opaqueT, colour.withAlpha(opacity));
+        }
+
+        g.setGradientFill(gradient);
+    }
+    else
+    {
+        g.setColour(colour.withAlpha(opacity));
+    }
+    g.fillPath(path);
+}

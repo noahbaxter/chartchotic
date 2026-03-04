@@ -38,6 +38,14 @@ inline bool isPart(juce::ValueTree &state, Part part)
     return (int)state.getProperty("part") == (int)part;
 }
 
+inline bool isBarNote(uint gemColumn, Part part)
+{
+    if (part == Part::GUITAR)
+        return gemColumn == 0;
+    else
+        return gemColumn == 0 || gemColumn == 6;
+}
+
 //==============================================================================
 // DRAWING
 

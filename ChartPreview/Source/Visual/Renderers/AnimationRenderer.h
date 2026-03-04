@@ -27,7 +27,7 @@
 class AnimationRenderer
 {
 public:
-    AnimationRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
+    AnimationRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter, AssetManager &assetManager);
     ~AnimationRenderer();
 
     /**
@@ -46,7 +46,7 @@ public:
     /**
      * Populate drawCallMap with animation render calls.
      * Animations are added to BAR_ANIMATION and NOTE_ANIMATION layers for proper Z-ordering.
-     * Bezier params (wNear/wMid/wFar/posEnd) come from HighwayRenderer so debug sliders apply.
+     * Bezier params (wNear/wMid/wFar/posEnd) come from SceneRenderer so debug sliders apply.
      */
     void renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height,
                              float wNear, float wMid, float wFar, float posEnd);
@@ -66,7 +66,7 @@ private:
     juce::ValueTree &state;
     MidiInterpreter &midiInterpreter;
     AnimationManager animationManager;
-    AssetManager assetManager;
+    AssetManager& assetManager;
 
     // Track the last note time per column to ensure every note triggers an animation
     std::array<double, 7> lastNoteTimePerColumn = {-999.0, -999.0, -999.0, -999.0, -999.0, -999.0, -999.0};
@@ -74,20 +74,7 @@ private:
     // Helper: Trigger animation for a specific gem column
     void triggerAnimationForColumn(uint gemColumn);
 
-    // Helper: Determine if a gem column is a bar note (kick/open)
-    bool isBarNote(uint gemColumn, Part part)
-    {
-        if (part == Part::GUITAR)
-        {
-            return gemColumn == 0;
-        }
-        else // if (part == Part::DRUMS)
-        {
-            return gemColumn == 0 || gemColumn == 6;
-        }
-    }
-
-    // Bezier column edge helper (mirrors HighwayRenderer::getColumnEdge)
+    // Bezier column edge helper (mirrors SceneRenderer::getColumnEdge)
     PositionConstants::LaneCorners getColumnEdge(float position, const PositionConstants::NormalizedCoordinates& colCoords,
                                                   float sizeScale, float wNear, float wMid, float wFar, float posEnd,
                                                   float fretboardScale = 1.0f)

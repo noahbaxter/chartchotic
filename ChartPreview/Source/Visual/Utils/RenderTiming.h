@@ -5,7 +5,7 @@
     Created: 4 Mar 2026
     Author:  Noah Baxter
 
-    Phase timing for HighwayRenderer. Header-only.
+    Phase timing for SceneRenderer. Header-only.
 
   ==============================================================================
 */
