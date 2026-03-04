@@ -48,6 +48,9 @@ class HighwayRenderer
         float fretboardWidthScaleFarDrums   = PositionConstants::FB_WIDTH_FAR_DRUMS;
         float highwayPosEnd = PositionConstants::HIGHWAY_POS_END;
 
+        // Gridline position nudge (normalized position space, exposed for debug UI)
+        float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
+
         // Mutable lane coord arrays (mutable for debug UI, defaults from PositionConstants)
         PositionConstants::NormalizedCoordinates guitarLaneCoordsLocal[6] = {
             PositionConstants::guitarBezierLaneCoords[0],

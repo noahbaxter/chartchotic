@@ -119,7 +119,7 @@ void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWi
         // Don't render notes in the past (below the strikeline at time 0)
         if (frameTime < 0.0) continue;
 
-        // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
+        // Normalize position: 0 = strikeline, 1 = far end
         float normalizedPosition = (float)((frameTime - windowStartTime) / windowTimeSpan);
 
         drawFrame(frameItem.second, normalizedPosition, frameTime);
@@ -135,8 +135,8 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
         double gridlineTime = gridline.time;  // Time in seconds from cursor
         Gridline gridlineType = gridline.type;
 
-        // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
-        float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan);
+        // Normalize position: 0 = strikeline, 1 = far end
+        float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
 
         if (normalizedPosition >= 0.0f && normalizedPosition <= 1.0f)
         {
@@ -164,7 +164,7 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
     const auto& fbCoords = isPart(state, Part::DRUMS)
         ? PositionConstants::drumFretboardCoords
         : PositionConstants::guitarFretboardCoords;
-    auto edge = getColumnEdge(position, fbCoords, 1.0f, PositionConstants::FRETBOARD_SCALE);
+    auto edge = getColumnEdge(position, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
     float gridWidth = edge.rightX - edge.leftX;
     auto perspParams = PositionConstants::getPerspectiveParams();
     float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
@@ -203,7 +203,8 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
         const auto& colCoords = PositionConstants::guitarGlyphCoords[
             (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1];
         float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        auto edge = getColumnEdge(position, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
+        float adjustedPosition = barNote ? position + PositionConstants::BAR_NOTE_POS_OFFSET : position;
+        auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
         float colWidth = edge.rightX - edge.leftX;
         float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
         glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
@@ -216,7 +217,8 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
         uint drumIdx = (gemColumn == 6) ? 0 : ((gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1);
         const auto& colCoords = PositionConstants::drumGlyphCoords[drumIdx];
         float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        auto edge = getColumnEdge(position, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
+        float adjustedPosition = barNote ? position + PositionConstants::BAR_NOTE_POS_OFFSET : position;
+        auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
         float colWidth = edge.rightX - edge.leftX;
         float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
         glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
