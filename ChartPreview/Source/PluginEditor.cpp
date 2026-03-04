@@ -49,16 +49,14 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     #ifdef DEBUG
     consoleOutput.setMultiLine(true);
     consoleOutput.setReadOnly(true);
-    consoleOutput.setVisible(false);
-    addAndMakeVisible(consoleOutput);
+    addChildComponent(consoleOutput);
 
     clearLogsButton.setButtonText("Clear Logs");
     clearLogsButton.onClick = [this]() {
         audioProcessor.clearDebugText();
         consoleOutput.clear();
     };
-    clearLogsButton.setVisible(false);
-    addAndMakeVisible(clearLogsButton);
+    addChildComponent(clearLogsButton);
     #endif
 
     loadState();
