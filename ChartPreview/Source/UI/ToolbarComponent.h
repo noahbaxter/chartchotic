@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "PopupMenuButton.h"
 #include "../Utils/Utils.h"
+#include "../Visual/Utils/DrawingConstants.h"
 #ifdef DEBUG
 #include "../DebugTools/DebugToolbarPanel.h"
 #endif
@@ -49,6 +50,7 @@ public:
     std::function<void(bool useRed)> onRedBackgroundChanged;
     std::function<void(const juce::String& textureName)> onHighwayTextureChanged;
     std::function<void(float scale)> onGemScaleChanged;
+    std::function<void(float length)> onHighwayLengthChanged;
 
     // Set available highway texture names (called by editor after scanning directory)
     void setHighwayTextureList(const juce::StringArray& names) { highwayTextureNames = names; }
@@ -90,6 +92,14 @@ private:
     static constexpr float gemScaleValues[] = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f };
     static constexpr int gemScaleDefault = 5; // index of 1.0
     int gemScaleIndex = gemScaleDefault;
+
+    // Highway length selector (scrollable label in Display popup)
+    HighwayTextureLabel highwayLengthLabel; // reuse scrollable label class
+    static constexpr int hwLenMinPct = (int)(FAR_FADE_MIN * 100);
+    static constexpr int hwLenMaxPct = (int)(FAR_FADE_MAX * 100);
+    static constexpr int hwLenStepPct = 10;
+    static constexpr int hwLenDefaultPct = (int)(FAR_FADE_DEFAULT * 100);
+    int highwayLengthPct = hwLenDefaultPct;
 
     // Settings popup children
     juce::Slider chartSpeedSlider;

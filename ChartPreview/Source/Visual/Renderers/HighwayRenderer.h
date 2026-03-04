@@ -51,6 +51,11 @@ class HighwayRenderer
         // Gridline position nudge (normalized position space, exposed for debug UI)
         float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
 
+        // Far-end fade: farFadeEnd is user-controlled ("highway length")
+        float farFadeEnd = FAR_FADE_DEFAULT;
+        static constexpr float farFadeLen   = FAR_FADE_LEN;
+        static constexpr float farFadeCurve = FAR_FADE_CURVE;
+
         // Mutable lane coord arrays (mutable for debug UI, defaults from PositionConstants)
         PositionConstants::NormalizedCoordinates guitarLaneCoordsLocal[6] = {
             PositionConstants::guitarBezierLaneCoords[0],
@@ -108,18 +113,16 @@ class HighwayRenderer
 
         float calculateOpacity(float position)
         {
-            // Make the gem fade out as it gets closer to the end
-            if (position >= OPACITY_FADE_START)
-            {
-                return 1.0 - ((position - OPACITY_FADE_START) / (1.0f - OPACITY_FADE_START));
-            }
-
-            return 1.0;
+            float fadeStart = farFadeEnd - farFadeLen;
+            if (position <= fadeStart) return 1.0f;
+            if (position >= farFadeEnd)  return 0.0f;
+            float t = (position - fadeStart) / farFadeLen;
+            return 1.0f - std::pow(t, farFadeCurve);
         }
 
         DrawCallMap drawCallMap;
         void drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime);
-        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType);
+        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType, float fadeOpacity = 1.0f);
 
         void drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
         void drawFrame(const TimeBasedTrackFrame &gems, float position, double frameTime);

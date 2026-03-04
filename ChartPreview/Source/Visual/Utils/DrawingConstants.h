@@ -20,7 +20,6 @@
 //==============================================================================
 
 // Gem and note opacity
-constexpr float OPACITY_FADE_START = 0.9f;   // Position where gem opacity starts fading
 constexpr float SUSTAIN_OPACITY = 0.7f;      // Sustain note opacity
 constexpr float LANE_OPACITY = 0.4f;         // Lane sustain opacity
 
@@ -32,3 +31,10 @@ constexpr float HALF_BEAT_OPACITY = 0.3f;    // Gridline opacity for half-beat l
 // Hit animation rendering opacity
 constexpr float HIT_FLASH_OPACITY = 0.8f;    // Hit flash frame opacity at strikeline
 constexpr float HIT_FLARE_OPACITY = 0.6f;    // Colored flare overlay opacity
+
+// Far-end fade (highway length)
+constexpr float FAR_FADE_DEFAULT = 1.20f;     // Default farFadeEnd (normalized position)
+constexpr float FAR_FADE_MIN     = 0.50f;     // Minimum highway length
+constexpr float FAR_FADE_MAX     = 3.00f;     // Maximum highway length
+constexpr float FAR_FADE_LEN     = 0.35f;     // Length of fade zone
+constexpr float FAR_FADE_CURVE   = 1.0f;      // Fade exponent (1=linear)

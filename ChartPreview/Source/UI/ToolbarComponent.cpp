@@ -144,10 +144,23 @@ void ToolbarComponent::initControls()
         if (onGemScaleChanged) onGemScaleChanged(scale);
     };
 
+    // Highway length label
+    highwayLengthLabel.setText("Hwy Length: " + juce::String(highwayLengthPct) + "%", juce::dontSendNotification);
+    highwayLengthLabel.setJustificationType(juce::Justification::centredLeft);
+    highwayLengthLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    highwayLengthLabel.setInterceptsMouseClicks(true, true);
+    highwayLengthLabel.onScroll = [this](int delta) {
+        highwayLengthPct = juce::jlimit(hwLenMinPct, hwLenMaxPct,
+            highwayLengthPct + (-delta) * hwLenStepPct);
+        highwayLengthLabel.setText("Hwy Length: " + juce::String(highwayLengthPct) + "%", juce::dontSendNotification);
+        if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
+    };
+
     // Display button
     displayButton.addPanelChild(&redBackgroundToggle);
     displayButton.addPanelChild(&highwayTextureLabel);
     displayButton.addPanelChild(&gemScaleLabel);
+    displayButton.addPanelChild(&highwayLengthLabel);
     displayButton.setPanelSize(160, 120);
     displayButton.onLayoutPanel = [this](juce::Component* panel) { layoutDisplayPanel(panel); };
     addAndMakeVisible(displayButton);
@@ -297,6 +310,14 @@ void ToolbarComponent::loadState()
     }
     gemScaleLabel.setText("Gem Size: " + juce::String((int)(gemScaleValues[gemScaleIndex] * 100)) + "%", juce::dontSendNotification);
 
+    // Restore highway length
+    if (state.hasProperty("highwayLength"))
+    {
+        int savedPct = juce::roundToInt((float)state["highwayLength"] * 100.0f);
+        highwayLengthPct = juce::jlimit(hwLenMinPct, hwLenMaxPct, savedPct);
+        highwayLengthLabel.setText("Hwy Length: " + juce::String(highwayLengthPct) + "%", juce::dontSendNotification);
+    }
+
     // Restore highway texture selection
     juce::String savedTexture = state.getProperty("highwayTexture").toString();
     if (savedTexture.isNotEmpty())
@@ -376,6 +397,9 @@ void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
     y += rowHeight + gap;
 
     gemScaleLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    highwayLengthLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight;
 
     // Resize panel to fit content

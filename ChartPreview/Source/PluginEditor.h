@@ -156,6 +156,7 @@ private:
     juce::Image backgroundImageRed;
     juce::Image trackDrumImage;
     juce::Image trackGuitarImage;
+    juce::Image fadedTrackImage;  // Pre-rendered track with far-end fade baked in
     std::unique_ptr<juce::Drawable> reaperLogo;
 
     juce::Label versionLabel;
@@ -178,6 +179,7 @@ private:
 
     void paintReaperMode(juce::Graphics& g);
     void paintStandardMode(juce::Graphics& g);
+    void rebuildFadedTrackImage();
 
     float latencyInSeconds = 0.0;
 

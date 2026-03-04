@@ -143,28 +143,30 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
         float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
 
         // Gridlines always flow past the strikeline to the bottom of the highway
-        if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= 1.0f)
+        if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= farFadeEnd)
         {
             juce::Image *markerImage = assetManager.getGridlineImage(gridlineType);
 
             if (markerImage != nullptr)
             {
-                drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType); });
+                float fadeOpacity = calculateOpacity(normalizedPosition);
+                drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity); });
             }
         }
     }
 }
 
-void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType)
+void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity)
 {
     if (!markerImage) return;
-    
+
     float opacity = 1.0f;
     switch (gridlineType) {
         case Gridline::MEASURE: opacity = MEASURE_OPACITY; break;
         case Gridline::BEAT: opacity = BEAT_OPACITY; break;
         case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
     }
+    opacity *= fadeOpacity;
 
     const auto& fbCoords = isPart(state, Part::DRUMS)
         ? PositionConstants::drumFretboardCoords
@@ -344,33 +346,29 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan) + endOffset;
 
     // Only draw if visible in the highway range
-    if (endPosition < clipPos || startPosition > 1.0f) return;
+    if (endPosition < clipPos || startPosition > farFadeEnd) return;
 
     // Clamp to visible highway range
     startPosition = std::max(clipPos, startPosition);
-    endPosition = std::min(1.0f, endPosition);
+    endPosition = std::min(farFadeEnd, endPosition);
 
     // Get sustain color based on gem column and star power state
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
     auto colour = assetManager.getLaneColour(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
 
-    // Calculate opacity (average of start and end positions)
-    float avgPosition = (startPosition + endPosition) / 2.0f;
-    float baseOpacity = calculateOpacity(avgPosition);
-
     // Lanes and sustains render differently
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
     switch (sustain.sustainType) {
         case SustainType::LANE:
-            opacity = LANE_OPACITY * baseOpacity;
+            opacity = LANE_OPACITY;
             sustainWidth = (sustain.gemColumn == 0) ? LANE_OPEN_WIDTH : LANE_WIDTH;
             sustainDrawOrder = DrawOrder::LANE;
             break;
         case SustainType::SUSTAIN:
         default:
-            opacity = SUSTAIN_OPACITY * baseOpacity;
+            opacity = SUSTAIN_OPACITY;
             sustainWidth = (sustain.gemColumn == 0) ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
             sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
             break;
@@ -509,8 +507,54 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
         path.closeSubPath();
     }
 
-    // Fill the path directly — no offscreen buffer needed
-    g.setColour(colour.withAlpha(opacity));
+    // Fill the path — use gradient if sustain extends into the fade zone
+    float fadeStart = farFadeEnd - farFadeLen;
+    if (endPosition > fadeStart)
+    {
+        // Get Y positions for the fade boundaries
+        float wN = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
+        float wM = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
+        float wF = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+
+        float fadeStartClamped = std::max(fadeStart, startPosition);
+        auto fadeStartEdge = PositionMath::getFretboardEdge(isDrums, fadeStartClamped, width, height,
+            wN, wM, wF, PositionConstants::HIGHWAY_POS_START, highwayPosEnd);
+        auto fadeEndEdge = PositionMath::getFretboardEdge(isDrums, farFadeEnd, width, height,
+            wN, wM, wF, PositionConstants::HIGHWAY_POS_START, highwayPosEnd);
+
+        float gradStartY = fadeStartEdge.centerY;
+        float gradEndY   = fadeEndEdge.centerY;
+
+        // Opacity at fadeStartClamped position
+        float startOpacity = calculateOpacity(fadeStartClamped) * opacity;
+
+        juce::ColourGradient gradient(
+            colour.withAlpha(startOpacity), 0.0f, gradStartY,
+            colour.withAlpha(0.0f), 0.0f, gradEndY,
+            false);
+
+        // If the sustain starts before the fade zone, add an opaque stop
+        if (startPosition < fadeStart)
+        {
+            // The opaque portion needs a solid colour at the start of the gradient
+            // Re-map: gradient goes from adjStartY to gradEndY
+            float fullRange = adjStartY - gradEndY;  // positive (startY is below endY)
+            float opaqueRange = adjStartY - gradStartY;
+            float opaqueT = (fullRange > 0.0f) ? opaqueRange / fullRange : 0.0f;
+
+            gradient = juce::ColourGradient(
+                colour.withAlpha(opacity), 0.0f, adjStartY,
+                colour.withAlpha(0.0f), 0.0f, gradEndY,
+                false);
+            gradient.addColour(opaqueT, colour.withAlpha(opacity));
+        }
+
+        g.setGradientFill(gradient);
+    }
+    else
+    {
+        g.setColour(colour.withAlpha(opacity));
+    }
     g.fillPath(path);
 }
 
