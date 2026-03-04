@@ -290,6 +290,11 @@ void ChartPreviewAudioProcessor::changeProgramName (int index, const juce::Strin
 
 void ChartPreviewAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+#ifdef DEBUG
+    // Don't persist state in debug standalone — always start fresh for testing
+    if (wrapperType == wrapperType_Standalone) return;
+#endif
+
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
 
     if (xml != nullptr)
@@ -300,6 +305,11 @@ void ChartPreviewAudioProcessor::getStateInformation (juce::MemoryBlock& destDat
 
 void ChartPreviewAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
+#ifdef DEBUG
+    // Don't restore state in debug standalone — always use defaults for testing
+    if (wrapperType == wrapperType_Standalone) return;
+#endif
+
     std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
     if (xml != nullptr)
     {
