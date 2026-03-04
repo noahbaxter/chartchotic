@@ -80,8 +80,8 @@ private:
 
     // Gem scale selector (scrollable label in Display popup)
     HighwayTextureLabel gemScaleLabel; // reuse scrollable label class
-    static constexpr float gemScaleValues[] = { 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f };
-    static constexpr int gemScaleDefault = 3; // index of 1.0
+    static constexpr float gemScaleValues[] = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f };
+    static constexpr int gemScaleDefault = 5; // index of 1.0
     int gemScaleIndex = gemScaleDefault;
 
     // Settings popup children
