@@ -25,52 +25,13 @@ class ChartPreviewAudioProcessorEditor  :
     private juce::ComboBox::Listener,
     private juce::Slider::Listener,
     private juce::ToggleButton::Listener,
-    private juce::TextEditor::Listener,
-    private juce::Timer
+    private juce::TextEditor::Listener
 {
 public:
     ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor&, juce::ValueTree &state);
     ~ChartPreviewAudioProcessorEditor() override;
 
     //==============================================================================
-    void timerCallback() override
-    {
-        printCallback();
-
-        bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-
-        // Track position changes for render logic
-        if (auto* playHead = audioProcessor.getPlayHead()) {
-            auto positionInfo = playHead->getPosition();
-            if (positionInfo.hasValue()) {
-                PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
-                bool isCurrentlyPlaying = positionInfo->getIsPlaying();
-
-                // Update tracked position and playing state
-                lastKnownPosition = currentPosition;
-                lastPlayingState = isCurrentlyPlaying;
-
-                // In REAPER mode, throttled cache invalidation while paused to pick up MIDI edits in real-time
-                // Throttled to ~20 Hz (every 3 frames at 60 FPS) to keep responsiveness without overwhelming the host
-                if (isReaperMode && !isCurrentlyPlaying)
-                {
-                    paused_frameCounterSinceLastInvalidation++;
-                    if (paused_frameCounterSinceLastInvalidation >= 3)
-                    {
-                        paused_frameCounterSinceLastInvalidation = 0;
-                        audioProcessor.invalidateReaperCache();
-                    }
-                }
-                else
-                {
-                    paused_frameCounterSinceLastInvalidation = 0;  // Reset when playing
-                }
-            }
-        }
-
-        repaint();
-    }
-
     void paint (juce::Graphics&) override;
     void resized() override;
     
@@ -102,26 +63,13 @@ public:
         {
             auto framerateValue = framerateMenu.getSelectedId();
             state.setProperty("framerate", framerateValue, nullptr);
-            int frameRate;
             switch (framerateValue)
             {
-            case 1:
-                frameRate = 15;
-                break;
-            case 2:
-                frameRate = 30;
-                break;
-            case 3:
-                frameRate = 60;
-                break;
-            case 4:
-                frameRate = 120;
-                break;
-            case 5:
-                frameRate = 144;
-                break;
+            case 1: targetFrameInterval = 1.0 / 15.0; break;
+            case 2: targetFrameInterval = 1.0 / 30.0; break;
+            case 3: targetFrameInterval = 1.0 / 60.0; break;
+            default: targetFrameInterval = 0.0; break;  // Native
             }
-            startTimerHz(frameRate);
         }
         else if (comboBoxThatHasChanged == &latencyMenu)
         {
@@ -383,8 +331,14 @@ private:
     PPQ displaySizeInPPQ = 1.5; // Only used for MIDI window fetching
     double displayWindowTimeSeconds = 1.0; // Actual render window time in seconds
 
+    // VBlank-synced rendering
+    juce::VBlankAttachment vblankAttachment;
+    double targetFrameInterval = 0.0;  // 0 = native (no throttle), otherwise seconds between frames
+    juce::int64 lastFrameTicks = 0;
+    void onFrame();
+
     // Cache invalidation throttling (for REAPER MIDI edit detection while paused)
-    int paused_frameCounterSinceLastInvalidation = 0;  // Throttle to ~20 Hz (every 3 frames at 60 FPS)
+    juce::int64 lastCacheInvalidationTicks = 0;
 
     // Scroll wheel timeline control
     static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note

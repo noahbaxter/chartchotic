@@ -41,13 +41,61 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     initMenus();
     loadState();
 
-    startTimerHz(60);
+    vblankAttachment = juce::VBlankAttachment(this, [this]() { onFrame(); });
 }
 
 ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
 {
 }
 
+void ChartPreviewAudioProcessorEditor::onFrame()
+{
+    if (targetFrameInterval > 0.0)
+    {
+        juce::int64 now = juce::Time::getHighResolutionTicks();
+        double elapsed = (now - lastFrameTicks)
+            / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        if (elapsed < targetFrameInterval)
+            return;
+        lastFrameTicks = now;
+    }
+
+    printCallback();
+
+    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+
+    // Track position changes for render logic
+    if (auto* playHead = audioProcessor.getPlayHead()) {
+        auto positionInfo = playHead->getPosition();
+        if (positionInfo.hasValue()) {
+            PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
+            bool isCurrentlyPlaying = positionInfo->getIsPlaying();
+
+            lastKnownPosition = currentPosition;
+            lastPlayingState = isCurrentlyPlaying;
+
+            // In REAPER mode, throttled cache invalidation while paused to pick up MIDI edits
+            // Time-based: ~50ms interval regardless of display refresh rate
+            if (isReaperMode && !isCurrentlyPlaying)
+            {
+                juce::int64 now = juce::Time::getHighResolutionTicks();
+                double elapsed = (now - lastCacheInvalidationTicks)
+                    / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+                if (elapsed >= 0.05)
+                {
+                    lastCacheInvalidationTicks = now;
+                    audioProcessor.invalidateReaperCache();
+                }
+            }
+            else
+            {
+                lastCacheInvalidationTicks = 0;
+            }
+        }
+    }
+
+    repaint();
+}
 
 void ChartPreviewAudioProcessorEditor::initAssets()
 {
@@ -74,7 +122,7 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     drumTypeMenu.addListener(this);
     addAndMakeVisible(drumTypeMenu);
 
-    framerateMenu.addItemList({"15 FPS", "30 FPS", "60 FPS", "120 FPS", "144 FPS"}, 1);
+    framerateMenu.addItemList({"15 FPS", "30 FPS", "60 FPS", "Native"}, 1);
     framerateMenu.addListener(this);
     addAndMakeVisible(framerateMenu);
 
@@ -447,7 +495,6 @@ void ChartPreviewAudioProcessorEditor::loadState()
     skillMenu.setSelectedId((int)state["skillLevel"], juce::dontSendNotification);
     partMenu.setSelectedId((int)state["part"], juce::dontSendNotification);
     drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
-    framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
     latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
 
@@ -465,12 +512,14 @@ void ChartPreviewAudioProcessorEditor::loadState()
 
     // Apply side-effects that your listeners would normally do
     applyLatencySetting((int)state["latency"]);
-    int fr = ((int)state["framerate"] == 1) ? 15 :
-             ((int)state["framerate"] == 2) ? 30 :
-             ((int)state["framerate"] == 3) ? 60 :
-             ((int)state["framerate"] == 4) ? 120 :
-             ((int)state["framerate"] == 5) ? 144 : 60;
-    startTimerHz(fr);
+    int frId = (int)state["framerate"];
+    // Migrate old 120/144 FPS options (ids 4,5) and unset (0) to Native (id 4)
+    if (frId < 1 || frId > 4)
+        frId = 4;
+    framerateMenu.setSelectedId(frId, juce::dontSendNotification);
+    targetFrameInterval = (frId == 1) ? 1.0 / 15.0 :
+                          (frId == 2) ? 1.0 / 30.0 :
+                          (frId == 3) ? 1.0 / 60.0 : 0.0;
 
     updateDisplaySizeFromSpeedSlider();
 }
