@@ -261,14 +261,14 @@ void ToolbarComponent::loadState()
     drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
 
-    notesToggle.setToggleState((bool)state["showNotes"], juce::dontSendNotification);
-    sustainsToggle.setToggleState((bool)state["showSustains"], juce::dontSendNotification);
-    lanesToggle.setToggleState((bool)state["showLanes"], juce::dontSendNotification);
-    starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
-    gridlinesToggle.setToggleState((bool)state["showGridlines"], juce::dontSendNotification);
-    hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
-    kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
-    dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
+    notesToggle.setToggleState(!state.hasProperty("showNotes") || (bool)state["showNotes"], juce::dontSendNotification);
+    sustainsToggle.setToggleState(!state.hasProperty("showSustains") || (bool)state["showSustains"], juce::dontSendNotification);
+    lanesToggle.setToggleState(!state.hasProperty("showLanes") || (bool)state["showLanes"], juce::dontSendNotification);
+    starPowerToggle.setToggleState(!state.hasProperty("starPower") || (bool)state["starPower"], juce::dontSendNotification);
+    gridlinesToggle.setToggleState(!state.hasProperty("showGridlines") || (bool)state["showGridlines"], juce::dontSendNotification);
+    hitIndicatorsToggle.setToggleState(!state.hasProperty("hitIndicators") || (bool)state["hitIndicators"], juce::dontSendNotification);
+    kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"], juce::dontSendNotification);
+    dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"], juce::dontSendNotification);
     redBackgroundToggle.setToggleState((bool)state["redBackground"], juce::dontSendNotification);
 
     int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;

@@ -578,11 +578,11 @@ void ChartPreviewAudioProcessorEditor::loadState()
 {
     toolbar.loadState();
 
-    // Restore render toggle flags
-    highwayRenderer.showNotes = (bool)state["showNotes"];
-    highwayRenderer.showSustains = (bool)state["showSustains"];
-    highwayRenderer.showLanes = (bool)state["showLanes"];
-    highwayRenderer.showGridlines = (bool)state["showGridlines"];
+    // Restore render toggle flags (default ON if property missing from saved state)
+    highwayRenderer.showNotes = !state.hasProperty("showNotes") || (bool)state["showNotes"];
+    highwayRenderer.showSustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
+    highwayRenderer.showLanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
+    highwayRenderer.showGridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
 
     // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);
