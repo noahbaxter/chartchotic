@@ -91,8 +91,8 @@ namespace PositionConstants
 
     //==============================================================================
     // Offscreen Rendering
-    constexpr int NOTE_RENDER_SCALE = 2;                 // Supersampling for curved note offscreen
-    constexpr int HIGHWAY_RENDER_SCALE = 2;              // Supersampling for highway texture offscreen
+    constexpr int NOTE_RENDER_SCALE = 1;                 // 1x — curved notes don't need supersampling
+    constexpr int HIGHWAY_RENDER_SCALE = 1;              // 1x — bicubic strips at native res
 
     //==============================================================================
     // Sustain Geometry Constants

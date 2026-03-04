@@ -216,6 +216,7 @@ class HighwayRenderer
         DrawCallMap drawCallMap;
         void drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime);
         void drawGridline(juce::Graphics &g, float position, Gridline gridlineType, float fadeOpacity = 1.0f);
+        void drawGridlinePath(juce::Graphics &g, float position, const juce::Path& path, Gridline gridlineType, float fadeOpacity);
         void drawGridlineSVG(juce::Graphics &g, float position, juce::Drawable* drawable, Gridline gridlineType, float fadeOpacity);
         void drawGridlinePNG(juce::Graphics &g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity);
 

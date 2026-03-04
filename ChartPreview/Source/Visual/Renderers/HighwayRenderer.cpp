@@ -36,6 +36,9 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
     width = clipBounds.getWidth();
     height = clipBounds.getHeight();
 
+    // Re-render SVG assets to cached images if viewport size changed
+    assetManager.renderCachedImages(width, height);
+
     // Calculate the total time window
     double windowTimeSpan = windowEndTime - windowStartTime;
 
@@ -175,9 +178,8 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
 
             if (useSvgAssets)
             {
-                juce::Drawable* drawable = assetManager.getGridlineDrawable(gridlineType);
-                if (drawable != nullptr)
-                    drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridlineSVG(g, normalizedPosition, drawable, gridlineType, fadeOpacity); });
+                const auto& path = assetManager.getGridlinePath(gridlineType);
+                drawCallMap[DrawOrder::GRID][0].push_back([=, &path](juce::Graphics &g) { drawGridlinePath(g, normalizedPosition, path, gridlineType, fadeOpacity); });
             }
             else
             {
@@ -193,9 +195,8 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, Gridline g
 {
     if (useSvgAssets)
     {
-        juce::Drawable* drawable = assetManager.getGridlineDrawable(gridlineType);
-        if (drawable)
-            drawGridlineSVG(g, position, drawable, gridlineType, fadeOpacity);
+        const auto& path = assetManager.getGridlinePath(gridlineType);
+        drawGridlinePath(g, position, path, gridlineType, fadeOpacity);
     }
     else
     {
@@ -211,9 +212,9 @@ void HighwayRenderer::drawGridlinePNG(juce::Graphics& g, float position, juce::I
 
     float opacity = 1.0f;
     switch (gridlineType) {
-        case Gridline::MEASURE: opacity = MEASURE_OPACITY; break;
-        case Gridline::BEAT: opacity = BEAT_OPACITY; break;
-        case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
+        case Gridline::MEASURE: opacity = PNG_MEASURE_OPACITY; break;
+        case Gridline::BEAT: opacity = PNG_BEAT_OPACITY; break;
+        case Gridline::HALF_BEAT: opacity = PNG_HALF_BEAT_OPACITY; break;
     }
     opacity *= fadeOpacity;
 
@@ -231,14 +232,12 @@ void HighwayRenderer::drawGridlinePNG(juce::Graphics& g, float position, juce::I
     draw(g, markerImage, rect, opacity);
 }
 
-void HighwayRenderer::drawGridlineSVG(juce::Graphics& g, float position, juce::Drawable* drawable, Gridline gridlineType, float fadeOpacity)
+void HighwayRenderer::drawGridlinePath(juce::Graphics& g, float position, const juce::Path& path, Gridline gridlineType, float fadeOpacity)
 {
-    if (!drawable) return;
-
     float opacity = 1.0f;
     switch (gridlineType) {
-        case Gridline::MEASURE: opacity = MEASURE_OPACITY; break;
-        case Gridline::BEAT: opacity = BEAT_OPACITY; break;
+        case Gridline::MEASURE:   opacity = MEASURE_OPACITY; break;
+        case Gridline::BEAT:      opacity = BEAT_OPACITY; break;
         case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
     }
     opacity *= fadeOpacity;
@@ -255,10 +254,37 @@ void HighwayRenderer::drawGridlineSVG(juce::Graphics& g, float position, juce::D
                                  edge.centerY - gridHeight * 0.5f,
                                  gridWidth, gridHeight);
 
-    g.saveState();
-    g.setOpacity(opacity);
-    drawable->drawWithin(g, rect, juce::RectanglePlacement::stretchToFit, 1.0f);
-    g.restoreState();
+    auto transform = path.getTransformToScaleToFit(rect, true);
+    g.setColour(juce::Colour(0xa6a6a6).withAlpha(opacity));
+    g.fillPath(path, transform);
+}
+
+void HighwayRenderer::drawGridlineSVG(juce::Graphics& g, float position, juce::Drawable* drawable, Gridline gridlineType, float fadeOpacity)
+{
+    if (!drawable) return;
+
+    // SVGs have opacity baked in — these scalars adjust on top to match PNG appearance
+    float opacity = 1.0f;
+    switch (gridlineType) {
+        case Gridline::MEASURE:   opacity = MEASURE_OPACITY; break;
+        case Gridline::BEAT:      opacity = BEAT_OPACITY; break;
+        case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
+    }
+    opacity *= fadeOpacity;
+
+    bool isDrums = isPart(state, Part::DRUMS);
+    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    auto edge = getColumnEdge(position, fbCoords, 1.1f);
+
+    float gridWidth = edge.rightX - edge.leftX;
+    float gridHeight = gridWidth / getPerspectiveParams().barNoteHeightRatio;
+    float centerX = (edge.leftX + edge.rightX) * 0.5f;
+
+    juce::Rectangle<float> rect(centerX - gridWidth * 0.5f,
+                                 edge.centerY - gridHeight * 0.5f,
+                                 gridWidth, gridHeight);
+
+    drawable->drawWithin(g, rect, juce::RectanglePlacement::stretchToFit, opacity);
 }
 
 
@@ -351,7 +377,7 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
 void HighwayRenderer::drawCurved(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> rect,
                                  float opacity, float fbCenterX, float fbHalfWidth, float arcHeight)
 {
-    if (arcHeight == 0.0f || fbHalfWidth == 0.0f) { draw(g, image, rect, opacity); return; }
+    if (std::abs(arcHeight) < 1.5f || fbHalfWidth == 0.0f) { draw(g, image, rect, opacity); return; }
 
     constexpr int S = NOTE_RENDER_SCALE;
     constexpr int STRIPS = 12;
@@ -366,7 +392,7 @@ void HighwayRenderer::drawCurved(juce::Graphics &g, juce::Image *image, juce::Re
         curvedOffscreen.clear({0, 0, curvedOffscreen.getWidth(), curvedOffscreen.getHeight()});
     {
         juce::Graphics og(curvedOffscreen);
-        og.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+        og.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
 
         float stripW = rect.getWidth() * S / STRIPS;
         int imgW = image->getWidth();

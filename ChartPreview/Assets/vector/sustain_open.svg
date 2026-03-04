@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="333.24533"
+   height="40.959999"
+   viewBox="0 0 333.24533 40.959999"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <mask
+       maskUnits="userSpaceOnUse"
+       x="0"
+       y="0"
+       width="1"
+       height="1"
+       id="mask2">
+      <path
+         id="path10"
+         d="M -32768,32767 H 32767 V -32768 H -32768 Z"
+         style="fill:url(#linearGradient10);stroke:none" />
+    </mask>
+    <linearGradient
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(249.93353,0,0,-249.93353,0,15.36)"
+       spreadMethod="pad"
+       id="linearGradient10">
+      <stop
+         style="stop-opacity:0;stop-color:#ffffff"
+         offset="0"
+         id="stop2" />
+      <stop
+         style="stop-opacity:0;stop-color:#ffffff"
+         offset="0.05677671"
+         id="stop3" />
+      <stop
+         style="stop-opacity:1;stop-color:#ffffff"
+         offset="0.15"
+         id="stop4" />
+      <stop
+         style="stop-opacity:1;stop-color:#ffffff"
+         offset="0.22031939"
+         id="stop5" />
+      <stop
+         style="stop-opacity:1;stop-color:#ffffff"
+         offset="0.5"
+         id="stop6" />
+      <stop
+         style="stop-opacity:1;stop-color:#ffffff"
+         offset="0.77968061"
+         id="stop7" />
+      <stop
+         style="stop-opacity:1;stop-color:#ffffff"
+         offset="0.85"
+         id="stop8" />
+      <stop
+         style="stop-opacity:0;stop-color:#ffffff"
+         offset="0.94322329"
+         id="stop9" />
+      <stop
+         style="stop-opacity:0;stop-color:#ffffff"
+         offset="1"
+         id="stop10" />
+    </linearGradient>
+    <linearGradient
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(249.93353,0,0,-249.93353,0,15.36)"
+       spreadMethod="pad"
+       id="linearGradient19">
+      <stop
+         style="stop-opacity:1;stop-color:#7200d3"
+         offset="0"
+         id="stop11" />
+      <stop
+         style="stop-opacity:1;stop-color:#7200d3"
+         offset="0.05677671"
+         id="stop12" />
+      <stop
+         style="stop-opacity:1;stop-color:#7200d3"
+         offset="0.15"
+         id="stop13" />
+      <stop
+         style="stop-opacity:1;stop-color:#ff95ff"
+         offset="0.22031939"
+         id="stop14" />
+      <stop
+         style="stop-opacity:1;stop-color:#ff95ff"
+         offset="0.5"
+         id="stop15" />
+      <stop
+         style="stop-opacity:1;stop-color:#ff95ff"
+         offset="0.77968061"
+         id="stop16" />
+      <stop
+         style="stop-opacity:1;stop-color:#7200d3"
+         offset="0.85"
+         id="stop17" />
+      <stop
+         style="stop-opacity:1;stop-color:#7200d3"
+         offset="0.94322329"
+         id="stop18" />
+      <stop
+         style="stop-opacity:1;stop-color:#7200d3"
+         offset="1"
+         id="stop19" />
+    </linearGradient>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath20">
+      <path
+         d="M 0,40.96 H 333.24533 V 0 H 0 Z"
+         id="path20" />
+    </clipPath>
+  </defs>
+  <g
+     id="g1">
+    <g
+       id="group-MC0" />
+    <g
+       id="group-MC1">
+      <g
+         mask="url(#mask2)"
+         id="g19"
+         clip-path="url(#clipPath20)">
+        <path
+           d="M 0,0 H 249.934 V 30.72 H 0 Z"
+           transform="matrix(1.3333333,0,0,-1.3333333,0,40.96)"
+           style="fill:url(#linearGradient19);stroke:none"
+           id="path19" />
+      </g>
+    </g>
+  </g>
+</svg>

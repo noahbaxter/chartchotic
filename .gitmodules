@@ -2,3 +2,6 @@
 	path = third_party/JUCE
 	url = https://github.com/noahbaxter/JUCE.git
 	branch = reaper-vst-handshake
+[submodule "assets/source"]
+	path = assets/source
+	url = git@github.com:noahbaxter/chartchotic-assets.git

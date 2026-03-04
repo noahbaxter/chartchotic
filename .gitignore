@@ -126,3 +126,8 @@ sessions/
 # -----------------------------------------------------------------------------
 # Non-production assets (SVGs, highway textures, scratch files)
 ChartPreview/Assets-Bank/
+
+# Source art (private submodule — PDFs/AI files not distributed)
+assets/source/*
+!assets/source/.gitkeep
+!assets/source/asset_mapping.json

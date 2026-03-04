@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="67.139603"
+   height="36.816532"
+   viewBox="0 0 67.139603 36.816532"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <linearGradient
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(34.158558,0,0,-34.158558,8.0980549,13.804632)"
+       spreadMethod="pad"
+       id="linearGradient6">
+      <stop
+         style="stop-opacity:1;stop-color:#000000"
+         offset="0"
+         id="stop2" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.67529015"
+         id="stop3" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.72905"
+         id="stop4" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.87782497"
+         id="stop5" />
+      <stop
+         style="stop-opacity:1;stop-color:#000000"
+         offset="1"
+         id="stop6" />
+    </linearGradient>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath6">
+      <path
+         d="M 8.0980502,27.6093 H 42.256601 V -2.5000001e-7 H 8.0980502 Z"
+         id="path6" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath8">
+      <path
+         d="M 0,5.3333333e-4 H 67.14 V 36.816533 H 0 Z"
+         id="path8" />
+    </clipPath>
+    <linearGradient
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0,27.612387,-27.612387,0,46.305637,-3e-7)"
+       spreadMethod="pad"
+       id="linearGradient12">
+      <stop
+         style="stop-opacity:1;stop-color:#000000"
+         offset="0"
+         id="stop8" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.67529015"
+         id="stop9" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.72905"
+         id="stop10" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.87782497"
+         id="stop11" />
+      <stop
+         style="stop-opacity:1;stop-color:#000000"
+         offset="1"
+         id="stop12" />
+    </linearGradient>
+    <linearGradient
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0,27.612387,27.612387,0,4.0490274,0)"
+       spreadMethod="pad"
+       id="linearGradient17">
+      <stop
+         style="stop-opacity:1;stop-color:#000000"
+         offset="0"
+         id="stop13" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.67529015"
+         id="stop14" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.72905"
+         id="stop15" />
+      <stop
+         style="stop-opacity:1;stop-color:#414042"
+         offset="0.87782497"
+         id="stop16" />
+      <stop
+         style="stop-opacity:1;stop-color:#000000"
+         offset="1"
+         id="stop17" />
+    </linearGradient>
+  </defs>
+  <g
+     id="g1">
+    <g
+       id="group-MC0" />
+    <g
+       id="group-MC1">
+      <g
+         opacity="0.5"
+         id="g7"
+         clip-path="url(#clipPath8)">
+        <path
+           d="M 42.257,0 H 8.098 v 27.609 h 34.159 z"
+           transform="matrix(1.3333333,0,0,-1.3333333,0,36.816533)"
+           style="fill:url(#linearGradient6);stroke:none"
+           opacity="1"
+           clip-path="url(#clipPath6)"
+           id="path7" />
+      </g>
+      <path
+         id="path12"
+         d="m 42.257,0 h 8.098 v 27.612 h -8.098 z"
+         transform="matrix(1.3333333,0,0,-1.3333333,0,36.816533)"
+         style="fill:url(#linearGradient12);stroke:none" />
+      <path
+         id="path17"
+         d="M 0,0 H 8.098 V 27.612 H 0 Z"
+         transform="matrix(1.3333333,0,0,-1.3333333,0,36.816533)"
+         style="fill:url(#linearGradient17);stroke:none" />
+    </g>
+  </g>
+</svg>

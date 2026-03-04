@@ -23,6 +23,14 @@ public:
     ~AssetManager();
 
     //==========================================================================
+    // Cache management
+
+    // Re-render all SVG drawables to cached images at the given viewport size.
+    // Call when the viewport dimensions change (e.g. on resize).
+    // No-ops if dimensions match the last render.
+    void renderCachedImages(int viewportWidth, int viewportHeight);
+
+    //==========================================================================
     // Picker methods (logic for selecting the right asset by game state)
 
     juce::Image* getGuitarGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
@@ -33,7 +41,7 @@ public:
     juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);
 
     //==========================================================================
-    // Raster assets (PNG/JPG — scaled bitmaps)
+    // Raster assets (PNG/JPG — scaled bitmaps, or SVG-rendered cached images)
 
     // Bar/Open notes
     juce::Image* getBarKickImage() { return &barKickImage; }
@@ -122,12 +130,24 @@ public:
 
     juce::Drawable* getGridlineDrawable(Gridline gridlineType);
 
+    // Pre-parsed gridline paths for direct fillPath rendering (no Drawable overhead)
+    const juce::Path& getGridlinePath(Gridline gridlineType);
+
 private:
     void initRasterAssets();
     void initVectorAssets();
 
+    // Render a Drawable to a juce::Image at the given width, preserving aspect ratio.
+    static juce::Image renderDrawableToImage(juce::Drawable* drawable, int targetWidth);
+
     //==========================================================================
-    // Raster data (juce::Image — loaded from PNG/JPG binary data)
+    // Cached render state
+
+    int cachedWidth = 0;
+    int cachedHeight = 0;
+
+    //==========================================================================
+    // Raster data (juce::Image — loaded from PNG/JPG, overwritten by SVG cache)
 
     juce::Image barKickImage, barKick2xImage, barOpenImage, barWhiteImage;
     juce::Image cymBlueImage, cymGreenImage, cymRedImage, cymWhiteImage, cymYellowImage;
@@ -145,9 +165,43 @@ private:
     juce::Image openAnimationFrames[7];
 
     //==========================================================================
+    // Pre-parsed gridline paths (direct fillPath, no Drawable overhead)
+
+    juce::Path gridlineBeatPath;
+    juce::Path gridlineHalfBeatPath;
+
+    //==========================================================================
     // Vector data (juce::Drawable — loaded from SVG binary data)
 
+    // Gridlines (kept for PNG fallback cache rendering)
     std::unique_ptr<juce::Drawable> gridlineBeatSvg;
     std::unique_ptr<juce::Drawable> gridlineHalfBeatSvg;
     std::unique_ptr<juce::Drawable> gridlineMeasureSvg;
+
+    // Note glyphs
+    std::unique_ptr<juce::Drawable> noteBlueSvg, noteGreenSvg, noteOrangeSvg;
+    std::unique_ptr<juce::Drawable> noteRedSvg, noteWhiteSvg, noteYellowSvg;
+
+    // HOPO glyphs
+    std::unique_ptr<juce::Drawable> hopoBlueSvg, hopoGreenSvg, hopoOrangeSvg;
+    std::unique_ptr<juce::Drawable> hopoRedSvg, hopoWhiteSvg, hopoYellowSvg;
+
+    // Cymbal glyphs
+    std::unique_ptr<juce::Drawable> cymBlueSvg, cymGreenSvg, cymRedSvg;
+    std::unique_ptr<juce::Drawable> cymWhiteSvg, cymYellowSvg;
+
+    // Bar/kick/open notes
+    std::unique_ptr<juce::Drawable> barKickSvg, barKick2xSvg;
+    std::unique_ptr<juce::Drawable> barOpenSvg, barWhiteSvg;
+
+    // Overlays
+    std::unique_ptr<juce::Drawable> overlayNoteGhostSvg, overlayCymGhostSvg;
+    std::unique_ptr<juce::Drawable> overlayNoteTapSvg;
+
+    // Sustains
+    std::unique_ptr<juce::Drawable> sustainOpenSvg, sustainOpenWhiteSvg;
+
+    // Hit effects
+    std::unique_ptr<juce::Drawable> hitFlareSvgs[5];
+    std::unique_ptr<juce::Drawable> hitAnimationSvgs[5];
 };

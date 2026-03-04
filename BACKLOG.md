@@ -38,9 +38,11 @@ Fun stuff first. These are the features that make the plugin better.
 
 Do between features or when touching related code.
 
-12. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
-13. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
-14. **Settings persistence audit** — Verify all options save/restore correctly.
+12. **Highway texture looks bad on resize** — Texture resampling quality degrades when dragging window larger. Likely needs higher `HIGHWAY_RENDER_SCALE` or resolution-aware offscreen allocation. Investigate whether offscreen is stale between frames during resize or just low-res.
+13. **Rename HighwayRenderer → something generic** — HighwayRenderer is really the "note/sustain/gridline renderer". HighwayTextureRenderer is the actual highway surface renderer. Swap names so HighwayTextureRenderer → HighwayRenderer (or similar) makes semantic sense.
+13. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
+14. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
+15. **Settings persistence audit** — Verify all options save/restore correctly.
 
 ---
 

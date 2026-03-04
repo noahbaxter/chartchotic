@@ -10,10 +10,28 @@
 
 #include "AssetManager.h"
 
+//==============================================================================
+// Helper: load an SVG drawable from BinaryData, returning nullptr if data is null/empty.
+
+static std::unique_ptr<juce::Drawable> loadSvg(const char* data, int size)
+{
+    if (data == nullptr || size <= 0)
+        return nullptr;
+    return juce::Drawable::createFromImageData(data, (size_t)size);
+}
+
+//==============================================================================
+
 AssetManager::AssetManager()
 {
     initRasterAssets();
     initVectorAssets();
+
+    // Pre-parse gridline SVG path data (measure and beat share the same path)
+    gridlineBeatPath = juce::Drawable::parseSVGPath(
+        "M286.67,9.28c-91.44-9.2-182.59-9.2-274.03,0-.26.03-.48.22-.54.48-.55,2.27-.89,3.64-1.41,5.81-.1.41.24.79.65.75,92.31-9.43,184.31-9.43,276.62,0,.42.04.75-.34.65-.75-.52-2.17-.85-3.54-1.41-5.81-.06-.25-.28-.45-.54-.48Z");
+    gridlineHalfBeatPath = juce::Drawable::parseSVGPath(
+        "M287.39,10.82c-91.92-9.32-183.55-9.32-275.48,0-.26.03-.48.22-.54.48-.26,1.09-.44,1.82-.68,2.83-.1.41.23.8.65.75,92.31-9.43,184.31-9.43,276.62,0,.42.04.75-.35.65-.75-.24-1.01-.42-1.74-.68-2.83-.06-.25-.28-.45-.54-.48Z");
 }
 
 AssetManager::~AssetManager()
@@ -21,7 +39,7 @@ AssetManager::~AssetManager()
 }
 
 //==============================================================================
-// Raster assets (PNG/JPG)
+// Raster assets (PNG/JPG fallback)
 
 void AssetManager::initRasterAssets()
 {
@@ -112,9 +130,165 @@ void AssetManager::initRasterAssets()
 
 void AssetManager::initVectorAssets()
 {
-    gridlineBeatSvg = juce::Drawable::createFromImageData(BinaryData::gridline_beat_svg, BinaryData::gridline_beat_svgSize);
-    gridlineHalfBeatSvg = juce::Drawable::createFromImageData(BinaryData::gridline_half_beat_svg, BinaryData::gridline_half_beat_svgSize);
-    gridlineMeasureSvg = juce::Drawable::createFromImageData(BinaryData::gridline_measure_svg, BinaryData::gridline_measure_svgSize);
+    // Gridlines (existing)
+    gridlineBeatSvg = loadSvg(BinaryData::gridline_beat_svg, BinaryData::gridline_beat_svgSize);
+    gridlineHalfBeatSvg = loadSvg(BinaryData::gridline_half_beat_svg, BinaryData::gridline_half_beat_svgSize);
+    gridlineMeasureSvg = loadSvg(BinaryData::gridline_measure_svg, BinaryData::gridline_measure_svgSize);
+
+    // Note glyphs
+    noteBlueSvg = loadSvg(BinaryData::note_blue_svg, BinaryData::note_blue_svgSize);
+    noteGreenSvg = loadSvg(BinaryData::note_green_svg, BinaryData::note_green_svgSize);
+    noteOrangeSvg = loadSvg(BinaryData::note_orange_svg, BinaryData::note_orange_svgSize);
+    noteRedSvg = loadSvg(BinaryData::note_red_svg, BinaryData::note_red_svgSize);
+    noteWhiteSvg = loadSvg(BinaryData::note_white_svg, BinaryData::note_white_svgSize);
+    noteYellowSvg = loadSvg(BinaryData::note_yellow_svg, BinaryData::note_yellow_svgSize);
+
+    // HOPO glyphs
+    hopoBlueSvg = loadSvg(BinaryData::hopo_blue_svg, BinaryData::hopo_blue_svgSize);
+    hopoGreenSvg = loadSvg(BinaryData::hopo_green_svg, BinaryData::hopo_green_svgSize);
+    hopoOrangeSvg = loadSvg(BinaryData::hopo_orange_svg, BinaryData::hopo_orange_svgSize);
+    hopoRedSvg = loadSvg(BinaryData::hopo_red_svg, BinaryData::hopo_red_svgSize);
+    hopoWhiteSvg = loadSvg(BinaryData::hopo_white_svg, BinaryData::hopo_white_svgSize);
+    hopoYellowSvg = loadSvg(BinaryData::hopo_yellow_svg, BinaryData::hopo_yellow_svgSize);
+
+    // Cymbal glyphs
+    cymBlueSvg = loadSvg(BinaryData::cym_blue_svg, BinaryData::cym_blue_svgSize);
+    cymGreenSvg = loadSvg(BinaryData::cym_green_svg, BinaryData::cym_green_svgSize);
+    cymRedSvg = loadSvg(BinaryData::cym_red_svg, BinaryData::cym_red_svgSize);
+    cymWhiteSvg = loadSvg(BinaryData::cym_white_svg, BinaryData::cym_white_svgSize);
+    cymYellowSvg = loadSvg(BinaryData::cym_yellow_svg, BinaryData::cym_yellow_svgSize);
+
+    // Bar/kick/open notes
+    barKickSvg = loadSvg(BinaryData::bar_kick_svg, BinaryData::bar_kick_svgSize);
+    barKick2xSvg = loadSvg(BinaryData::bar_kick_2x_svg, BinaryData::bar_kick_2x_svgSize);
+    barOpenSvg = loadSvg(BinaryData::bar_open_svg, BinaryData::bar_open_svgSize);
+    barWhiteSvg = loadSvg(BinaryData::bar_white_svg, BinaryData::bar_white_svgSize);
+
+    // Overlays
+    overlayNoteGhostSvg = loadSvg(BinaryData::overlay_note_ghost_svg, BinaryData::overlay_note_ghost_svgSize);
+    overlayCymGhostSvg = loadSvg(BinaryData::overlay_cym_ghost_svg, BinaryData::overlay_cym_ghost_svgSize);
+    overlayNoteTapSvg = loadSvg(BinaryData::overlay_note_tap_svg, BinaryData::overlay_note_tap_svgSize);
+
+    // Sustains
+    sustainOpenSvg = loadSvg(BinaryData::sustain_open_svg, BinaryData::sustain_open_svgSize);
+    sustainOpenWhiteSvg = loadSvg(BinaryData::sustain_open_white_svg, BinaryData::sustain_open_white_svgSize);
+
+    // Hit flares (green=0, red=1, yellow=2, blue=3, orange=4)
+    hitFlareSvgs[0] = loadSvg(BinaryData::hit_flare_green_svg, BinaryData::hit_flare_green_svgSize);
+    hitFlareSvgs[1] = loadSvg(BinaryData::hit_flare_red_svg, BinaryData::hit_flare_red_svgSize);
+    hitFlareSvgs[2] = loadSvg(BinaryData::hit_flare_yellow_svg, BinaryData::hit_flare_yellow_svgSize);
+    hitFlareSvgs[3] = loadSvg(BinaryData::hit_flare_blue_svg, BinaryData::hit_flare_blue_svgSize);
+    hitFlareSvgs[4] = loadSvg(BinaryData::hit_flare_orange_svg, BinaryData::hit_flare_orange_svgSize);
+
+    // Hit animation frames
+    hitAnimationSvgs[0] = loadSvg(BinaryData::hit_1_svg, BinaryData::hit_1_svgSize);
+    hitAnimationSvgs[1] = loadSvg(BinaryData::hit_2_svg, BinaryData::hit_2_svgSize);
+    hitAnimationSvgs[2] = loadSvg(BinaryData::hit_3_svg, BinaryData::hit_3_svgSize);
+    hitAnimationSvgs[3] = loadSvg(BinaryData::hit_4_svg, BinaryData::hit_4_svgSize);
+    hitAnimationSvgs[4] = loadSvg(BinaryData::hit_5_svg, BinaryData::hit_5_svgSize);
+}
+
+//==============================================================================
+// SVG → cached Image rendering
+
+juce::Image AssetManager::renderDrawableToImage(juce::Drawable* drawable, int targetWidth)
+{
+    if (drawable == nullptr || targetWidth <= 0)
+        return {};
+
+    auto bounds = drawable->getDrawableBounds();
+    if (bounds.isEmpty())
+        return {};
+
+    float aspect = bounds.getWidth() / bounds.getHeight();
+    int w = targetWidth;
+    int h = std::max(1, (int)(w / aspect));
+
+    juce::Image img(juce::Image::ARGB, w, h, true);
+    juce::Graphics g(img);
+    drawable->drawWithin(g, juce::Rectangle<float>(0.0f, 0.0f, (float)w, (float)h),
+                         juce::RectanglePlacement::centred, 1.0f);
+    return img;
+}
+
+void AssetManager::renderCachedImages(int viewportWidth, int viewportHeight)
+{
+    if (viewportWidth == cachedWidth && viewportHeight == cachedHeight)
+        return;
+
+    cachedWidth = viewportWidth;
+    cachedHeight = viewportHeight;
+
+    // Render SVG drawables to cached images at sizes appropriate for the viewport.
+    // 2x scale factor provides quality headroom for perspective transforms.
+    constexpr float scale = 2.0f;
+
+    // Regular glyphs: max ~15% of viewport width at strikeline
+    int glyphW = (int)(viewportWidth * 0.15f * scale);
+
+    // Bar notes (kick/open): max ~70% of viewport width at strikeline
+    int barW = (int)(viewportWidth * 0.70f * scale);
+
+    // Overlays: same size as the glyphs they sit on
+    int overlayW = glyphW;
+
+    // Sustains: narrower than glyphs
+    int sustainW = (int)(viewportWidth * 0.10f * scale);
+
+    // Hit effects: medium
+    int hitW = (int)(viewportWidth * 0.20f * scale);
+
+    // Helper macro: render SVG to Image if the Drawable exists
+    #define RENDER_SVG(drawable, image, width) \
+        if (drawable) image = renderDrawableToImage(drawable.get(), width)
+
+    // Note glyphs
+    RENDER_SVG(noteBlueSvg, noteBlueImage, glyphW);
+    RENDER_SVG(noteGreenSvg, noteGreenImage, glyphW);
+    RENDER_SVG(noteOrangeSvg, noteOrangeImage, glyphW);
+    RENDER_SVG(noteRedSvg, noteRedImage, glyphW);
+    RENDER_SVG(noteWhiteSvg, noteWhiteImage, glyphW);
+    RENDER_SVG(noteYellowSvg, noteYellowImage, glyphW);
+
+    // HOPO glyphs
+    RENDER_SVG(hopoBlueSvg, hopoBlueImage, glyphW);
+    RENDER_SVG(hopoGreenSvg, hopoGreenImage, glyphW);
+    RENDER_SVG(hopoOrangeSvg, hopoOrangeImage, glyphW);
+    RENDER_SVG(hopoRedSvg, hopoRedImage, glyphW);
+    RENDER_SVG(hopoWhiteSvg, hopoWhiteImage, glyphW);
+    RENDER_SVG(hopoYellowSvg, hopoYellowImage, glyphW);
+
+    // Cymbal glyphs
+    RENDER_SVG(cymBlueSvg, cymBlueImage, glyphW);
+    RENDER_SVG(cymGreenSvg, cymGreenImage, glyphW);
+    RENDER_SVG(cymRedSvg, cymRedImage, glyphW);
+    RENDER_SVG(cymWhiteSvg, cymWhiteImage, glyphW);
+    RENDER_SVG(cymYellowSvg, cymYellowImage, glyphW);
+
+    // Bar/kick/open notes
+    RENDER_SVG(barKickSvg, barKickImage, barW);
+    RENDER_SVG(barKick2xSvg, barKick2xImage, barW);
+    RENDER_SVG(barOpenSvg, barOpenImage, barW);
+    RENDER_SVG(barWhiteSvg, barWhiteImage, barW);
+
+    // Overlays
+    RENDER_SVG(overlayNoteGhostSvg, overlayNoteGhostImage, overlayW);
+    RENDER_SVG(overlayCymGhostSvg, overlayCymGhostImage, overlayW);
+    RENDER_SVG(overlayNoteTapSvg, overlayNoteTapImage, overlayW);
+
+    // Sustains
+    RENDER_SVG(sustainOpenSvg, sustainOpenImage, sustainW);
+    RENDER_SVG(sustainOpenWhiteSvg, sustainOpenWhiteImage, sustainW);
+
+    // Hit flares
+    for (int i = 0; i < 5; ++i)
+        RENDER_SVG(hitFlareSvgs[i], hitFlareImages[i], hitW);
+
+    // Hit animation frames
+    for (int i = 0; i < 5; ++i)
+        RENDER_SVG(hitAnimationSvgs[i], hitAnimationFrames[i], hitW);
+
+    #undef RENDER_SVG
 }
 
 //==============================================================================
@@ -142,6 +316,13 @@ juce::Drawable* AssetManager::getGridlineDrawable(Gridline gridlineType)
     }
 
     return nullptr;
+}
+
+const juce::Path& AssetManager::getGridlinePath(Gridline gridlineType)
+{
+    if (gridlineType == Gridline::HALF_BEAT)
+        return gridlineHalfBeatPath;
+    return gridlineBeatPath;  // MEASURE and BEAT share the same shape
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
@@ -374,11 +555,11 @@ juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPow
     if (part == Part::GUITAR)
     {
         juce::Colour guitarColors[] = {
-            juce::Colours::purple,  
-            juce::Colours::green,   
-            juce::Colours::red,     
-            juce::Colours::yellow,  
-            juce::Colours::blue,    
+            juce::Colours::purple,
+            juce::Colours::green,
+            juce::Colours::red,
+            juce::Colours::yellow,
+            juce::Colours::blue,
             juce::Colours::orange
         };
         return guitarColors[std::min(gemColumn, 5u)];

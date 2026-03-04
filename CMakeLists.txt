@@ -233,13 +233,50 @@ juce_add_binary_data(ChartPreviewData
         ChartPreview/Assets/raster/hit_open_5.png
         ChartPreview/Assets/raster/hit_open_6.png
         ChartPreview/Assets/raster/hit_open_7.png
-        # Vector assets (SVG)
+        # Vector assets (SVG) — existing
         ChartPreview/Assets/vector/gridline_beat.svg
         ChartPreview/Assets/vector/gridline_half_beat.svg
         ChartPreview/Assets/vector/gridline_measure.svg
         ChartPreview/Assets/vector/track_drum.svg
         ChartPreview/Assets/vector/track_guitar.svg
         ChartPreview/Assets/vector/logo-reaper.svg
+        # Vector assets (SVG) — converted from source PDFs
+        ChartPreview/Assets/vector/note_blue.svg
+        ChartPreview/Assets/vector/note_green.svg
+        ChartPreview/Assets/vector/note_orange.svg
+        ChartPreview/Assets/vector/note_red.svg
+        ChartPreview/Assets/vector/note_white.svg
+        ChartPreview/Assets/vector/note_yellow.svg
+        ChartPreview/Assets/vector/hopo_blue.svg
+        ChartPreview/Assets/vector/hopo_green.svg
+        ChartPreview/Assets/vector/hopo_orange.svg
+        ChartPreview/Assets/vector/hopo_red.svg
+        ChartPreview/Assets/vector/hopo_white.svg
+        ChartPreview/Assets/vector/hopo_yellow.svg
+        ChartPreview/Assets/vector/cym_blue.svg
+        ChartPreview/Assets/vector/cym_green.svg
+        ChartPreview/Assets/vector/cym_red.svg
+        ChartPreview/Assets/vector/cym_white.svg
+        ChartPreview/Assets/vector/cym_yellow.svg
+        ChartPreview/Assets/vector/bar_kick.svg
+        ChartPreview/Assets/vector/bar_kick_2x.svg
+        ChartPreview/Assets/vector/bar_open.svg
+        ChartPreview/Assets/vector/bar_white.svg
+        ChartPreview/Assets/vector/overlay_note_ghost.svg
+        ChartPreview/Assets/vector/overlay_cym_ghost.svg
+        ChartPreview/Assets/vector/overlay_note_tap.svg
+        ChartPreview/Assets/vector/sustain_open.svg
+        ChartPreview/Assets/vector/sustain_open_white.svg
+        ChartPreview/Assets/vector/hit_flare_green.svg
+        ChartPreview/Assets/vector/hit_flare_red.svg
+        ChartPreview/Assets/vector/hit_flare_yellow.svg
+        ChartPreview/Assets/vector/hit_flare_blue.svg
+        ChartPreview/Assets/vector/hit_flare_orange.svg
+        ChartPreview/Assets/vector/hit_1.svg
+        ChartPreview/Assets/vector/hit_2.svg
+        ChartPreview/Assets/vector/hit_3.svg
+        ChartPreview/Assets/vector/hit_4.svg
+        ChartPreview/Assets/vector/hit_5.svg
         # MIDI files
         ChartPreview/Assets/midi/test.mid
         ChartPreview/Assets/midi/stress.mid
