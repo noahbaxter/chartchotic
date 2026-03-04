@@ -182,6 +182,30 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         audioProcessor.refreshMidiDisplay();
     };
 
+    toolbar.onNotesChanged = [this](bool on) {
+        state.setProperty("showNotes", on ? 1 : 0, nullptr);
+        highwayRenderer.showNotes = on;
+        repaint();
+    };
+
+    toolbar.onSustainsChanged = [this](bool on) {
+        state.setProperty("showSustains", on ? 1 : 0, nullptr);
+        highwayRenderer.showSustains = on;
+        repaint();
+    };
+
+    toolbar.onLanesChanged = [this](bool on) {
+        state.setProperty("showLanes", on ? 1 : 0, nullptr);
+        highwayRenderer.showLanes = on;
+        repaint();
+    };
+
+    toolbar.onGridlinesChanged = [this](bool on) {
+        state.setProperty("showGridlines", on ? 1 : 0, nullptr);
+        highwayRenderer.showGridlines = on;
+        repaint();
+    };
+
     toolbar.onHitIndicatorsChanged = [this](bool on) {
         state.setProperty("hitIndicators", on ? 1 : 0, nullptr);
         audioProcessor.refreshMidiDisplay();
@@ -553,6 +577,12 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 void ChartPreviewAudioProcessorEditor::loadState()
 {
     toolbar.loadState();
+
+    // Restore render toggle flags
+    highwayRenderer.showNotes = (bool)state["showNotes"];
+    highwayRenderer.showSustains = (bool)state["showSustains"];
+    highwayRenderer.showLanes = (bool)state["showLanes"];
+    highwayRenderer.showGridlines = (bool)state["showGridlines"];
 
     // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);

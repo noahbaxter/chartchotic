@@ -47,9 +47,9 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
 
     // Repopulate drawCallMap
     drawCallMap.clear();
-    drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
-    drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime);
-    drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
+    if (showNotes) drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
+    drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime); // lane/sustain gating inside drawSustain()
+    if (showGridlines) drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
 
     // Detect and add animations to drawCallMap (if enabled)
     bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
@@ -240,6 +240,10 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     // Don't render sustains that end before the strikeline (time 0)
     if (sustain.endTime < 0.0) return;
+
+    // Gate by render toggle
+    if (sustain.sustainType == SustainType::LANE && !showLanes) return;
+    if (sustain.sustainType == SustainType::SUSTAIN && !showSustains) return;
 
     // Clip sustain start to the strikeline if it extends into the past
     double clippedStartTime = std::max(0.0, sustain.startTime);

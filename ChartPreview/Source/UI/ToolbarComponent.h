@@ -34,6 +34,10 @@ public:
     std::function<void(int partId)> onPartChanged;
     std::function<void(int drumTypeId)> onDrumTypeChanged;
     std::function<void(int autoHopoId)> onAutoHopoChanged;
+    std::function<void(bool)> onNotesChanged;
+    std::function<void(bool)> onSustainsChanged;
+    std::function<void(bool)> onLanesChanged;
+    std::function<void(bool)> onGridlinesChanged;
     std::function<void(bool)> onHitIndicatorsChanged;
     std::function<void(bool)> onStarPowerChanged;
     std::function<void(bool)> onKick2xChanged;
@@ -60,8 +64,11 @@ private:
     // Always-visible toolbar controls
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, autoHopoMenu;
 
+    // Render popup children
+    juce::ToggleButton notesToggle, sustainsToggle, lanesToggle, starPowerToggle, gridlinesToggle, hitIndicatorsToggle, kick2xToggle, dynamicsToggle;
+
     // Display popup children
-    juce::ToggleButton hitIndicatorsToggle, starPowerToggle, kick2xToggle, dynamicsToggle, redBackgroundToggle;
+    juce::ToggleButton redBackgroundToggle;
 
     // Highway texture selector (scrollable label in Display popup)
     class HighwayTextureLabel : public juce::Label
@@ -109,6 +116,7 @@ private:
     LatencyOffsetEditor latencyOffsetInput;
 
     // Popup buttons
+    PopupMenuButton renderButton{"Render"};
     PopupMenuButton displayButton{"Display"};
     PopupMenuButton settingsButton{"Settings"};
 
@@ -121,6 +129,7 @@ private:
 #endif
 
     void initControls();
+    void layoutRenderPanel(juce::Component* panel);
     void layoutDisplayPanel(juce::Component* panel);
     void layoutSettingsPanel(juce::Component* panel);
 

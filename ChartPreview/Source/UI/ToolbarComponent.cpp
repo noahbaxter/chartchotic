@@ -8,6 +8,7 @@ ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
 
 ToolbarComponent::~ToolbarComponent()
 {
+    renderButton.dismissPanel();
     displayButton.dismissPanel();
     settingsButton.dismissPanel();
 }
@@ -26,11 +27,11 @@ void ToolbarComponent::initControls()
     partMenu.onChange = [this]() {
         if (onPartChanged) onPartChanged(partMenu.getSelectedId());
         updateVisibility();
-        // Re-layout display panel if open to show/hide drums-only toggles
-        if (displayButton.isPanelVisible())
+        // Re-layout panels if open to show/hide drums-only toggles
+        if (renderButton.isPanelVisible())
         {
-            displayButton.dismissPanel();
-            displayButton.showPanel();
+            renderButton.dismissPanel();
+            renderButton.showPanel();
         }
     };
     addAndMakeVisible(partMenu);
@@ -49,15 +50,35 @@ void ToolbarComponent::initControls()
     };
     addAndMakeVisible(autoHopoMenu);
 
-    // Display popup children
-    hitIndicatorsToggle.setButtonText("Hit Indicators");
-    hitIndicatorsToggle.onClick = [this]() {
-        if (onHitIndicatorsChanged) onHitIndicatorsChanged(hitIndicatorsToggle.getToggleState());
+    // Render popup children
+    notesToggle.setButtonText("Notes");
+    notesToggle.onClick = [this]() {
+        if (onNotesChanged) onNotesChanged(notesToggle.getToggleState());
+    };
+
+    sustainsToggle.setButtonText("Sustains");
+    sustainsToggle.onClick = [this]() {
+        if (onSustainsChanged) onSustainsChanged(sustainsToggle.getToggleState());
+    };
+
+    lanesToggle.setButtonText("Lanes");
+    lanesToggle.onClick = [this]() {
+        if (onLanesChanged) onLanesChanged(lanesToggle.getToggleState());
     };
 
     starPowerToggle.setButtonText("Star Power");
     starPowerToggle.onClick = [this]() {
         if (onStarPowerChanged) onStarPowerChanged(starPowerToggle.getToggleState());
+    };
+
+    gridlinesToggle.setButtonText("Gridlines");
+    gridlinesToggle.onClick = [this]() {
+        if (onGridlinesChanged) onGridlinesChanged(gridlinesToggle.getToggleState());
+    };
+
+    hitIndicatorsToggle.setButtonText("Hit Indicators");
+    hitIndicatorsToggle.onClick = [this]() {
+        if (onHitIndicatorsChanged) onHitIndicatorsChanged(hitIndicatorsToggle.getToggleState());
     };
 
     kick2xToggle.setButtonText("Kick 2x");
@@ -70,6 +91,20 @@ void ToolbarComponent::initControls()
         if (onDynamicsChanged) onDynamicsChanged(dynamicsToggle.getToggleState());
     };
 
+    // Render button
+    renderButton.addPanelChild(&notesToggle);
+    renderButton.addPanelChild(&sustainsToggle);
+    renderButton.addPanelChild(&lanesToggle);
+    renderButton.addPanelChild(&starPowerToggle);
+    renderButton.addPanelChild(&gridlinesToggle);
+    renderButton.addPanelChild(&hitIndicatorsToggle);
+    renderButton.addPanelChild(&kick2xToggle);
+    renderButton.addPanelChild(&dynamicsToggle);
+    renderButton.setPanelSize(160, 120);
+    renderButton.onLayoutPanel = [this](juce::Component* panel) { layoutRenderPanel(panel); };
+    addAndMakeVisible(renderButton);
+
+    // Display popup children
     redBackgroundToggle.setButtonText("Red Theme");
     redBackgroundToggle.onClick = [this]() {
         if (onRedBackgroundChanged) onRedBackgroundChanged(redBackgroundToggle.getToggleState());
@@ -110,10 +145,6 @@ void ToolbarComponent::initControls()
     };
 
     // Display button
-    displayButton.addPanelChild(&hitIndicatorsToggle);
-    displayButton.addPanelChild(&starPowerToggle);
-    displayButton.addPanelChild(&kick2xToggle);
-    displayButton.addPanelChild(&dynamicsToggle);
     displayButton.addPanelChild(&redBackgroundToggle);
     displayButton.addPanelChild(&highwayTextureLabel);
     displayButton.addPanelChild(&gemScaleLabel);
@@ -214,6 +245,8 @@ void ToolbarComponent::resized()
     settingsButton.setBounds(rx, y, btnWidth, controlHeight);
     rx -= (gap + btnWidth);
     displayButton.setBounds(rx, y, btnWidth, controlHeight);
+    rx -= (gap + btnWidth);
+    renderButton.setBounds(rx, y, btnWidth, controlHeight);
 
 #ifdef DEBUG
     rx -= (gap + btnWidth);
@@ -228,8 +261,12 @@ void ToolbarComponent::loadState()
     drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
 
-    hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
+    notesToggle.setToggleState((bool)state["showNotes"], juce::dontSendNotification);
+    sustainsToggle.setToggleState((bool)state["showSustains"], juce::dontSendNotification);
+    lanesToggle.setToggleState((bool)state["showLanes"], juce::dontSendNotification);
     starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
+    gridlinesToggle.setToggleState((bool)state["showGridlines"], juce::dontSendNotification);
+    hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
     kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
     dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
     redBackgroundToggle.setToggleState((bool)state["redBackground"], juce::dontSendNotification);
@@ -286,7 +323,7 @@ void ToolbarComponent::setReaperMode(bool isReaper)
     reaperMode = isReaper;
 }
 
-void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
+void ToolbarComponent::layoutRenderPanel(juce::Component* panel)
 {
     const int margin = 8;
     const int rowHeight = 22;
@@ -295,10 +332,22 @@ void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
     int w = panel->getWidth() - margin * 2;
     bool isDrums = isPart(state, Part::DRUMS);
 
-    hitIndicatorsToggle.setBounds(margin, y, w, rowHeight);
+    notesToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    sustainsToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    lanesToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     starPowerToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    gridlinesToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    hitIndicatorsToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     kick2xToggle.setBounds(margin, y, w, rowHeight);
@@ -307,8 +356,19 @@ void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
 
     dynamicsToggle.setBounds(margin, y, w, rowHeight);
     dynamicsToggle.setVisible(isDrums);
-    y += isDrums ? (rowHeight + gap) : 0;
+    y += isDrums ? rowHeight : 0;
 
+    int totalHeight = y + margin;
+    panel->setSize(panel->getWidth(), totalHeight);
+}
+
+void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
+{
+    const int margin = 8;
+    const int rowHeight = 22;
+    const int gap = 4;
+    int y = margin;
+    int w = panel->getWidth() - margin * 2;
     redBackgroundToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 

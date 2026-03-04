@@ -31,6 +31,11 @@ class HighwayRenderer
 
         void paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
+        bool showNotes = true;
+        bool showSustains = true;
+        bool showLanes = true;
+        bool showGridlines = true;
+
     private:
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
