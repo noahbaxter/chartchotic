@@ -28,10 +28,9 @@ Build channel (`DEV`/`RELEASE`) is injected via preprocessor define `CHARTPREVIE
 hold `noteStateMapLock` for the ENTIRE clear+write operation. Never split it — the renderer reads
 between calls and you'll get flicker/race conditions. (Burned us in v0.8.6.)
 
-**Perspective math duplication**: `GlyphRenderer::createPerspectiveGlyphRect()` and
-`PositionMath::createPerspectiveGlyphRect()` contain duplicated perspective calculations.
-Any change to perspective must be applied to both. The 6 functions that call into them
-(getGuitar/getDrum variants for glyphs, gridlines, lanes) share coordinates but the core
-math lives in two places.
+**Perspective math**: All perspective/positioning now flows through the bezier system in
+`PositionMath` (via `getColumnPosition` → `getFretboardEdge` → `createPerspectiveGlyphRect`).
+`GlyphRenderer` only handles overlay positioning (drum accent scale). Fretboard width scales
+are tunable via debug sliders on `HighwayRenderer` and passed through to `AnimationRenderer`.
 
 **Roadmap & Bugs**: `BACKLOG.md` — check before starting work to avoid duplicating known issues.

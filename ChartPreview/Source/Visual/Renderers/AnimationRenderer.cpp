@@ -11,7 +11,6 @@
 */
 
 #include "AnimationRenderer.h"
-#include "../Utils/PositionConstants.h"
 
 using namespace AnimationConstants;
 using namespace PositionConstants;
@@ -123,8 +122,12 @@ void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustai
 //==============================================================================
 // Animation Rendering
 
-void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height)
+void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height,
+                                             float wNear, float wMid, float wFar, float posEnd)
 {
+    cachedWidth = width;
+    cachedHeight = height;
+
     const auto& animations = animationManager.getActiveAnimations();
     bool isGuitar = isPart(state, Part::GUITAR);
 
@@ -140,8 +143,8 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
                 ? GUITAR_ANIMATION_OFFSETS[0]
                 : DRUM_ANIMATION_OFFSETS[0];
 
-            drawCallMap[DrawOrder::BAR_ANIMATION][column].push_back([this, anim, width, height, offset](juce::Graphics &g) {
-                this->renderKickAnimation(g, anim, width, height, offset);
+            drawCallMap[DrawOrder::BAR_ANIMATION][column].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd](juce::Graphics &g) {
+                this->renderKickAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd);
             });
         }
         else
@@ -151,21 +154,20 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
                 ? GUITAR_ANIMATION_OFFSETS[anim.lane]
                 : DRUM_ANIMATION_OFFSETS[anim.lane];
 
-            drawCallMap[DrawOrder::NOTE_ANIMATION][anim.lane].push_back([this, anim, width, height, offset](juce::Graphics &g) {
-                this->renderFretAnimation(g, anim, width, height, offset);
+            drawCallMap[DrawOrder::NOTE_ANIMATION][anim.lane].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd](juce::Graphics &g) {
+                this->renderFretAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd);
             });
         }
     }
 }
 
-void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset)
+void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
+                                             float wNear, float wMid, float wFar, float posEnd)
 {
-    // Strikeline is where notes are when frameTime = 0 (at the cursor position)
     float strikelinePosition = 0.0f;
     bool isGuitar = isPart(state, Part::GUITAR);
+    bool isDrums = !isGuitar;
 
-    // Draw bar animation at bar position (gemColumn 0 for open/kick, or 6 for 2x kick)
-    // For guitar open notes, use the open animation frames; otherwise use kick frames
     juce::Image* animFrame = nullptr;
     if (isGuitar && anim.isOpen) {
         animFrame = assetManager.getOpenAnimationFrame(anim.currentFrame);
@@ -175,14 +177,19 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 
     if (animFrame)
     {
-        juce::Rectangle<float> kickRect;
-        if (isGuitar) {
-            kickRect = glyphRenderer.getGuitarGlyphRect(0, strikelinePosition, width, height);
-        } else {
-            kickRect = glyphRenderer.getDrumGlyphRect(anim.is2xKick ? 6 : 0, strikelinePosition, width, height);
-        }
+        uint gemColumn = anim.is2xKick ? 6 : 0;
+        uint colIdx = isDrums ? 0 : 0; // Both use index 0 (open/kick)
+        const auto& colCoords = isDrums
+            ? PositionConstants::drumGlyphCoords[colIdx]
+            : PositionConstants::guitarGlyphCoords[colIdx];
 
-        // Apply animation-specific positioning and scaling
+        auto edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
+                                   wNear, wMid, wFar, posEnd, PositionConstants::FRETBOARD_SCALE);
+        auto perspParams = PositionConstants::getPerspectiveParams();
+        float colWidth = edge.rightX - edge.leftX;
+        float colHeight = colWidth / perspParams.barNoteHeightRatio;
+        juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
+
         kickRect = kickRect.withSizeKeepingCentre(
             kickRect.getWidth() * offset.widthScale,
             kickRect.getHeight() * offset.heightScale
@@ -193,38 +200,47 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
     }
 }
 
-void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset)
+void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
+                                             float wNear, float wMid, float wFar, float posEnd)
 {
-    // Strikeline is where notes are when frameTime = 0 (at the cursor position)
     float strikelinePosition = 0.0f;
     bool isGuitar = isPart(state, Part::GUITAR);
+    bool isDrums = !isGuitar;
     Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
 
-    // Draw fret hit animation (flash + flare)
     auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
     auto flareImage = assetManager.getHitFlareImage(anim.lane, currentPart);
 
-    juce::Rectangle<float> hitRect;
-    if (isGuitar) {
-        hitRect = glyphRenderer.getGuitarGlyphRect(anim.lane, strikelinePosition, width, height);
+    bool barNote = isBarNote(anim.lane, currentPart);
+    uint colIdx = anim.lane;
+    if (isDrums) {
+        colIdx = (anim.lane == 6) ? 0 : ((anim.lane < PositionConstants::DRUM_LANE_COUNT) ? anim.lane : 1);
     } else {
-        hitRect = glyphRenderer.getDrumGlyphRect(anim.lane, strikelinePosition, width, height);
+        colIdx = (anim.lane < PositionConstants::GUITAR_LANE_COUNT) ? anim.lane : 1;
     }
+    const auto& colCoords = isDrums
+        ? PositionConstants::drumGlyphCoords[colIdx]
+        : PositionConstants::guitarGlyphCoords[colIdx];
 
-    // Apply fret hit animation positioning and scaling
+    float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
+                               wNear, wMid, wFar, posEnd, PositionConstants::FRETBOARD_SCALE);
+    auto perspParams = PositionConstants::getPerspectiveParams();
+    float colWidth = edge.rightX - edge.leftX;
+    float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
+    juce::Rectangle<float> hitRect(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
+
     hitRect = hitRect.withSizeKeepingCentre(
         hitRect.getWidth() * offset.widthScale,
         hitRect.getHeight() * offset.heightScale
     ).translated(offset.xOffset, offset.yOffset);
 
-    // Draw the flash frame
     if (hitFrame)
     {
         g.setOpacity(HIT_FLASH_OPACITY);
         g.drawImage(*hitFrame, hitRect);
     }
 
-    // Draw the colored flare on top (with tint for the lane color)
     if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
     {
         g.setOpacity(HIT_FLARE_OPACITY);

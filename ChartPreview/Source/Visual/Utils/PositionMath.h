@@ -42,13 +42,6 @@ public:
         const PositionConstants::NormalizedCoordinates& colCoords,
         float sizeScale, float fretboardScale = 1.0f);
 
-    //==============================================================================
-    // Public access for GlyphRenderer
-    static PositionConstants::NormalizedCoordinates getGuitarOpenNoteCoords();
-    static PositionConstants::NormalizedCoordinates getGuitarNoteCoords(uint gemColumn);
-    static PositionConstants::NormalizedCoordinates getDrumKickCoords();
-    static PositionConstants::NormalizedCoordinates getDrumPadCoords(uint gemColumn);
-
 private:
     //==============================================================================
     // Core perspective calculation

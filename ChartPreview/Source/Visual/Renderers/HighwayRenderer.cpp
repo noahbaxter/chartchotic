@@ -72,7 +72,11 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
         if (hitIndicatorsEnabled)
         {
             if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
-            animationRenderer.renderToDrawCallMap(drawCallMap, width, height);
+            bool isDrumsAnim = isPart(state, Part::DRUMS);
+            float wN = isDrumsAnim ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
+            float wM = isDrumsAnim ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
+            float wF = isDrumsAnim ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+            animationRenderer.renderToDrawCallMap(drawCallMap, width, height, wN, wM, wF, highwayPosEnd);
         }
     }
 
@@ -160,7 +164,7 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
     const auto& fbCoords = isPart(state, Part::DRUMS)
         ? PositionConstants::drumFretboardCoords
         : PositionConstants::guitarFretboardCoords;
-    auto edge = getColumnEdge(position, fbCoords, 1.1f);
+    auto edge = getColumnEdge(position, fbCoords, 1.0f, PositionConstants::FRETBOARD_SCALE);
     float gridWidth = edge.rightX - edge.leftX;
     auto perspParams = PositionConstants::getPerspectiveParams();
     float gridHeight = gridWidth / perspParams.barNoteHeightRatio;

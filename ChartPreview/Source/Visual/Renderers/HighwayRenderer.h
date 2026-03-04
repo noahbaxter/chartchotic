@@ -20,7 +20,6 @@
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "GlyphRenderer.h"
-#include "ColumnRenderer.h"
 #include "../Utils/RenderTiming.h"
 
 
@@ -72,7 +71,6 @@ class HighwayRenderer
         AssetManager assetManager;
         AnimationRenderer animationRenderer;
         GlyphRenderer glyphRenderer;
-        ColumnRenderer columnRenderer;
 
         uint width = 0, height = 0;
 

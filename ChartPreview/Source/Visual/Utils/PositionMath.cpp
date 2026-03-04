@@ -133,25 +133,3 @@ LaneCorners PositionMath::getColumnPosition(
     return {actualCenter - actualWidth * 0.5f, actualCenter + actualWidth * 0.5f, edge.centerY};
 }
 
-//==============================================================================
-// Guitar Positioning Data (public access for GlyphRenderer)
-
-NormalizedCoordinates PositionMath::getGuitarOpenNoteCoords()
-{
-    return PositionConstants::getGuitarOpenNoteCoords();
-}
-
-NormalizedCoordinates PositionMath::getGuitarNoteCoords(uint gemColumn)
-{
-    return PositionConstants::getGuitarNoteCoords(gemColumn);
-}
-
-NormalizedCoordinates PositionMath::getDrumKickCoords()
-{
-    return PositionConstants::getDrumKickCoords();
-}
-
-NormalizedCoordinates PositionMath::getDrumPadCoords(uint gemColumn)
-{
-    return PositionConstants::getDrumPadCoords(gemColumn);
-}

@@ -19,8 +19,9 @@
 #include "../../Utils/Utils.h"
 #include "../../Utils/TimeConverter.h"
 #include "../Managers/AnimationManager.h"
-#include "GlyphRenderer.h"
 #include "../Managers/AssetManager.h"
+#include "../Utils/PositionConstants.h"
+#include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 
 class AnimationRenderer
@@ -45,9 +46,10 @@ public:
     /**
      * Populate drawCallMap with animation render calls.
      * Animations are added to BAR_ANIMATION and NOTE_ANIMATION layers for proper Z-ordering.
-     * Call before rendering the drawCallMap.
+     * Bezier params (wNear/wMid/wFar/posEnd) come from HighwayRenderer so debug sliders apply.
      */
-    void renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height);
+    void renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height,
+                             float wNear, float wMid, float wFar, float posEnd);
 
     /**
      * Advance all active animations by one frame.
@@ -64,7 +66,6 @@ private:
     juce::ValueTree &state;
     MidiInterpreter &midiInterpreter;
     AnimationManager animationManager;
-    GlyphRenderer glyphRenderer;
     AssetManager assetManager;
 
     // Track the last note time per column to ensure every note triggers an animation
@@ -86,7 +87,23 @@ private:
         }
     }
 
+    // Bezier column edge helper (mirrors HighwayRenderer::getColumnEdge)
+    PositionConstants::LaneCorners getColumnEdge(float position, const PositionConstants::NormalizedCoordinates& colCoords,
+                                                  float sizeScale, float wNear, float wMid, float wFar, float posEnd,
+                                                  float fretboardScale = 1.0f)
+    {
+        bool isDrums = isPart(state, Part::DRUMS);
+        return PositionMath::getColumnPosition(isDrums, position, cachedWidth, cachedHeight,
+                                               wNear, wMid, wFar,
+                                               PositionConstants::HIGHWAY_POS_START, posEnd,
+                                               colCoords, sizeScale, fretboardScale);
+    }
+
+    uint cachedWidth = 0, cachedHeight = 0;
+
     // Rendering helpers
-    void renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset);
-    void renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset);
+    void renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
+                             float wNear, float wMid, float wFar, float posEnd);
+    void renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
+                             float wNear, float wMid, float wFar, float posEnd);
 };

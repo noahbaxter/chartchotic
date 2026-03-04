@@ -17,7 +17,6 @@ target_sources(bench_rendering PRIVATE
     bench_main.cpp
     ${SOURCE_ROOT}/Visual/Renderers/HighwayRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/AnimationRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/ColumnRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/GlyphRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
     ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp

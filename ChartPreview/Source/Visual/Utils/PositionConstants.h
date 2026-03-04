@@ -76,7 +76,6 @@ namespace PositionConstants
     // Size & Scale Factors
     constexpr float GEM_SIZE = 0.9f;                    // Regular gem/note scaling factor
     constexpr float BAR_SIZE = 0.95f;                   // Bar note (kick/open) scaling factor
-    constexpr float GRIDLINE_SIZE = 0.9f;               // Gridline scaling factor
     constexpr float SUSTAIN_WIDTH = 0.15f;              // Sustain width multiplier
     constexpr float SUSTAIN_OPEN_WIDTH = 0.7f;          // Open sustain width multiplier (narrower)
     constexpr float LANE_WIDTH = 1.1f;                  // Lane width multiplier
@@ -217,27 +216,4 @@ namespace PositionConstants
         };
     }
 
-    //==============================================================================
-    // Guitar Positioning Data
-    constexpr inline NormalizedCoordinates getGuitarOpenNoteCoords()
-    {
-        return guitarGlyphCoords[0];
-    }
-
-    constexpr inline NormalizedCoordinates getGuitarNoteCoords(uint gemColumn)
-    {
-        uint index = (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1;
-        return guitarGlyphCoords[index];
-    }
-
-    constexpr inline NormalizedCoordinates getDrumKickCoords()
-    {
-        return drumGlyphCoords[0];
-    }
-
-    constexpr inline NormalizedCoordinates getDrumPadCoords(uint gemColumn)
-    {
-        uint index = (gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1;
-        return drumGlyphCoords[index];
-    }
 }

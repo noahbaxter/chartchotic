@@ -128,8 +128,6 @@ target_sources(ChartPreview
         # Visual / Renderers
         ChartPreview/Source/Visual/Renderers/AnimationRenderer.cpp
         ChartPreview/Source/Visual/Renderers/AnimationRenderer.h
-        ChartPreview/Source/Visual/Renderers/ColumnRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/ColumnRenderer.h
         ChartPreview/Source/Visual/Renderers/GlyphRenderer.cpp
         ChartPreview/Source/Visual/Renderers/GlyphRenderer.h
         ChartPreview/Source/Visual/Renderers/HighwayRenderer.cpp
