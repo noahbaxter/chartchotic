@@ -111,13 +111,17 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
 void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime)
 {
     double windowTimeSpan = windowEndTime - windowStartTime;
+    bool hitAnimationsOn = state.getProperty("hitIndicators");
+
+    // When hit animations are on, notes clip at the strikeline (position 0).
+    // When off, notes flow past the strikeline to the bottom of the highway.
+    double clipTime = hitAnimationsOn ? 0.0 : (HIGHWAY_POS_START * windowTimeSpan);
 
     for (const auto &frameItem : trackWindow)
     {
         double frameTime = frameItem.first;  // Time in seconds from cursor
 
-        // Don't render notes in the past (below the strikeline at time 0)
-        if (frameTime < 0.0) continue;
+        if (frameTime < clipTime) continue;
 
         // Normalize position: 0 = strikeline, 1 = far end
         float normalizedPosition = (float)((frameTime - windowStartTime) / windowTimeSpan);
@@ -138,7 +142,8 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
         // Normalize position: 0 = strikeline, 1 = far end
         float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
 
-        if (normalizedPosition >= 0.0f && normalizedPosition <= 1.0f)
+        // Gridlines always flow past the strikeline to the bottom of the highway
+        if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= 1.0f)
         {
             juce::Image *markerImage = assetManager.getGridlineImage(gridlineType);
 
@@ -289,14 +294,31 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     if (isLane && !showLanes) return;
     if (!isLane && !showSustains) return;
 
-    // Clip threshold: lanes extend further past strikeline than sustains
-    float clipThreshold = isLane ? LANE_CLIP : (isBarNote(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS) ? BAR_SUSTAIN_CLIP : SUSTAIN_CLIP);
+    bool hitAnimationsOn = state.getProperty("hitIndicators");
 
-    // Don't render if fully past the clip threshold
-    if (sustain.endTime < 0.0) return;
+    // Determine clip position (how far past strikeline this type can extend)
+    // Lanes: always flow to highway bottom regardless of hit animations
+    // Sustains: flow to highway bottom when hit animations off, clip near strikeline when on
+    float clipPos;
+    if (isLane)
+    {
+        clipPos = HIGHWAY_POS_START;
+    }
+    else if (hitAnimationsOn)
+    {
+        clipPos = isBarNote(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS)
+            ? BAR_SUSTAIN_CLIP : SUSTAIN_CLIP;
+    }
+    else
+    {
+        clipPos = HIGHWAY_POS_START;
+    }
 
-    // Clip sustain start to the clip threshold (in time space)
-    double clipTime = clipThreshold * windowTimeSpan;
+    // Don't render if fully past the clip position (convert clip position to time)
+    double clipTime = clipPos * windowTimeSpan;
+    if (sustain.endTime < clipTime) return;
+
+    // Clip sustain start to the clip position (in time space)
     double clippedStartTime = std::max(clipTime, sustain.startTime);
 
     // Position offsets differ for lanes vs sustains
@@ -321,12 +343,11 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan) + startOffset;
     float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan) + endOffset;
 
-    // Only draw sustains that are visible in our window
-    if (endPosition < 0.0f || startPosition > 1.0f) return;
+    // Only draw if visible in the highway range
+    if (endPosition < clipPos || startPosition > 1.0f) return;
 
-    // Clamp to visible area (allow negative for lane extension past strikeline)
-    float minPos = isLane ? clipThreshold : 0.0f;
-    startPosition = std::max(minPos, startPosition);
+    // Clamp to visible highway range
+    startPosition = std::max(clipPos, startPosition);
     endPosition = std::min(1.0f, endPosition);
 
     // Get sustain color based on gem column and star power state

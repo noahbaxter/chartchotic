@@ -114,7 +114,6 @@ namespace PositionConstants
     constexpr float LANE_SIDE_CURVE = 0.0f;             // Side edge curvature (disabled)
     constexpr float LANE_START_OFFSET = -0.010f;        // Lane position nudge
     constexpr float LANE_END_OFFSET = -0.010f;
-    constexpr float LANE_CLIP = -0.3f;                  // Lanes extend well past strikeline
 
     //==============================================================================
     // Special Visual Scales
