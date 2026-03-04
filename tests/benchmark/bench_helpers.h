@@ -26,13 +26,13 @@ struct ScenarioData
 };
 
 // Distribute notes across columns with realistic weighting.
-// Column 0 = bar/kick, columns 1-5 = fret pads (guitar) or 1-4 (drums).
-inline void addNotes(TimeBasedTrackWindow& tw, int count, double windowStart, double windowEnd)
+// Column 0 = bar/kick, columns 1-maxColumn = fret pads (guitar 5) or drum pads (4).
+inline void addNotes(TimeBasedTrackWindow& tw, int count, double windowStart, double windowEnd, int maxColumn = 5)
 {
     if (count <= 0) return;
 
     std::mt19937 rng(42); // fixed seed for reproducibility
-    std::uniform_int_distribution<int> colDist(0, 5);
+    std::uniform_int_distribution<int> colDist(0, maxColumn);
     std::uniform_real_distribution<double> posDist(0.0, 1.0);
 
     double span = windowEnd - windowStart;
@@ -45,14 +45,14 @@ inline void addNotes(TimeBasedTrackWindow& tw, int count, double windowStart, do
         int col = colDist(rng);
         // Column 0 gets bar notes ~15% of the time
         if (col == 0 && posDist(rng) > 0.15)
-            col = 1 + (int)(posDist(rng) * 4.99);
+            col = 1 + (int)(posDist(rng) * (maxColumn - 0.01));
 
         frame[(size_t)col] = GemWrapper(Gem::NOTE);
 
         // ~20% chance of chord (add a second note)
         if (posDist(rng) < 0.2 && col >= 1)
         {
-            int col2 = 1 + (int)(posDist(rng) * 4.99);
+            int col2 = 1 + (int)(posDist(rng) * (maxColumn - 0.01));
             if (col2 != col)
                 frame[(size_t)col2] = GemWrapper(Gem::NOTE);
         }
@@ -130,11 +130,12 @@ constexpr ScenarioSpec SCENARIOS[] = {
 
 constexpr int SCENARIO_COUNT = sizeof(SCENARIOS) / sizeof(SCENARIOS[0]);
 
-inline ScenarioData buildScenario(const ScenarioSpec& spec, double windowStart, double windowEnd)
+inline ScenarioData buildScenario(const ScenarioSpec& spec, double windowStart, double windowEnd,
+                                   int maxColumn = 5, int sustainOverride = -1)
 {
     ScenarioData data;
-    addNotes(data.trackWindow, spec.notes, windowStart, windowEnd);
-    addSustains(data.sustainWindow, spec.sustains, windowStart, windowEnd);
+    addNotes(data.trackWindow, spec.notes, windowStart, windowEnd, maxColumn);
+    addSustains(data.sustainWindow, sustainOverride >= 0 ? sustainOverride : spec.sustains, windowStart, windowEnd);
     addGridlines(data.gridlines, spec.gridlines, windowStart, windowEnd);
     return data;
 }

@@ -32,9 +32,25 @@ struct PhaseTiming
     double build_notes_us = 0;
     double build_sustains_us = 0;
     double build_gridlines_us = 0;
+    double animation_detect_us = 0;
     double execute_draws_us = 0;
+    double after_lanes_us = 0;
+    double animation_advance_us = 0;
     std::map<DrawOrder, double> layer_us;  // per-DrawOrder execution breakdown
     double total_us = 0;
+};
+
+struct ScopedPhaseMeasure
+{
+    using Clock = std::chrono::high_resolution_clock;
+    double& target;
+    bool active;
+    Clock::time_point start;
+    ScopedPhaseMeasure(double& t, bool collect)
+        : target(t), active(collect), start(collect ? Clock::now() : Clock::time_point{}) {}
+    ~ScopedPhaseMeasure() {
+        if (active) target = std::chrono::duration<double, std::micro>(Clock::now() - start).count();
+    }
 };
 
 class HighwayRenderer

@@ -35,13 +35,17 @@ def print_profile_table(data):
         set(r["resolution"] for r in results),
         key=lambda r: next(x["width"] for x in results if x["resolution"] == r))
 
-    phase_names = ["texture", "build_notes", "build_sustains", "build_gridlines", "execute_draws"]
+    phase_names = ["texture", "build_notes", "build_sustains", "build_gridlines",
+                   "animation_detect", "execute_draws", "after_lanes", "animation_advance"]
     phase_labels = {
         "texture": "Texture",
         "build_notes": "Build Notes",
         "build_sustains": "Build Sustains",
         "build_gridlines": "Build Gridlines",
+        "animation_detect": "Anim Detect",
         "execute_draws": "Execute Draws",
+        "after_lanes": "After Lanes",
+        "animation_advance": "Anim Advance",
     }
 
     # Collect all layer names across results
@@ -53,67 +57,77 @@ def print_profile_table(data):
                    "bar_animation", "note_animation", "background", "track", "highway_overlay"]
     sorted_layers = [l for l in layer_order if l in all_layers]
 
+    instruments = sorted(set(r.get("instrument", "guitar") for r in results))
+
     print(f"\nProfile: {data['machine']} | {data['timestamp']} | {data['iterations']} iterations")
     print("=" * 110)
 
-    for scenario in scenarios:
-        print(f"\n  Scenario: {scenario}")
-        header = f"  {'Phase':<20}"
-        for res in resolutions:
-            header += f"  {res:>12}"
-        header += f"  {'% of 1080p':>10}"
-        print(header)
-        print(f"  {'-'*20}" + f"  {'-'*12}" * len(resolutions) + f"  {'-'*10}")
+    for instrument in instruments:
+        inst_results = [r for r in results if r.get("instrument", "guitar") == instrument]
+        print(f"\n  Instrument: {instrument.upper()}")
+        print(f"  {'~' * 40}")
 
-        # Total
-        print(f"  {'TOTAL':<20}", end="")
-        total_1080p = 0
-        for res in resolutions:
-            match = [r for r in results if r["scenario"] == scenario and r["resolution"] == res]
-            if match:
-                mean = match[0]["total"]["mean_us"]
-                if res == "1080p":
-                    total_1080p = mean
-                print(f"  {mean:>9.0f} us", end="")
-            else:
-                print(f"  {'--':>12}", end="")
-        print()
+        for scenario in scenarios:
+            if not any(r["scenario"] == scenario for r in inst_results):
+                continue
 
-        # Phases
-        for phase in phase_names:
-            label = phase_labels.get(phase, phase)
-            print(f"  {'  ' + label:<20}", end="")
-            phase_1080p = 0
+            print(f"\n  Scenario: {scenario}")
+            header = f"  {'Phase':<20}"
             for res in resolutions:
-                match = [r for r in results if r["scenario"] == scenario and r["resolution"] == res]
-                if match and phase in match[0].get("phases", {}):
-                    mean = match[0]["phases"][phase]["mean_us"]
+                header += f"  {res:>12}"
+            header += f"  {'% of 1080p':>10}"
+            print(header)
+            print(f"  {'-'*20}" + f"  {'-'*12}" * len(resolutions) + f"  {'-'*10}")
+
+            # Total
+            print(f"  {'TOTAL':<20}", end="")
+            total_1080p = 0
+            for res in resolutions:
+                match = [r for r in inst_results if r["scenario"] == scenario and r["resolution"] == res]
+                if match:
+                    mean = match[0]["total"]["mean_us"]
                     if res == "1080p":
-                        phase_1080p = mean
+                        total_1080p = mean
                     print(f"  {mean:>9.0f} us", end="")
                 else:
                     print(f"  {'--':>12}", end="")
-            pct = (phase_1080p / total_1080p * 100) if total_1080p > 0 else 0
-            print(f"  {pct:>8.1f}%")
+            print()
 
-        # Draw layer breakdown (if any layers present)
-        layer_results = [r for r in results if r["scenario"] == scenario and r.get("layers")]
-        if layer_results and any(layer_results[0]["layers"].values()):
-            print(f"  {'  --- Draw Layers ---':<20}")
-            for layer in sorted_layers:
-                print(f"  {'    ' + layer:<20}", end="")
-                layer_1080p = 0
+            # Phases
+            for phase in phase_names:
+                label = phase_labels.get(phase, phase)
+                print(f"  {'  ' + label:<20}", end="")
+                phase_1080p = 0
                 for res in resolutions:
-                    match = [r for r in results if r["scenario"] == scenario and r["resolution"] == res]
-                    if match and layer in match[0].get("layers", {}):
-                        mean = match[0]["layers"][layer]["mean_us"]
+                    match = [r for r in inst_results if r["scenario"] == scenario and r["resolution"] == res]
+                    if match and phase in match[0].get("phases", {}):
+                        mean = match[0]["phases"][phase]["mean_us"]
                         if res == "1080p":
-                            layer_1080p = mean
+                            phase_1080p = mean
                         print(f"  {mean:>9.0f} us", end="")
                     else:
                         print(f"  {'--':>12}", end="")
-                pct = (layer_1080p / total_1080p * 100) if total_1080p > 0 else 0
+                pct = (phase_1080p / total_1080p * 100) if total_1080p > 0 else 0
                 print(f"  {pct:>8.1f}%")
+
+            # Draw layer breakdown (if any layers present)
+            layer_results = [r for r in inst_results if r["scenario"] == scenario and r.get("layers")]
+            if layer_results and any(layer_results[0]["layers"].values()):
+                print(f"  {'  --- Draw Layers ---':<20}")
+                for layer in sorted_layers:
+                    print(f"  {'    ' + layer:<20}", end="")
+                    layer_1080p = 0
+                    for res in resolutions:
+                        match = [r for r in inst_results if r["scenario"] == scenario and r["resolution"] == res]
+                        if match and layer in match[0].get("layers", {}):
+                            mean = match[0]["layers"][layer]["mean_us"]
+                            if res == "1080p":
+                                layer_1080p = mean
+                            print(f"  {mean:>9.0f} us", end="")
+                        else:
+                            print(f"  {'--':>12}", end="")
+                    pct = (layer_1080p / total_1080p * 100) if total_1080p > 0 else 0
+                    print(f"  {pct:>8.1f}%")
 
     print()
 
@@ -133,11 +147,11 @@ def compare_baseline(data, threshold=0.20):
     regressions = []
     baseline_lookup = {}
     for r in baseline["results"]:
-        key = (r["scenario"], r["resolution"])
+        key = (r.get("instrument", "guitar"), r["scenario"], r["resolution"])
         baseline_lookup[key] = r
 
     for r in data["results"]:
-        key = (r["scenario"], r["resolution"])
+        key = (r.get("instrument", "guitar"), r["scenario"], r["resolution"])
         base = baseline_lookup.get(key)
         if not base:
             continue
@@ -148,6 +162,7 @@ def compare_baseline(data, threshold=0.20):
         change = (current_total - base_total) / base_total
         if change > threshold:
             regressions.append({
+                "instrument": r.get("instrument", "guitar"),
                 "scenario": r["scenario"],
                 "resolution": r["resolution"],
                 "baseline_us": base_total,
@@ -168,22 +183,22 @@ def test_rendering_profile(benchmark_binary):
 
     print_profile_table(data)
 
-    # Sanity: phases should sum to roughly total (within 20% for overhead)
+    # Sanity: phases should sum to roughly total (within 10% for overhead)
     for r in data["results"]:
         if r.get("phases") and r["total"]["mean_us"] > 100:
             phase_sum = sum(p["mean_us"] for p in r["phases"].values())
             total = r["total"]["mean_us"]
             ratio = phase_sum / total
-            assert 0.8 < ratio < 1.2, (
+            assert 0.9 < ratio < 1.1, (
                 f"Phase sum ({phase_sum:.0f}) doesn't match total ({total:.0f}) "
-                f"for {r['scenario']}@{r['resolution']}: ratio={ratio:.2f}")
+                f"for {r.get('instrument', 'guitar')}/{r['scenario']}@{r['resolution']}: ratio={ratio:.2f}")
 
     # Compare against baseline if present
     regressions = compare_baseline(data)
     if regressions:
         print("\nREGRESSIONS DETECTED:")
         for reg in regressions:
-            print(f"  {reg['scenario']}@{reg['resolution']}: "
+            print(f"  {reg['instrument']}/{reg['scenario']}@{reg['resolution']}: "
                   f"{reg['baseline_us']:.0f} -> {reg['current_us']:.0f} us "
                   f"(+{reg['change_pct']:.1f}%)")
         pytest.fail(f"{len(regressions)} regression(s) exceeded 20% threshold")

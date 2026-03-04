@@ -160,81 +160,102 @@ int main(int argc, char* argv[])
 
     juce::StringArray resultEntries;
 
-    for (int si = 0; si < SCENARIO_COUNT; si++)
+    // Run scenarios for a given instrument config
+    auto runInstrument = [&](const char* instrumentName, int maxColumn, bool noSustains)
     {
-        const auto& spec = SCENARIOS[si];
-        auto scenarioData = buildScenario(spec, windowStart, windowEnd);
-
-        for (int ri = 0; ri < RESOLUTION_COUNT; ri++)
+        for (int si = 0; si < SCENARIO_COUNT; si++)
         {
-            const auto& res = RESOLUTIONS[ri];
-            juce::Image canvas(juce::Image::ARGB, res.width, res.height, true);
+            const auto& spec = SCENARIOS[si];
+            auto scenarioData = buildScenario(spec, windowStart, windowEnd,
+                                              maxColumn, noSustains ? 0 : -1);
 
-            const auto& tw = scenarioData.trackWindow;
-            const auto& sw = scenarioData.sustainWindow;
-            const auto& gm = scenarioData.gridlines;
-
-            // Per-phase sample accumulators
-            std::vector<double> totalSamples, textureSamples, buildNotesSamples,
-                                buildSustainsSamples, buildGridlinesSamples, execDrawsSamples;
-            std::map<DrawOrder, std::vector<double>> layerSamples;
-
-            // Warmup
-            for (int w = 0; w < 3; w++)
+            for (int ri = 0; ri < RESOLUTION_COUNT; ri++)
             {
-                canvas.clear({0, 0, res.width, res.height});
-                juce::Graphics g(canvas);
-                renderer.paint(g, tw, sw, gm, windowStart, windowEnd, true);
+                const auto& res = RESOLUTIONS[ri];
+                juce::Image canvas(juce::Image::ARGB, res.width, res.height, true);
+
+                const auto& tw = scenarioData.trackWindow;
+                const auto& sw = scenarioData.sustainWindow;
+                const auto& gm = scenarioData.gridlines;
+
+                // Per-phase sample accumulators
+                std::vector<double> totalSamples, textureSamples, buildNotesSamples,
+                                    buildSustainsSamples, buildGridlinesSamples,
+                                    animDetectSamples, execDrawsSamples,
+                                    afterLanesSamples, animAdvanceSamples;
+                std::map<DrawOrder, std::vector<double>> layerSamples;
+
+                // Warmup
+                for (int w = 0; w < 3; w++)
+                {
+                    canvas.clear({0, 0, res.width, res.height});
+                    juce::Graphics g(canvas);
+                    renderer.paint(g, tw, sw, gm, windowStart, windowEnd, true);
+                }
+
+                for (int i = 0; i < iterations; i++)
+                {
+                    canvas.clear({0, 0, res.width, res.height});
+                    juce::Graphics g(canvas);
+                    renderer.paint(g, tw, sw, gm, windowStart, windowEnd, true);
+
+                    const auto& pt = renderer.lastPhaseTiming;
+                    totalSamples.push_back(pt.total_us);
+                    textureSamples.push_back(pt.texture_us);
+                    buildNotesSamples.push_back(pt.build_notes_us);
+                    buildSustainsSamples.push_back(pt.build_sustains_us);
+                    buildGridlinesSamples.push_back(pt.build_gridlines_us);
+                    animDetectSamples.push_back(pt.animation_detect_us);
+                    execDrawsSamples.push_back(pt.execute_draws_us);
+                    afterLanesSamples.push_back(pt.after_lanes_us);
+                    animAdvanceSamples.push_back(pt.animation_advance_us);
+
+                    for (const auto& [layer, us] : pt.layer_us)
+                        layerSamples[layer].push_back(us);
+                }
+
+                // Build JSON entry
+                juce::String entry;
+                entry << "    {\n"
+                      << "      \"scenario\": \"" << escapeJson(spec.name) << "\",\n"
+                      << "      \"resolution\": \"" << escapeJson(res.name) << "\",\n"
+                      << "      \"width\": " << res.width << ", \"height\": " << res.height << ",\n"
+                      << "      \"instrument\": \"" << instrumentName << "\",\n"
+                      << "      " << timingObjToJson("total", computeStats(totalSamples)) << ",\n"
+                      << "      \"phases\": {\n"
+                      << "        " << timingObjToJson("texture", computeStats(textureSamples)) << ",\n"
+                      << "        " << timingObjToJson("build_notes", computeStats(buildNotesSamples)) << ",\n"
+                      << "        " << timingObjToJson("build_sustains", computeStats(buildSustainsSamples)) << ",\n"
+                      << "        " << timingObjToJson("build_gridlines", computeStats(buildGridlinesSamples)) << ",\n"
+                      << "        " << timingObjToJson("animation_detect", computeStats(animDetectSamples)) << ",\n"
+                      << "        " << timingObjToJson("execute_draws", computeStats(execDrawsSamples)) << ",\n"
+                      << "        " << timingObjToJson("after_lanes", computeStats(afterLanesSamples)) << ",\n"
+                      << "        " << timingObjToJson("animation_advance", computeStats(animAdvanceSamples)) << "\n"
+                      << "      },\n"
+                      << "      \"layers\": {";
+
+                bool firstLayer = true;
+                for (const auto& [layer, samples] : layerSamples)
+                {
+                    if (!firstLayer) entry << ",";
+                    entry << "\n        " << timingObjToJson(drawOrderName(layer), computeStats(samples));
+                    firstLayer = false;
+                }
+
+                entry << "\n      }\n"
+                      << "    }";
+                resultEntries.add(entry);
             }
-
-            for (int i = 0; i < iterations; i++)
-            {
-                canvas.clear({0, 0, res.width, res.height});
-                juce::Graphics g(canvas);
-                renderer.paint(g, tw, sw, gm, windowStart, windowEnd, true);
-
-                const auto& pt = renderer.lastPhaseTiming;
-                totalSamples.push_back(pt.total_us);
-                textureSamples.push_back(pt.texture_us);
-                buildNotesSamples.push_back(pt.build_notes_us);
-                buildSustainsSamples.push_back(pt.build_sustains_us);
-                buildGridlinesSamples.push_back(pt.build_gridlines_us);
-                execDrawsSamples.push_back(pt.execute_draws_us);
-
-                for (const auto& [layer, us] : pt.layer_us)
-                    layerSamples[layer].push_back(us);
-            }
-
-            // Build JSON entry
-            juce::String entry;
-            entry << "    {\n"
-                  << "      \"scenario\": \"" << escapeJson(spec.name) << "\",\n"
-                  << "      \"resolution\": \"" << escapeJson(res.name) << "\",\n"
-                  << "      \"width\": " << res.width << ", \"height\": " << res.height << ",\n"
-                  << "      \"instrument\": \"guitar\",\n"
-                  << "      " << timingObjToJson("total", computeStats(totalSamples)) << ",\n"
-                  << "      \"phases\": {\n"
-                  << "        " << timingObjToJson("texture", computeStats(textureSamples)) << ",\n"
-                  << "        " << timingObjToJson("build_notes", computeStats(buildNotesSamples)) << ",\n"
-                  << "        " << timingObjToJson("build_sustains", computeStats(buildSustainsSamples)) << ",\n"
-                  << "        " << timingObjToJson("build_gridlines", computeStats(buildGridlinesSamples)) << ",\n"
-                  << "        " << timingObjToJson("execute_draws", computeStats(execDrawsSamples)) << "\n"
-                  << "      },\n"
-                  << "      \"layers\": {";
-
-            bool firstLayer = true;
-            for (const auto& [layer, samples] : layerSamples)
-            {
-                if (!firstLayer) entry << ",";
-                entry << "\n        " << timingObjToJson(drawOrderName(layer), computeStats(samples));
-                firstLayer = false;
-            }
-
-            entry << "\n      }\n"
-                  << "    }";
-            resultEntries.add(entry);
         }
-    }
+    };
+
+    // Guitar scenarios
+    state.setProperty("part", (int)Part::GUITAR, nullptr);
+    runInstrument("guitar", 5, false);
+
+    // Drums scenarios (4 columns, no sustains)
+    state.setProperty("part", (int)Part::DRUMS, nullptr);
+    runInstrument("drums", 4, true);
 
     // Print JSON
     std::cout << "{\n";

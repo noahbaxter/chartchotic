@@ -31,7 +31,7 @@ for arg in "$@"; do
         compliance|Compliance|COMPLIANCE)
             TEST_TYPE="compliance"
             ;;
-        performance|Performance|PERFORMANCE|perf|bench|benchmark|profile)
+        performance|Performance|PERFORMANCE|perf|bench|benchmark|profile|profiler)
             TEST_TYPE="performance"
             ;;
         all|All|ALL)

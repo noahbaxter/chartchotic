@@ -50,80 +50,85 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
 
     // Draw highway texture overlay (between track image and gridlines)
     // When skipHighwayTexture is set, the editor draws the texture before the SVG track
-    auto tTex = collectPhaseTiming ? Clock::now() : Clock::time_point{};
-    if (highwayTextureRenderer.hasTexture() && !skipHighwayTexture)
     {
-        highwayTextureRenderer.drawTexture(g, buildTextureParams());
+        ScopedPhaseMeasure m(lastPhaseTiming.texture_us, collectPhaseTiming);
+        if (highwayTextureRenderer.hasTexture() && !skipHighwayTexture)
+            highwayTextureRenderer.drawTexture(g, buildTextureParams());
     }
-    if (collectPhaseTiming)
-        lastPhaseTiming.texture_us = std::chrono::duration<double, std::micro>(Clock::now() - tTex).count();
 
     // Repopulate drawCallMap
     drawCallMap.clear();
 
-    auto tNotes = collectPhaseTiming ? Clock::now() : Clock::time_point{};
-    drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
-    if (collectPhaseTiming)
-        lastPhaseTiming.build_notes_us = std::chrono::duration<double, std::micro>(Clock::now() - tNotes).count();
+    {
+        ScopedPhaseMeasure m(lastPhaseTiming.build_notes_us, collectPhaseTiming);
+        drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
+    }
 
-    auto tSustains = collectPhaseTiming ? Clock::now() : Clock::time_point{};
-    drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime);
-    if (collectPhaseTiming)
-        lastPhaseTiming.build_sustains_us = std::chrono::duration<double, std::micro>(Clock::now() - tSustains).count();
+    {
+        ScopedPhaseMeasure m(lastPhaseTiming.build_sustains_us, collectPhaseTiming);
+        drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime);
+    }
 
-    auto tGridlines = collectPhaseTiming ? Clock::now() : Clock::time_point{};
-    drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
-    if (collectPhaseTiming)
-        lastPhaseTiming.build_gridlines_us = std::chrono::duration<double, std::micro>(Clock::now() - tGridlines).count();
+    {
+        ScopedPhaseMeasure m(lastPhaseTiming.build_gridlines_us, collectPhaseTiming);
+        drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
+    }
 
     // Detect and add animations to drawCallMap (if enabled)
     bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
-    if (hitIndicatorsEnabled)
     {
-        if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
-        animationRenderer.renderToDrawCallMap(drawCallMap, width, height);
+        ScopedPhaseMeasure m(lastPhaseTiming.animation_detect_us, collectPhaseTiming);
+        if (hitIndicatorsEnabled)
+        {
+            if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
+            animationRenderer.renderToDrawCallMap(drawCallMap, width, height);
+        }
     }
 
     // Draw layer by layer, then column by column within each layer
     if (collectPhaseTiming)
         lastPhaseTiming.layer_us.clear();
 
-    auto tExec = collectPhaseTiming ? Clock::now() : Clock::time_point{};
-    bool calledAfterLanes = false;
-    for (const auto& drawOrder : drawCallMap)
     {
-        auto tLayer = collectPhaseTiming ? Clock::now() : Clock::time_point{};
-
-        for (const auto& column : drawOrder.second)
+        ScopedPhaseMeasure m(lastPhaseTiming.execute_draws_us, collectPhaseTiming);
+        bool calledAfterLanes = false;
+        for (const auto& drawOrder : drawCallMap)
         {
-            // Draw each layer from back to front
-            for (auto it = column.second.rbegin(); it != column.second.rend(); ++it)
+            auto tLayer = collectPhaseTiming ? Clock::now() : Clock::time_point{};
+
+            for (const auto& column : drawOrder.second)
             {
-                (*it)(g);
+                // Draw each layer from back to front
+                for (auto it = column.second.rbegin(); it != column.second.rend(); ++it)
+                {
+                    (*it)(g);
+                }
+            }
+
+            if (collectPhaseTiming)
+                lastPhaseTiming.layer_us[drawOrder.first] += std::chrono::duration<double, std::micro>(Clock::now() - tLayer).count();
+
+            // Insert SVG track overlay after lanes but before notes/sustains/gridlines
+            if (!calledAfterLanes && drawOrder.first >= DrawOrder::LANE && onAfterLanes)
+            {
+                ScopedPhaseMeasure m2(lastPhaseTiming.after_lanes_us, collectPhaseTiming);
+                onAfterLanes(g);
+                calledAfterLanes = true;
             }
         }
-
-        if (collectPhaseTiming)
-            lastPhaseTiming.layer_us[drawOrder.first] += std::chrono::duration<double, std::micro>(Clock::now() - tLayer).count();
-
-        // Insert SVG track overlay after lanes but before notes/sustains/gridlines
-        if (!calledAfterLanes && drawOrder.first >= DrawOrder::LANE && onAfterLanes)
+        // If no LANE layer existed, still call it
+        if (!calledAfterLanes && onAfterLanes)
         {
+            ScopedPhaseMeasure m2(lastPhaseTiming.after_lanes_us, collectPhaseTiming);
             onAfterLanes(g);
-            calledAfterLanes = true;
         }
     }
-    // If no LANE layer existed, still call it
-    if (!calledAfterLanes && onAfterLanes)
-        onAfterLanes(g);
-
-    if (collectPhaseTiming)
-        lastPhaseTiming.execute_draws_us = std::chrono::duration<double, std::micro>(Clock::now() - tExec).count();
 
     // Advance animation frames after rendering
-    if (hitIndicatorsEnabled)
     {
-        animationRenderer.advanceFrames();
+        ScopedPhaseMeasure m(lastPhaseTiming.animation_advance_us, collectPhaseTiming);
+        if (hitIndicatorsEnabled)
+            animationRenderer.advanceFrames();
     }
 
     if (collectPhaseTiming)
