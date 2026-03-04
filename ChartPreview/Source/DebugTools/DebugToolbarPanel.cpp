@@ -79,9 +79,10 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
         if (onDebugConsoleChanged) onDebugConsoleChanged(debugConsoleToggle.getToggleState());
     };
 
-    svgTracksToggle.setButtonText("SVG Tracks");
-    svgTracksToggle.onClick = [this]() {
-        if (onSvgTracksChanged) onSvgTracksChanged(svgTracksToggle.getToggleState());
+    svgAssetsToggle.setButtonText("SVG Assets");
+    svgAssetsToggle.setToggleState(true, juce::dontSendNotification);
+    svgAssetsToggle.onClick = [this]() {
+        if (onSvgAssetsChanged) onSvgAssetsChanged(svgAssetsToggle.getToggleState());
     };
 
     setupCurveLabel(svgScaleLabel, "SVG.Scl", svgScaleVal, onSvgTrackScaleChanged);
@@ -177,7 +178,7 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     debugButton.addPanelChild(&debugPlayToggle);
     debugButton.addPanelChild(&chartSelectLabel);
     debugButton.addPanelChild(&debugConsoleToggle);
-    debugButton.addPanelChild(&svgTracksToggle);
+    debugButton.addPanelChild(&svgAssetsToggle);
     debugButton.addPanelChild(&svgScaleLabel);
     debugButton.addPanelChild(&svgYOffsetLabel);
     debugButton.addPanelChild(&svgOpacityLabel);
@@ -293,7 +294,7 @@ void DebugToolbarPanel::layoutPanel(juce::Component* panel)
     debugConsoleToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
-    svgTracksToggle.setBounds(margin, y, w, rowHeight);
+    svgAssetsToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     svgScaleLabel.setBounds(margin, y, w, rowHeight);

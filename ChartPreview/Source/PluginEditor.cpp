@@ -361,7 +361,6 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         clearLogsButton.setVisible(show);
     };
 
-    dbg.onSvgTracksChanged = [this](bool useSvg) { useSvgTracks = useSvg; repaint(); };
     dbg.onSvgTrackScaleChanged = [this](float v) { svgTrackScale = v; repaint(); };
     dbg.onSvgTrackYOffsetChanged = [this](float v) { svgTrackYOffset = v; repaint(); };
     dbg.onSvgTrackOpacityChanged = [this](float v) { highwayRenderer.highwayTextureOpacity = v; repaint(); };
@@ -377,6 +376,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     bindFloat(dbg.onFarFadeEndChanged, highwayRenderer.farFadeEnd);
     bindFloat(dbg.onFarFadeCurveChanged, highwayRenderer.farFadeCurve);
     bindFloat(dbg.onGridlinePosOffsetChanged, highwayRenderer.gridlinePosOffset);
+    dbg.onSvgAssetsChanged = [this](bool enabled) { useSvgTracks = enabled; highwayRenderer.useSvgAssets = enabled; repaint(); };
     bindFloat(dbg.onSustainStartCurveChanged, highwayRenderer.sustainStartCurve);
     bindFloat(dbg.onSustainEndCurveChanged, highwayRenderer.sustainEndCurve);
     bindFloat(dbg.onBarSustainStartCurveChanged, highwayRenderer.barSustainStartCurve);

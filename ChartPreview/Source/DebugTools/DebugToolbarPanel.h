@@ -46,7 +46,7 @@ public:
     // Highway scale/position callbacks
     std::function<void(float)> onScaleChanged;
     std::function<void(float)> onYPositionChanged;
-    std::function<void(bool)> onSvgTracksChanged;
+    std::function<void(bool)> onSvgAssetsChanged;
     std::function<void(float)> onSvgTrackScaleChanged;
     std::function<void(float)> onSvgTrackYOffsetChanged;
     std::function<void(float)> onSvgTrackOpacityChanged;
@@ -63,7 +63,7 @@ private:
     PopupMenuButton debugButton{"Debug"};
     juce::ToggleButton debugPlayToggle;
     juce::ToggleButton debugConsoleToggle;
-    juce::ToggleButton svgTracksToggle;
+    juce::ToggleButton svgAssetsToggle;
 
     class ScrollableLabel : public juce::Label
     {
