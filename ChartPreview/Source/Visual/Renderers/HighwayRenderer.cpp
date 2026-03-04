@@ -263,25 +263,50 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 {
     double windowTimeSpan = windowEndTime - windowStartTime;
 
-    // Don't render sustains that end before the strikeline (time 0)
-    if (sustain.endTime < 0.0) return;
+    bool isLane = (sustain.sustainType == SustainType::LANE);
 
     // Gate by render toggle
-    if (sustain.sustainType == SustainType::LANE && !showLanes) return;
-    if (sustain.sustainType == SustainType::SUSTAIN && !showSustains) return;
+    if (isLane && !showLanes) return;
+    if (!isLane && !showSustains) return;
 
-    // Clip sustain start to the strikeline if it extends into the past
-    double clippedStartTime = std::max(0.0, sustain.startTime);
+    // Clip threshold: lanes extend further past strikeline than sustains
+    float clipThreshold = isLane ? LANE_CLIP : (isBarNote(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS) ? BAR_SUSTAIN_CLIP : SUSTAIN_CLIP);
+
+    // Don't render if fully past the clip threshold
+    if (sustain.endTime < 0.0) return;
+
+    // Clip sustain start to the clip threshold (in time space)
+    double clipTime = clipThreshold * windowTimeSpan;
+    double clippedStartTime = std::max(clipTime, sustain.startTime);
+
+    // Position offsets differ for lanes vs sustains
+    float startOffset, endOffset;
+    if (isLane)
+    {
+        startOffset = LANE_START_OFFSET;
+        endOffset = LANE_END_OFFSET;
+    }
+    else if (isBarNote(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS))
+    {
+        startOffset = BAR_SUSTAIN_START_OFFSET;
+        endOffset = BAR_SUSTAIN_END_OFFSET;
+    }
+    else
+    {
+        startOffset = SUSTAIN_START_OFFSET;
+        endOffset = SUSTAIN_END_OFFSET;
+    }
 
     // Calculate normalized positions for start and end of sustain
-    float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan);
-    float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan);
+    float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan) + startOffset;
+    float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan) + endOffset;
 
     // Only draw sustains that are visible in our window
     if (endPosition < 0.0f || startPosition > 1.0f) return;
 
-    // Clamp to visible area
-    startPosition = std::max(0.0f, startPosition);
+    // Clamp to visible area (allow negative for lane extension past strikeline)
+    float minPos = isLane ? clipThreshold : 0.0f;
+    startPosition = std::max(minPos, startPosition);
     endPosition = std::min(1.0f, endPosition);
 
     // Get sustain color based on gem column and star power state
@@ -311,35 +336,135 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     }
 
     drawCallMap[sustainDrawOrder][sustain.gemColumn].push_back([=](juce::Graphics &g) {
-        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour);
+        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
 }
 
-void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour)
+void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
-    // Get lane coordinates instead of glyph rectangles
-    auto startLane = isPart(state, Part::DRUMS) ? PositionMath::getDrumLaneCoordinates(gemColumn, startPosition, width, height) : PositionMath::getGuitarLaneCoordinates(gemColumn, startPosition, width, height);
-    auto endLane = isPart(state, Part::DRUMS) ? PositionMath::getDrumLaneCoordinates(gemColumn, endPosition, width, height) : PositionMath::getGuitarLaneCoordinates(gemColumn, endPosition, width, height);
-    
+    bool isDrums = isPart(state, Part::DRUMS);
+    bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+
+    // Get lane coordinates at start (near/strikeline) and end (far)
+    auto startLane = isDrums
+        ? PositionMath::getDrumLaneCoordinates(gemColumn, startPosition, width, height)
+        : PositionMath::getGuitarLaneCoordinates(gemColumn, startPosition, width, height);
+    auto endLane = isDrums
+        ? PositionMath::getDrumLaneCoordinates(gemColumn, endPosition, width, height)
+        : PositionMath::getGuitarLaneCoordinates(gemColumn, endPosition, width, height);
+
     // Calculate lane widths based on sustain width parameter
     float startWidth = (startLane.rightX - startLane.leftX) * sustainWidth;
     float endWidth = (endLane.rightX - endLane.leftX) * sustainWidth;
-    float radius = std::min(startWidth, endWidth) * SUSTAIN_CAP_RADIUS_SCALE;
-    
-    // Create paths for trapezoid and rounded caps
-    auto trapezoid = columnRenderer.createTrapezoidPath(startLane, endLane, startWidth, endWidth);
-    auto startCap = columnRenderer.createRoundedCapPath(startLane, startWidth, radius);
 
-    // Scale end cap height proportionally to width for natural perspective
-    float endCapHeightScale = endWidth / startWidth;
-    auto endCap = columnRenderer.createRoundedCapPath(endLane, endWidth, radius, endCapHeightScale);
+    // Corner positions (centered on lane)
+    float startCenterX = (startLane.leftX + startLane.rightX) * 0.5f;
+    float endCenterX = (endLane.leftX + endLane.rightX) * 0.5f;
 
-    // Render to offscreen image for perfect compositing
-    auto sustainImage = columnRenderer.createOffscreenColumnImage(trapezoid, startCap, endCap, colour);
-    
-    // Draw final result
-    g.setOpacity(opacity);
-    auto bounds = trapezoid.getBounds().getUnion(startCap.getBounds()).getUnion(endCap.getBounds());
-    g.drawImageAt(sustainImage, (int)bounds.getX() - 1, (int)bounds.getY() - 1);
+    float startLeftX  = startCenterX - startWidth * 0.5f;
+    float startRightX = startCenterX + startWidth * 0.5f;
+    float endLeftX    = endCenterX - endWidth * 0.5f;
+    float endRightX   = endCenterX + endWidth * 0.5f;
+
+    float startY = startLane.centerY;
+    float endY   = endLane.centerY;
+
+    // Select curve amounts based on type
+    float startCurve, endCurve;
+    if (isLane)
+    {
+        startCurve = LANE_INNER_START_CURVE;
+        endCurve = LANE_INNER_END_CURVE;
+    }
+    else if (isBar)
+    {
+        startCurve = BAR_SUSTAIN_START_CURVE;
+        endCurve = BAR_SUSTAIN_END_CURVE;
+    }
+    else
+    {
+        startCurve = SUSTAIN_START_CURVE;
+        endCurve = SUSTAIN_END_CURVE;
+    }
+
+    // Arc amount scales with fretboard width at each position
+    // Get full fretboard width at start and end to scale curves proportionally
+    auto startFretboard = isDrums
+        ? PositionMath::getDrumLaneCoordinates(0, startPosition, width, height)
+        : PositionMath::getGuitarLaneCoordinates(0, startPosition, width, height);
+    auto endFretboard = isDrums
+        ? PositionMath::getDrumLaneCoordinates(0, endPosition, width, height)
+        : PositionMath::getGuitarLaneCoordinates(0, endPosition, width, height);
+
+    float startFretboardWidth = startFretboard.rightX - startFretboard.leftX;
+    float endFretboardWidth = endFretboard.rightX - endFretboard.leftX;
+
+    // Lane-local arc: Y offset at the horizontal midpoint of the sustain edge
+    // Positive curve = bow downward (toward strikeline), negative = bow upward
+    float startArcY = startCurve * startFretboardWidth;
+    float endArcY = endCurve * endFretboardWidth;
+
+    // For lanes, also compute fretboard-wide parabolic Y offset
+    // This makes adjacent lanes share the same overall curvature
+    float laneStartParabolaY = 0.0f;
+    float laneEndParabolaY = 0.0f;
+    if (isLane)
+    {
+        // Where is this lane's center relative to the fretboard?
+        // t = normalized position (0 = left edge, 1 = right edge)
+        float startT = (startFretboardWidth > 0.0f) ? (startCenterX - startFretboard.leftX) / startFretboardWidth : 0.5f;
+        float endT = (endFretboardWidth > 0.0f) ? (endCenterX - endFretboard.leftX) / endFretboardWidth : 0.5f;
+
+        // Parabola: 4*t*(1-t) peaks at 1.0 when t=0.5, zero at edges
+        laneStartParabolaY = LANE_START_CURVE * startFretboardWidth * 4.0f * startT * (1.0f - startT);
+        laneEndParabolaY = LANE_END_CURVE * endFretboardWidth * 4.0f * endT * (1.0f - endT);
+    }
+
+    // Build the path with quadratic bezier curves for top and bottom edges
+    juce::Path path;
+
+    // Adjusted Y positions with parabolic offset
+    float adjStartY = startY + laneStartParabolaY;
+    float adjEndY = endY + laneEndParabolaY;
+
+    // Start at bottom-left (near/strikeline, left edge)
+    path.startNewSubPath(startLeftX, adjStartY);
+
+    // Bottom edge (start/near): left → right with arc
+    // Control point is at the horizontal midpoint, offset by startArcY
+    float startMidX = (startLeftX + startRightX) * 0.5f;
+    path.quadraticTo(startMidX, adjStartY + startArcY, startRightX, adjStartY);
+
+    // Right edge: near → far (straight line, or curved if LANE_SIDE_CURVE != 0)
+    if (isLane && std::abs(LANE_SIDE_CURVE) > 0.001f)
+    {
+        float sideMidY = (adjStartY + adjEndY) * 0.5f;
+        float sideArc = LANE_SIDE_CURVE * (startFretboardWidth + endFretboardWidth) * 0.5f;
+        path.quadraticTo(startRightX + sideArc, sideMidY, endRightX, adjEndY);
+    }
+    else
+    {
+        path.lineTo(endRightX, adjEndY);
+    }
+
+    // Top edge (end/far): right → left with arc
+    float endMidX = (endLeftX + endRightX) * 0.5f;
+    path.quadraticTo(endMidX, adjEndY + endArcY, endLeftX, adjEndY);
+
+    // Left edge: far → near (straight line, or curved if LANE_SIDE_CURVE != 0)
+    if (isLane && std::abs(LANE_SIDE_CURVE) > 0.001f)
+    {
+        float sideMidY = (adjStartY + adjEndY) * 0.5f;
+        float sideArc = LANE_SIDE_CURVE * (startFretboardWidth + endFretboardWidth) * 0.5f;
+        path.quadraticTo(endLeftX - sideArc, sideMidY, startLeftX, adjStartY);
+    }
+    else
+    {
+        path.closeSubPath();
+    }
+
+    // Fill the path directly — no offscreen buffer needed
+    g.setColour(colour.withAlpha(opacity));
+    g.fillPath(path);
 }
 

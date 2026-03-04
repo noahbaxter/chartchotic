@@ -78,7 +78,7 @@ namespace PositionConstants
     constexpr float BAR_SIZE = 0.95f;                   // Bar note (kick/open) scaling factor
     constexpr float GRIDLINE_SIZE = 0.9f;               // Gridline scaling factor
     constexpr float SUSTAIN_WIDTH = 0.15f;              // Sustain width multiplier
-    constexpr float SUSTAIN_OPEN_WIDTH = 0.8f;          // Open sustain width multiplier
+    constexpr float SUSTAIN_OPEN_WIDTH = 0.7f;          // Open sustain width multiplier (narrower)
     constexpr float LANE_WIDTH = 1.1f;                  // Lane width multiplier
     constexpr float LANE_OPEN_WIDTH = 0.9f;             // Open lane width multiplier
 
@@ -87,6 +87,32 @@ namespace PositionConstants
     constexpr float SUSTAIN_WIDTH_MULTIPLIER = 0.8f;    // Sustain slightly narrower than gems
     constexpr float SUSTAIN_CAP_RADIUS_SCALE = 0.25f;   // Scale for rounded sustain caps
     constexpr float SUSTAIN_MARGIN_SCALE = 0.1f;        // Small margin above/below center
+
+    //==============================================================================
+    // Curved Sustain & Lane Constants
+    // Curve values: positive = convex bow outward, negative = concave bow inward
+    constexpr float SUSTAIN_START_CURVE = 0.015f;       // Near edge (strikeline side)
+    constexpr float SUSTAIN_END_CURVE = -0.010f;        // Far edge
+    constexpr float BAR_SUSTAIN_START_CURVE = -0.015f;  // Bar (open/kick) near edge
+    constexpr float BAR_SUSTAIN_END_CURVE = -0.015f;    // Bar (open/kick) far edge
+
+    constexpr float SUSTAIN_START_OFFSET = 0.0f;        // Position nudge for sustain start
+    constexpr float SUSTAIN_END_OFFSET = -0.05f;        // Sustain ends slightly before note
+    constexpr float BAR_SUSTAIN_START_OFFSET = 0.0f;
+    constexpr float BAR_SUSTAIN_END_OFFSET = -0.05f;
+
+    constexpr float SUSTAIN_CLIP = -0.015f;             // How far past strikeline before clamping
+    constexpr float BAR_SUSTAIN_CLIP = -0.015f;
+
+    // Lane curve constants (fretboard-wide parabolic arcs)
+    constexpr float LANE_START_CURVE = -0.025f;         // Fretboard-wide parabola for start edge
+    constexpr float LANE_END_CURVE = -0.035f;           // Fretboard-wide parabola for end edge
+    constexpr float LANE_INNER_START_CURVE = 0.040f;    // Lane-local arc at start
+    constexpr float LANE_INNER_END_CURVE = -0.040f;     // Lane-local arc at end
+    constexpr float LANE_SIDE_CURVE = 0.0f;             // Side edge curvature (disabled)
+    constexpr float LANE_START_OFFSET = -0.010f;        // Lane position nudge
+    constexpr float LANE_END_OFFSET = -0.010f;
+    constexpr float LANE_CLIP = -0.3f;                  // Lanes extend well past strikeline
 
     //==============================================================================
     // Special Visual Scales
