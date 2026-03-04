@@ -22,14 +22,18 @@ public:
     AssetManager();
     ~AssetManager();
 
-    // Image picker methods
+    //==========================================================================
+    // Picker methods (logic for selecting the right asset by game state)
+
     juce::Image* getGuitarGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
     juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
     juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
     juce::Image* getSustainImage(uint gemColumn, bool starPowerActive);
-
     juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);
+
+    //==========================================================================
+    // Raster assets (PNG/JPG — scaled bitmaps)
 
     // Bar/Open notes
     juce::Image* getBarKickImage() { return &barKickImage; }
@@ -59,7 +63,7 @@ public:
     juce::Image* getLaneMidImage() { return &laneMidImage; }
     juce::Image* getLaneStartImage() { return &laneStartImage; }
 
-    // Marker graphics
+    // Marker graphics (PNG fallback)
     juce::Image* getMarkerBeatImage() { return &markerBeatImage; }
     juce::Image* getMarkerHalfBeatImage() { return &markerHalfBeatImage; }
     juce::Image* getMarkerMeasureImage() { return &markerMeasureImage; }
@@ -96,14 +100,9 @@ public:
         return nullptr;
     }
     juce::Image* getHitFlareImage(uint gemColumn, Part part) {
-        // Map gemColumn to flare index based on color
-        // Flare array: [0]=green, [1]=red, [2]=yellow, [3]=blue, [4]=orange
-        // Guitar: 1=green, 2=red, 3=yellow, 4=blue, 5=orange -> direct mapping (column-1)
-        // Drums:  1=red, 2=yellow, 3=blue, 4=green -> needs remapping
         if (part == Part::GUITAR && gemColumn >= 1 && gemColumn <= 5) {
             return &hitFlareImages[gemColumn - 1];
         } else if (part == Part::DRUMS && gemColumn >= 1 && gemColumn <= 4) {
-            // Drum mapping: 1=red->1, 2=yellow->2, 3=blue->3, 4=green->0
             uint flareIndex = (gemColumn == 4) ? 0 : gemColumn;
             return &hitFlareImages[flareIndex];
         }
@@ -118,69 +117,37 @@ public:
         return nullptr;
     }
 
+    //==========================================================================
+    // Vector assets (SVG — resolution-independent drawables)
+
+    juce::Drawable* getGridlineDrawable(Gridline gridlineType);
+
 private:
-    void initAssets();
+    void initRasterAssets();
+    void initVectorAssets();
 
-    // Bar/Open notes
-    juce::Image barKickImage;
-    juce::Image barKick2xImage;
-    juce::Image barOpenImage;
-    juce::Image barWhiteImage;
+    //==========================================================================
+    // Raster data (juce::Image — loaded from PNG/JPG binary data)
 
-    // Cymbal notes
-    juce::Image cymBlueImage;
-    juce::Image cymGreenImage;
-    juce::Image cymRedImage;
-    juce::Image cymWhiteImage;
-    juce::Image cymYellowImage;
+    juce::Image barKickImage, barKick2xImage, barOpenImage, barWhiteImage;
+    juce::Image cymBlueImage, cymGreenImage, cymRedImage, cymWhiteImage, cymYellowImage;
+    juce::Image hopoBlueImage, hopoGreenImage, hopoOrangeImage, hopoRedImage, hopoWhiteImage, hopoYellowImage;
+    juce::Image laneEndImage, laneMidImage, laneStartImage;
+    juce::Image markerBeatImage, markerHalfBeatImage, markerMeasureImage;
+    juce::Image noteBlueImage, noteGreenImage, noteOrangeImage, noteRedImage, noteWhiteImage, noteYellowImage;
+    juce::Image overlayCymAccentImage, overlayCymGhost80scaleImage, overlayCymGhostImage;
+    juce::Image overlayNoteAccentImage, overlayNoteGhostImage, overlayNoteTapImage;
+    juce::Image sustainBlueImage, sustainGreenImage, sustainOpenWhiteImage, sustainOpenImage;
+    juce::Image sustainOrangeImage, sustainRedImage, sustainWhiteImage, sustainYellowImage;
+    juce::Image hitAnimationFrames[5];
+    juce::Image hitFlareImages[5];
+    juce::Image kickAnimationFrames[7];
+    juce::Image openAnimationFrames[7];
 
-    // HOPO notes
-    juce::Image hopoBlueImage;
-    juce::Image hopoGreenImage;
-    juce::Image hopoOrangeImage;
-    juce::Image hopoRedImage;
-    juce::Image hopoWhiteImage;
-    juce::Image hopoYellowImage;
+    //==========================================================================
+    // Vector data (juce::Drawable — loaded from SVG binary data)
 
-    // Lane graphics
-    juce::Image laneEndImage;
-    juce::Image laneMidImage;
-    juce::Image laneStartImage;
-
-    // Marker graphics
-    juce::Image markerBeatImage;
-    juce::Image markerHalfBeatImage;
-    juce::Image markerMeasureImage;
-
-    // Regular notes
-    juce::Image noteBlueImage;
-    juce::Image noteGreenImage;
-    juce::Image noteOrangeImage;
-    juce::Image noteRedImage;
-    juce::Image noteWhiteImage;
-    juce::Image noteYellowImage;
-
-    // Overlay graphics
-    juce::Image overlayCymAccentImage;
-    juce::Image overlayCymGhost80scaleImage;
-    juce::Image overlayCymGhostImage;
-    juce::Image overlayNoteAccentImage;
-    juce::Image overlayNoteGhostImage;
-    juce::Image overlayNoteTapImage;
-
-    // Sustain graphics
-    juce::Image sustainBlueImage;
-    juce::Image sustainGreenImage;
-    juce::Image sustainOpenWhiteImage;
-    juce::Image sustainOpenImage;
-    juce::Image sustainOrangeImage;
-    juce::Image sustainRedImage;
-    juce::Image sustainWhiteImage;
-    juce::Image sustainYellowImage;
-
-    // Hit animation graphics
-    juce::Image hitAnimationFrames[5];   // hit_1.png through hit_5.png
-    juce::Image hitFlareImages[5];       // hit_flare_blue/green/orange/red/yellow
-    juce::Image kickAnimationFrames[7];  // hit_kick_1.png through hit_kick_7.png
-    juce::Image openAnimationFrames[7];  // hit_open_1.png through hit_open_7.png
+    std::unique_ptr<juce::Drawable> gridlineBeatSvg;
+    std::unique_ptr<juce::Drawable> gridlineHalfBeatSvg;
+    std::unique_ptr<juce::Drawable> gridlineMeasureSvg;
 };

@@ -12,14 +12,18 @@
 
 AssetManager::AssetManager()
 {
-    initAssets();
+    initRasterAssets();
+    initVectorAssets();
 }
 
 AssetManager::~AssetManager()
 {
 }
 
-void AssetManager::initAssets()
+//==============================================================================
+// Raster assets (PNG/JPG)
+
+void AssetManager::initRasterAssets()
 {
     barKickImage = juce::ImageCache::getFromMemory(BinaryData::bar_kick_png, BinaryData::bar_kick_pngSize);
     barKick2xImage = juce::ImageCache::getFromMemory(BinaryData::bar_kick_2x_png, BinaryData::bar_kick_2x_pngSize);
@@ -101,6 +105,43 @@ void AssetManager::initAssets()
     openAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_open_5_png, BinaryData::hit_open_5_pngSize);
     openAnimationFrames[5] = juce::ImageCache::getFromMemory(BinaryData::hit_open_6_png, BinaryData::hit_open_6_pngSize);
     openAnimationFrames[6] = juce::ImageCache::getFromMemory(BinaryData::hit_open_7_png, BinaryData::hit_open_7_pngSize);
+}
+
+//==============================================================================
+// Vector assets (SVG)
+
+void AssetManager::initVectorAssets()
+{
+    gridlineBeatSvg = juce::Drawable::createFromImageData(BinaryData::gridline_beat_svg, BinaryData::gridline_beat_svgSize);
+    gridlineHalfBeatSvg = juce::Drawable::createFromImageData(BinaryData::gridline_half_beat_svg, BinaryData::gridline_half_beat_svgSize);
+    gridlineMeasureSvg = juce::Drawable::createFromImageData(BinaryData::gridline_measure_svg, BinaryData::gridline_measure_svgSize);
+}
+
+//==============================================================================
+// Picker methods
+
+juce::Image* AssetManager::getGridlineImage(Gridline gridlineType)
+{
+    switch (gridlineType)
+    {
+    case Gridline::MEASURE: return getMarkerMeasureImage();
+    case Gridline::BEAT: return getMarkerBeatImage();
+    case Gridline::HALF_BEAT: return getMarkerHalfBeatImage();
+    }
+
+    return nullptr;
+}
+
+juce::Drawable* AssetManager::getGridlineDrawable(Gridline gridlineType)
+{
+    switch (gridlineType)
+    {
+    case Gridline::MEASURE: return gridlineMeasureSvg.get();
+    case Gridline::BEAT: return gridlineBeatSvg.get();
+    case Gridline::HALF_BEAT: return gridlineHalfBeatSvg.get();
+    }
+
+    return nullptr;
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
@@ -262,18 +303,6 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
             } break;
         default: break;
         }
-    }
-
-    return nullptr;
-}
-
-juce::Image* AssetManager::getGridlineImage(Gridline gridlineType)
-{
-    switch (gridlineType)
-    {
-    case Gridline::MEASURE: return getMarkerMeasureImage();
-    case Gridline::BEAT: return getMarkerBeatImage();
-    case Gridline::HALF_BEAT: return getMarkerHalfBeatImage();
     }
 
     return nullptr;

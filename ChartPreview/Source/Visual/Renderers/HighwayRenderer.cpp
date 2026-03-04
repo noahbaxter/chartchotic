@@ -171,18 +171,41 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGri
 
         if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= farFadeEnd)
         {
-            juce::Image *markerImage = assetManager.getGridlineImage(gridlineType);
+            float fadeOpacity = calculateOpacity(normalizedPosition);
 
-            if (markerImage != nullptr)
+            if (useSvgAssets)
             {
-                float fadeOpacity = calculateOpacity(normalizedPosition);
-                drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity); });
+                juce::Drawable* drawable = assetManager.getGridlineDrawable(gridlineType);
+                if (drawable != nullptr)
+                    drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridlineSVG(g, normalizedPosition, drawable, gridlineType, fadeOpacity); });
+            }
+            else
+            {
+                juce::Image *markerImage = assetManager.getGridlineImage(gridlineType);
+                if (markerImage != nullptr)
+                    drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridlinePNG(g, normalizedPosition, markerImage, gridlineType, fadeOpacity); });
             }
         }
     }
 }
 
-void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity)
+void HighwayRenderer::drawGridline(juce::Graphics& g, float position, Gridline gridlineType, float fadeOpacity)
+{
+    if (useSvgAssets)
+    {
+        juce::Drawable* drawable = assetManager.getGridlineDrawable(gridlineType);
+        if (drawable)
+            drawGridlineSVG(g, position, drawable, gridlineType, fadeOpacity);
+    }
+    else
+    {
+        juce::Image* markerImage = assetManager.getGridlineImage(gridlineType);
+        if (markerImage)
+            drawGridlinePNG(g, position, markerImage, gridlineType, fadeOpacity);
+    }
+}
+
+void HighwayRenderer::drawGridlinePNG(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity)
 {
     if (!markerImage) return;
 
@@ -206,6 +229,36 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
                                  edge.centerY - gridHeight * 0.5f,
                                  gridWidth, gridHeight);
     draw(g, markerImage, rect, opacity);
+}
+
+void HighwayRenderer::drawGridlineSVG(juce::Graphics& g, float position, juce::Drawable* drawable, Gridline gridlineType, float fadeOpacity)
+{
+    if (!drawable) return;
+
+    float opacity = 1.0f;
+    switch (gridlineType) {
+        case Gridline::MEASURE: opacity = MEASURE_OPACITY; break;
+        case Gridline::BEAT: opacity = BEAT_OPACITY; break;
+        case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
+    }
+    opacity *= fadeOpacity;
+
+    bool isDrums = isPart(state, Part::DRUMS);
+    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    auto edge = getColumnEdge(position, fbCoords, 1.1f);
+
+    float gridWidth = edge.rightX - edge.leftX;
+    float gridHeight = gridWidth / getPerspectiveParams().barNoteHeightRatio;
+    float centerX = (edge.leftX + edge.rightX) * 0.5f;
+
+    juce::Rectangle<float> rect(centerX - gridWidth * 0.5f,
+                                 edge.centerY - gridHeight * 0.5f,
+                                 gridWidth, gridHeight);
+
+    g.saveState();
+    g.setOpacity(opacity);
+    drawable->drawWithin(g, rect, juce::RectanglePlacement::stretchToFit, 1.0f);
+    g.restoreState();
 }
 
 

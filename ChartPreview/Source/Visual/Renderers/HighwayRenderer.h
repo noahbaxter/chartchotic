@@ -154,6 +154,9 @@ class HighwayRenderer
         // Gridline position nudge (normalized position space, exposed for debug UI)
         float gridlinePosOffset = -0.020f;
 
+        // SVG assets toggle — when true, use SVG drawables instead of PNGs (exposed for debug UI)
+        bool useSvgAssets = true;
+
         // Tunable sustain arc curves (exposed for debug UI)
         float sustainStartCurve    = 0.015f;
         float sustainEndCurve      = -0.010f;
@@ -212,7 +215,9 @@ class HighwayRenderer
 
         DrawCallMap drawCallMap;
         void drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime);
-        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType, float fadeOpacity = 1.0f);
+        void drawGridline(juce::Graphics &g, float position, Gridline gridlineType, float fadeOpacity = 1.0f);
+        void drawGridlineSVG(juce::Graphics &g, float position, juce::Drawable* drawable, Gridline gridlineType, float fadeOpacity);
+        void drawGridlinePNG(juce::Graphics &g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity);
 
         void drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
         void drawFrame(const TimeBasedTrackFrame &gems, float position, double frameTime);
