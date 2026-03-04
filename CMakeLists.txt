@@ -234,12 +234,12 @@ juce_add_binary_data(ChartPreviewData
         ChartPreview/Assets/raster/hit_open_6.png
         ChartPreview/Assets/raster/hit_open_7.png
         # Vector assets (SVG)
-        ChartPreview/Assets/svg/gridline_beat.svg
-        ChartPreview/Assets/svg/gridline_half_beat.svg
-        ChartPreview/Assets/svg/gridline_measure.svg
-        ChartPreview/Assets/svg/track_drum.svg
-        ChartPreview/Assets/svg/track_guitar.svg
-        ChartPreview/Assets/svg/logo-reaper.svg
+        ChartPreview/Assets/vector/gridline_beat.svg
+        ChartPreview/Assets/vector/gridline_half_beat.svg
+        ChartPreview/Assets/vector/gridline_measure.svg
+        ChartPreview/Assets/vector/track_drum.svg
+        ChartPreview/Assets/vector/track_guitar.svg
+        ChartPreview/Assets/vector/logo-reaper.svg
         # MIDI files
         ChartPreview/Assets/midi/test.mid
         ChartPreview/Assets/midi/stress.mid
