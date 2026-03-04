@@ -9,6 +9,9 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "UpdateChecker.h"
+#ifdef DEBUG
+#include "DebugTools/DebugMidiFilePlayer.h"
+#endif
 
 // CI injects CHARTPREVIEW_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
@@ -39,7 +42,14 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
 
     setSize(defaultWidth, defaultHeight);
 
+    setWantsKeyboardFocus(true);
+
     latencyInSeconds = audioProcessor.latencyInSeconds;
+
+#ifdef DEBUG
+    debugStandalone = juce::PluginHostType::getPluginLoadedAs() == AudioProcessor::wrapperType_Standalone;
+#endif
+
     initAssets();
     initToolbarCallbacks();
     initBottomBar();
@@ -47,6 +57,9 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     addAndMakeVisible(toolbar);
 
     #ifdef DEBUG
+    if (debugStandalone)
+        loadDebugChart(debugController.getChartIndex());
+
     consoleOutput.setMultiLine(true);
     consoleOutput.setReadOnly(true);
     addChildComponent(consoleOutput);
@@ -117,6 +130,18 @@ void ChartPreviewAudioProcessorEditor::onFrame()
         }
     }
 
+#ifdef DEBUG
+    if (debugStandalone)
+    {
+        debugController.advancePlayhead();
+        if (debugChartLengthInBeats > 0.0 && debugController.getCurrentPPQ().toDouble() > debugChartLengthInBeats)
+            debugController.nudgePlayhead(-debugChartLengthInBeats);
+        lastKnownPosition = debugController.getCurrentPPQ();
+        if (debugController.isPlaying())
+            lastPlayingState = true;
+    }
+#endif
+
     repaint();
 }
 
@@ -141,6 +166,10 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onPartChanged = [this](int id) {
         state.setProperty("part", id, nullptr);
         audioProcessor.refreshMidiDisplay();
+#ifdef DEBUG
+        if (debugStandalone && debugController.isNotesActive())
+            loadDebugChart(debugController.getChartIndex());
+#endif
     };
 
     toolbar.onDrumTypeChanged = [this](int id) {
@@ -214,7 +243,16 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     };
 
 #ifdef DEBUG
-    toolbar.onDebugConsoleChanged = [this](bool show) {
+    auto& dbg = toolbar.getDebugPanel();
+
+    dbg.onDebugPlayChanged = [this](bool playing) {
+        debugController.setPlaying(playing);
+    };
+    dbg.onDebugChartChanged = [this](int index) {
+        debugController.setChartIndex(index);
+        loadDebugChart(index);
+    };
+    dbg.onDebugConsoleChanged = [this](bool show) {
         consoleOutput.setVisible(show);
         clearLogsButton.setVisible(show);
     };
@@ -363,6 +401,36 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 {
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
+
+#ifdef DEBUG
+    if (debugStandalone && debugController.isNotesActive())
+    {
+        PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+        PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
+
+        TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+        SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, trackWindowStartPPQ);
+
+        double bpm = debugController.getBPM();
+        auto ppqToTime = [bpm](double ppq) { return ppq * (60.0 / bpm); };
+
+        TempoTimeSignatureMap tempoTimeSigMap = debugMidiTempoMap;
+        if (tempoTimeSigMap.empty())
+            tempoTimeSigMap[PPQ(0.0)] = TempoTimeSignatureEvent(PPQ(0.0), bpm, 4, 4);
+
+        PPQ cursorPPQ = trackWindowStartPPQ;
+        TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
+        TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
+        TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
+            tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
+
+        double windowStartTime = 0.0;
+        double windowEndTime = displayWindowTimeSeconds;
+
+        highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, debugController.isPlaying());
+        return;
+    }
+#endif
 
     // Apply latency compensation when playing
     if (audioProcessor.isPlaying)
@@ -551,3 +619,47 @@ void ChartPreviewAudioProcessorEditor::parentSizeChanged()
 {
     AudioProcessorEditor::parentSizeChanged();
 }
+
+#ifdef DEBUG
+const ChartPreviewAudioProcessorEditor::DebugChartEntry ChartPreviewAudioProcessorEditor::debugChartRegistry[] = {
+    {nullptr,                               0},
+    {BinaryData::test_mid,                  BinaryData::test_midSize},
+    {BinaryData::stress_mid,                BinaryData::stress_midSize},
+    {BinaryData::sleepy_tea_mid,            BinaryData::sleepy_tea_midSize},
+    {BinaryData::further_side_mid,          BinaryData::further_side_midSize},
+    {BinaryData::scarlet_mid,               BinaryData::scarlet_midSize},
+    {BinaryData::everything_went_black_mid, BinaryData::everything_went_black_midSize},
+    {BinaryData::akroasis_mid,              BinaryData::akroasis_midSize},
+};
+
+void ChartPreviewAudioProcessorEditor::loadDebugChart(int index)
+{
+    constexpr int registrySize = (int)(sizeof(debugChartRegistry) / sizeof(debugChartRegistry[0]));
+    if (index <= 0 || index >= registrySize)
+    {
+        // Clear everything
+        {
+            const juce::ScopedLock lock(audioProcessor.getNoteStateMapLock());
+            for (auto& map : audioProcessor.getNoteStateMapArray())
+                map.clear();
+        }
+        debugMidiTempoMap.clear();
+        return;
+    }
+
+    const auto& entry = debugChartRegistry[index];
+    bool isDrums = isPart(state, Part::DRUMS);
+
+    auto result = DebugMidiFilePlayer::loadMidiFile(
+        entry.data, entry.size,
+        isDrums,
+        audioProcessor.getNoteStateMapArray(),
+        audioProcessor.getNoteStateMapLock(),
+        audioProcessor.getMidiProcessor(),
+        state);
+
+    debugMidiTempoMap = result.tempoMap;
+    debugChartLengthInBeats = result.lengthInBeats;
+    debugController.setBPM(result.initialBPM);
+}
+#endif

@@ -76,6 +76,10 @@ target_sources(ChartPreview
         ChartPreview/Source/UpdateChecker.cpp
         ChartPreview/Source/UpdateChecker.h
         # DebugTools
+        ChartPreview/Source/DebugTools/DebugMidiFilePlayer.h
+        ChartPreview/Source/DebugTools/DebugPlaybackController.h
+        ChartPreview/Source/DebugTools/DebugToolbarPanel.cpp
+        ChartPreview/Source/DebugTools/DebugToolbarPanel.h
         ChartPreview/Source/DebugTools/Logger.h
         # Midi / Processing
         ChartPreview/Source/Midi/Processing/MidiInterpreter.cpp
@@ -227,6 +231,13 @@ juce_add_binary_data(ChartPreviewData
         ChartPreview/Assets/hit_open_5.png
         ChartPreview/Assets/hit_open_6.png
         ChartPreview/Assets/hit_open_7.png
+        ChartPreview/Assets/midi/test.mid
+        ChartPreview/Assets/midi/stress.mid
+        ChartPreview/Assets/midi/sleepy_tea.mid
+        ChartPreview/Assets/midi/further_side.mid
+        ChartPreview/Assets/midi/scarlet.mid
+        ChartPreview/Assets/midi/everything_went_black.mid
+        ChartPreview/Assets/midi/akroasis.mid
 )
 
 # REAPER SDK header path

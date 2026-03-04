@@ -3,6 +3,9 @@
 #include <JuceHeader.h>
 #include "PopupMenuButton.h"
 #include "../Utils/Utils.h"
+#ifdef DEBUG
+#include "../DebugTools/DebugToolbarPanel.h"
+#endif
 
 class ToolbarComponent : public juce::Component
 {
@@ -42,8 +45,6 @@ public:
     std::function<void(bool useRed)> onRedBackgroundChanged;
     std::function<void(const juce::String& textureName)> onHighwayTextureChanged;
     std::function<void(float scale)> onGemScaleChanged;
-    std::function<void(bool playing)> onDebugPlayChanged;
-    std::function<void(bool)> onDebugConsoleChanged;
 
     // Set available highway texture names (called by editor after scanning directory)
     void setHighwayTextureList(const juce::StringArray& names) { highwayTextureNames = names; }
@@ -112,10 +113,11 @@ private:
     PopupMenuButton settingsButton{"Settings"};
 
 #ifdef DEBUG
-    PopupMenuButton debugButton{"Debug"};
-    juce::ToggleButton debugPlayToggle;
-    juce::ToggleButton debugConsoleToggle;
-    void layoutDebugPanel(juce::Component* panel);
+    DebugToolbarPanel debugPanel{state};
+public:
+    DebugToolbarPanel& getDebugPanel() { return debugPanel; }
+    void setDebugPlay(bool playing);
+private:
 #endif
 
     void initControls();

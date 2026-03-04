@@ -18,6 +18,9 @@
 #include "UpdateChecker.h"
 #include "UI/ChartPreviewLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
+#ifdef DEBUG
+#include "DebugTools/DebugPlaybackController.h"
+#endif
 
 //==============================================================================
 /**
@@ -42,6 +45,15 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
+#ifdef DEBUG
+        if (debugStandalone && key == juce::KeyPress::spaceKey)
+        {
+            debugController.togglePlay();
+            toolbar.setDebugPlay(debugController.isPlaying());
+            return true;
+        }
+#endif
+
         // Handle arrow keys for latency offset when text box has focus
         auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
         if (latencyOffsetInput.hasKeyboardFocus(true))
@@ -86,6 +98,16 @@ public:
         auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
         if (latencyOffsetInput.isMouseOver(true))
             return;
+
+#ifdef DEBUG
+        if (debugStandalone)
+        {
+            double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
+            double jumpBeats = event.mods.isShiftDown() ? SCROLL_SHIFT_BEATS : SCROLL_NORMAL_BEATS;
+            debugController.nudgePlayhead(wheelDelta * jumpBeats);
+            return;
+        }
+#endif
 
         // Get the current playhead position
         if (auto* playHead = audioProcessor.getPlayHead())
@@ -181,6 +203,19 @@ private:
     // Scroll wheel timeline control
     static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note
     static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
+
+#ifdef DEBUG
+    DebugPlaybackController debugController;
+    bool debugStandalone = false;
+
+    // Debug chart loading
+    TempoTimeSignatureMap debugMidiTempoMap;
+    double debugChartLengthInBeats = 0.0;
+    void loadDebugChart(int index);
+
+    struct DebugChartEntry { const char* data; int size; };
+    static const DebugChartEntry debugChartRegistry[];
+#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 

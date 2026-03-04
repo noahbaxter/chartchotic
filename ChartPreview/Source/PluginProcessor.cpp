@@ -48,7 +48,11 @@ void ChartPreviewAudioProcessor::initializeDefaultState()
     state = juce::ValueTree("state");
     
     state.setProperty("skillLevel", (int)SkillLevel::EXPERT, nullptr);
+#ifdef DEBUG
+    state.setProperty("part", (int)Part::GUITAR, nullptr);
+#else
     state.setProperty("part", (int)Part::DRUMS, nullptr);
+#endif
     state.setProperty("drumType", (int)DrumType::PRO, nullptr);
     state.setProperty("framerate", 3, nullptr); // 60 FPS
     state.setProperty("latency", 2, nullptr);   // 500 ms
