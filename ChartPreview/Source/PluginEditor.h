@@ -16,16 +16,14 @@
 #include "Utils/Utils.h"
 #include "Utils/TimeConverter.h"
 #include "UpdateChecker.h"
+#include "UI/ChartPreviewLookAndFeel.h"
+#include "UI/ToolbarComponent.h"
 
 //==============================================================================
 /**
 */
 class ChartPreviewAudioProcessorEditor  :
-    public juce::AudioProcessorEditor,
-    private juce::ComboBox::Listener,
-    private juce::Slider::Listener,
-    private juce::ToggleButton::Listener,
-    private juce::TextEditor::Listener
+    public juce::AudioProcessorEditor
 {
 public:
     ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor&, juce::ValueTree &state);
@@ -34,7 +32,7 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
-    
+
     // Resizable constraints
     juce::ComponentBoundsConstrainer* getConstrainer();
     void parentSizeChanged() override;
@@ -42,156 +40,10 @@ public:
     //==============================================================================
     // UI Callbacks
 
-    void comboBoxChanged(juce::ComboBox *comboBoxThatHasChanged) override
-    {
-        if (comboBoxThatHasChanged == &skillMenu)
-        {
-            auto skillValue = skillMenu.getSelectedId();
-            state.setProperty("skillLevel", skillValue, nullptr);
-        }
-        else if (comboBoxThatHasChanged == &partMenu)
-        {
-            auto partValue = partMenu.getSelectedId();
-            state.setProperty("part", partValue, nullptr);
-        }
-        else if (comboBoxThatHasChanged == &drumTypeMenu)
-        {
-            auto drumTypeValue = drumTypeMenu.getSelectedId();
-            state.setProperty("drumType", drumTypeValue, nullptr);
-        }
-        else if (comboBoxThatHasChanged == &framerateMenu)
-        {
-            auto framerateValue = framerateMenu.getSelectedId();
-            state.setProperty("framerate", framerateValue, nullptr);
-            switch (framerateValue)
-            {
-            case 1: targetFrameInterval = 1.0 / 15.0; break;
-            case 2: targetFrameInterval = 1.0 / 30.0; break;
-            case 3: targetFrameInterval = 1.0 / 60.0; break;
-            default: targetFrameInterval = 0.0; break;  // Native
-            }
-        }
-        else if (comboBoxThatHasChanged == &latencyMenu)
-        {
-            auto latencyValue = latencyMenu.getSelectedId();
-            state.setProperty("latency", latencyValue, nullptr);
-            applyLatencySetting(latencyValue);
-        }
-        else if (comboBoxThatHasChanged == &autoHopoMenu)
-        {
-            auto autoHopoValue = autoHopoMenu.getSelectedId();
-            state.setProperty("autoHopo", autoHopoValue, nullptr);
-        }
-
-        audioProcessor.refreshMidiDisplay();
-    }
-
-    void sliderValueChanged(juce::Slider *slider) override
-    {
-        if (slider == &chartSpeedSlider)
-        {
-            state.setProperty("noteSpeed", (int)slider->getValue(), nullptr);
-            updateDisplaySizeFromSpeedSlider();
-
-            // In REAPER mode, invalidate cache to immediately fetch new data window
-            if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
-            {
-                audioProcessor.invalidateReaperCache();
-            }
-
-            repaint();
-        }
-    }
-
-    void buttonClicked(juce::Button * button) override
-    {
-        if (button == &hitIndicatorsToggle)
-        {
-            bool buttonState = button->getToggleState();
-            state.setProperty("hitIndicators", buttonState ? 1 : 0, nullptr);
-        }
-        else if (button == &starPowerToggle)
-        {
-            bool buttonState = button->getToggleState();
-            state.setProperty("starPower", buttonState ? 1 : 0, nullptr);
-        }
-        else if (button == &kick2xToggle)
-        {
-            bool buttonState = button->getToggleState();
-            state.setProperty("kick2x", buttonState ? 1 : 0, nullptr);
-        }
-        else if (button == &dynamicsToggle)
-        {
-            bool buttonState = button->getToggleState();
-            state.setProperty("dynamics", buttonState ? 1 : 0, nullptr);
-        }
-        else if (button == &clearLogsButton)
-        {
-            audioProcessor.clearDebugText();
-            consoleOutput.clear();
-        }
-        audioProcessor.refreshMidiDisplay();
-    }
-
-    void textEditorReturnKeyPressed(juce::TextEditor& editor) override
-    {
-        if (&editor == &latencyOffsetInput)
-        {
-            applyLatencyOffsetChange();
-            latencyOffsetInput.giveAwayKeyboardFocus();
-        }
-    }
-
-    void textEditorFocusLost(juce::TextEditor& editor) override
-    {
-        if (&editor == &latencyOffsetInput)
-        {
-            applyLatencyOffsetChange();
-        }
-    }
-
-    void textEditorEscapeKeyPressed(juce::TextEditor& editor) override
-    {
-        if (&editor == &latencyOffsetInput)
-        {
-            // Restore previous value and unfocus
-            latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
-            latencyOffsetInput.giveAwayKeyboardFocus();
-        }
-    }
-
-    void applyLatencyOffsetChange()
-    {
-        int offsetValue = latencyOffsetInput.getText().getIntValue();
-
-        // Get pipeline type to determine valid range
-        bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-        int minValue = isReaperMode ? -2000 : 0;
-        int maxValue = 2000;
-
-        if (offsetValue >= minValue && offsetValue <= maxValue)
-        {
-            state.setProperty("latencyOffsetMs", offsetValue, nullptr);
-            audioProcessor.refreshMidiDisplay();
-
-            // In REAPER mode, invalidate cache to immediately apply offset
-            if (isReaperMode)
-            {
-                audioProcessor.invalidateReaperCache();
-            }
-
-            repaint();
-        }
-        else
-        {
-            // Invalid value, restore previous
-            latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
-        }
-    }
-
     bool keyPressed(const juce::KeyPress& key) override
     {
         // Handle arrow keys for latency offset when text box has focus
+        auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
         if (latencyOffsetInput.hasKeyboardFocus(true))
         {
             int currentOffset = latencyOffsetInput.getText().getIntValue();
@@ -231,6 +83,7 @@ public:
     void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
     {
         // Ignore scroll on text input fields
+        auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
         if (latencyOffsetInput.isMouseOver(true))
             return;
 
@@ -262,6 +115,12 @@ private:
     MidiInterpreter midiInterpreter;
     HighwayRenderer highwayRenderer;
 
+    // Custom look and feel
+    ChartPreviewLookAndFeel chartPreviewLnF;
+
+    // UI Components
+    ToolbarComponent toolbar;
+
     //==============================================================================
     // UI Elements
     static constexpr int defaultWidth = 800;
@@ -271,38 +130,15 @@ private:
     static constexpr int minHeight = 300;
 
     // Background Assets
-    juce::Image backgroundImage;
+    juce::Image backgroundImageDefault;
+    juce::Image backgroundImageRed;
     juce::Image trackDrumImage;
     juce::Image trackGuitarImage;
     std::unique_ptr<juce::Drawable> reaperLogo;
 
-    juce::Label chartSpeedLabel;
     juce::Label versionLabel;
-    juce::Label latencyOffsetLabel;
-    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;
-
-    // Custom TextEditor that passes arrow keys to parent
-    class LatencyOffsetEditor : public juce::TextEditor
-    {
-    public:
-        bool keyPressed(const juce::KeyPress& key) override
-        {
-            // Let parent handle arrow keys for latency navigation
-            if (key == juce::KeyPress::upKey || key == juce::KeyPress::downKey)
-            {
-                if (auto* parent = getParentComponent())
-                    return parent->keyPressed(key);
-            }
-            return juce::TextEditor::keyPressed(key);
-        }
-    };
-
-    LatencyOffsetEditor latencyOffsetInput;
-    juce::ToggleButton hitIndicatorsToggle, starPowerToggle, kick2xToggle, dynamicsToggle;
-    juce::Slider chartSpeedSlider;
 
     juce::TextEditor consoleOutput;
-    juce::ToggleButton debugToggle;
     juce::TextButton clearLogsButton;
 
     UpdateChecker updateChecker;
@@ -311,16 +147,18 @@ private:
     //==============================================================================
 
     void initAssets();
-    void initMenus();
+    void initToolbarCallbacks();
+    void initBottomBar();
     void loadState();
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
+    void applyLatencyOffsetChange();
 
     void paintReaperMode(juce::Graphics& g);
     void paintStandardMode(juce::Graphics& g);
 
     float latencyInSeconds = 0.0;
-    
+
     // Resize constraints
     juce::ComponentBoundsConstrainer constrainer;
 
@@ -363,28 +201,26 @@ private:
     }
 
     // Multi-buffer smoothing state
-    PPQ lastSmoothedLatencyPPQ = 0.0;        // Current smoothed latency value
-    PPQ smoothingTargetLatencyPPQ = 0.0;     // Target we're smoothing towards
-    PPQ smoothingStartLatencyPPQ = 0.0;      // Starting point of current smooth
-    double smoothingProgress = 1.0;          // 0.0 to 1.0, 1.0 means complete
-    double smoothingDurationSeconds = 2.0;   // How long to spread adjustment over
-    juce::int64 lastSmoothingUpdateTime = 0; // For timing calculations
+    PPQ lastSmoothedLatencyPPQ = 0.0;
+    PPQ smoothingTargetLatencyPPQ = 0.0;
+    PPQ smoothingStartLatencyPPQ = 0.0;
+    double smoothingProgress = 1.0;
+    double smoothingDurationSeconds = 2.0;
+    juce::int64 lastSmoothingUpdateTime = 0;
     void setSmoothingDurationSeconds(double duration) { smoothingDurationSeconds = duration; }
     PPQ smoothedLatencyInPPQ()
     {
         PPQ targetLatency = latencyInPPQ();
         juce::int64 currentTime = juce::Time::getHighResolutionTicks();
-        
-        // Check if target has changed significantly or this is first frame
+
         double targetDifference = std::abs((targetLatency - smoothingTargetLatencyPPQ).toDouble());
-        bool targetChanged = targetDifference > 0.01;  // Increased threshold to reduce jitter
+        bool targetChanged = targetDifference > 0.01;
         bool isFirstFrame = lastSmoothedLatencyPPQ == 0.0;
-        
+
         if (isFirstFrame || targetChanged)
         {
             if (isFirstFrame)
             {
-                // Initialize everything to target on first frame
                 lastSmoothedLatencyPPQ = targetLatency;
                 smoothingTargetLatencyPPQ = targetLatency;
                 smoothingStartLatencyPPQ = targetLatency;
@@ -394,35 +230,30 @@ private:
             }
             else
             {
-                // Start new smoothing transition
                 smoothingStartLatencyPPQ = lastSmoothedLatencyPPQ;
                 smoothingTargetLatencyPPQ = targetLatency;
                 smoothingProgress = 0.0;
                 lastSmoothingUpdateTime = currentTime;
             }
         }
-        
-        // Calculate time elapsed since last update
+
         double timeElapsedSeconds = (currentTime - lastSmoothingUpdateTime) / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
         lastSmoothingUpdateTime = currentTime;
-        
-        // Update progress based on time elapsed
+
         if (smoothingProgress < 1.0)
         {
             double progressIncrement = timeElapsedSeconds / smoothingDurationSeconds;
             smoothingProgress = std::min(1.0, smoothingProgress + progressIncrement);
-            
-            // Use simple linear interpolation for more predictable behavior
+
             double totalAdjustment = (smoothingTargetLatencyPPQ - smoothingStartLatencyPPQ).toDouble();
             PPQ currentAdjustment = PPQ(totalAdjustment * smoothingProgress);
             lastSmoothedLatencyPPQ = smoothingStartLatencyPPQ + currentAdjustment;
         }
         else
         {
-            // Smoothing complete, use target directly
             lastSmoothedLatencyPPQ = smoothingTargetLatencyPPQ;
         }
-        
+
         return lastSmoothedLatencyPPQ;
     }
 
@@ -454,19 +285,6 @@ private:
             audioProcessor.debugText.clear();
         }
     }
-
-    // void printMidiMessages()
-    // {
-    //     auto midiEventMap = audioProcessor.getMidiEventMap();
-    //     for (const auto &item : midiEventMap)
-    //     {
-    //         int index = item.first;
-    //         const std::vector<juce::MidiMessage> &messages = item.second;
-
-    //         std::string str = std::to_string(index) + ": " + midiMessagesToString(messages);
-    //         print(str);
-    //     }
-    // }
 
     std::string midiMessagesToString(const std::vector<juce::MidiMessage> &messages)
     {

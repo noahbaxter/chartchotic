@@ -140,6 +140,12 @@ target_sources(ChartPreview
         ChartPreview/Source/Visual/Managers/AssetManager.cpp
         ChartPreview/Source/Visual/Managers/AssetManager.h
         ChartPreview/Source/Visual/Managers/GridlineGenerator.h
+        # UI
+        ChartPreview/Source/UI/ChartPreviewLookAndFeel.cpp
+        ChartPreview/Source/UI/ChartPreviewLookAndFeel.h
+        ChartPreview/Source/UI/PopupMenuButton.h
+        ChartPreview/Source/UI/ToolbarComponent.cpp
+        ChartPreview/Source/UI/ToolbarComponent.h
         # Utils
         ChartPreview/Source/Utils/PPQ.h
         ChartPreview/Source/Utils/TempoTimeSignatureEventHelper.h
@@ -152,6 +158,7 @@ juce_add_binary_data(ChartPreviewData
     NAMESPACE BinaryData
     SOURCES
         ChartPreview/Assets/background.png
+        ChartPreview/Assets/background_red.jpg
         ChartPreview/Assets/bar_kick.png
         ChartPreview/Assets/bar_kick_2x.png
         ChartPreview/Assets/bar_open.png
