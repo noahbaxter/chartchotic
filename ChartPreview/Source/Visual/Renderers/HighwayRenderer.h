@@ -40,6 +40,32 @@ class HighwayRenderer
         bool collectPhaseTiming = false;
         PhaseTiming lastPhaseTiming;
 
+        // Tunable fretboard boundary scales (mutable for debug UI, defaults from PositionConstants)
+        float fretboardWidthScaleNearGuitar = PositionConstants::FB_WIDTH_NEAR_GUITAR;
+        float fretboardWidthScaleMidGuitar  = PositionConstants::FB_WIDTH_MID_GUITAR;
+        float fretboardWidthScaleFarGuitar  = PositionConstants::FB_WIDTH_FAR_GUITAR;
+        float fretboardWidthScaleNearDrums  = PositionConstants::FB_WIDTH_NEAR_DRUMS;
+        float fretboardWidthScaleMidDrums   = PositionConstants::FB_WIDTH_MID_DRUMS;
+        float fretboardWidthScaleFarDrums   = PositionConstants::FB_WIDTH_FAR_DRUMS;
+        float highwayPosEnd = PositionConstants::HIGHWAY_POS_END;
+
+        // Mutable lane coord arrays (mutable for debug UI, defaults from PositionConstants)
+        PositionConstants::NormalizedCoordinates guitarLaneCoordsLocal[6] = {
+            PositionConstants::guitarBezierLaneCoords[0],
+            PositionConstants::guitarBezierLaneCoords[1],
+            PositionConstants::guitarBezierLaneCoords[2],
+            PositionConstants::guitarBezierLaneCoords[3],
+            PositionConstants::guitarBezierLaneCoords[4],
+            PositionConstants::guitarBezierLaneCoords[5]
+        };
+        PositionConstants::NormalizedCoordinates drumLaneCoordsLocal[5] = {
+            PositionConstants::drumBezierLaneCoords[0],
+            PositionConstants::drumBezierLaneCoords[1],
+            PositionConstants::drumBezierLaneCoords[2],
+            PositionConstants::drumBezierLaneCoords[3],
+            PositionConstants::drumBezierLaneCoords[4]
+        };
+
     private:
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
@@ -49,6 +75,23 @@ class HighwayRenderer
         ColumnRenderer columnRenderer;
 
         uint width = 0, height = 0;
+
+        // Bezier positioning helpers
+        using LaneCorners = PositionConstants::LaneCorners;
+        using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
+
+        LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
+                                  float sizeScale, float fretboardScale = 1.0f)
+        {
+            bool isDrums = isPart(state, Part::DRUMS);
+            float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
+            float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
+            float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+            return PositionMath::getColumnPosition(isDrums, position, width, height,
+                                                   wNear, wMid, wFar,
+                                                   PositionConstants::HIGHWAY_POS_START, highwayPosEnd,
+                                                   colCoords, sizeScale, fretboardScale);
+        }
 
         bool isBarNote(uint gemColumn, Part part)
         {
@@ -89,9 +132,6 @@ class HighwayRenderer
             g.setOpacity(opacity);
             g.drawImage(*image, position);
         };
-
-        // Sustain rendering helper functions (delegated to ColumnRenderer)
-        using LaneCorners = PositionConstants::LaneCorners;
 
         // Testing helper functions
         TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)

@@ -29,12 +29,18 @@ public:
     ~PositionMath() = default;
 
     //==============================================================================
-    // Guitar Lane Coordinates (for column rendering)
-    static PositionConstants::LaneCorners getGuitarLaneCoordinates(uint gemColumn, float position, uint width, uint height);
+    // Bezier positioning system
+    static PositionConstants::LaneCorners getFretboardEdge(
+        bool isDrums, float position, uint width, uint height,
+        float wNear, float wMid, float wFar,
+        float posStart, float posEnd);
 
-    //==============================================================================
-    // Drum Lane Coordinates (for column rendering)
-    static PositionConstants::LaneCorners getDrumLaneCoordinates(uint gemColumn, float position, uint width, uint height);
+    static PositionConstants::LaneCorners getColumnPosition(
+        bool isDrums, float position, uint width, uint height,
+        float wNear, float wMid, float wFar,
+        float posStart, float posEnd,
+        const PositionConstants::NormalizedCoordinates& colCoords,
+        float sizeScale, float fretboardScale = 1.0f);
 
     //==============================================================================
     // Public access for GlyphRenderer
@@ -62,10 +68,4 @@ private:
         float scaler
     );
 
-    //==============================================================================
-    // Generic lane coordinate lookup
-    static const PositionConstants::NormalizedCoordinates& lookupLaneCoords(
-        const PositionConstants::NormalizedCoordinates* coordTable,
-        uint gemColumn
-    );
 };

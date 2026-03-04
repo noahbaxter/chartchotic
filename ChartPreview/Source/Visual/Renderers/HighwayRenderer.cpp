@@ -157,16 +157,15 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
         case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
     }
 
-    if (isPart(state, Part::GUITAR))
-    {
-        juce::Rectangle<float> rect = glyphRenderer.getGuitarGridlineRect(position, width, height);
-        draw(g, markerImage, rect, opacity);
-    }
-    else // if (isPart(state, Part::DRUMS))
-    {
-        juce::Rectangle<float> rect = glyphRenderer.getDrumGridlineRect(position, width, height);
-        draw(g, markerImage, rect, opacity);
-    }
+    const auto& fbCoords = isPart(state, Part::DRUMS)
+        ? PositionConstants::drumFretboardCoords
+        : PositionConstants::guitarFretboardCoords;
+    auto edge = getColumnEdge(position, fbCoords, 1.1f);
+    float gridWidth = edge.rightX - edge.leftX;
+    auto perspParams = PositionConstants::getPerspectiveParams();
+    float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
+    juce::Rectangle<float> rect(edge.leftX, edge.centerY - gridHeight * 0.5f, gridWidth, gridHeight);
+    draw(g, markerImage, rect, opacity);
 }
 
 
@@ -189,19 +188,34 @@ void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, floa
     juce::Image* glyphImage;
     bool barNote;
 
+    bool starPowerActive = state.getProperty("starPower");
+    auto perspParams = PositionConstants::getPerspectiveParams();
+
     if (isPart(state, Part::GUITAR))
     {
-        glyphRect = glyphRenderer.getGuitarGlyphRect(gemColumn, position, width, height);
-        bool starPowerActive = state.getProperty("starPower");
-        glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
         barNote = isBarNote(gemColumn, Part::GUITAR);
+        glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
+
+        const auto& colCoords = PositionConstants::guitarGlyphCoords[
+            (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1];
+        float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+        auto edge = getColumnEdge(position, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
+        float colWidth = edge.rightX - edge.leftX;
+        float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
+        glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }
     else // if (isPart(state, Part::DRUMS))
     {
-        glyphRect = glyphRenderer.getDrumGlyphRect(gemColumn, position, width, height);
-        bool starPowerActive = state.getProperty("starPower");
-        glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive);
         barNote = isBarNote(gemColumn, Part::DRUMS);
+        glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive);
+
+        uint drumIdx = (gemColumn == 6) ? 0 : ((gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1);
+        const auto& colCoords = PositionConstants::drumGlyphCoords[drumIdx];
+        float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+        auto edge = getColumnEdge(position, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
+        float colWidth = edge.rightX - edge.leftX;
+        float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
+        glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }
 
     // No glyph to draw
@@ -345,13 +359,20 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     bool isDrums = isPart(state, Part::DRUMS);
     bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
 
-    // Get lane coordinates at start (near/strikeline) and end (far)
-    auto startLane = isDrums
-        ? PositionMath::getDrumLaneCoordinates(gemColumn, startPosition, width, height)
-        : PositionMath::getGuitarLaneCoordinates(gemColumn, startPosition, width, height);
-    auto endLane = isDrums
-        ? PositionMath::getDrumLaneCoordinates(gemColumn, endPosition, width, height)
-        : PositionMath::getGuitarLaneCoordinates(gemColumn, endPosition, width, height);
+    // Look up lane coords (separate table from glyph — slightly different widths)
+    PositionConstants::NormalizedCoordinates colCoords;
+    float laneScale;
+    if (isDrums) {
+        bool isKick = (gemColumn == 0 || gemColumn == 6);
+        colCoords = isKick ? drumLaneCoordsLocal[0] : drumLaneCoordsLocal[gemColumn];
+        laneScale = isKick ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    } else {
+        colCoords = guitarLaneCoordsLocal[gemColumn];
+        laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    }
+
+    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE);
+    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE);
 
     // Calculate lane widths based on sustain width parameter
     float startWidth = (startLane.rightX - startLane.leftX) * sustainWidth;
@@ -388,13 +409,11 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     }
 
     // Arc amount scales with fretboard width at each position
-    // Get full fretboard width at start and end to scale curves proportionally
-    auto startFretboard = isDrums
-        ? PositionMath::getDrumLaneCoordinates(0, startPosition, width, height)
-        : PositionMath::getGuitarLaneCoordinates(0, startPosition, width, height);
-    auto endFretboard = isDrums
-        ? PositionMath::getDrumLaneCoordinates(0, endPosition, width, height)
-        : PositionMath::getGuitarLaneCoordinates(0, endPosition, width, height);
+    const auto& fbCoords = isDrums
+        ? PositionConstants::drumFretboardCoords
+        : PositionConstants::guitarFretboardCoords;
+    auto startFretboard = getColumnEdge(startPosition, fbCoords, 1.0f);
+    auto endFretboard = getColumnEdge(endPosition, fbCoords, 1.0f);
 
     float startFretboardWidth = startFretboard.rightX - startFretboard.leftX;
     float endFretboardWidth = endFretboard.rightX - endFretboard.leftX;

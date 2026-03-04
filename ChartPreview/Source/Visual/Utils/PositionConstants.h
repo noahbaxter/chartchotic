@@ -119,6 +119,11 @@ namespace PositionConstants
     constexpr float DRUM_ACCENT_OVERLAY_SCALE = 1.1232876712f;  // Drum accent overlay base scale
 
     //==============================================================================
+    // Lane Counts
+    constexpr size_t GUITAR_LANE_COUNT = 6;             // Open + 5 frets
+    constexpr size_t DRUM_LANE_COUNT = 5;               // Kick + 4 pads
+
+    //==============================================================================
     // Coordinate lookup tables (column 0 is always open/kick, columns 1-5 are pads)
     // { normX1, normX2, normY1, normY2, normWidth1, normWidth2 }
 
@@ -131,29 +136,12 @@ namespace PositionConstants
         {0.673f, 0.580f, 0.73f, 0.22f, 0.125f, 0.065f}  // Col 5 - Orange
     };
 
-    constexpr NormalizedCoordinates guitarLaneCoords[] = {
-        {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f},    // Open note
-        {0.227f, 0.363f, 0.71f, 0.22f, 0.105f, 0.055f}, // Col 1 - Green
-        {0.322f, 0.412f, 0.71f, 0.22f, 0.125f, 0.065f}, // Col 2 - Red
-        {0.440f, 0.465f, 0.71f, 0.22f, 0.125f, 0.065f}, // Col 3 - Yellow
-        {0.555f, 0.524f, 0.71f, 0.22f, 0.125f, 0.065f}, // Col 4 - Blue
-        {0.670f, 0.580f, 0.71f, 0.22f, 0.125f, 0.065f}  // Col 5 - Orange
-    };
-
     constexpr NormalizedCoordinates drumGlyphCoords[] = {
         {0.16f, 0.34f, 0.75f, 0.239f, 0.68f, 0.32f},     // Kick
         {0.22f, 0.365f, 0.72f, 0.22f, 0.147f, 0.0714f},  // Col 1 - Red
         {0.360f, 0.430f, 0.72f, 0.22f, 0.147f, 0.0714f}, // Col 2 - Yellow
         {0.497f, 0.495f, 0.72f, 0.22f, 0.147f, 0.0714f}, // Col 3 - Blue
         {0.640f, 0.564f, 0.72f, 0.22f, 0.147f, 0.0714f}  // Col 4 - Green
-    };
-
-    constexpr NormalizedCoordinates drumLaneCoords[] = {
-        {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f},    // Kick
-        {0.222f, 0.37f, 0.70f, 0.22f, 0.147f, 0.0714f},  // Col 1 - Red
-        {0.360f, 0.430f, 0.70f, 0.22f, 0.147f, 0.0714f}, // Col 2 - Yellow
-        {0.497f, 0.495f, 0.70f, 0.22f, 0.147f, 0.0714f}, // Col 3 - Blue
-        {0.630f, 0.564f, 0.70f, 0.22f, 0.147f, 0.0714f}  // Col 4 - Green
     };
 
     //==============================================================================
@@ -174,6 +162,44 @@ namespace PositionConstants
         {0.0f, 0.0f, 1.6f, 3.5f},   // Col 2 - Yellow
         {0.0f, 0.0f, 1.6f, 3.5f},   // Col 3 - Blue
         {0.0f, 0.0f, 1.6f, 3.5f}    // Col 4 - Green
+    };
+
+    //==============================================================================
+    // Fretboard Boundary Coordinates (for bezier positioning system)
+    constexpr NormalizedCoordinates guitarFretboardCoords =
+        {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f};
+    constexpr NormalizedCoordinates drumFretboardCoords =
+        {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
+    constexpr float FRETBOARD_SCALE = 1.25f;
+
+    //==============================================================================
+    // Highway Range & Fretboard Width Scales (bezier system defaults)
+    constexpr float HIGHWAY_POS_START = -0.3f;
+    constexpr float HIGHWAY_POS_END = 1.12f;
+
+    constexpr float FB_WIDTH_NEAR_GUITAR = 0.785f;
+    constexpr float FB_WIDTH_MID_GUITAR  = 0.820f;
+    constexpr float FB_WIDTH_FAR_GUITAR  = 0.855f;
+    constexpr float FB_WIDTH_NEAR_DRUMS  = 0.800f;
+    constexpr float FB_WIDTH_MID_DRUMS   = 0.820f;
+    constexpr float FB_WIDTH_FAR_DRUMS   = 0.840f;
+
+    //==============================================================================
+    // Bezier Lane Coordinate Tables (sustain/lane rendering, slightly different from glyph tables)
+    constexpr NormalizedCoordinates guitarBezierLaneCoords[] = {
+        {0.179f, 0.34f, 0.73f, 0.234f, 0.639f, 0.32f},   // Open
+        {0.228f, 0.363f, 0.71f, 0.22f, 0.099f, 0.055f},   // Green
+        {0.330f, 0.412f, 0.71f, 0.22f, 0.112f, 0.065f},   // Red
+        {0.445f, 0.465f, 0.71f, 0.22f, 0.111f, 0.065f},   // Yellow
+        {0.558f, 0.524f, 0.71f, 0.22f, 0.112f, 0.065f},   // Blue
+        {0.674f, 0.580f, 0.71f, 0.22f, 0.100f, 0.065f}    // Orange
+    };
+    constexpr NormalizedCoordinates drumBezierLaneCoords[] = {
+        {0.182f, 0.34f, 0.735f, 0.239f, 0.636f, 0.32f},   // Kick
+        {0.228f, 0.37f, 0.70f, 0.22f, 0.136f, 0.0714f},   // Red
+        {0.365f, 0.430f, 0.70f, 0.22f, 0.134f, 0.0714f},  // Yellow
+        {0.501f, 0.495f, 0.70f, 0.22f, 0.134f, 0.0714f},  // Blue
+        {0.636f, 0.564f, 0.70f, 0.22f, 0.137f, 0.0714f}   // Green
     };
 
     //==============================================================================
@@ -200,8 +226,7 @@ namespace PositionConstants
 
     constexpr inline NormalizedCoordinates getGuitarNoteCoords(uint gemColumn)
     {
-        constexpr size_t GUITAR_GLYPH_SIZE = 6;
-        uint index = (gemColumn < GUITAR_GLYPH_SIZE) ? gemColumn : 1;
+        uint index = (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1;
         return guitarGlyphCoords[index];
     }
 
@@ -212,8 +237,7 @@ namespace PositionConstants
 
     constexpr inline NormalizedCoordinates getDrumPadCoords(uint gemColumn)
     {
-        constexpr size_t DRUM_GLYPH_SIZE = 5;
-        uint index = (gemColumn < DRUM_GLYPH_SIZE) ? gemColumn : 1;
+        uint index = (gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1;
         return drumGlyphCoords[index];
     }
 }
