@@ -52,10 +52,10 @@ public:
                              float wNear, float wMid, float wFar, float posEnd);
 
     /**
-     * Advance all active animations by one frame.
+     * Advance all active animations by delta time.
      * Call this once per render frame after rendering.
      */
-    void advanceFrames();
+    void advanceFrames(double deltaSeconds);
 
     /**
      * Clear all animations (e.g., when transport stops).

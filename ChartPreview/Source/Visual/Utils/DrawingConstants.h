@@ -28,9 +28,12 @@ constexpr float MEASURE_OPACITY = 1.0f;      // Gridline opacity for measure lin
 constexpr float BEAT_OPACITY = 0.4f;         // Gridline opacity for beat lines
 constexpr float HALF_BEAT_OPACITY = 0.3f;    // Gridline opacity for half-beat lines
 
-// Hit animation rendering opacity
+// Hit animation rendering
 constexpr float HIT_FLASH_OPACITY = 0.8f;    // Hit flash frame opacity at strikeline
 constexpr float HIT_FLARE_OPACITY = 0.6f;    // Colored flare overlay opacity
+constexpr double HIT_ANIMATION_DURATION = 0.10;   // Hit flash total duration (seconds)
+constexpr double KICK_ANIMATION_DURATION = 0.15;  // Kick/bar flash total duration (seconds)
+constexpr int HIT_FLARE_MAX_FRAME = 2;            // Show flare for first N frames of hit animation
 
 // Far-end fade (highway length)
 constexpr float FAR_FADE_DEFAULT = 1.20f;     // Default farFadeEnd (normalized position)

@@ -74,39 +74,44 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     bool barNote;
 
     bool starPowerActive = state.getProperty("starPower");
-    auto perspParams = PositionConstants::getPerspectiveParams();
 
     if (isPart(state, Part::GUITAR))
     {
         barNote = isBarNote(gemColumn, Part::GUITAR);
         glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
-
-        const auto& colCoords = PositionConstants::guitarGlyphCoords[
-            (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1];
-        float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        float adjustedPosition = barNote ? position + PositionConstants::BAR_NOTE_POS_OFFSET : position;
-        auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
-        float colWidth = edge.rightX - edge.leftX;
-        float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
-        glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }
     else
     {
         barNote = isBarNote(gemColumn, Part::DRUMS);
         glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive);
-
-        uint drumIdx = (gemColumn == 6) ? 0 : ((gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1);
-        const auto& colCoords = PositionConstants::drumGlyphCoords[drumIdx];
-        float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        float adjustedPosition = barNote ? position + PositionConstants::BAR_NOTE_POS_OFFSET : position;
-        auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
-        float colWidth = edge.rightX - edge.leftX;
-        float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
-        glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }
 
     if (glyphImage == nullptr)
         return;
+
+    float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
+
+    float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    float adjustedPosition = barNote ? position + PositionConstants::BAR_NOTE_POS_OFFSET : position;
+
+    if (isPart(state, Part::GUITAR))
+    {
+        const auto& colCoords = PositionConstants::guitarGlyphCoords[
+            (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1];
+        auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
+        float colWidth = edge.rightX - edge.leftX;
+        float colHeight = colWidth / imageAspect;
+        glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
+    }
+    else
+    {
+        uint drumIdx = (gemColumn == 6) ? 0 : ((gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1);
+        const auto& colCoords = PositionConstants::drumGlyphCoords[drumIdx];
+        auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
+        float colWidth = edge.rightX - edge.leftX;
+        float colHeight = colWidth / imageAspect;
+        glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
+    }
 
     // Apply gem scale from state
     float gemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;

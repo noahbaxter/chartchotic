@@ -327,6 +327,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     dbg.onProfilerChanged = [this](bool on) {
         sceneRenderer.collectPhaseTiming = on;
     };
+
 #endif
 }
 

@@ -57,6 +57,7 @@ class SceneRenderer
         // Gridline position nudge (normalized position space, exposed for debug UI)
         float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
 
+
         // Far-end fade: farFadeEnd is user-controlled ("highway length")
         float farFadeEnd = FAR_FADE_DEFAULT;
         static constexpr float farFadeLen   = FAR_FADE_LEN;
@@ -89,6 +90,7 @@ class SceneRenderer
         AnimationRenderer animationRenderer;
 
         uint width = 0, height = 0;
+        double lastFrameTimeSeconds = 0.0;
 
         // Bezier positioning helper (kept for future callers)
         using LaneCorners = PositionConstants::LaneCorners;

@@ -112,10 +112,17 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
         }
     }
 
-    // Advance animation frames after rendering
-    bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
-    if (hitIndicatorsEnabled)
+    // Advance animation frames after rendering (time-based)
     {
-        animationRenderer.advanceFrames();
+        double now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
+        double delta = (lastFrameTimeSeconds > 0.0) ? (now - lastFrameTimeSeconds) : (1.0 / 60.0);
+        delta = juce::jlimit(0.001, 0.1, delta);  // Clamp to avoid huge jumps
+        lastFrameTimeSeconds = now;
+
+        bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
+        if (hitIndicatorsEnabled)
+        {
+            animationRenderer.advanceFrames(delta);
+        }
     }
 }

@@ -2,33 +2,25 @@
 
 #include <JuceHeader.h>
 #include "../../Utils/Utils.h"
-
-/**
- * Manages hit animations for notes on the strikeline.
- *
- * Each lane can have an active animation (hit flash + flare).
- * Animations play for a fixed number of frames (5 for standard hits, 7 for kicks).
- * If a new note hits before animation completes, it resets to frame 1.
- */
+#include "../Utils/DrawingConstants.h"
 
 namespace AnimationConstants {
     // Animation frame counts
     static constexpr int HIT_ANIMATION_FRAMES = 5;
     static constexpr int KICK_ANIMATION_FRAMES = 7;
 
-    // Hit animation rendering parameters
-    static constexpr int HIT_FLARE_MAX_FRAME = 3;  // Only show flare for first 3 frames of hit animation
-
     struct HitAnimation {
         int currentFrame = 0;  // 0 = no animation, 1-5 for hit, 1-7 for bar
-        bool isBar = false;    // true for bar note (kick/open), false for standard fret
-        int lane = 0;          // 0-4 for guitar (green, red, yellow, blue, orange), 0 for bar
-        bool isOpen = false;   // true for open notes (purple bar flash for guitar)
-        bool is2xKick = false; // true for 2x kick (different color)
-        bool inSustain = false; // true if currently in a sustain (holds at frame 1)
+        double elapsedTime = 0.0;
+        bool isBar = false;
+        int lane = 0;
+        bool isOpen = false;
+        bool is2xKick = false;
+        bool inSustain = false;
 
         void reset() {
             currentFrame = 0;
+            elapsedTime = 0.0;
             isBar = false;
             lane = 0;
             isOpen = false;
@@ -40,23 +32,31 @@ namespace AnimationConstants {
             return currentFrame > 0;
         }
 
-        void advanceFrame() {
+        void advanceTime(double deltaSeconds) {
             if (currentFrame == 0) return;
 
-            if (inSustain) { // Hold at frame 1 during sustain
+            if (inSustain) {
                 currentFrame = 1;
                 return;
             }
 
+            elapsedTime += deltaSeconds;
+
             int maxFrames = isBar ? KICK_ANIMATION_FRAMES : HIT_ANIMATION_FRAMES;
-            currentFrame++;
-            if (currentFrame > maxFrames) {
+            double duration = isBar ? KICK_ANIMATION_DURATION : HIT_ANIMATION_DURATION;
+            double frameTime = duration / maxFrames;
+
+            int newFrame = 1 + (int)(elapsedTime / frameTime);
+            if (newFrame > maxFrames) {
                 reset();
+            } else {
+                currentFrame = newFrame;
             }
         }
 
         void trigger(bool bar, int laneIndex, bool open = false, bool twoXKick = false) {
-            currentFrame = 1;  // Start at frame 1
+            currentFrame = 1;
+            elapsedTime = 0.0;
             isBar = bar;
             lane = laneIndex;
             isOpen = open;
@@ -68,7 +68,8 @@ namespace AnimationConstants {
             if (currentFrame > 0) {
                 inSustain = sustaining;
                 if (inSustain) {
-                    currentFrame = 1;  // Reset to frame 1 when entering sustain
+                    currentFrame = 1;
+                    elapsedTime = 0.0;
                 }
             }
         }
@@ -78,56 +79,35 @@ namespace AnimationConstants {
 class AnimationManager {
 public:
     AnimationManager() {
-        // Initialize animation slots for guitar (5 lanes) + drums (kick + 4 pads)
-        animations.resize(6);  // 0=kick, 1-5=guitar/drum lanes
+        animations.resize(6);
     }
 
-    /**
-     * Trigger a hit animation for a gem column.
-     * For guitar: gemColumn 0 = open, 1-5 = frets
-     * For drums: gemColumn 0 = kick, 1-4 = pads, 6 = 2x kick
-     */
     void triggerHit(int gemColumn, bool isDrums = false, bool is2xKick = false) {
         bool isBar = (gemColumn == 0) || (isDrums && gemColumn == 6);
         int animSlot = isBar ? 0 : gemColumn;
 
         if (animSlot >= 0 && animSlot < animations.size()) {
-            bool isOpen = (gemColumn == 0 && !isDrums);  // Only guitar column 0 is "open"
+            bool isOpen = (gemColumn == 0 && !isDrums);
             animations[animSlot].trigger(isBar, animSlot, isOpen, is2xKick);
         }
     }
 
-    /**
-     * Advance all active animations by one frame.
-     * Call this once per render frame.
-     * Animations always advance to allow them to complete when paused.
-     */
-    void advanceAllFrames() {
+    void advanceAllFrames(double deltaSeconds) {
         for (auto& anim : animations) {
-            anim.advanceFrame();
+            anim.advanceTime(deltaSeconds);
         }
     }
 
-    /**
-     * Update sustain state for a specific lane.
-     * When a lane is sustaining, its animation will hold at frame 1.
-     */
     void setSustainState(int lane, bool sustaining) {
         if (lane >= 0 && lane < animations.size()) {
             animations[lane].setSustainState(sustaining);
         }
     }
 
-    /**
-     * Get all currently active animations for rendering.
-     */
     const std::vector<AnimationConstants::HitAnimation>& getActiveAnimations() const {
         return animations;
     }
 
-    /**
-     * Clear all animations (e.g., when transport stops).
-     */
     void reset() {
         for (auto& anim : animations) {
             anim.reset();

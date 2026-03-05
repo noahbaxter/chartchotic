@@ -137,7 +137,6 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
 
         if (anim.isBar)
         {
-            // Add kick animation to BAR_ANIMATION layer
             uint column = anim.is2xKick ? 6 : 0;
             CoordinateOffset offset = isGuitar
                 ? GUITAR_ANIMATION_OFFSETS[0]
@@ -149,7 +148,6 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
         }
         else
         {
-            // Add fret animation to NOTE_ANIMATION layer
             CoordinateOffset offset = isGuitar
                 ? GUITAR_ANIMATION_OFFSETS[anim.lane]
                 : DRUM_ANIMATION_OFFSETS[anim.lane];
@@ -251,9 +249,9 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 //==============================================================================
 // Frame Management
 
-void AnimationRenderer::advanceFrames()
+void AnimationRenderer::advanceFrames(double deltaSeconds)
 {
-    animationManager.advanceAllFrames();
+    animationManager.advanceAllFrames(deltaSeconds);
 }
 
 void AnimationRenderer::reset()
