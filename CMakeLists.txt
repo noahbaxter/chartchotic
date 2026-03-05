@@ -226,6 +226,14 @@ juce_add_binary_data(ChartPreviewData
         # Track backgrounds (raster-only)
         assets/raster/track_drum.png
         assets/raster/track_guitar.png
+        # Track layers (generated from PDFs)
+        assets/generated/ui/sidebars.png
+        assets/generated/ui/lane_lines_guitar.png
+        assets/generated/ui/lane_lines_drums.png
+        assets/generated/ui/strikeline_guitar.png
+        assets/generated/ui/strikeline_drums.png
+        assets/generated/ui/strikeline_connectors.png
+        assets/generated/ui/kick_smashers.png
         # Hit animations — flares (generated from PDFs)
         assets/generated/hits/hit_flare_blue.png
         assets/generated/hits/hit_flare_green.png

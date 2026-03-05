@@ -14,8 +14,14 @@ using namespace PositionConstants;
 TrackRenderer::TrackRenderer(juce::ValueTree& state)
     : state(state)
 {
-    trackDrumImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
-    trackGuitarImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
+    // Load layer images from BinaryData
+    sidebarsImage = juce::ImageCache::getFromMemory(BinaryData::sidebars_png, BinaryData::sidebars_pngSize);
+    laneLinesGuitarImage = juce::ImageCache::getFromMemory(BinaryData::lane_lines_guitar_png, BinaryData::lane_lines_guitar_pngSize);
+    laneLinesDrumsImage = juce::ImageCache::getFromMemory(BinaryData::lane_lines_drums_png, BinaryData::lane_lines_drums_pngSize);
+    strikelineGuitarImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_guitar_png, BinaryData::strikeline_guitar_pngSize);
+    strikelineDrumsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_drums_png, BinaryData::strikeline_drums_pngSize);
+    strikelineConnectorsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_connectors_png, BinaryData::strikeline_connectors_pngSize);
+    kickSmashersImage = juce::ImageCache::getFromMemory(BinaryData::kick_smashers_png, BinaryData::kick_smashers_pngSize);
 }
 
 void TrackRenderer::paint(juce::Graphics& g)
@@ -85,6 +91,63 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset)
     g.drawImageAt(offscreen, 0, 0);
 }
 
+void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDrums,
+                                     float wNear, float wMid, float wFar, float posEnd)
+{
+    juce::Graphics g(target);
+
+    // Fill fretboard polygon with dark background
+    juce::Path fretboardPath;
+    float effectiveEnd = std::max(posEnd, cached.fadeEnd);
+
+    constexpr int NUM_POLY_POINTS = 60;
+    float posRange = effectiveEnd - HIGHWAY_POS_START;
+
+    struct EdgePoint { float leftX, rightX, centerY; };
+    std::array<EdgePoint, NUM_POLY_POINTS + 1> polyEdges;
+
+    for (int i = 0; i <= NUM_POLY_POINTS; i++)
+    {
+        float pos = HIGHWAY_POS_START + posRange * (float)i / (float)NUM_POLY_POINTS;
+        auto edge = PositionMath::getFretboardEdge(isDrums, pos, w, h,
+                                                    wNear, wMid, wFar,
+                                                    HIGHWAY_POS_START, posEnd);
+        polyEdges[i] = {edge.leftX, edge.rightX, edge.centerY};
+    }
+
+    fretboardPath.startNewSubPath(polyEdges[0].rightX, polyEdges[0].centerY);
+    for (int i = 1; i <= NUM_POLY_POINTS; i++)
+        fretboardPath.lineTo(polyEdges[i].rightX, polyEdges[i].centerY);
+    for (int i = NUM_POLY_POINTS; i >= 0; i--)
+        fretboardPath.lineTo(polyEdges[i].leftX, polyEdges[i].centerY);
+    fretboardPath.closeSubPath();
+
+    g.setColour(juce::Colour(0xFF111111));
+    g.fillPath(fretboardPath);
+}
+
+void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
+                                    int w, int h, bool isDrums,
+                                    float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                    float wNear, float wMid, float wFar, float posEnd)
+{
+    if (!src.isValid()) { out = {}; return; }
+
+    out = juce::Image(juce::Image::ARGB, w, h, true);
+    {
+        juce::Graphics g(out);
+        float imgAspect = (float)src.getWidth() / (float)src.getHeight();
+        float drawW = (float)w * t.scale;
+        float drawH = drawW / imgAspect;
+        float drawX = ((float)w - drawW) * 0.5f + t.xOffset * (float)w;
+        float drawY = (float)h - drawH + t.yOffset * (float)h;
+        g.drawImage(src, {drawX, drawY, drawW, drawH});
+    }
+
+    applyFarFade(out, w, h, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                 wNear, wMid, wFar, posEnd);
+}
+
 void TrackRenderer::rebuild(int width, int height,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
                                float wNear, float wMid, float wFar, float posEnd)
@@ -92,11 +155,23 @@ void TrackRenderer::rebuild(int width, int height,
     if (width <= 0 || height <= 0) return;
 
     bool isDrums = isPart(state, Part::DRUMS);
-    juce::Image& sourceTrack = isDrums ? trackDrumImage : trackGuitarImage;
 
-    fadedTrackImage = createFadedTrackImage(sourceTrack, width, height, isDrums,
-                                             farFadeEnd, farFadeLen, farFadeCurve,
-                                             wNear, wMid, wFar, posEnd);
+    // Bake dark fill base
+    fadedTrackImage = juce::Image(juce::Image::ARGB, width, height, true);
+    compositeLayers(fadedTrackImage, width, height, isDrums, wNear, wMid, wFar, posEnd);
+    applyFarFade(fadedTrackImage, width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                 wNear, wMid, wFar, posEnd);
+
+    // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
+    auto* layers = isDrums ? layersDrums : layersGuitar;
+    bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
+                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+    bakeLayerImage(layerImages[LANE_LINES], isDrums ? laneLinesDrumsImage : laneLinesGuitarImage, layers[LANE_LINES],
+                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+    bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
+                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+    bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
+                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
 
     // Rebuild cached geometry for texture scanline LUT
     float effectiveEnd = std::max(posEnd, farFadeEnd);
@@ -109,8 +184,6 @@ void TrackRenderer::rebuild(int width, int height,
     {
         float posRange = effectiveEnd - HIGHWAY_POS_START;
 
-        // Width Bézier uses posEnd (matching notes/gridlines), but positions extend
-        // to effectiveEnd so we have scanlines in the far-fade region.
         auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height,
                                                         wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
         auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height,
@@ -191,7 +264,6 @@ void TrackRenderer::rebuildPrebake()
     }
 
     // 2. Pre-bake mip atlas: source texture at multiple horizontal widths (halving each level)
-    //    JUCE bilinear filtering handles the downsampling. Single atlas image for one BitmapData.
     prebaked.tileHeight = texH * PREBAKE_QUALITY;
     prebaked.mips.clear();
 

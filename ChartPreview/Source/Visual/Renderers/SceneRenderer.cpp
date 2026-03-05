@@ -92,6 +92,14 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
         }
     }
 
+    // Inject registered image overlays into drawCallMap
+    for (auto& kv : overlays)
+    {
+        auto* img = kv.second;
+        if (img && img->isValid())
+            drawCallMap[kv.first][0].push_back([img](juce::Graphics& g) { g.setOpacity(1.0f); g.drawImageAt(*img, 0, 0); });
+    }
+
     // Draw layer by layer, then column by column within each layer
     {
         ScopedPhaseMeasure m(lastPhaseTiming.execute_us, collectPhaseTiming);

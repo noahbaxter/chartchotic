@@ -4,8 +4,10 @@
         TrackRenderer.h
         Author:  Noah Baxter
 
-        Renders the track background texture with far-end fade.
-        Will be expanded with additional track visuals (e.g., overlays, effects).
+        Renders the track as composited layers: dark fretboard fill, sidebars,
+        lane lines, strikeline, and instrument-specific elements (kick smashers
+        or strikeline connectors). Layers are individually positionable via
+        debug tuning parameters.
 
     ==============================================================================
 */
@@ -42,12 +44,44 @@ public:
     float textureScale = 1.0f;    // >1 = more tiles (squished), <1 = fewer (stretched)
     float textureOpacity = 0.45f; // Overlay opacity (0..1)
 
+    // Per-layer positioning (debug-tunable)
+    struct LayerTransform {
+        float scale = 1.0f;
+        float xOffset = 0.0f;
+        float yOffset = 0.0f;
+    };
+
+    enum Layer { SIDEBARS = 0, LANE_LINES, STRIKELINE, CONNECTORS, NUM_LAYERS };
+    LayerTransform layersGuitar[NUM_LAYERS] = {
+        {0.750f, 0.0f,     0.0f},      // SIDEBARS
+        {0.450f, 0.0f,     0.0f},      // LANE_LINES
+        {0.615f, 0.0f, -0.1825f},      // STRIKELINE
+        {0.650f, 0.0f, -0.1960f}       // CONNECTORS
+    };
+    LayerTransform layersDrums[NUM_LAYERS] = {
+        {0.745f, 0.0f,     0.0f},      // SIDEBARS
+        {0.350f, 0.0f,     0.0f},      // LANE_LINES
+        {0.585f, 0.0f, -0.1815f},      // STRIKELINE
+        {0.660f, 0.0f, -0.1600f}       // CONNECTORS
+    };
+
+    /** Get a pre-baked layer image (with far-fade applied). Valid after rebuild(). */
+    const juce::Image& getLayerImage(Layer layer) const { return layerImages[layer]; }
+
 private:
     juce::ValueTree& state;
 
-    juce::Image trackDrumImage;
-    juce::Image trackGuitarImage;
-    juce::Image fadedTrackImage;
+    // Layer source images
+    juce::Image sidebarsImage;
+    juce::Image laneLinesGuitarImage;
+    juce::Image laneLinesDrumsImage;
+    juce::Image strikelineGuitarImage;
+    juce::Image strikelineDrumsImage;
+    juce::Image strikelineConnectorsImage;
+    juce::Image kickSmashersImage;
+
+    juce::Image fadedTrackImage;       // Dark fill + far-fade (base layer)
+    juce::Image layerImages[NUM_LAYERS]; // Per-layer images with far-fade
 
     // Highway texture overlay
     juce::Image sourceTexture;
@@ -84,6 +118,12 @@ private:
     } prebaked;
 
     void rebuildPrebake();
+    void compositeLayers(juce::Image& target, int w, int h, bool isDrums,
+                         float wNear, float wMid, float wFar, float posEnd);
+    void bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
+                        int w, int h, bool isDrums,
+                        float farFadeEnd, float farFadeLen, float farFadeCurve,
+                        float wNear, float wMid, float wFar, float posEnd);
 
     static constexpr int PIXELS_PER_STRIP = 1;
     static constexpr int MIN_STRIPS = 40;

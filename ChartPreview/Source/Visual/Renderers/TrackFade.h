@@ -4,8 +4,7 @@
         TrackFade.h
         Author:  Noah Baxter
 
-        Creates a faded track image with far-end fade baked in per-pixel.
-        Extracted from PluginEditor.
+        Per-row far-end alpha fade for track images.
 
     ==============================================================================
 */
@@ -17,18 +16,12 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/DrawingConstants.h"
 
-inline juce::Image createFadedTrackImage(const juce::Image& source, int w, int h,
-                                          bool isDrums, float fadeEnd, float fadeLen, float fadeCurve,
-                                          float wNear, float wMid, float wFar, float posEnd)
+/** Apply per-row far-end alpha fade to an already-composed image in-place. */
+inline void applyFarFade(juce::Image& image, int w, int h,
+                          bool isDrums, float fadeEnd, float fadeLen, float fadeCurve,
+                          float wNear, float wMid, float wFar, float posEnd)
 {
-    if (w <= 0 || h <= 0) return {};
-
-    juce::Image fadedImage(juce::Image::ARGB, w, h, true);
-    {
-        juce::Graphics offG(fadedImage);
-        offG.drawImage(source, juce::Rectangle<float>(0, 0, (float)w, (float)h),
-                       juce::RectanglePlacement::centred);
-    }
+    if (w <= 0 || h <= 0) return;
 
     float fadeStart = fadeEnd - fadeLen;
 
@@ -42,7 +35,7 @@ inline juce::Image createFadedTrackImage(const juce::Image& source, int w, int h
 
     if (fadeEndRow > fadeStartRow) std::swap(fadeEndRow, fadeStartRow);
 
-    juce::Image::BitmapData pixels(fadedImage, juce::Image::BitmapData::readWrite);
+    juce::Image::BitmapData pixels(image, juce::Image::BitmapData::readWrite);
 
     for (int y = 0; y < h; ++y)
     {
@@ -73,6 +66,4 @@ inline juce::Image createFadedTrackImage(const juce::Image& source, int w, int h
             pixel[3] = (uint8_t)(pixel[3] * alpha);
         }
     }
-
-    return fadedImage;
 }

@@ -168,6 +168,12 @@ void ChartPreviewAudioProcessorEditor::rebuildFadedTrackImage()
     trackRenderer.rebuild(getWidth(), getHeight(),
                              sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
                              wNear, wMid, wFar, sceneRenderer.highwayPosEnd);
+
+    // Register track layer images as scene overlays at interleaved z-positions
+    sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
+    sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
+    sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
+    sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
 }
 
 void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()

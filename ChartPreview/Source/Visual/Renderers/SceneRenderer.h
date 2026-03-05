@@ -110,4 +110,13 @@ class SceneRenderer
         }
 
         DrawCallMap drawCallMap;
+
+    public:
+        /** Register an image overlay to be drawn at a specific DrawOrder position.
+            The image is drawn at (0,0) with full opacity. Call before paint(). */
+        void setOverlay(DrawOrder order, const juce::Image* img) { overlays[order] = img; }
+        void clearOverlays() { overlays.clear(); }
+
+    private:
+        std::map<DrawOrder, const juce::Image*> overlays;
 };
