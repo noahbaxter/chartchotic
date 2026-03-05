@@ -188,6 +188,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         audioProcessor.refreshMidiDisplay();
         rebuildFadedTrackImage();
 #ifdef DEBUG
+        toolbar.getDebugPanel().setDrums(isPart(state, Part::DRUMS));
         if (debugStandalone && debugController.isNotesActive())
             loadDebugChart(debugController.getChartIndex());
 #endif
@@ -318,6 +319,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 
 #ifdef DEBUG
     auto& dbg = toolbar.getDebugPanel();
+    dbg.initDefaults(trackRenderer);
 
     dbg.onDebugPlayChanged = [this](bool playing) {
         debugController.setPlaying(playing);
@@ -332,6 +334,13 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     };
     dbg.onProfilerChanged = [this](bool on) {
         sceneRenderer.collectPhaseTiming = on;
+    };
+
+    dbg.onLayerChanged = [this](int layer, float scale, float x, float y) {
+        bool isDrums = isPart(state, Part::DRUMS);
+        auto* layers = isDrums ? trackRenderer.layersDrums : trackRenderer.layersGuitar;
+        layers[layer] = {scale, x, y};
+        rebuildFadedTrackImage();
     };
 
 #endif

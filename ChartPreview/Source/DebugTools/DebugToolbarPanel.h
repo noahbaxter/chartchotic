@@ -5,6 +5,7 @@
 #include <JuceHeader.h>
 #include "../UI/PopupMenuButton.h"
 #include "../Utils/Utils.h"
+#include "../Visual/Renderers/TrackRenderer.h"
 
 class DebugToolbarPanel
 {
@@ -14,12 +15,17 @@ public:
 
     PopupMenuButton& getButton() { return debugButton; }
     void setDebugPlay(bool playing);
+    void initDefaults(const TrackRenderer& trackRenderer);
+    void setDrums(bool isDrums);
 
     // Callbacks -- the editor wires these
     std::function<void(bool playing)> onDebugPlayChanged;
     std::function<void(int)> onDebugChartChanged;
     std::function<void(bool)> onDebugConsoleChanged;
     std::function<void(bool)> onProfilerChanged;
+
+    // Track layer tuning: onLayerChanged(layerIndex, scale, xOffset, yOffset)
+    std::function<void(int, float, float, float)> onLayerChanged;
 
 private:
     juce::ValueTree& state;
@@ -48,6 +54,21 @@ private:
     int chartIndex = 1;
     ScrollableLabel chartSelectLabel;
 
+    // Per-layer tuning (Sidebars, Lane Lines, Strikeline, Connectors/Kick)
+    static constexpr int NUM_LAYERS = 4;
+    static constexpr const char* layerNames[NUM_LAYERS] = {"Side", "Lane", "Strike", "Conn"};
+
+    using LayerTransform = TrackRenderer::LayerTransform;
+    LayerTransform guitarStates[NUM_LAYERS];
+    LayerTransform drumStates[NUM_LAYERS];
+    LayerTransform* layerStates = guitarStates;
+
+    ScrollableLabel layerScaleLabels[NUM_LAYERS];
+    ScrollableLabel layerXLabels[NUM_LAYERS];
+    ScrollableLabel layerYLabels[NUM_LAYERS];
+
+    void fireLayer(int idx);
+    void refreshLabels();
     void layoutPanel(juce::Component* panel);
 };
 
