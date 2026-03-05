@@ -28,7 +28,7 @@ public:
                   double windowStartTime, double windowEndTime,
                   uint width, uint height,
                   float wNear, float wMid, float wFar, float posEnd,
-                  float gridlinePosOffset,
+                  float gridlinePosOffset, float gridZOffset,
                   float farFadeEnd, float farFadeLen, float farFadeCurve);
 
 private:
@@ -52,5 +52,5 @@ private:
                                                colCoords, sizeScale, fretboardScale);
     }
 
-    void drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity);
+    void drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity, float gridZOffset);
 };

@@ -83,6 +83,27 @@ void AssetManager::initAssets()
     hitFlareImages[2] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_yellow_png, BinaryData::hit_flare_yellow_pngSize);
     hitFlareImages[3] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_blue_png, BinaryData::hit_flare_blue_pngSize);
     hitFlareImages[4] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_orange_png, BinaryData::hit_flare_orange_pngSize);
+    hitFlareImages[5] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_white_png, BinaryData::hit_flare_white_pngSize);
+
+    // Generate purple flare by tinting the white (grayscale) flare
+    // Purple color matched to tap overlay asset
+    {
+        auto& src = hitFlareImages[5];
+        hitFlarePurpleImage = src.createCopy();
+        juce::Image::BitmapData bmp(hitFlarePurpleImage, juce::Image::BitmapData::readWrite);
+        const float tintR = 0.55f, tintG = 0.05f, tintB = 1.0f;
+        for (int y = 0; y < bmp.height; ++y)
+        {
+            for (int x = 0; x < bmp.width; ++x)
+            {
+                auto px = bmp.getPixelColour(x, y);
+                float a = px.getFloatAlpha();
+                float lum = px.getFloatRed(); // grayscale source: R==G==B
+                bmp.setPixelColour(x, y, juce::Colour::fromFloatRGBA(
+                    lum * tintR, lum * tintG, lum * tintB, a));
+            }
+        }
+    }
 
     // Kick animation frames
     kickAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_1_png, BinaryData::hit_kick_1_pngSize);

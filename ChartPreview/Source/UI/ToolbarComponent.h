@@ -35,7 +35,8 @@ public:
     std::function<void(int partId)> onPartChanged;
     std::function<void(int drumTypeId)> onDrumTypeChanged;
     std::function<void(int autoHopoId)> onAutoHopoChanged;
-    std::function<void(bool)> onNotesChanged;
+    std::function<void(bool)> onGemsChanged;
+    std::function<void(bool)> onBarsChanged;
     std::function<void(bool)> onSustainsChanged;
     std::function<void(bool)> onLanesChanged;
     std::function<void(bool)> onGridlinesChanged;
@@ -69,7 +70,7 @@ private:
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, autoHopoMenu;
 
     // Render popup children
-    juce::ToggleButton notesToggle, sustainsToggle, lanesToggle, starPowerToggle, gridlinesToggle, hitIndicatorsToggle, kick2xToggle, dynamicsToggle;
+    juce::ToggleButton gemsToggle, barsToggle, sustainsToggle, lanesToggle, starPowerToggle, gridlinesToggle, hitIndicatorsToggle, kick2xToggle, dynamicsToggle;
 
     // Display popup children
     juce::ToggleButton redBackgroundToggle;

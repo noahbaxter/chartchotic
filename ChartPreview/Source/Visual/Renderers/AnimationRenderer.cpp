@@ -29,42 +29,45 @@ AnimationRenderer::~AnimationRenderer()
 //==============================================================================
 // Helper: Trigger animation for a specific gem column
 
-void AnimationRenderer::triggerAnimationForColumn(uint gemColumn)
+void AnimationRenderer::triggerAnimationForColumn(uint gemColumn, Gem gemType, bool starPower)
 {
     bool isDrums = !isPart(state, Part::GUITAR);
     bool is2xKick = isDrums && gemColumn == 6;
-    animationManager.triggerHit(gemColumn, isDrums, is2xKick);
+    animationManager.triggerHit(gemColumn, isDrums, is2xKick, gemType, starPower);
 }
 
 //==============================================================================
 // Animation Detection
 
-void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& trackWindow)
+void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& trackWindow, double strikeTimeOffset)
 {
-    // Strikeline is at time 0 (current playback position)
-    // For each column, find the closest note that has passed the strikeline
+    // Strike point is at strikeTimeOffset seconds from cursor (0 = strikeline, negative = past it)
+    // For each column, find the closest note that has passed the strike point
     // If it's a new note (different from last frame), trigger the animation
 
     std::array<double, 7> closestPastNotePerColumn = {999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 999.0};
+    std::array<GemWrapper, 7> closestGemPerColumn;
 
-    // Find the closest note that has just crossed (or is at) the strikeline for each column
+    // Find the closest note that has just crossed (or is at) the strike point for each column
     for (const auto &frameItem : trackWindow)
     {
         double frameTime = frameItem.first;  // Time in seconds from cursor
         const auto& gems = frameItem.second;
 
-        // We only care about notes that have crossed or are at the strikeline (frameTime <= 0)
-        // And are close enough to be considered "just hit" (within a small past window)
-        if (frameTime <= 0.0 && frameTime >= -0.05)  // 50ms past window
+        // Notes that have crossed the strike point and are within 50ms past it
+        if (frameTime <= strikeTimeOffset && frameTime >= strikeTimeOffset - 0.05)
         {
             for (uint gemColumn = 0; gemColumn < gems.size(); ++gemColumn)
             {
                 if (gems[gemColumn].gem != Gem::NONE)
                 {
-                    // This note is past the strikeline - check if it's the closest one
-                    if (std::abs(frameTime) < std::abs(closestPastNotePerColumn[gemColumn]))
+                    // This note is past the strike point - check if it's the closest one
+                    double distFromStrike = std::abs(frameTime - strikeTimeOffset);
+                    double closestDist = std::abs(closestPastNotePerColumn[gemColumn] - strikeTimeOffset);
+                    if (distFromStrike < closestDist)
                     {
                         closestPastNotePerColumn[gemColumn] = frameTime;
+                        closestGemPerColumn[gemColumn] = gems[gemColumn];
                     }
                 }
             }
@@ -80,7 +83,7 @@ void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& t
         {
             // This is a new note! Trigger the animation
             lastNoteTimePerColumn[gemColumn] = closestPastNotePerColumn[gemColumn];
-            triggerAnimationForColumn(gemColumn);
+            triggerAnimationForColumn(gemColumn, closestGemPerColumn[gemColumn].gem, closestGemPerColumn[gemColumn].starPower);
         }
     }
 }
@@ -123,13 +126,15 @@ void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustai
 // Animation Rendering
 
 void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height,
-                                             float wNear, float wMid, float wFar, float posEnd)
+                                             float wNear, float wMid, float wFar, float posEnd,
+                                             float strikePos)
 {
     cachedWidth = width;
     cachedHeight = height;
 
     const auto& animations = animationManager.getActiveAnimations();
     bool isGuitar = isPart(state, Part::GUITAR);
+    float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
 
     for (const auto& anim : animations)
     {
@@ -141,9 +146,11 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             CoordinateOffset offset = isGuitar
                 ? GUITAR_ANIMATION_OFFSETS[0]
                 : DRUM_ANIMATION_OFFSETS[0];
+            offset.xOffset *= resScale;
+            offset.yOffset *= resScale;
 
-            drawCallMap[DrawOrder::BAR_ANIMATION][column].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd](juce::Graphics &g) {
-                this->renderKickAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd);
+            drawCallMap[DrawOrder::BAR_ANIMATION][column].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
+                this->renderKickAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos);
             });
         }
         else
@@ -151,18 +158,20 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             CoordinateOffset offset = isGuitar
                 ? GUITAR_ANIMATION_OFFSETS[anim.lane]
                 : DRUM_ANIMATION_OFFSETS[anim.lane];
+            offset.xOffset *= resScale;
+            offset.yOffset *= resScale;
 
-            drawCallMap[DrawOrder::NOTE_ANIMATION][anim.lane].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd](juce::Graphics &g) {
-                this->renderFretAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd);
+            drawCallMap[DrawOrder::NOTE_ANIMATION][anim.lane].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
+                this->renderFretAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos);
             });
         }
     }
 }
 
 void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                                             float wNear, float wMid, float wFar, float posEnd)
+                                             float wNear, float wMid, float wFar, float posEnd, float strikePos)
 {
-    float strikelinePosition = 0.0f;
+    float strikelinePosition = strikePos;
     bool isGuitar = isPart(state, Part::GUITAR);
     bool isDrums = !isGuitar;
 
@@ -175,8 +184,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 
     if (animFrame)
     {
-        uint gemColumn = anim.is2xKick ? 6 : 0;
-        uint colIdx = isDrums ? 0 : 0; // Both use index 0 (open/kick)
+        uint colIdx = 0; // Both guitar open and drum kick use index 0
         const auto& colCoords = isDrums
             ? PositionConstants::drumGlyphCoords[colIdx]
             : PositionConstants::guitarGlyphCoords[colIdx];
@@ -186,28 +194,48 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
         auto perspParams = PositionConstants::getPerspectiveParams();
         float colWidth = edge.rightX - edge.leftX;
         float colHeight = colWidth / perspParams.barNoteHeightRatio;
-        juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
+        juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
 
+        // Apply hit bar scale + animation offset
         kickRect = kickRect.withSizeKeepingCentre(
-            kickRect.getWidth() * offset.widthScale,
-            kickRect.getHeight() * offset.heightScale
+            kickRect.getWidth() * hitBarScale * hitBarWidthScale * offset.widthScale,
+            kickRect.getHeight() * hitBarScale * hitBarHeightScale * offset.heightScale
         ).translated(offset.xOffset, offset.yOffset);
 
         g.setOpacity(1.0f);
         g.drawImage(*animFrame, kickRect);
+
+        // White SP flare for bar hits
+        if (anim.starPower && spWhiteFlare)
+        {
+            auto* flareImage = assetManager.getHitFlareWhiteImage();
+            if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
+            {
+                g.setOpacity(HIT_FLARE_OPACITY);
+                g.drawImage(*flareImage, kickRect);
+            }
+        }
     }
 }
 
 void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                                             float wNear, float wMid, float wFar, float posEnd)
+                                             float wNear, float wMid, float wFar, float posEnd, float strikePos)
 {
-    float strikelinePosition = 0.0f;
+    float strikelinePosition = strikePos;
     bool isGuitar = isPart(state, Part::GUITAR);
     bool isDrums = !isGuitar;
     Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
 
     auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
-    auto flareImage = assetManager.getHitFlareImage(anim.lane, currentPart);
+
+    // Use white flare for SP, purple for tap, otherwise colored
+    bool useWhite = (anim.starPower && spWhiteFlare);
+    bool usePurple = (isGuitar && anim.gemType == Gem::TAP_ACCENT && tapPurpleFlare);
+    auto flareImage = useWhite
+        ? assetManager.getHitFlareWhiteImage()
+        : usePurple
+            ? assetManager.getHitFlarePurpleImage()
+            : assetManager.getHitFlareImage(anim.lane, currentPart);
 
     bool barNote = isBarNote(anim.lane, currentPart);
     uint colIdx = anim.lane;
@@ -226,11 +254,51 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     auto perspParams = PositionConstants::getPerspectiveParams();
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
-    juce::Rectangle<float> hitRect(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
 
+    // Z offset: bar uses hitBarZOffset, notes use hitNoteZOffset + per-column offset
+    float zOff = barNote ? hitBarZOffset : hitNoteZOffset;
+    if (!barNote && isDrums) {
+        uint drumIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
+        zOff += drumColZOffsets[drumIdx];
+    }
+
+    // Arc offset to match note curvature (same formula as NoteRenderer)
+    float arcOffset = 0.0f;
+    if (noteCurvature != 0.0f && !barNote)
+    {
+        const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+        float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
+        float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
+        float colCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
+        float dist = (colCenterNorm - fbCenterNorm) / fbHalfWNorm;
+        float fbWidthPx = colWidth * (fbCoords.normWidth1 / colCoords.normWidth1);
+        arcOffset = fbWidthPx * noteCurvature * (1.0f - dist * dist);
+    }
+
+    juce::Rectangle<float> hitRect(edge.leftX, edge.centerY - colHeight * 0.5f + zOff + arcOffset, colWidth, colHeight);
+
+    // Per-dynamic hit scale based on gem type
+    // Guitar: HOPO_GHOST=HOPO, TAP_ACCENT=tap
+    // Drums:  HOPO_GHOST=ghost, TAP_ACCENT=accent, CYM_GHOST=ghost, CYM_ACCENT=accent
+    float dynScale = 1.0f;
+    if (anim.gemType == Gem::HOPO_GHOST)
+        dynScale = isGuitar ? hopoScale : ghostScale;
+    else if (anim.gemType == Gem::CYM_GHOST)
+        dynScale = ghostScale;
+    else if (anim.gemType == Gem::TAP_ACCENT)
+        dynScale = isGuitar ? tapScale : accentScale;
+    else if (anim.gemType == Gem::CYM_ACCENT)
+        dynScale = accentScale;
+
+    if (anim.starPower && std::abs(spScale - 1.0f) > 0.001f)
+        dynScale *= spScale;
+
+    float hitScale = barNote ? hitBarScale : hitNoteScale;
+    float hitWScale = barNote ? hitBarWidthScale : hitNoteWidthScale;
+    float hitHScale = barNote ? hitBarHeightScale : hitNoteHeightScale;
     hitRect = hitRect.withSizeKeepingCentre(
-        hitRect.getWidth() * offset.widthScale,
-        hitRect.getHeight() * offset.heightScale
+        hitRect.getWidth() * hitScale * hitWScale * dynScale * offset.widthScale,
+        hitRect.getHeight() * hitScale * hitHScale * dynScale * offset.heightScale
     ).translated(offset.xOffset, offset.yOffset);
 
     if (hitFrame)

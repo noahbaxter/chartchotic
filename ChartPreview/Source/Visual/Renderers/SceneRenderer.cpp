@@ -56,9 +56,35 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     // Repopulate drawCallMap
     drawCallMap.clear();
 
+    // Resolution scale: all pixel-based Z offsets are tuned at REFERENCE_HEIGHT
+    float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
+
+    noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
+    noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
+    noteRenderer.noteWidthScale = gemWidthScale;
+    noteRenderer.noteHeightScale = gemHeightScale;
+    noteRenderer.barWidthScale = barWidthScale;
+    noteRenderer.barHeightScale = barHeightScale;
+    float strikePosNote = isDrums ? strikePosNoteDrums : strikePosNoteGuitar;
+    float strikePosBar = isDrums ? strikePosBarDrums : strikePosBarGuitar;
+
+    noteRenderer.showGems = showGems;
+    noteRenderer.showBars = showBars;
+    noteRenderer.noteZOffset = (isDrums ? noteZOffsetDrums : noteZOffsetGuitar) * resScale;
+    noteRenderer.barZOffset = (isDrums ? barZOffsetDrums : barZOffsetGuitar) * resScale;
+    noteRenderer.strikePosNote = strikePosNote;
+    noteRenderer.strikePosBar = strikePosBar;
+    noteRenderer.gemGhostScale = gemGhostScale;
+    noteRenderer.gemAccentScale = gemAccentScale;
+    noteRenderer.gemHopoScale = gemHopoScale;
+    noteRenderer.gemTapScale = gemTapScale;
+    noteRenderer.gemSpScale = gemSpScale;
+    for (int i = 0; i < 5; i++)
+        noteRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
+
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
-        if (showNotes)
+        if (showGems || showBars)
             noteRenderer.populate(drawCallMap, trackWindow, windowStartTime, windowEndTime,
                                   width, height, wNear, wMid, wFar, highwayPosEnd,
                                   farFadeEnd, farFadeLen, farFadeCurve);
@@ -78,7 +104,9 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
         if (showGridlines)
             gridlineRenderer.populate(drawCallMap, gridlines, windowStartTime, windowEndTime,
                                       width, height, wNear, wMid, wFar, highwayPosEnd,
-                                      gridlinePosOffset, farFadeEnd, farFadeLen, farFadeCurve);
+                                      gridlinePosOffset,
+                                      (isDrums ? gridZOffsetDrums : gridZOffsetGuitar) * resScale,
+                                      farFadeEnd, farFadeLen, farFadeCurve);
     }
 
     // Detect and add animations to drawCallMap (if enabled)
@@ -87,8 +115,31 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
         bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
         if (hitIndicatorsEnabled)
         {
-            if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
-            animationRenderer.renderToDrawCallMap(drawCallMap, width, height, wNear, wMid, wFar, highwayPosEnd);
+            double windowTimeSpan = windowEndTime - windowStartTime;
+            double strikeTimeOffset = strikePosNote * windowTimeSpan;
+            if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow, strikeTimeOffset); }
+
+            animationRenderer.hitNoteZOffset = (isDrums ? hitNoteZOffsetDrums : hitNoteZOffsetGuitar) * resScale;
+            animationRenderer.hitBarZOffset = (isDrums ? hitBarZOffsetDrums : hitBarZOffsetGuitar) * resScale;
+            animationRenderer.noteCurvature = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
+            animationRenderer.hitNoteScale = hitNoteScale;
+            animationRenderer.hitBarScale = hitBarScale;
+            animationRenderer.hitNoteWidthScale = hitNoteWidthScale;
+            animationRenderer.hitNoteHeightScale = hitNoteHeightScale;
+            animationRenderer.hitBarWidthScale = hitBarWidthScale;
+            animationRenderer.hitBarHeightScale = hitBarHeightScale;
+            animationRenderer.ghostScale = hitGhostScale;
+            animationRenderer.accentScale = hitAccentScale;
+            animationRenderer.hopoScale = hitHopoScale;
+            animationRenderer.tapScale = hitTapScale;
+            animationRenderer.spScale = hitSpScale;
+            animationRenderer.spWhiteFlare = spWhiteFlare;
+            animationRenderer.tapPurpleFlare = tapPurpleFlare;
+            for (int i = 0; i < 5; i++)
+                animationRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
+
+            animationRenderer.renderToDrawCallMap(drawCallMap, width, height, wNear, wMid, wFar, highwayPosEnd,
+                                                strikePosNote);
         }
     }
 

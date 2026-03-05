@@ -17,6 +17,8 @@ namespace AnimationConstants {
         bool isOpen = false;
         bool is2xKick = false;
         bool inSustain = false;
+        Gem gemType = Gem::NOTE;
+        bool starPower = false;
 
         void reset() {
             currentFrame = 0;
@@ -26,6 +28,8 @@ namespace AnimationConstants {
             isOpen = false;
             is2xKick = false;
             inSustain = false;
+            gemType = Gem::NOTE;
+            starPower = false;
         }
 
         bool isActive() const {
@@ -54,7 +58,7 @@ namespace AnimationConstants {
             }
         }
 
-        void trigger(bool bar, int laneIndex, bool open = false, bool twoXKick = false) {
+        void trigger(bool bar, int laneIndex, bool open = false, bool twoXKick = false, Gem gem = Gem::NOTE, bool sp = false) {
             currentFrame = 1;
             elapsedTime = 0.0;
             isBar = bar;
@@ -62,6 +66,8 @@ namespace AnimationConstants {
             isOpen = open;
             is2xKick = twoXKick;
             inSustain = false;
+            gemType = gem;
+            starPower = sp;
         }
 
         void setSustainState(bool sustaining) {
@@ -82,13 +88,13 @@ public:
         animations.resize(6);
     }
 
-    void triggerHit(int gemColumn, bool isDrums = false, bool is2xKick = false) {
+    void triggerHit(int gemColumn, bool isDrums = false, bool is2xKick = false, Gem gem = Gem::NOTE, bool sp = false) {
         bool isBar = (gemColumn == 0) || (isDrums && gemColumn == 6);
         int animSlot = isBar ? 0 : gemColumn;
 
         if (animSlot >= 0 && animSlot < animations.size()) {
             bool isOpen = (gemColumn == 0 && !isDrums);
-            animations[animSlot].trigger(isBar, animSlot, isOpen, is2xKick);
+            animations[animSlot].trigger(isBar, animSlot, isOpen, is2xKick, gem, sp);
         }
     }
 

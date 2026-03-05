@@ -37,7 +37,8 @@ class SceneRenderer
 
         void paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
-        bool showNotes = true;
+        bool showGems = true;
+        bool showBars = true;
         bool showSustains = true;
         bool showLanes = true;
         bool showGridlines = true;
@@ -53,6 +54,56 @@ class SceneRenderer
         float fretboardWidthScaleMidDrums   = PositionConstants::FB_WIDTH_MID_DRUMS;
         float fretboardWidthScaleFarDrums   = PositionConstants::FB_WIDTH_FAR_DRUMS;
         float highwayPosEnd = PositionConstants::HIGHWAY_POS_END;
+
+        // Note curvature and scaling (runtime-adjustable for debug UI)
+        float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
+        float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
+        float gemWidthScale = PositionConstants::GEM_WIDTH_SCALE;
+        float gemHeightScale = PositionConstants::GEM_HEIGHT_SCALE;
+        float barWidthScale = PositionConstants::BAR_WIDTH_SCALE;
+        float barHeightScale = PositionConstants::BAR_HEIGHT_SCALE;
+        float hitNoteScale = PositionConstants::HIT_GEM_SCALE;
+        float hitBarScale = PositionConstants::HIT_BAR_SCALE;
+        float hitNoteWidthScale = PositionConstants::HIT_GEM_WIDTH_SCALE;
+        float hitNoteHeightScale = PositionConstants::HIT_GEM_HEIGHT_SCALE;
+        float hitBarWidthScale = PositionConstants::HIT_BAR_WIDTH_SCALE;
+        float hitBarHeightScale = PositionConstants::HIT_BAR_HEIGHT_SCALE;
+        // Hit animation dynamic scales
+        float hitGhostScale = PositionConstants::HIT_GHOST_SCALE;
+        float hitAccentScale = PositionConstants::HIT_ACCENT_SCALE;
+        float hitHopoScale = PositionConstants::HIT_HOPO_SCALE;
+        float hitTapScale = PositionConstants::HIT_TAP_SCALE;
+        float hitSpScale = PositionConstants::HIT_SP_SCALE;
+        bool spWhiteFlare = SP_WHITE_FLARE_DEFAULT;
+        bool tapPurpleFlare = TAP_PURPLE_FLARE_DEFAULT;
+
+        // Gem dynamic scales
+        float gemGhostScale = PositionConstants::GEM_GHOST_SCALE;
+        float gemAccentScale = PositionConstants::GEM_ACCENT_SCALE;
+        float gemHopoScale = PositionConstants::GEM_HOPO_SCALE;
+        float gemTapScale = PositionConstants::GEM_TAP_SCALE;
+        float gemSpScale = PositionConstants::GEM_SP_SCALE;
+        float drumColZOffsets[5] = {};
+
+        // Per-instrument Z offsets (guitar)
+        float noteZOffsetGuitar = PositionConstants::GEM_Z_GUITAR;
+        float barZOffsetGuitar = PositionConstants::BAR_Z_GUITAR;
+        float gridZOffsetGuitar = 0.0f;
+        float hitNoteZOffsetGuitar = PositionConstants::HIT_GEM_Z_GUITAR;
+        float hitBarZOffsetGuitar = PositionConstants::HIT_BAR_Z_GUITAR;
+
+        // Per-instrument Z offsets (drums)
+        float noteZOffsetDrums = PositionConstants::GEM_Z_DRUMS;
+        float barZOffsetDrums = PositionConstants::BAR_Z_DRUMS;
+        float gridZOffsetDrums = 0.0f;
+        float hitNoteZOffsetDrums = PositionConstants::HIT_GEM_Z_DRUMS;
+        float hitBarZOffsetDrums = PositionConstants::HIT_BAR_Z_DRUMS;
+
+        // Strike position offset (normalized, shifts clip/trigger/render point)
+        float strikePosNoteGuitar = PositionConstants::STRIKE_POS_GEM_GUITAR;
+        float strikePosBarGuitar = PositionConstants::STRIKE_POS_BAR_GUITAR;
+        float strikePosNoteDrums = PositionConstants::STRIKE_POS_GEM_DRUMS;
+        float strikePosBarDrums = PositionConstants::STRIKE_POS_BAR_DRUMS;
 
         // Gridline position nudge (normalized position space, exposed for debug UI)
         float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;

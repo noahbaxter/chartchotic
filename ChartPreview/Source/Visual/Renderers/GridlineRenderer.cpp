@@ -22,7 +22,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
                                 double windowStartTime, double windowEndTime,
                                 uint width, uint height,
                                 float wNear, float wMid, float wFar, float posEnd,
-                                float gridlinePosOffset,
+                                float gridlinePosOffset, float gridZOffset,
                                 float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
     this->width = width;
@@ -49,14 +49,14 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
             {
                 float fadeOpacity = calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
                 drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics& g) {
-                    this->drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity);
+                    this->drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity, gridZOffset);
                 });
             }
         }
     }
 }
 
-void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity)
+void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity, float gridZOffset)
 {
     if (!markerImage) return;
 
@@ -75,7 +75,18 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
     float gridWidth = edge.rightX - edge.leftX;
     auto perspParams = PositionConstants::getPerspectiveParams();
     float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
-    juce::Rectangle<float> rect(edge.leftX, edge.centerY - gridHeight * 0.5f, gridWidth, gridHeight);
+
+    // Scale Z offset by perspective (ratio of current width to strikeline width)
+    float scaledZOffset = gridZOffset;
+    if (std::abs(gridZOffset) > 0.001f)
+    {
+        auto strikeEdge = getColumnEdge(0.0f, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
+        float strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+        if (strikeWidth > 0.0f)
+            scaledZOffset *= (gridWidth / strikeWidth);
+    }
+
+    juce::Rectangle<float> rect(edge.leftX, edge.centerY - gridHeight * 0.5f + scaledZOffset, gridWidth, gridHeight);
     g.setOpacity(opacity);
     g.drawImage(*markerImage, rect);
 }

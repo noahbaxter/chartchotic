@@ -204,6 +204,66 @@ namespace PositionConstants
     };
 
     //==============================================================================
+    // Curved Note Rendering (pre-baked image cache)
+    constexpr float NOTE_CURVATURE = -0.02f;       // Arc height as fraction of fretboard width
+    constexpr float BAR_CURVATURE = 0.0f;          // Bars stay flat (span full fretboard)
+    constexpr int NOTE_CACHE_DOWNSAMPLE = 2;       // Source resolution divisor (2 = 1/2 res)
+
+    //==============================================================================
+    // Per-instrument Z offsets (reference pixels at 720px height, positive = down)
+    // Scaled by (height / REFERENCE_HEIGHT) at render time for resolution independence.
+    constexpr float REFERENCE_HEIGHT = 720.0f;
+
+    constexpr float GEM_Z_GUITAR = 9.0f;
+    constexpr float BAR_Z_GUITAR = 0.0f;
+    constexpr float HIT_GEM_Z_GUITAR = 14.0f;
+    constexpr float HIT_BAR_Z_GUITAR = 9.0f;
+
+    constexpr float GEM_Z_DRUMS = 4.0f;
+    constexpr float BAR_Z_DRUMS = 0.0f;
+    constexpr float HIT_GEM_Z_DRUMS = 6.0f;
+    constexpr float HIT_BAR_Z_DRUMS = 10.0f;
+
+    //==============================================================================
+    // Gem dynamic scales (per gem type, applied in NoteRenderer)
+    constexpr float GEM_GHOST_SCALE = 1.0f;             // Drum ghost gems
+    constexpr float GEM_ACCENT_SCALE = 1.0f;            // Drum accent gems
+    constexpr float GEM_HOPO_SCALE = 1.0f;              // Guitar HOPO gems
+    constexpr float GEM_TAP_SCALE = 1.0f;               // Guitar tap gems
+    constexpr float GEM_SP_SCALE = 1.0f;                // Star power gems
+
+    //==============================================================================
+    // Hit animation dynamic scales (per gem type, applied in AnimationRenderer)
+    constexpr float HIT_GHOST_SCALE = 0.7f;             // Drum ghost hit
+    constexpr float HIT_ACCENT_SCALE = 1.2f;            // Drum accent hit
+    constexpr float HIT_HOPO_SCALE = 0.9f;              // Guitar HOPO hit
+    constexpr float HIT_TAP_SCALE = 0.9f;               // Guitar tap hit
+    constexpr float HIT_SP_SCALE = 1.0f;                // Star power hit
+
+    //==============================================================================
+    // Gem width/height scales
+    constexpr float GEM_WIDTH_SCALE = 1.0f;
+    constexpr float GEM_HEIGHT_SCALE = 1.0f;
+    constexpr float BAR_WIDTH_SCALE = 1.0f;
+    constexpr float BAR_HEIGHT_SCALE = 1.0f;
+
+    //==============================================================================
+    // Hit animation scales
+    constexpr float HIT_GEM_SCALE = 1.5f;
+    constexpr float HIT_BAR_SCALE = 1.0f;
+    constexpr float HIT_GEM_WIDTH_SCALE = 1.0f;
+    constexpr float HIT_GEM_HEIGHT_SCALE = 1.0f;
+    constexpr float HIT_BAR_WIDTH_SCALE = 1.0f;
+    constexpr float HIT_BAR_HEIGHT_SCALE = 1.0f;
+
+    //==============================================================================
+    // Strike position offsets (normalized, shifts clip/trigger point)
+    constexpr float STRIKE_POS_GEM_GUITAR = 0.0f;
+    constexpr float STRIKE_POS_BAR_GUITAR = 0.0f;
+    constexpr float STRIKE_POS_GEM_DRUMS = -0.020f;
+    constexpr float STRIKE_POS_BAR_DRUMS = -0.002f;
+
+    //==============================================================================
     // Perspective Parameters (compile-time constant)
     constexpr inline PerspectiveParams getPerspectiveParams()
     {

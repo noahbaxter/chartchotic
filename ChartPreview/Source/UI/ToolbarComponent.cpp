@@ -51,9 +51,14 @@ void ToolbarComponent::initControls()
     addAndMakeVisible(autoHopoMenu);
 
     // Render popup children
-    notesToggle.setButtonText("Notes");
-    notesToggle.onClick = [this]() {
-        if (onNotesChanged) onNotesChanged(notesToggle.getToggleState());
+    gemsToggle.setButtonText("Gems");
+    gemsToggle.onClick = [this]() {
+        if (onGemsChanged) onGemsChanged(gemsToggle.getToggleState());
+    };
+
+    barsToggle.setButtonText("Bars");
+    barsToggle.onClick = [this]() {
+        if (onBarsChanged) onBarsChanged(barsToggle.getToggleState());
     };
 
     sustainsToggle.setButtonText("Sustains");
@@ -92,7 +97,8 @@ void ToolbarComponent::initControls()
     };
 
     // Render button
-    renderButton.addPanelChild(&notesToggle);
+    renderButton.addPanelChild(&gemsToggle);
+    renderButton.addPanelChild(&barsToggle);
     renderButton.addPanelChild(&sustainsToggle);
     renderButton.addPanelChild(&lanesToggle);
     renderButton.addPanelChild(&starPowerToggle);
@@ -290,6 +296,7 @@ void ToolbarComponent::resized()
 #ifdef DEBUG
     rx -= (gap + btnWidth);
     debugPanel.getButton().setBounds(rx, y, btnWidth, controlHeight);
+    rx -= (gap + btnWidth);
 #endif
 }
 
@@ -300,7 +307,8 @@ void ToolbarComponent::loadState()
     drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
 
-    notesToggle.setToggleState(!state.hasProperty("showNotes") || (bool)state["showNotes"], juce::dontSendNotification);
+    gemsToggle.setToggleState(!state.hasProperty("showGems") || (bool)state["showGems"], juce::dontSendNotification);
+    barsToggle.setToggleState(!state.hasProperty("showBars") || (bool)state["showBars"], juce::dontSendNotification);
     sustainsToggle.setToggleState(!state.hasProperty("showSustains") || (bool)state["showSustains"], juce::dontSendNotification);
     lanesToggle.setToggleState(!state.hasProperty("showLanes") || (bool)state["showLanes"], juce::dontSendNotification);
     starPowerToggle.setToggleState(!state.hasProperty("starPower") || (bool)state["starPower"], juce::dontSendNotification);
@@ -398,7 +406,10 @@ void ToolbarComponent::layoutRenderPanel(juce::Component* panel)
     int w = panel->getWidth() - margin * 2;
     bool isDrums = isPart(state, Part::DRUMS);
 
-    notesToggle.setBounds(margin, y, w, rowHeight);
+    gemsToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    barsToggle.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     sustainsToggle.setBounds(margin, y, w, rowHeight);

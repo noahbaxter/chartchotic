@@ -64,7 +64,8 @@ void ChartPreviewAudioProcessor::initializeDefaultState()
     state.setProperty("dynamics", 1, nullptr);
     state.setProperty("noteSpeed", 7, nullptr);
     state.setProperty("gemScale", 1.0f, nullptr);
-    state.setProperty("showNotes", 1, nullptr);
+    state.setProperty("showGems", 1, nullptr);
+    state.setProperty("showBars", 1, nullptr);
     state.setProperty("showSustains", 1, nullptr);
     state.setProperty("showLanes", 1, nullptr);
     state.setProperty("showGridlines", 1, nullptr);

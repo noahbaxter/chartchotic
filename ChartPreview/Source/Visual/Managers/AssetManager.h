@@ -95,6 +95,8 @@ public:
         if (frameNumber >= 1 && frameNumber <= 5) return &hitAnimationFrames[frameNumber - 1];
         return nullptr;
     }
+    juce::Image* getHitFlareWhiteImage() { return &hitFlareImages[5]; }
+    juce::Image* getHitFlarePurpleImage() { return &hitFlarePurpleImage; }
     juce::Image* getHitFlareImage(uint gemColumn, Part part) {
         // Map gemColumn to flare index based on color
         // Flare array: [0]=green, [1]=red, [2]=yellow, [3]=blue, [4]=orange
@@ -180,7 +182,8 @@ private:
 
     // Hit animation graphics
     juce::Image hitAnimationFrames[5];   // hit_1.png through hit_5.png
-    juce::Image hitFlareImages[5];       // hit_flare_blue/green/orange/red/yellow
+    juce::Image hitFlareImages[6];       // [0-4]=green/red/yellow/blue/orange, [5]=white
+    juce::Image hitFlarePurpleImage;     // Generated at runtime by tinting white flare
     juce::Image kickAnimationFrames[7];  // hit_kick_1.png through hit_kick_7.png
     juce::Image openAnimationFrames[7];  // hit_open_1.png through hit_open_7.png
 };

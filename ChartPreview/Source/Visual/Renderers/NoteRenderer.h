@@ -13,6 +13,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <map>
+#include <tuple>
 #include "../../Utils/Utils.h"
 #include "../../Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
@@ -24,6 +26,25 @@ class NoteRenderer
 {
 public:
     NoteRenderer(juce::ValueTree& state, AssetManager& assetManager);
+
+    bool showGems = true;
+    bool showBars = true;
+    float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
+    float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
+    float noteWidthScale = PositionConstants::GEM_WIDTH_SCALE;
+    float noteHeightScale = PositionConstants::GEM_HEIGHT_SCALE;
+    float barWidthScale = PositionConstants::BAR_WIDTH_SCALE;
+    float barHeightScale = PositionConstants::BAR_HEIGHT_SCALE;
+    float gemGhostScale = PositionConstants::GEM_GHOST_SCALE;
+    float gemAccentScale = PositionConstants::GEM_ACCENT_SCALE;
+    float gemHopoScale = PositionConstants::GEM_HOPO_SCALE;
+    float gemTapScale = PositionConstants::GEM_TAP_SCALE;
+    float gemSpScale = PositionConstants::GEM_SP_SCALE;
+    float drumColZOffsets[5] = {};
+    float noteZOffset = 0.0f;
+    float barZOffset = 0.0f;
+    float strikePosNote = 0.0f;
+    float strikePosBar = 0.0f;
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,
                   double windowStartTime, double windowEndTime,
@@ -40,6 +61,7 @@ private:
     uint width = 0, height = 0;
     float wNear = 0, wMid = 0, wFar = 0, posEnd = 0;
     float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
+    double cachedNoteClipTime = 0, cachedBarClipTime = 0;
 
     using LaneCorners = PositionConstants::LaneCorners;
     using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
@@ -64,4 +86,19 @@ private:
 
     // Overlay positioning (absorbed from GlyphRenderer)
     static juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect, bool isDrumAccent);
+
+    // Curved note image cache
+    struct CurvedImageEntry
+    {
+        juce::Image image;
+        float yOffsetFraction;  // baseline shift as fraction of dest height
+    };
+
+    using CurveKey = std::tuple<juce::Image*, int, bool>;  // sourcePtr, column, isDrums
+    std::map<CurveKey, CurvedImageEntry> curvedCache;
+    float lastCachedCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
+    float lastCachedCurvatureDrums = PositionConstants::NOTE_CURVATURE;
+
+    const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
+    static float getColumnDistFromCenter(int column, bool isDrums);
 };
