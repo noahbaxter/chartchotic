@@ -127,7 +127,7 @@ void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDr
 }
 
 void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
-                                    int w, int h, bool isDrums,
+                                    int w, int h, bool isDrums, bool tiled,
                                     float farFadeEnd, float farFadeLen, float farFadeCurve,
                                     float wNear, float wMid, float wFar, float posEnd)
 {
@@ -141,7 +141,27 @@ void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, con
         float drawH = drawW / imgAspect;
         float drawX = ((float)w - drawW) * 0.5f + t.xOffset * (float)w;
         float drawY = (float)h - drawH + t.yOffset * (float)h;
-        g.drawImage(src, {drawX, drawY, drawW, drawH});
+
+        if (tiled)
+        {
+            float tileBottom = drawY + drawH;
+            float scale = 1.0f;
+            while (tileBottom > 0)
+            {
+                float tileW = drawW * scale;
+                float tileH = drawH * scale;
+                float tileX = ((float)w - tileW) * 0.5f + t.xOffset * (float)w;
+                float tileY = tileBottom - tileH;
+
+                g.drawImage(src, {tileX, tileY, tileW, tileH});
+                tileBottom -= tileH * tileStep;
+                scale *= tileScaleStep;
+            }
+        }
+        else
+        {
+            g.drawImage(src, {drawX, drawY, drawW, drawH});
+        }
     }
 
     applyFarFade(out, w, h, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
@@ -165,13 +185,13 @@ void TrackRenderer::rebuild(int width, int height,
     // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
     auto* layers = isDrums ? layersDrums : layersGuitar;
     bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
-                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, height, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
     bakeLayerImage(layerImages[LANE_LINES], isDrums ? laneLinesDrumsImage : laneLinesGuitarImage, layers[LANE_LINES],
-                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, height, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
     bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
-                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, height, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
     bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
-                   width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, height, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
 
     // Rebuild cached geometry for texture scanline LUT
     float effectiveEnd = std::max(posEnd, farFadeEnd);

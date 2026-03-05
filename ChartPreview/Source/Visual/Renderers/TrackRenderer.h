@@ -43,6 +43,8 @@ public:
 
     float textureScale = 1.0f;    // >1 = more tiles (squished), <1 = fewer (stretched)
     float textureOpacity = 0.45f; // Overlay opacity (0..1)
+    float tileStep = 0.80f;       // Vertical step between tiles (< 1.0 = overlap for baked fade)
+    float tileScaleStep = 0.50f;   // Scale multiplier per tile (each tile = previous * this)
 
     // Per-layer positioning (debug-tunable)
     struct LayerTransform {
@@ -121,7 +123,7 @@ private:
     void compositeLayers(juce::Image& target, int w, int h, bool isDrums,
                          float wNear, float wMid, float wFar, float posEnd);
     void bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
-                        int w, int h, bool isDrums,
+                        int w, int h, bool isDrums, bool tiled,
                         float farFadeEnd, float farFadeLen, float farFadeCurve,
                         float wNear, float wMid, float wFar, float posEnd);
 
