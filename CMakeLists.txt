@@ -80,6 +80,8 @@ target_sources(ChartPreview
         ChartPreview/Source/DebugTools/DebugPlaybackController.h
         ChartPreview/Source/DebugTools/DebugToolbarPanel.cpp
         ChartPreview/Source/DebugTools/DebugToolbarPanel.h
+        ChartPreview/Source/DebugTools/DebugTuningPanel.cpp
+        ChartPreview/Source/DebugTools/DebugTuningPanel.h
         ChartPreview/Source/DebugTools/Logger.h
         ChartPreview/Source/DebugTools/DataGenerators.h
         # Midi / Processing

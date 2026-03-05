@@ -6,6 +6,7 @@
 #include "../Visual/Utils/DrawingConstants.h"
 #ifdef DEBUG
 #include "../DebugTools/DebugToolbarPanel.h"
+#include "../DebugTools/DebugTuningPanel.h"
 #endif
 
 class ToolbarComponent : public juce::Component
@@ -144,8 +145,10 @@ private:
 
 #ifdef DEBUG
     DebugToolbarPanel debugPanel{state};
+    DebugTuningPanel tuningPanel{state};
 public:
     DebugToolbarPanel& getDebugPanel() { return debugPanel; }
+    DebugTuningPanel& getTuningPanel() { return tuningPanel; }
     void setDebugPlay(bool playing);
 private:
 #endif

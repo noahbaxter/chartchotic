@@ -254,6 +254,7 @@ void ToolbarComponent::initControls()
 
 #ifdef DEBUG
     addAndMakeVisible(debugPanel.getButton());
+    addAndMakeVisible(tuningPanel.getButton());
 #endif
 }
 
@@ -297,6 +298,7 @@ void ToolbarComponent::resized()
     rx -= (gap + btnWidth);
     debugPanel.getButton().setBounds(rx, y, btnWidth, controlHeight);
     rx -= (gap + btnWidth);
+    tuningPanel.getButton().setBounds(rx, y, btnWidth, controlHeight);
 #endif
 }
 
