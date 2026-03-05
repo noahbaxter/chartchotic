@@ -4,9 +4,7 @@
 
 #include <JuceHeader.h>
 #include "../UI/PopupMenuButton.h"
-#include "../UI/SectionHeader.h"
 #include "../Utils/Utils.h"
-#include "../Visual/Renderers/TrackRenderer.h"
 
 class DebugToolbarPanel
 {
@@ -16,17 +14,12 @@ public:
 
     PopupMenuButton& getButton() { return debugButton; }
     void setDebugPlay(bool playing);
-    void initDefaults(const TrackRenderer& trackRenderer);
-    void setDrums(bool isDrums);
 
     // Callbacks -- the editor wires these
     std::function<void(bool playing)> onDebugPlayChanged;
     std::function<void(int)> onDebugChartChanged;
     std::function<void(bool)> onDebugConsoleChanged;
     std::function<void(bool)> onProfilerChanged;
-    std::function<void(int, float, float, float)> onLayerChanged;
-    std::function<void(float)> onTileStepChanged;
-    std::function<void(float)> onTileScaleStepChanged;
 
 private:
     juce::ValueTree& state;
@@ -56,31 +49,6 @@ private:
     int chartIndex = 1;
     ScrollableLabel chartSelectLabel;
 
-    // --- Layers section ---
-    SectionHeader layersHeader;
-    static constexpr int NUM_LAYERS = 4;
-    static constexpr const char* layerNames[NUM_LAYERS] = {"Side", "Lane", "Strike", "Conn"};
-
-    using LayerTransform = TrackRenderer::LayerTransform;
-    LayerTransform guitarStates[NUM_LAYERS];
-    LayerTransform drumStates[NUM_LAYERS];
-    LayerTransform* layerStates = guitarStates;
-
-    ScrollableLabel layerScaleLabels[NUM_LAYERS];
-    ScrollableLabel layerXLabels[NUM_LAYERS];
-    ScrollableLabel layerYLabels[NUM_LAYERS];
-
-    // --- Tiling section ---
-    SectionHeader tilingHeader;
-    float tileStepValue = 0.80f;
-    float tileScaleStepValue = 0.50f;
-    ScrollableLabel tileStepLabel;
-    ScrollableLabel tileScaleStepLabel;
-
-    void setupSectionHeader(SectionHeader& header, const juce::String& text);
-    void setupScrollLabel(ScrollableLabel& label);
-    void fireLayer(int idx);
-    void refreshLabels();
     void layoutPanel(juce::Component* panel);
 };
 

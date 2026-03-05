@@ -8,6 +8,9 @@
 #include "../Utils/Utils.h"
 #include "../Visual/Utils/PositionConstants.h"
 #include "../Visual/Utils/DrawingConstants.h"
+#include "../Visual/Renderers/TrackRenderer.h"
+
+class SceneRenderer;
 
 class DebugTuningPanel
 {
@@ -17,10 +20,22 @@ public:
 
     PopupMenuButton& getButton() { return tuningButton; }
 
-    // Callback -- fires when any value changes
-    std::function<void()> onChanged;
+    // Apply all tuning values to a SceneRenderer
+    void applyTo(SceneRenderer& sr) const;
 
-    // Current values (read by PluginEditor)
+    // Initialize layer/tiling defaults from current TrackRenderer state
+    void initDefaults(const TrackRenderer& trackRenderer);
+
+    // Switch layer states between guitar/drums
+    void setDrums(bool isDrums);
+
+    // Callbacks
+    std::function<void()> onTuningChanged;
+    std::function<void(int, float, float, float)> onLayerChanged;
+    std::function<void(float)> onTileStepChanged;
+    std::function<void(float)> onTileScaleStepChanged;
+
+    // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
     float drumCurvature = PositionConstants::NOTE_CURVATURE;
     float gemW = PositionConstants::GEM_WIDTH_SCALE;
@@ -41,7 +56,6 @@ public:
     bool spWhiteFlare = SP_WHITE_FLARE_DEFAULT;
     bool tapPurpleFlare = TAP_PURPLE_FLARE_DEFAULT;
 
-    // Gem dynamic scales
     float gemGhostScale = PositionConstants::GEM_GHOST_SCALE;
     float gemAccentScale = PositionConstants::GEM_ACCENT_SCALE;
     float gemHopoScale = PositionConstants::GEM_HOPO_SCALE;
@@ -83,6 +97,30 @@ private:
             if (onScroll) onScroll(delta);
         }
     };
+
+    // --- Layers section (moved from DebugToolbarPanel) ---
+    SectionHeader layersHeader;
+    static constexpr int NUM_LAYERS = 4;
+    static constexpr const char* layerNames[NUM_LAYERS] = {"Side", "Lane", "Strike", "Conn"};
+
+    using LayerTransform = TrackRenderer::LayerTransform;
+    LayerTransform guitarStates[NUM_LAYERS];
+    LayerTransform drumStates[NUM_LAYERS];
+    LayerTransform* layerStates = guitarStates;
+
+    ScrollableLabel layerScaleLabels[NUM_LAYERS];
+    ScrollableLabel layerXLabels[NUM_LAYERS];
+    ScrollableLabel layerYLabels[NUM_LAYERS];
+
+    // --- Tiling section (moved from DebugToolbarPanel) ---
+    SectionHeader tilingHeader;
+    float tileStepValue = 0.80f;
+    float tileScaleStepValue = 0.50f;
+    ScrollableLabel tileStepLabel;
+    ScrollableLabel tileScaleStepLabel;
+
+    void fireLayer(int idx);
+    void refreshLayerLabels();
 
     // --- Curvature section ---
     SectionHeader curvatureHeader;

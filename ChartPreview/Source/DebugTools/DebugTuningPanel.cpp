@@ -1,10 +1,57 @@
 #ifdef DEBUG
 
 #include "DebugTuningPanel.h"
+#include "../Visual/Renderers/SceneRenderer.h"
 
 DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     : state(state)
 {
+    // --- Layers section ---
+    setupSectionHeader(layersHeader, "Layers");
+
+    for (int i = 0; i < NUM_LAYERS; i++)
+    {
+        juce::String name(layerNames[i]);
+
+        setupScrollLabel(layerScaleLabels[i]);
+        layerScaleLabels[i].onScroll = [this, i, name](int delta) {
+            layerStates[i].scale = juce::jlimit(0.10f, 3.00f, layerStates[i].scale + delta * 0.005f);
+            layerScaleLabels[i].setText(name + " S: " + juce::String(layerStates[i].scale, 3), juce::dontSendNotification);
+            fireLayer(i);
+        };
+
+        setupScrollLabel(layerXLabels[i]);
+        layerXLabels[i].onScroll = [this, i, name](int delta) {
+            layerStates[i].xOffset = juce::jlimit(-1.0f, 1.0f, layerStates[i].xOffset + delta * 0.0005f);
+            layerXLabels[i].setText(name + " X: " + juce::String(layerStates[i].xOffset, 4), juce::dontSendNotification);
+            fireLayer(i);
+        };
+
+        setupScrollLabel(layerYLabels[i]);
+        layerYLabels[i].onScroll = [this, i, name](int delta) {
+            layerStates[i].yOffset = juce::jlimit(-1.0f, 1.0f, layerStates[i].yOffset + delta * 0.0005f);
+            layerYLabels[i].setText(name + " Y: " + juce::String(layerStates[i].yOffset, 4), juce::dontSendNotification);
+            fireLayer(i);
+        };
+    }
+
+    // --- Tiling section ---
+    setupSectionHeader(tilingHeader, "Tiling");
+
+    setupScrollLabel(tileStepLabel);
+    tileStepLabel.onScroll = [this](int delta) {
+        tileStepValue = juce::jlimit(0.30f, 1.00f, tileStepValue + delta * 0.005f);
+        tileStepLabel.setText("Step: " + juce::String(tileStepValue, 3), juce::dontSendNotification);
+        if (onTileStepChanged) onTileStepChanged(tileStepValue);
+    };
+
+    setupScrollLabel(tileScaleStepLabel);
+    tileScaleStepLabel.onScroll = [this](int delta) {
+        tileScaleStepValue = juce::jlimit(0.30f, 1.00f, tileScaleStepValue + delta * 0.005f);
+        tileScaleStepLabel.setText("Scale: " + juce::String(tileScaleStepValue, 3), juce::dontSendNotification);
+        if (onTileScaleStepChanged) onTileScaleStepChanged(tileScaleStepValue);
+    };
+
     // --- Curvature section ---
     setupSectionHeader(curvatureHeader, "Curvature");
 
@@ -234,8 +281,22 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     }
 
     refreshLabels();
+    refreshLayerLabels();
 
-    // Register panel children
+    // Register panel children — layers + tiling first
+    tuningButton.addPanelChild(&layersHeader);
+    for (int i = 0; i < NUM_LAYERS; i++)
+    {
+        tuningButton.addPanelChild(&layerScaleLabels[i]);
+        tuningButton.addPanelChild(&layerXLabels[i]);
+        tuningButton.addPanelChild(&layerYLabels[i]);
+    }
+
+    tuningButton.addPanelChild(&tilingHeader);
+    tuningButton.addPanelChild(&tileStepLabel);
+    tuningButton.addPanelChild(&tileScaleStepLabel);
+
+    // Then existing tuning sections
     tuningButton.addPanelChild(&curvatureHeader);
     tuningButton.addPanelChild(&guitarCurvLabel);
     tuningButton.addPanelChild(&drumCurvLabel);
@@ -295,9 +356,89 @@ DebugTuningPanel::~DebugTuningPanel()
     tuningButton.dismissPanel();
 }
 
+void DebugTuningPanel::applyTo(SceneRenderer& sr) const
+{
+    sr.noteCurvatureGuitar = guitarCurvature;
+    sr.noteCurvatureDrums = drumCurvature;
+    sr.gemWidthScale = gemW;
+    sr.gemHeightScale = gemH;
+    sr.barWidthScale = barW;
+    sr.barHeightScale = barH;
+    sr.hitNoteScale = hitGemScale;
+    sr.hitBarScale = hitBarScale;
+    sr.hitNoteWidthScale = hitGemW;
+    sr.hitNoteHeightScale = hitGemH;
+    sr.hitBarWidthScale = hitBarW;
+    sr.hitBarHeightScale = hitBarH;
+    sr.hitGhostScale = hitGhostScale;
+    sr.hitAccentScale = hitAccentScale;
+    sr.hitHopoScale = hitHopoScale;
+    sr.hitTapScale = hitTapScale;
+    sr.hitSpScale = hitSpScale;
+    sr.spWhiteFlare = spWhiteFlare;
+    sr.tapPurpleFlare = tapPurpleFlare;
+    sr.gemGhostScale = gemGhostScale;
+    sr.gemAccentScale = gemAccentScale;
+    sr.gemHopoScale = gemHopoScale;
+    sr.gemTapScale = gemTapScale;
+    sr.gemSpScale = gemSpScale;
+
+    sr.gridZOffsetGuitar = gGridZ;
+    sr.noteZOffsetGuitar = gGemZ;
+    sr.barZOffsetGuitar = gBarZ;
+    sr.hitNoteZOffsetGuitar = gHitGemZ;
+    sr.hitBarZOffsetGuitar = gHitBarZ;
+    sr.strikePosNoteGuitar = gStrikePosGem;
+    sr.strikePosBarGuitar = gStrikePosBar;
+
+    sr.gridZOffsetDrums = dGridZ;
+    sr.noteZOffsetDrums = dGemZ;
+    sr.barZOffsetDrums = dBarZ;
+    sr.hitNoteZOffsetDrums = dHitGemZ;
+    sr.hitBarZOffsetDrums = dHitBarZ;
+    sr.strikePosNoteDrums = dStrikePosGem;
+    sr.strikePosBarDrums = dStrikePosBar;
+
+    std::copy(std::begin(drumZ), std::end(drumZ), sr.drumColZOffsets);
+}
+
+void DebugTuningPanel::initDefaults(const TrackRenderer& trackRenderer)
+{
+    std::copy_n(trackRenderer.layersGuitar, NUM_LAYERS, guitarStates);
+    std::copy_n(trackRenderer.layersDrums, NUM_LAYERS, drumStates);
+    tileStepValue = trackRenderer.tileStep;
+    tileScaleStepValue = trackRenderer.tileScaleStep;
+    refreshLayerLabels();
+}
+
+void DebugTuningPanel::setDrums(bool isDrums)
+{
+    layerStates = isDrums ? drumStates : guitarStates;
+    refreshLayerLabels();
+}
+
+void DebugTuningPanel::fireLayer(int idx)
+{
+    if (onLayerChanged)
+        onLayerChanged(idx, layerStates[idx].scale, layerStates[idx].xOffset, layerStates[idx].yOffset);
+}
+
+void DebugTuningPanel::refreshLayerLabels()
+{
+    for (int i = 0; i < NUM_LAYERS; i++)
+    {
+        juce::String name(layerNames[i]);
+        layerScaleLabels[i].setText(name + " S: " + juce::String(layerStates[i].scale, 3), juce::dontSendNotification);
+        layerXLabels[i].setText(name + " X: " + juce::String(layerStates[i].xOffset, 4), juce::dontSendNotification);
+        layerYLabels[i].setText(name + " Y: " + juce::String(layerStates[i].yOffset, 4), juce::dontSendNotification);
+    }
+    tileStepLabel.setText("Step: " + juce::String(tileStepValue, 3), juce::dontSendNotification);
+    tileScaleStepLabel.setText("Scale: " + juce::String(tileScaleStepValue, 3), juce::dontSendNotification);
+}
+
 void DebugTuningPanel::fireChanged()
 {
-    if (onChanged) onChanged();
+    if (onTuningChanged) onTuningChanged();
 }
 
 void DebugTuningPanel::refreshLabels()
@@ -389,6 +530,35 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
             y += rowHeight + gap;
         }
     };
+
+    // --- Layers section ---
+    layersHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    for (int i = 0; i < NUM_LAYERS; i++)
+    {
+        layerScaleLabels[i].setVisible(layersHeader.expanded);
+        layerXLabels[i].setVisible(layersHeader.expanded);
+        layerYLabels[i].setVisible(layersHeader.expanded);
+        if (layersHeader.expanded)
+        {
+            layerScaleLabels[i].setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+            layerXLabels[i].setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+            layerYLabels[i].setBounds(margin, y, w, rowHeight); y += rowHeight + gap + 2;
+        }
+    }
+
+    // --- Tiling section ---
+    y += headerGap;
+    tilingHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    tileStepLabel.setVisible(tilingHeader.expanded);
+    tileScaleStepLabel.setVisible(tilingHeader.expanded);
+    if (tilingHeader.expanded)
+    {
+        tileStepLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+        tileScaleStepLabel.setBounds(margin, y, w, rowHeight); y += rowHeight + gap;
+    }
+    y += headerGap;
 
     // Curvature
     curvatureHeader.setBounds(margin, y, w, rowHeight);

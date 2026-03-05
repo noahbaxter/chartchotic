@@ -76,6 +76,8 @@ target_sources(ChartPreview
         ChartPreview/Source/UpdateChecker.cpp
         ChartPreview/Source/UpdateChecker.h
         # DebugTools
+        ChartPreview/Source/DebugTools/DebugEditorController.cpp
+        ChartPreview/Source/DebugTools/DebugEditorController.h
         ChartPreview/Source/DebugTools/DebugMidiFilePlayer.h
         ChartPreview/Source/DebugTools/DebugPlaybackController.h
         ChartPreview/Source/DebugTools/DebugToolbarPanel.cpp

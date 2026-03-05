@@ -10,10 +10,6 @@
 #include "PluginEditor.h"
 #include "UpdateChecker.h"
 
-#ifdef DEBUG
-#include "DebugTools/DebugMidiFilePlayer.h"
-#endif
-
 // CI injects CHARTPREVIEW_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
 #ifdef CHARTPREVIEW_VERSION_STRING
@@ -49,7 +45,8 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     latencyInSeconds = audioProcessor.latencyInSeconds;
 
 #ifdef DEBUG
-    debugStandalone = juce::PluginHostType::getPluginLoadedAs() == AudioProcessor::wrapperType_Standalone;
+    bool isStandalone = juce::PluginHostType::getPluginLoadedAs() == AudioProcessor::wrapperType_Standalone;
+    debugController.init(*this, audioProcessor, state, isStandalone);
 #endif
 
     initAssets();
@@ -57,22 +54,6 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     initBottomBar();
 
     addAndMakeVisible(toolbar);
-
-    #ifdef DEBUG
-    if (debugStandalone)
-        loadDebugChart(debugController.getChartIndex());
-
-    consoleOutput.setMultiLine(true);
-    consoleOutput.setReadOnly(true);
-    addChildComponent(consoleOutput);
-
-    clearLogsButton.setButtonText("Clear Logs");
-    clearLogsButton.onClick = [this]() {
-        audioProcessor.clearDebugText();
-        consoleOutput.clear();
-    };
-    addChildComponent(clearLogsButton);
-    #endif
 
     loadState();
 
@@ -133,15 +114,7 @@ void ChartPreviewAudioProcessorEditor::onFrame()
     }
 
 #ifdef DEBUG
-    if (debugStandalone)
-    {
-        debugController.advancePlayhead();
-        if (debugChartLengthInBeats > 0.0 && debugController.getCurrentPPQ().toDouble() > debugChartLengthInBeats)
-            debugController.nudgePlayhead(-debugChartLengthInBeats);
-        lastKnownPosition = debugController.getCurrentPPQ();
-        if (debugController.isPlaying())
-            lastPlayingState = true;
-    }
+    debugController.onFrame(lastKnownPosition, lastPlayingState);
 #endif
 
     repaint();
@@ -188,9 +161,7 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         audioProcessor.refreshMidiDisplay();
         rebuildFadedTrackImage();
 #ifdef DEBUG
-        toolbar.getDebugPanel().setDrums(isPart(state, Part::DRUMS));
-        if (debugStandalone && debugController.isNotesActive())
-            loadDebugChart(debugController.getChartIndex());
+        toolbar.getTuningPanel().setDrums(isPart(state, Part::DRUMS));
 #endif
     };
 
@@ -324,88 +295,9 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     };
 
 #ifdef DEBUG
-    auto& dbg = toolbar.getDebugPanel();
-    dbg.initDefaults(trackRenderer);
-
-    dbg.onDebugPlayChanged = [this](bool playing) {
-        debugController.setPlaying(playing);
-    };
-    dbg.onDebugChartChanged = [this](int index) {
-        debugController.setChartIndex(index);
-        loadDebugChart(index);
-    };
-    dbg.onDebugConsoleChanged = [this](bool show) {
-        consoleOutput.setVisible(show);
-        clearLogsButton.setVisible(show);
-    };
-    dbg.onProfilerChanged = [this](bool on) {
-        sceneRenderer.collectPhaseTiming = on;
-    };
-
-    dbg.onLayerChanged = [this](int layer, float scale, float x, float y) {
-        bool isDrums = isPart(state, Part::DRUMS);
-        auto* layers = isDrums ? trackRenderer.layersDrums : trackRenderer.layersGuitar;
-        layers[layer] = {scale, x, y};
-        rebuildFadedTrackImage();
-    };
-
-    dbg.onTileStepChanged = [this](float step) {
-        trackRenderer.tileStep = step;
-        rebuildFadedTrackImage();
-    };
-
-    dbg.onTileScaleStepChanged = [this](float step) {
-        trackRenderer.tileScaleStep = step;
-        rebuildFadedTrackImage();
-    };
-
-    auto& tune = toolbar.getTuningPanel();
-    tune.onChanged = [this]() {
-        auto& t = toolbar.getTuningPanel();
-        sceneRenderer.noteCurvatureGuitar = t.guitarCurvature;
-        sceneRenderer.noteCurvatureDrums = t.drumCurvature;
-        sceneRenderer.gemWidthScale = t.gemW;
-        sceneRenderer.gemHeightScale = t.gemH;
-        sceneRenderer.barWidthScale = t.barW;
-        sceneRenderer.barHeightScale = t.barH;
-        sceneRenderer.hitNoteScale = t.hitGemScale;
-        sceneRenderer.hitBarScale = t.hitBarScale;
-        sceneRenderer.hitNoteWidthScale = t.hitGemW;
-        sceneRenderer.hitNoteHeightScale = t.hitGemH;
-        sceneRenderer.hitBarWidthScale = t.hitBarW;
-        sceneRenderer.hitBarHeightScale = t.hitBarH;
-        sceneRenderer.hitGhostScale = t.hitGhostScale;
-        sceneRenderer.hitAccentScale = t.hitAccentScale;
-        sceneRenderer.hitHopoScale = t.hitHopoScale;
-        sceneRenderer.hitTapScale = t.hitTapScale;
-        sceneRenderer.hitSpScale = t.hitSpScale;
-        sceneRenderer.spWhiteFlare = t.spWhiteFlare;
-        sceneRenderer.tapPurpleFlare = t.tapPurpleFlare;
-        sceneRenderer.gemGhostScale = t.gemGhostScale;
-        sceneRenderer.gemAccentScale = t.gemAccentScale;
-        sceneRenderer.gemHopoScale = t.gemHopoScale;
-        sceneRenderer.gemTapScale = t.gemTapScale;
-        sceneRenderer.gemSpScale = t.gemSpScale;
-
-        sceneRenderer.gridZOffsetGuitar = t.gGridZ;
-        sceneRenderer.noteZOffsetGuitar = t.gGemZ;
-        sceneRenderer.barZOffsetGuitar = t.gBarZ;
-        sceneRenderer.hitNoteZOffsetGuitar = t.gHitGemZ;
-        sceneRenderer.hitBarZOffsetGuitar = t.gHitBarZ;
-        sceneRenderer.strikePosNoteGuitar = t.gStrikePosGem;
-        sceneRenderer.strikePosBarGuitar = t.gStrikePosBar;
-
-        sceneRenderer.gridZOffsetDrums = t.dGridZ;
-        sceneRenderer.noteZOffsetDrums = t.dGemZ;
-        sceneRenderer.barZOffsetDrums = t.dBarZ;
-        sceneRenderer.hitNoteZOffsetDrums = t.dHitGemZ;
-        sceneRenderer.hitBarZOffsetDrums = t.dHitBarZ;
-        sceneRenderer.strikePosNoteDrums = t.dStrikePosGem;
-        sceneRenderer.strikePosBarDrums = t.dStrikePosBar;
-
-        std::copy(std::begin(t.drumZ), std::end(t.drumZ), sceneRenderer.drumColZOffsets);
-        repaint();
-    };
+    debugController.wireCallbacks(toolbar, sceneRenderer, trackRenderer,
+        [this]() { rebuildFadedTrackImage(); },
+        [this]() { repaint(); });
 #endif
 }
 
@@ -468,7 +360,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     // Draw scrolling highway texture overlay
     {
 #ifdef DEBUG
-        ScopedPhaseMeasure m(textureRender_us, sceneRenderer.collectPhaseTiming);
+        ScopedPhaseMeasure m(debugController.textureRender_us, sceneRenderer.collectPhaseTiming);
 #endif
         trackRenderer.paintTexture(g, computeScrollOffset());
     }
@@ -486,7 +378,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
 #ifdef DEBUG
     if (sceneRenderer.collectPhaseTiming)
-        drawProfilerOverlay(g);
+        debugController.drawProfilerOverlay(g, sceneRenderer);
 #endif
 }
 
@@ -559,31 +451,10 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     PPQ trackWindowStartPPQ = lastKnownPosition;
 
 #ifdef DEBUG
-    if (debugStandalone && debugController.isNotesActive())
+    if (debugController.isStandalone() && debugController.isNotesActive())
     {
-        PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
-        PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
-
-        TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
-        SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, trackWindowStartPPQ);
-
-        double bpm = debugController.getBPM();
-        auto ppqToTime = [bpm](double ppq) { return ppq * (60.0 / bpm); };
-
-        TempoTimeSignatureMap tempoTimeSigMap = debugMidiTempoMap;
-        if (tempoTimeSigMap.empty())
-            tempoTimeSigMap[PPQ(0.0)] = TempoTimeSignatureEvent(PPQ(0.0), bpm, 4, 4);
-
-        PPQ cursorPPQ = trackWindowStartPPQ;
-        TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
-        TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
-        TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
-            tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
-
-        double windowStartTime = 0.0;
-        double windowEndTime = displayWindowTimeSeconds;
-
-        sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, debugController.isPlaying());
+        debugController.paintStandalone(g, sceneRenderer, midiInterpreter,
+                                         displaySizeInPPQ.toDouble(), displayWindowTimeSeconds);
         return;
     }
 #endif
@@ -687,8 +558,8 @@ void ChartPreviewAudioProcessorEditor::resized()
     updateBanner.setBounds(getWidth() - 150, getHeight() - 30, 140, 22);
 
     #ifdef DEBUG
-    clearLogsButton.setBounds(margin, ToolbarComponent::toolbarHeight + 4, 100, 20);
-    consoleOutput.setBounds(margin, ToolbarComponent::toolbarHeight + 28, getWidth() - (2 * margin), getHeight() - ToolbarComponent::toolbarHeight - 38);
+    debugController.getClearButton().setBounds(margin, ToolbarComponent::toolbarHeight + 4, 100, 20);
+    debugController.getConsole().setBounds(margin, ToolbarComponent::toolbarHeight + 28, getWidth() - (2 * margin), getHeight() - ToolbarComponent::toolbarHeight - 38);
     #endif
 
     rebuildFadedTrackImage();
@@ -857,12 +728,11 @@ float ChartPreviewAudioProcessorEditor::computeScrollOffset()
     double bpm = 120.0;
 
 #ifdef DEBUG
-    if (debugStandalone)
     {
-        bpm = debugController.getBPM();
-        ppq = debugController.getCurrentPPQ().toDouble();
+        float debugOffset;
+        if (debugController.computeScrollOffset(debugOffset, displayWindowTimeSeconds))
+            return debugOffset;
     }
-    else
 #endif
     {
         if (auto* playHead = audioProcessor.getPlayHead())
@@ -889,99 +759,3 @@ float ChartPreviewAudioProcessorEditor::computeScrollOffset()
     return (float)(raw < 0.0 ? raw + 1.0 : raw);
 }
 
-#ifdef DEBUG
-void ChartPreviewAudioProcessorEditor::drawProfilerOverlay(juce::Graphics& g)
-{
-    auto& t = sceneRenderer.lastPhaseTiming;
-
-    // Update FPS ring buffer
-    profilerRing[profilerRingIndex] = t.total_us;
-    profilerRingIndex = (profilerRingIndex + 1) % PROFILER_RING_SIZE;
-
-    // Calculate rolling average FPS
-    double sum = 0.0;
-    int count = 0;
-    for (int i = 0; i < PROFILER_RING_SIZE; ++i)
-    {
-        if (profilerRing[i] > 0.0)
-        {
-            sum += profilerRing[i];
-            ++count;
-        }
-    }
-    double avgTotal = count > 0 ? sum / count : 0.0;
-    double fps = avgTotal > 0.0 ? 1000000.0 / avgTotal : 0.0;
-
-    juce::String text;
-    text << "FPS: " << juce::String(fps, 1) << "\n"
-         << "Notes:   " << juce::String((int)t.notes_us) << " us\n"
-         << "Sustain: " << juce::String((int)t.sustains_us) << " us\n"
-         << "Grid:    " << juce::String((int)t.gridlines_us) << " us\n"
-         << "Anim:    " << juce::String((int)t.animation_us) << " us\n"
-         << "Texture: " << juce::String((int)textureRender_us) << " us\n"
-         << "Execute: " << juce::String((int)t.execute_us) << " us\n"
-         << "Total:   " << juce::String((int)t.total_us) << " us";
-
-    // Layer breakdown — fixed list so it doesn't jump around
-    auto layerUs = [&](DrawOrder d) -> int {
-        auto it = t.layer_us.find(d);
-        return it != t.layer_us.end() ? (int)it->second : 0;
-    };
-
-    text << "\n---\n"
-         << "Grid:    " << layerUs(DrawOrder::GRID) << " us\n"
-         << "Lane:    " << layerUs(DrawOrder::LANE) << " us\n"
-         << "Bar:     " << layerUs(DrawOrder::BAR) << " us\n"
-         << "Sustain: " << layerUs(DrawOrder::SUSTAIN) << " us\n"
-         << "Note:    " << layerUs(DrawOrder::NOTE) << " us\n"
-         << "Overlay: " << layerUs(DrawOrder::OVERLAY) << " us";
-
-    g.setFont(juce::Font(12.0f));
-    g.setColour(juce::Colours::black.withAlpha(0.6f));
-    g.fillRect(4, 40, 140, 224);
-    g.setColour(juce::Colours::white);
-    g.drawFittedText(text, 8, 42, 132, 220, juce::Justification::topLeft, 16);
-}
-
-const ChartPreviewAudioProcessorEditor::DebugChartEntry ChartPreviewAudioProcessorEditor::debugChartRegistry[] = {
-    {nullptr,                               0},
-    {BinaryData::test_mid,                  BinaryData::test_midSize},
-    {BinaryData::stress_mid,                BinaryData::stress_midSize},
-    {BinaryData::sleepy_tea_mid,            BinaryData::sleepy_tea_midSize},
-    {BinaryData::further_side_mid,          BinaryData::further_side_midSize},
-    {BinaryData::scarlet_mid,               BinaryData::scarlet_midSize},
-    {BinaryData::everything_went_black_mid, BinaryData::everything_went_black_midSize},
-    {BinaryData::akroasis_mid,              BinaryData::akroasis_midSize},
-};
-
-void ChartPreviewAudioProcessorEditor::loadDebugChart(int index)
-{
-    constexpr int registrySize = (int)(sizeof(debugChartRegistry) / sizeof(debugChartRegistry[0]));
-    if (index <= 0 || index >= registrySize)
-    {
-        // Clear everything
-        {
-            const juce::ScopedLock lock(audioProcessor.getNoteStateMapLock());
-            for (auto& map : audioProcessor.getNoteStateMapArray())
-                map.clear();
-        }
-        debugMidiTempoMap.clear();
-        return;
-    }
-
-    const auto& entry = debugChartRegistry[index];
-    bool isDrums = isPart(state, Part::DRUMS);
-
-    auto result = DebugMidiFilePlayer::loadMidiFile(
-        entry.data, entry.size,
-        isDrums,
-        audioProcessor.getNoteStateMapArray(),
-        audioProcessor.getNoteStateMapLock(),
-        audioProcessor.getMidiProcessor(),
-        state);
-
-    debugMidiTempoMap = result.tempoMap;
-    debugChartLengthInBeats = result.lengthInBeats;
-    debugController.setBPM(result.initialBPM);
-}
-#endif

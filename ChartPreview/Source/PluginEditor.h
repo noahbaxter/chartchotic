@@ -21,7 +21,7 @@
 #include "UI/ChartPreviewLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
 #ifdef DEBUG
-#include "DebugTools/DebugPlaybackController.h"
+#include "DebugTools/DebugEditorController.h"
 #endif
 
 //==============================================================================
@@ -48,12 +48,8 @@ public:
     bool keyPressed(const juce::KeyPress& key) override
     {
 #ifdef DEBUG
-        if (debugStandalone && key == juce::KeyPress::spaceKey)
-        {
-            debugController.togglePlay();
-            toolbar.setDebugPlay(debugController.isPlaying());
+        if (debugController.keyPressed(key, toolbar))
             return true;
-        }
 #endif
 
         // Handle arrow keys for latency offset when text box has focus
@@ -102,13 +98,9 @@ public:
             return;
 
 #ifdef DEBUG
-        if (debugStandalone)
-        {
-            double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
-            double jumpBeats = event.mods.isShiftDown() ? SCROLL_SHIFT_BEATS : SCROLL_NORMAL_BEATS;
-            debugController.nudgePlayhead(wheelDelta * jumpBeats);
+        if (debugController.mouseWheelMove(wheel, event.mods.isShiftDown(),
+                                            SCROLL_NORMAL_BEATS, SCROLL_SHIFT_BEATS))
             return;
-        }
 #endif
 
         // Get the current playhead position
@@ -161,9 +153,6 @@ private:
 
     juce::Label versionLabel;
 
-    juce::TextEditor consoleOutput;
-    juce::TextButton clearLogsButton;
-
     UpdateChecker updateChecker;
     juce::TextButton updateBanner;
 
@@ -214,22 +203,7 @@ private:
     static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
 
 #ifdef DEBUG
-    static constexpr int PROFILER_RING_SIZE = 60;
-    double profilerRing[PROFILER_RING_SIZE] = {};
-    int profilerRingIndex = 0;
-    double textureRender_us = 0.0;
-    void drawProfilerOverlay(juce::Graphics& g);
-
-    DebugPlaybackController debugController;
-    bool debugStandalone = false;
-
-    // Debug chart loading
-    TempoTimeSignatureMap debugMidiTempoMap;
-    double debugChartLengthInBeats = 0.0;
-    void loadDebugChart(int index);
-
-    struct DebugChartEntry { const char* data; int size; };
-    static const DebugChartEntry debugChartRegistry[];
+    DebugEditorController debugController;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
@@ -280,8 +254,10 @@ private:
     {
         if (!audioProcessor.debugText.isEmpty())
         {
-            consoleOutput.moveCaretToEnd();
-            consoleOutput.insertTextAtCaret(audioProcessor.debugText);
+#ifdef DEBUG
+            debugController.getConsole().moveCaretToEnd();
+            debugController.getConsole().insertTextAtCaret(audioProcessor.debugText);
+#endif
             audioProcessor.debugText.clear();
         }
     }
