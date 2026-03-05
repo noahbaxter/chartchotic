@@ -261,7 +261,7 @@ namespace PositionConstants
     constexpr float STRIKE_POS_GEM_GUITAR = 0.0f;
     constexpr float STRIKE_POS_BAR_GUITAR = 0.0f;
     constexpr float STRIKE_POS_GEM_DRUMS = -0.020f;
-    constexpr float STRIKE_POS_BAR_DRUMS = -0.002f;
+    constexpr float STRIKE_POS_BAR_DRUMS = -0.020f;
 
     //==============================================================================
     // Perspective Parameters (compile-time constant)
