@@ -42,6 +42,7 @@ public:
         const PositionConstants::NormalizedCoordinates& colCoords,
         float sizeScale, float fretboardScale = 1.0f);
 
+
 private:
     //==============================================================================
     // Core perspective calculation

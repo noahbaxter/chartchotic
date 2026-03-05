@@ -20,6 +20,7 @@ target_sources(bench_rendering PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/NoteRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/SustainRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
     ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp

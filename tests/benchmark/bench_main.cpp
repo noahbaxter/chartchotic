@@ -14,6 +14,7 @@
 
 #include <JuceHeader.h>
 #include "Visual/Renderers/SceneRenderer.h"
+#include "Visual/Renderers/TrackRenderer.h"
 #include "Midi/Processing/MidiInterpreter.h"
 #include "bench_helpers.h"
 
@@ -79,7 +80,7 @@ struct BenchResult
     std::string instrument;
     std::string resolution;
     int width, height, iterations;
-    TimingStats notes, sustains, gridlines, execute, total;
+    TimingStats notes, sustains, gridlines, texture, execute, total;
     std::map<DrawOrder, TimingStats> layers;
 };
 
@@ -104,12 +105,13 @@ void printTable(const std::vector<BenchResult>& results)
                   << std::setw(8) << "Notes"
                   << std::setw(9) << "Sustains"
                   << std::setw(7) << "Grid"
+                  << std::setw(9) << "Texture"
                   << std::setw(9) << "Execute"
                   << std::setw(9) << "Total"
                   << std::setw(9) << "p95"
                   << std::setw(7) << "@60fps"
                   << std::endl;
-        std::cout << std::string(79, '-') << std::endl;
+        std::cout << std::string(88, '-') << std::endl;
 
         std::string lastScenario;
         for (const auto* r : entries)
@@ -125,6 +127,7 @@ void printTable(const std::vector<BenchResult>& results)
                       << std::setw(8) << r->notes.mean
                       << std::setw(9) << r->sustains.mean
                       << std::setw(7) << r->gridlines.mean
+                      << std::setw(9) << r->texture.mean
                       << std::setw(9) << r->execute.mean
                       << std::setw(9) << r->total.mean
                       << std::setw(9) << r->total.p95
@@ -291,6 +294,7 @@ std::string resultsToJson(const std::vector<BenchResult>& results)
         json += "\"notes_mean_us\":" + fmt(r.notes.mean) + ",";
         json += "\"sustains_mean_us\":" + fmt(r.sustains.mean) + ",";
         json += "\"gridlines_mean_us\":" + fmt(r.gridlines.mean) + ",";
+        json += "\"texture_mean_us\":" + fmt(r.texture.mean) + ",";
         json += "\"execute_mean_us\":" + fmt(r.execute.mean) + ",";
         json += "\"total_mean_us\":" + fmt(r.total.mean) + ",";
         json += "\"total_p95_us\":" + fmt(r.total.p95) + ",";
@@ -318,7 +322,8 @@ std::string resultsToJson(const std::vector<BenchResult>& results)
 //==============================================================================
 
 void runInstrument(const char* instrumentName, Part part, int maxColumn, bool noSustains,
-                   juce::ValueTree& state, MidiInterpreter& midiInterpreter, SceneRenderer& renderer,
+                   juce::ValueTree& state, MidiInterpreter& midiInterpreter,
+                   SceneRenderer& renderer, TrackRenderer& trackRenderer,
                    int iterationCount, int warmupCount, double windowStart, double windowEnd,
                    std::vector<BenchResult>& results, int& combo, int totalCombos)
 {
@@ -344,7 +349,16 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
             const auto& sw = scenarioData.sustainWindow;
             const auto& gm = scenarioData.gridlines;
 
-            std::vector<double> notesSamples, sustainsSamples, gridlinesSamples, executeSamples, totalSamples;
+            // Rebuild track geometry for this resolution
+            bool isDrums = (part == Part::DRUMS);
+            float wNear = isDrums ? 0.800f : 0.785f;
+            float wMid  = isDrums ? 0.805f : 0.800f;
+            float wFar  = isDrums ? 0.830f : 0.850f;
+            float fadeEnd = 0.85f, fadeLen = 0.35f, fadeCurve = 1.0f;
+            trackRenderer.rebuild(res.width, res.height, fadeEnd, fadeLen, fadeCurve,
+                                   wNear, wMid, wFar, fadeEnd);
+
+            std::vector<double> notesSamples, sustainsSamples, gridlinesSamples, textureSamples, executeSamples, totalSamples;
             std::map<DrawOrder, std::vector<double>> layerSamples;
 
             // Warmup
@@ -352,6 +366,7 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
             {
                 canvas.clear({0, 0, res.width, res.height});
                 juce::Graphics g(canvas);
+                trackRenderer.paintTexture(g, (float)w * 0.1f);
                 renderer.paint(g, tw, sw, gm, windowStart, windowEnd, false);
             }
 
@@ -359,6 +374,17 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
             {
                 canvas.clear({0, 0, res.width, res.height});
                 juce::Graphics g(canvas);
+
+                // Time texture rendering separately
+                double texUs = 0.0;
+                {
+                    auto t0 = std::chrono::high_resolution_clock::now();
+                    trackRenderer.paintTexture(g, (float)i * 0.02f);
+                    auto t1 = std::chrono::high_resolution_clock::now();
+                    texUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+                }
+                textureSamples.push_back(texUs);
+
                 renderer.paint(g, tw, sw, gm, windowStart, windowEnd, false);
 
                 const auto& pt = renderer.lastPhaseTiming;
@@ -366,7 +392,7 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
                 sustainsSamples.push_back(pt.sustains_us);
                 gridlinesSamples.push_back(pt.gridlines_us);
                 executeSamples.push_back(pt.execute_us);
-                totalSamples.push_back(pt.total_us);
+                totalSamples.push_back(pt.total_us + texUs);
 
                 for (const auto& [layer, us] : pt.layer_us)
                     layerSamples[layer].push_back(us);
@@ -382,6 +408,7 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
             r.notes = computeStats(notesSamples);
             r.sustains = computeStats(sustainsSamples);
             r.gridlines = computeStats(gridlinesSamples);
+            r.texture = computeStats(textureSamples);
             r.execute = computeStats(executeSamples);
             r.total = computeStats(totalSamples);
             for (const auto& [layer, samples] : layerSamples)
@@ -439,6 +466,20 @@ int main(int argc, char* argv[])
     SceneRenderer renderer(state, midiInterpreter);
     renderer.collectPhaseTiming = true;
 
+    TrackRenderer trackRenderer(state);
+
+    // Create a synthetic 256x256 texture for benchmarking
+    juce::Image synthTexture(juce::Image::ARGB, 256, 256, true);
+    {
+        juce::Graphics tg(synthTexture);
+        for (int y = 0; y < 256; y += 8)
+        {
+            tg.setColour(juce::Colour::fromHSV((float)y / 256.0f, 0.6f, 0.8f, 0.5f));
+            tg.fillRect(0, y, 256, 4);
+        }
+    }
+    trackRenderer.setTexture(synthTexture);
+
     double windowStart = 0.0;
     double windowEnd = 1.0;
 
@@ -448,13 +489,13 @@ int main(int argc, char* argv[])
 
     // Guitar: 6 columns (0=open, 1-5=frets), has sustains
     runInstrument("guitar", Part::GUITAR, 5, false,
-                  state, midiInterpreter, renderer,
+                  state, midiInterpreter, renderer, trackRenderer,
                   iterationCount, warmupCount, windowStart, windowEnd,
                   results, combo, totalCombos);
 
     // Drums: 5 columns (0=kick, 1-4=pads), no sustains
     runInstrument("drums", Part::DRUMS, 4, true,
-                  state, midiInterpreter, renderer,
+                  state, midiInterpreter, renderer, trackRenderer,
                   iterationCount, warmupCount, windowStart, windowEnd,
                   results, combo, totalCombos);
 

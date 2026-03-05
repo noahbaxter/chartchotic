@@ -3,11 +3,17 @@
 # Chart Preview - Test Runner
 #
 # Usage:
-#   ./test.sh benchmark                 Build + run rendering benchmark, print table
-#   ./test.sh benchmark --save-baseline Save current results as baseline
-#   ./test.sh benchmark --compare       Compare against saved baseline (20% threshold)
-#   ./test.sh benchmark --json          Output raw JSON instead of table
-#   ./test.sh benchmark --iterations N  Override iteration count (default: 100)
+#   ./test.sh test [unit|integration|compliance] [-v]   Run tests (all by default)
+#   ./test.sh benchmark [options]                        Run rendering benchmark
+#   ./test.sh bench                                      Alias for benchmark
+#   ./test.sh perf                                       Alias for benchmark
+#
+# Benchmark options:
+#   --save-baseline   Save results as the new baseline
+#   --compare         Compare against saved baseline (20% threshold)
+#   --json            Output raw JSON instead of table
+#   --iterations N    Override iteration count (default: 100)
+#   --no-build        Skip build step (use existing binary)
 
 set -e
 
@@ -30,7 +36,14 @@ usage() {
     echo "Usage: ./test.sh <command> [options]"
     echo ""
     echo "Commands:"
+    echo "  test         Run tests (delegates to scripts/test.sh)"
     echo "  benchmark    Build and run the rendering benchmark"
+    echo "  bench        Alias for benchmark"
+    echo "  perf         Alias for benchmark"
+    echo ""
+    echo "Test options:"
+    echo "  unit|integration|compliance   Run specific test type"
+    echo "  -v, --verbose                 Verbose output"
     echo ""
     echo "Benchmark options:"
     echo "  --save-baseline   Save results as the new baseline"
@@ -99,8 +112,9 @@ cmd_benchmark() {
 
 # Main dispatch
 case "${1:-}" in
-    benchmark)  shift; cmd_benchmark "$@" ;;
-    -h|--help)  usage ;;
-    "")         usage ;;
-    *)          echo "Unknown command: $1"; usage ;;
+    test)                                       shift; "$SCRIPT_DIR/scripts/test.sh" "$@" ;;
+    bench|benchmark|perf|performance)           shift; cmd_benchmark "$@" ;;
+    -h|--help)                                  usage ;;
+    "")                                         usage ;;
+    *)                                          echo "Unknown command: $1"; usage ;;
 esac

@@ -181,6 +181,13 @@ private:
     void paintStandardMode(juce::Graphics& g);
     void rebuildFadedTrackImage();
 
+    // Highway texture overlay
+    juce::StringArray highwayTextureNames;
+    juce::File highwayTextureDirectory;
+    void scanHighwayTextures();
+    void loadHighwayTexture(const juce::String& filename);
+    float computeScrollOffset();
+
     float latencyInSeconds = 0.0;
 
     // Resize constraints
@@ -210,6 +217,7 @@ private:
     static constexpr int PROFILER_RING_SIZE = 60;
     double profilerRing[PROFILER_RING_SIZE] = {};
     int profilerRingIndex = 0;
+    double textureRender_us = 0.0;
     void drawProfilerOverlay(juce::Graphics& g);
 
     DebugPlaybackController debugController;

@@ -89,6 +89,9 @@ cmake -B "$BUILD_DIR" -G Xcode \
     -DBUILD_CHANNEL="$BUILD_CHANNEL" \
     -S "$SCRIPT_DIR"
 
+# Ensure user data directories exist
+mkdir -p "$HOME/Library/Application Support/Chart Preview/highways"
+
 # Build targets
 ARTIFACT_DIR="$BUILD_DIR/ChartPreview_artefacts/$BUILD_CONFIG"
 

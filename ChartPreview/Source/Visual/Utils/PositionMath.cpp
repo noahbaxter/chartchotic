@@ -105,6 +105,7 @@ LaneCorners PositionMath::getFretboardEdge(
     return {rect.getX(), rect.getRight(), rect.getCentreY()};
 }
 
+
 LaneCorners PositionMath::getColumnPosition(
     bool isDrums, float position, uint width, uint height,
     float wNear, float wMid, float wFar,

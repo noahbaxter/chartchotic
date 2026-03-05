@@ -154,6 +154,8 @@ void ChartPreviewAudioProcessorEditor::initAssets()
 
     // Load REAPER logo SVG
     reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
+
+    scanHighwayTextures();
 }
 
 void ChartPreviewAudioProcessorEditor::rebuildFadedTrackImage()
@@ -287,6 +289,27 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         repaint();
     };
 
+    toolbar.onHighwayTextureChanged = [this](const juce::String& textureName) {
+        state.setProperty("highwayTexture", textureName, nullptr);
+        if (textureName.isEmpty())
+            trackRenderer.clearTexture();
+        else
+            loadHighwayTexture(textureName);
+        repaint();
+    };
+
+    toolbar.onTextureScaleChanged = [this](float scale) {
+        state.setProperty("textureScale", scale, nullptr);
+        trackRenderer.textureScale = scale;
+        repaint();
+    };
+
+    toolbar.onTextureOpacityChanged = [this](float opacity) {
+        state.setProperty("textureOpacity", opacity, nullptr);
+        trackRenderer.textureOpacity = opacity;
+        repaint();
+    };
+
 #ifdef DEBUG
     auto& dbg = toolbar.getDebugPanel();
 
@@ -362,6 +385,14 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
     // Draw highway (faded track background)
     trackRenderer.paint(g);
+
+    // Draw scrolling highway texture overlay
+    {
+#ifdef DEBUG
+        ScopedPhaseMeasure m(textureRender_us, sceneRenderer.collectPhaseTiming);
+#endif
+        trackRenderer.paintTexture(g, computeScrollOffset());
+    }
 
     // Draw the highway - delegate to mode-specific rendering
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
@@ -602,6 +633,14 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 
 void ChartPreviewAudioProcessorEditor::loadState()
 {
+    // Default to random highway texture if no saved preference (before toolbar reads state)
+    if (!state.hasProperty("highwayTexture") && highwayTextureNames.size() > 0)
+    {
+        auto rng = juce::Random();
+        int idx = rng.nextInt(highwayTextureNames.size());
+        state.setProperty("highwayTexture", highwayTextureNames[idx], nullptr);
+    }
+
     toolbar.loadState();
 
     // Restore render toggle flags (default ON if property missing from saved state)
@@ -613,6 +652,17 @@ void ChartPreviewAudioProcessorEditor::loadState()
     // Restore highway length
     if (state.hasProperty("highwayLength"))
         sceneRenderer.farFadeEnd = juce::jlimit(FAR_FADE_MIN, FAR_FADE_MAX, (float)state["highwayLength"]);
+
+    // Load highway texture
+    juce::String savedTexture = state.getProperty("highwayTexture").toString();
+    if (savedTexture.isNotEmpty() && highwayTextureNames.contains(savedTexture))
+        loadHighwayTexture(savedTexture);
+
+    // Restore texture parameters
+    if (state.hasProperty("textureScale"))
+        trackRenderer.textureScale = (float)state["textureScale"];
+    if (state.hasProperty("textureOpacity"))
+        trackRenderer.textureOpacity = juce::jlimit(0.05f, 1.0f, (float)state["textureOpacity"]);
 
     // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);
@@ -681,6 +731,84 @@ void ChartPreviewAudioProcessorEditor::parentSizeChanged()
     AudioProcessorEditor::parentSizeChanged();
 }
 
+void ChartPreviewAudioProcessorEditor::scanHighwayTextures()
+{
+#if JUCE_MAC
+    highwayTextureDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("Application Support/Chart Preview/highways");
+#elif JUCE_WINDOWS
+    highwayTextureDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("Chart Preview/highways");
+#endif
+
+    highwayTextureNames.clear();
+
+    if (!highwayTextureDirectory.isDirectory())
+        highwayTextureDirectory.createDirectory();
+
+    auto files = highwayTextureDirectory.findChildFiles(juce::File::findFiles, false, "*.png");
+    files.sort();
+    for (auto& f : files)
+        highwayTextureNames.add(f.getFileNameWithoutExtension());
+
+    toolbar.setHighwayTextureList(highwayTextureNames);
+}
+
+void ChartPreviewAudioProcessorEditor::loadHighwayTexture(const juce::String& filename)
+{
+    auto file = highwayTextureDirectory.getChildFile(filename + ".png");
+    if (!file.existsAsFile())
+    {
+        trackRenderer.clearTexture();
+        return;
+    }
+
+    auto img = juce::ImageFileFormat::loadFrom(file);
+    if (img.isValid())
+        trackRenderer.setTexture(img);
+    else
+        trackRenderer.clearTexture();
+}
+
+float ChartPreviewAudioProcessorEditor::computeScrollOffset()
+{
+    // Get current playhead position in PPQ and BPM
+    double ppq = 0.0;
+    double bpm = 120.0;
+
+#ifdef DEBUG
+    if (debugStandalone)
+    {
+        bpm = debugController.getBPM();
+        ppq = debugController.getCurrentPPQ().toDouble();
+    }
+    else
+#endif
+    {
+        if (auto* playHead = audioProcessor.getPlayHead())
+        {
+            auto positionInfo = playHead->getPosition();
+            if (positionInfo.hasValue())
+            {
+                ppq = positionInfo->getPpqPosition().orFallback(0.0);
+                bpm = positionInfo->getBpm().orFallback(120.0);
+            }
+        }
+    }
+
+    // Apply latency offset to match note rendering position
+    int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
+    double latencyOffsetBeats = (latencyOffsetMs / 1000.0) * (bpm / 60.0);
+    ppq -= latencyOffsetBeats;
+
+    double absoluteTime = ppq * (60.0 / bpm);
+
+    // Scroll rate: one full highway length per displayWindowTimeSeconds
+    double scrollRate = 1.0 / displayWindowTimeSeconds;
+    double raw = std::fmod(-absoluteTime * scrollRate, 1.0);
+    return (float)(raw < 0.0 ? raw + 1.0 : raw);
+}
+
 #ifdef DEBUG
 void ChartPreviewAudioProcessorEditor::drawProfilerOverlay(juce::Graphics& g)
 {
@@ -710,6 +838,7 @@ void ChartPreviewAudioProcessorEditor::drawProfilerOverlay(juce::Graphics& g)
          << "Sustain: " << juce::String((int)t.sustains_us) << " us\n"
          << "Grid:    " << juce::String((int)t.gridlines_us) << " us\n"
          << "Anim:    " << juce::String((int)t.animation_us) << " us\n"
+         << "Texture: " << juce::String((int)textureRender_us) << " us\n"
          << "Execute: " << juce::String((int)t.execute_us) << " us\n"
          << "Total:   " << juce::String((int)t.total_us) << " us";
 
@@ -729,9 +858,9 @@ void ChartPreviewAudioProcessorEditor::drawProfilerOverlay(juce::Graphics& g)
 
     g.setFont(juce::Font(12.0f));
     g.setColour(juce::Colours::black.withAlpha(0.6f));
-    g.fillRect(4, 40, 140, 210);
+    g.fillRect(4, 40, 140, 224);
     g.setColour(juce::Colours::white);
-    g.drawFittedText(text, 8, 42, 132, 206, juce::Justification::topLeft, 15);
+    g.drawFittedText(text, 8, 42, 132, 220, juce::Justification::topLeft, 16);
 }
 
 const ChartPreviewAudioProcessorEditor::DebugChartEntry ChartPreviewAudioProcessorEditor::debugChartRegistry[] = {

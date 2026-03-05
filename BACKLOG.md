@@ -38,7 +38,7 @@ Fun stuff first. These are the features that make the plugin better.
 
 Do between features or when touching related code.
 
-12. **Deduplicate perspective math** — ~30 min. `GlyphRenderer::createPerspectiveGlyphRect()` and `PositionMath::createPerspectiveGlyphRect()` are identical. Delete GlyphRenderer's copy, call PositionMath's. Also fix 4 inlined width-scaling copy-pastes in GlyphRenderer → use `applyWidthScaling()`.
+12. ~~**Deduplicate perspective math**~~ — Done. GlyphRenderer deleted, absorbed into NoteRenderer. All perspective math flows through PositionMath.
 13. **NoteStateStore wrapper** — Bigger refactor. `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
 14. **Settings persistence audit** — Verify all options save/restore correctly.
 
@@ -52,7 +52,6 @@ Unordered. Pull into Up Next when the time comes.
 - Info display: BPM, time sig, measure, beat position
 - Better menu system + advanced settings
 - Instrument autodetection (by track name — depends on EVENTS parsing from #7)
-- Highway length control (configurable visible beats)
 - Note color customization (CH color profile templates)
 - GH style gems toggle
 - Star Power rendering (partially working, architectural approach unclear — finish or remove)

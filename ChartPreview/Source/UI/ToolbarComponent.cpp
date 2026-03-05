@@ -131,6 +131,30 @@ void ToolbarComponent::initControls()
             onHighwayTextureChanged(highwayTextureIndex < 0 ? "" : highwayTextureNames[highwayTextureIndex]);
     };
 
+    // Texture scale label
+    textureScaleLabel.setText("  Scale: 100%", juce::dontSendNotification);
+    textureScaleLabel.setJustificationType(juce::Justification::centredLeft);
+    textureScaleLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    textureScaleLabel.setInterceptsMouseClicks(true, true);
+    textureScaleLabel.onScroll = [this](int delta) {
+        int count = (int)std::size(texScaleValues);
+        texScaleIndex = juce::jlimit(0, count - 1, texScaleIndex - delta);
+        int pct = texScaleValues[texScaleIndex];
+        textureScaleLabel.setText("  Scale: " + juce::String(pct) + "%", juce::dontSendNotification);
+        if (onTextureScaleChanged) onTextureScaleChanged(pct / 100.0f);
+    };
+
+    // Texture opacity label
+    textureOpacityLabel.setText("  Opacity: 45%", juce::dontSendNotification);
+    textureOpacityLabel.setJustificationType(juce::Justification::centredLeft);
+    textureOpacityLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    textureOpacityLabel.setInterceptsMouseClicks(true, true);
+    textureOpacityLabel.onScroll = [this](int delta) {
+        textureOpacityPct = juce::jlimit(5, 100, textureOpacityPct - delta * 5);
+        textureOpacityLabel.setText("  Opacity: " + juce::String(textureOpacityPct) + "%", juce::dontSendNotification);
+        if (onTextureOpacityChanged) onTextureOpacityChanged(textureOpacityPct / 100.0f);
+    };
+
     // Gem scale label
     gemScaleLabel.setText("Gem Size: 100%", juce::dontSendNotification);
     gemScaleLabel.setJustificationType(juce::Justification::centredLeft);
@@ -159,9 +183,11 @@ void ToolbarComponent::initControls()
     // Display button
     displayButton.addPanelChild(&redBackgroundToggle);
     displayButton.addPanelChild(&highwayTextureLabel);
+    displayButton.addPanelChild(&textureScaleLabel);
+    displayButton.addPanelChild(&textureOpacityLabel);
     displayButton.addPanelChild(&gemScaleLabel);
     displayButton.addPanelChild(&highwayLengthLabel);
-    displayButton.setPanelSize(160, 120);
+    displayButton.setPanelSize(160, 172);
     displayButton.onLayoutPanel = [this](juce::Component* panel) { layoutDisplayPanel(panel); };
     addAndMakeVisible(displayButton);
 
@@ -318,6 +344,25 @@ void ToolbarComponent::loadState()
         highwayLengthLabel.setText("Hwy Length: " + juce::String(highwayLengthPct) + "%", juce::dontSendNotification);
     }
 
+    // Restore texture scale
+    if (state.hasProperty("textureScale"))
+    {
+        int savedPct = juce::roundToInt((float)state["textureScale"] * 100.0f);
+        texScaleIndex = texScaleDefault;
+        for (int i = 0; i < (int)std::size(texScaleValues); i++)
+        {
+            if (texScaleValues[i] == savedPct) { texScaleIndex = i; break; }
+        }
+        textureScaleLabel.setText("  Scale: " + juce::String(texScaleValues[texScaleIndex]) + "%", juce::dontSendNotification);
+    }
+
+    // Restore texture opacity
+    if (state.hasProperty("textureOpacity"))
+    {
+        textureOpacityPct = juce::jlimit(5, 100, juce::roundToInt((float)state["textureOpacity"] * 100.0f));
+        textureOpacityLabel.setText("  Opacity: " + juce::String(textureOpacityPct) + "%", juce::dontSendNotification);
+    }
+
     // Restore highway texture selection
     juce::String savedTexture = state.getProperty("highwayTexture").toString();
     if (savedTexture.isNotEmpty())
@@ -394,6 +439,12 @@ void ToolbarComponent::layoutDisplayPanel(juce::Component* panel)
     y += rowHeight + gap;
 
     highwayTextureLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    textureScaleLabel.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    textureOpacityLabel.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
 
     gemScaleLabel.setBounds(margin, y, w, rowHeight);
