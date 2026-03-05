@@ -14,6 +14,14 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <map>
+#include <vector>
+#include <functional>
+
+// Windows compatibility
+#if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
+    typedef unsigned int uint;
+#endif
 
 //==============================================================================
 // Opacity & Visual Effects
@@ -34,6 +42,8 @@ constexpr float HIT_FLARE_OPACITY = 0.6f;    // Colored flare overlay opacity
 constexpr double HIT_ANIMATION_DURATION = 0.10;   // Hit flash total duration (seconds)
 constexpr double KICK_ANIMATION_DURATION = 0.15;  // Kick/bar flash total duration (seconds)
 constexpr int HIT_FLARE_MAX_FRAME = 2;            // Show flare for first N frames of hit animation
+constexpr bool SP_WHITE_FLARE_DEFAULT = true;     // Use white flare for star power hits
+constexpr bool TAP_PURPLE_FLARE_DEFAULT = true;   // Use purple flare for tap note hits
 
 // Far-end fade (highway length)
 constexpr float FAR_FADE_DEFAULT = 1.20f;     // Default farFadeEnd (normalized position)
@@ -50,3 +60,27 @@ inline float calculateFarFade(float position, float fadeEnd, float fadeLen, floa
     float t = (position - fadeStart) / fadeLen;
     return 1.0f - std::pow(t, fadeCurve);
 }
+
+//==============================================================================
+// Draw Order & Render Pipeline
+//==============================================================================
+
+enum class DrawOrder
+{
+    BACKGROUND,
+    TRACK,
+    GRID,
+    LANE,
+    TRACK_SIDEBARS,
+    TRACK_LANE_LINES,
+    TRACK_STRIKELINE,
+    BAR,
+    SUSTAIN,
+    NOTE,
+    TRACK_CONNECTORS,
+    OVERLAY,
+    BAR_ANIMATION,
+    NOTE_ANIMATION,
+};
+
+using DrawCallMap = std::map<DrawOrder, std::map<uint, std::vector<std::function<void(juce::Graphics&)>>>>;

@@ -47,27 +47,8 @@ inline bool isBarNote(uint gemColumn, Part part)
 }
 
 //==============================================================================
-// DRAWING
-
-enum class DrawOrder
-{
-    BACKGROUND,
-    TRACK,
-    GRID,
-    LANE,
-    TRACK_SIDEBARS,
-    TRACK_LANE_LINES,
-    TRACK_STRIKELINE,
-    BAR,
-    TRACK_CONNECTORS,
-    BAR_ANIMATION,
-    SUSTAIN,
-    NOTE,
-    OVERLAY,
-    NOTE_ANIMATION
-};
-
-using DrawCallMap = std::map<DrawOrder, std::map<uint, std::vector<std::function<void(juce::Graphics&)>>>>;
+// DRAWING — DrawOrder and DrawCallMap are in Visual/Utils/DrawingConstants.h
+#include "../Visual/Utils/DrawingConstants.h"
 
 //==============================================================================
 // CHART EVENTS
