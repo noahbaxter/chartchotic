@@ -343,6 +343,16 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         rebuildFadedTrackImage();
     };
 
+    dbg.onTileStepChanged = [this](float step) {
+        trackRenderer.tileStep = step;
+        rebuildFadedTrackImage();
+    };
+
+    dbg.onTileScaleStepChanged = [this](float step) {
+        trackRenderer.tileScaleStep = step;
+        rebuildFadedTrackImage();
+    };
+
 #endif
 }
 

@@ -4,6 +4,7 @@
 
 #include <JuceHeader.h>
 #include "../UI/PopupMenuButton.h"
+#include "../UI/SectionHeader.h"
 #include "../Utils/Utils.h"
 #include "../Visual/Renderers/TrackRenderer.h"
 
@@ -23,16 +24,13 @@ public:
     std::function<void(int)> onDebugChartChanged;
     std::function<void(bool)> onDebugConsoleChanged;
     std::function<void(bool)> onProfilerChanged;
-
-    // Track layer tuning: onLayerChanged(layerIndex, scale, xOffset, yOffset)
     std::function<void(int, float, float, float)> onLayerChanged;
+    std::function<void(float)> onTileStepChanged;
+    std::function<void(float)> onTileScaleStepChanged;
 
 private:
     juce::ValueTree& state;
     PopupMenuButton debugButton{"Debug"};
-    juce::ToggleButton debugPlayToggle;
-    juce::ToggleButton debugConsoleToggle;
-    juce::ToggleButton profilerToggle;
 
     class ScrollableLabel : public juce::Label
     {
@@ -45,7 +43,11 @@ private:
         }
     };
 
-    // Chart selector
+    // --- General controls ---
+    juce::ToggleButton debugPlayToggle;
+    juce::ToggleButton debugConsoleToggle;
+    juce::ToggleButton profilerToggle;
+
     static constexpr int CHART_COUNT = 8;
     const juce::String chartNames[CHART_COUNT] = {
         "None", "Test", "Stress", "Sleepy Tea",
@@ -54,7 +56,8 @@ private:
     int chartIndex = 1;
     ScrollableLabel chartSelectLabel;
 
-    // Per-layer tuning (Sidebars, Lane Lines, Strikeline, Connectors/Kick)
+    // --- Layers section ---
+    SectionHeader layersHeader;
     static constexpr int NUM_LAYERS = 4;
     static constexpr const char* layerNames[NUM_LAYERS] = {"Side", "Lane", "Strike", "Conn"};
 
@@ -67,6 +70,15 @@ private:
     ScrollableLabel layerXLabels[NUM_LAYERS];
     ScrollableLabel layerYLabels[NUM_LAYERS];
 
+    // --- Tiling section ---
+    SectionHeader tilingHeader;
+    float tileStepValue = 0.80f;
+    float tileScaleStepValue = 0.50f;
+    ScrollableLabel tileStepLabel;
+    ScrollableLabel tileScaleStepLabel;
+
+    void setupSectionHeader(SectionHeader& header, const juce::String& text);
+    void setupScrollLabel(ScrollableLabel& label);
     void fireLayer(int idx);
     void refreshLabels();
     void layoutPanel(juce::Component* panel);
