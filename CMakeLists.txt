@@ -166,86 +166,103 @@ target_sources(ChartPreview
 )
 
 # Binary data (images + SVG)
+# Generated assets come from assets/generated/<category>/ (via convert_assets.sh)
+# Raster-only assets (no PDF source) come from assets/raster/
+# MIDI test files come from assets/midi/
 juce_add_binary_data(ChartPreviewData
     NAMESPACE BinaryData
     SOURCES
-        ChartPreview/Assets/background.png
-        ChartPreview/Assets/background_red.jpg
-        ChartPreview/Assets/bar_kick.png
-        ChartPreview/Assets/bar_kick_2x.png
-        ChartPreview/Assets/bar_open.png
-        ChartPreview/Assets/bar_white.png
-        ChartPreview/Assets/cym_blue.png
-        ChartPreview/Assets/cym_green.png
-        ChartPreview/Assets/cym_red.png
-        ChartPreview/Assets/cym_white.png
-        ChartPreview/Assets/cym_yellow.png
-        ChartPreview/Assets/hopo_blue.png
-        ChartPreview/Assets/hopo_green.png
-        ChartPreview/Assets/hopo_orange.png
-        ChartPreview/Assets/hopo_red.png
-        ChartPreview/Assets/hopo_white.png
-        ChartPreview/Assets/hopo_yellow.png
-        ChartPreview/Assets/lane_end.png
-        ChartPreview/Assets/lane_mid.png
-        ChartPreview/Assets/lane_start.png
-        ChartPreview/Assets/marker_beat.png
-        ChartPreview/Assets/marker_half_beat.png
-        ChartPreview/Assets/marker_measure.png
-        ChartPreview/Assets/note_blue.png
-        ChartPreview/Assets/note_green.png
-        ChartPreview/Assets/note_orange.png
-        ChartPreview/Assets/note_red.png
-        ChartPreview/Assets/note_white.png
-        ChartPreview/Assets/note_yellow.png
-        ChartPreview/Assets/overlay_cym_accent.png
-        ChartPreview/Assets/overlay_cym_ghost.png
-        ChartPreview/Assets/overlay_cym_ghost_80scale.png
-        ChartPreview/Assets/overlay_note_accent.png
-        ChartPreview/Assets/overlay_note_ghost.png
-        ChartPreview/Assets/overlay_note_tap.png
-        ChartPreview/Assets/sustain_blue.png
-        ChartPreview/Assets/sustain_green.png
-        ChartPreview/Assets/sustain_open.png
-        ChartPreview/Assets/sustain_open_white.png
-        ChartPreview/Assets/sustain_orange.png
-        ChartPreview/Assets/sustain_red.png
-        ChartPreview/Assets/sustain_white.png
-        ChartPreview/Assets/sustain_yellow.png
-        ChartPreview/Assets/track_drum.png
-        ChartPreview/Assets/track_guitar.png
-        ChartPreview/Assets/logo-reaper.svg
-        ChartPreview/Assets/hit_1.png
-        ChartPreview/Assets/hit_2.png
-        ChartPreview/Assets/hit_3.png
-        ChartPreview/Assets/hit_4.png
-        ChartPreview/Assets/hit_5.png
-        ChartPreview/Assets/hit_flare_blue.png
-        ChartPreview/Assets/hit_flare_green.png
-        ChartPreview/Assets/hit_flare_orange.png
-        ChartPreview/Assets/hit_flare_red.png
-        ChartPreview/Assets/hit_flare_yellow.png
-        ChartPreview/Assets/hit_kick_1.png
-        ChartPreview/Assets/hit_kick_2.png
-        ChartPreview/Assets/hit_kick_3.png
-        ChartPreview/Assets/hit_kick_4.png
-        ChartPreview/Assets/hit_kick_5.png
-        ChartPreview/Assets/hit_kick_6.png
-        ChartPreview/Assets/hit_kick_7.png
-        ChartPreview/Assets/hit_open_1.png
-        ChartPreview/Assets/hit_open_2.png
-        ChartPreview/Assets/hit_open_3.png
-        ChartPreview/Assets/hit_open_4.png
-        ChartPreview/Assets/hit_open_5.png
-        ChartPreview/Assets/hit_open_6.png
-        ChartPreview/Assets/hit_open_7.png
-        ChartPreview/Assets/midi/test.mid
-        ChartPreview/Assets/midi/stress.mid
-        ChartPreview/Assets/midi/sleepy_tea.mid
-        ChartPreview/Assets/midi/further_side.mid
-        ChartPreview/Assets/midi/scarlet.mid
-        ChartPreview/Assets/midi/everything_went_black.mid
-        ChartPreview/Assets/midi/akroasis.mid
+        # UI / branding
+        assets/raster/background.png
+        assets/raster/background_red.jpg
+        assets/raster/logo-reaper.svg
+        # Notes (generated from PDFs)
+        assets/generated/notes/note_blue.png
+        assets/generated/notes/note_green.png
+        assets/generated/notes/note_orange.png
+        assets/generated/notes/note_red.png
+        assets/generated/notes/note_white.png
+        assets/generated/notes/note_yellow.png
+        assets/generated/notes/hopo_blue.png
+        assets/generated/notes/hopo_green.png
+        assets/generated/notes/hopo_orange.png
+        assets/generated/notes/hopo_red.png
+        assets/generated/notes/hopo_white.png
+        assets/generated/notes/hopo_yellow.png
+        assets/generated/notes/cym_blue.png
+        assets/generated/notes/cym_green.png
+        assets/generated/notes/cym_red.png
+        assets/generated/notes/cym_white.png
+        assets/generated/notes/cym_yellow.png
+        # Bars (generated from PDFs)
+        assets/generated/bars/bar_kick.png
+        assets/generated/bars/bar_kick_2x.png
+        assets/generated/bars/bar_open.png
+        assets/generated/bars/bar_white.png
+        # Overlays (generated from PDFs + raster-only)
+        assets/generated/overlays/overlay_note_ghost.png
+        assets/generated/overlays/overlay_cym_ghost.png
+        assets/generated/overlays/overlay_note_tap.png
+        assets/raster/overlay_cym_accent.png
+        assets/raster/overlay_cym_ghost_80scale.png
+        assets/raster/overlay_note_accent.png
+        # Sustains (generated from PDFs + raster-only)
+        assets/generated/sustains/sustain_open.png
+        assets/generated/sustains/sustain_open_white.png
+        assets/raster/sustain_blue.png
+        assets/raster/sustain_green.png
+        assets/raster/sustain_orange.png
+        assets/raster/sustain_red.png
+        assets/raster/sustain_white.png
+        assets/raster/sustain_yellow.png
+        # Markers (generated from PDFs)
+        assets/generated/markers/marker_beat.png
+        assets/generated/markers/marker_half_beat.png
+        assets/generated/markers/marker_measure.png
+        # Lanes (generated from PDFs)
+        assets/generated/lanes/lane_end.png
+        assets/generated/lanes/lane_mid.png
+        assets/generated/lanes/lane_start.png
+        # Track backgrounds (raster-only)
+        assets/raster/track_drum.png
+        assets/raster/track_guitar.png
+        # Hit animations — flares (generated from PDFs)
+        assets/generated/hits/hit_flare_blue.png
+        assets/generated/hits/hit_flare_green.png
+        assets/generated/hits/hit_flare_orange.png
+        assets/generated/hits/hit_flare_red.png
+        assets/generated/hits/hit_flare_yellow.png
+        assets/generated/hits/hit_flare_white.png
+        # Hit animations — flash frames (generated from PDFs)
+        assets/generated/hits/hit_flash_1.png
+        assets/generated/hits/hit_flash_2.png
+        assets/generated/hits/hit_flash_3.png
+        assets/generated/hits/hit_flash_4.png
+        assets/generated/hits/hit_flash_5.png
+        # Hit animations — kick frames (raster-only)
+        assets/raster/hit_kick_1.png
+        assets/raster/hit_kick_2.png
+        assets/raster/hit_kick_3.png
+        assets/raster/hit_kick_4.png
+        assets/raster/hit_kick_5.png
+        assets/raster/hit_kick_6.png
+        assets/raster/hit_kick_7.png
+        # Hit animations — open frames (raster-only)
+        assets/raster/hit_open_1.png
+        assets/raster/hit_open_2.png
+        assets/raster/hit_open_3.png
+        assets/raster/hit_open_4.png
+        assets/raster/hit_open_5.png
+        assets/raster/hit_open_6.png
+        assets/raster/hit_open_7.png
+        # MIDI test files
+        assets/midi/test.mid
+        assets/midi/stress.mid
+        assets/midi/sleepy_tea.mid
+        assets/midi/further_side.mid
+        assets/midi/scarlet.mid
+        assets/midi/everything_went_black.mid
+        assets/midi/akroasis.mid
 )
 
 # REAPER SDK header path

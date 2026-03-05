@@ -71,11 +71,11 @@ void AssetManager::initAssets()
     sustainYellowImage = juce::ImageCache::getFromMemory(BinaryData::sustain_yellow_png, BinaryData::sustain_yellow_pngSize);
 
     // Hit animation frames
-    hitAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_1_png, BinaryData::hit_1_pngSize);
-    hitAnimationFrames[1] = juce::ImageCache::getFromMemory(BinaryData::hit_2_png, BinaryData::hit_2_pngSize);
-    hitAnimationFrames[2] = juce::ImageCache::getFromMemory(BinaryData::hit_3_png, BinaryData::hit_3_pngSize);
-    hitAnimationFrames[3] = juce::ImageCache::getFromMemory(BinaryData::hit_4_png, BinaryData::hit_4_pngSize);
-    hitAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_5_png, BinaryData::hit_5_pngSize);
+    hitAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_1_png, BinaryData::hit_flash_1_pngSize);
+    hitAnimationFrames[1] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_2_png, BinaryData::hit_flash_2_pngSize);
+    hitAnimationFrames[2] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_3_png, BinaryData::hit_flash_3_pngSize);
+    hitAnimationFrames[3] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_4_png, BinaryData::hit_flash_4_pngSize);
+    hitAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_5_png, BinaryData::hit_flash_5_pngSize);
 
     // Hit flare images (blue=4, green=1, orange=5, red=2, yellow=3)
     hitFlareImages[0] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_green_png, BinaryData::hit_flare_green_pngSize);
