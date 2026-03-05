@@ -155,6 +155,7 @@ target_sources(ChartPreview
         ChartPreview/Source/UI/ChartPreviewLookAndFeel.cpp
         ChartPreview/Source/UI/ChartPreviewLookAndFeel.h
         ChartPreview/Source/UI/PopupMenuButton.h
+        ChartPreview/Source/UI/SectionHeader.h
         ChartPreview/Source/UI/ToolbarComponent.cpp
         ChartPreview/Source/UI/ToolbarComponent.h
         # Utils
