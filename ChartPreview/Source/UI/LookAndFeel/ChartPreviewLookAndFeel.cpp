@@ -2,16 +2,6 @@
 
 ChartPreviewLookAndFeel::ChartPreviewLookAndFeel()
 {
-    setColour(juce::PopupMenu::backgroundColourId, juce::Colour(Theme::darkBg));
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(Theme::coral));
-    setColour(juce::PopupMenu::textColourId, juce::Colour(Theme::textWhite));
-    setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
-
-    setColour(juce::ComboBox::backgroundColourId, juce::Colour(Theme::darkBg));
-    setColour(juce::ComboBox::textColourId, juce::Colour(Theme::textWhite));
-    setColour(juce::ComboBox::outlineColourId, juce::Colour(Theme::coral));
-    setColour(juce::ComboBox::arrowColourId, juce::Colour(Theme::coral));
-
     setColour(juce::TextEditor::backgroundColourId, juce::Colour(Theme::darkBg));
     setColour(juce::TextEditor::textColourId, juce::Colour(Theme::textWhite));
     setColour(juce::TextEditor::outlineColourId, juce::Colour(Theme::coral));
@@ -29,101 +19,6 @@ ChartPreviewLookAndFeel::ChartPreviewLookAndFeel()
     setColour(juce::TextButton::buttonColourId, juce::Colour(Theme::darkBgLighter));
     setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::textWhite));
     setColour(juce::TextButton::textColourOnId, juce::Colours::white);
-}
-
-//==============================================================================
-// ComboBox
-
-void ChartPreviewLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height,
-                                            bool /*isButtonDown*/,
-                                            int /*buttonX*/, int /*buttonY*/,
-                                            int /*buttonW*/, int /*buttonH*/,
-                                            juce::ComboBox& box)
-{
-    auto bounds = juce::Rectangle<int>(0, 0, width, height).toFloat();
-
-    g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
-    g.fillRoundedRectangle(bounds, Theme::cornerRadius);
-
-    g.setColour(box.findColour(juce::ComboBox::outlineColourId));
-    g.drawRoundedRectangle(bounds.reduced(0.5f), Theme::cornerRadius, 1.0f);
-
-    // Down arrow
-    auto arrowZone = juce::Rectangle<float>(width - 20.0f, 0.0f, 16.0f, (float)height);
-    juce::Path arrow;
-    arrow.addTriangle(arrowZone.getX() + 2.0f, arrowZone.getCentreY() - 3.0f,
-                      arrowZone.getRight() - 2.0f, arrowZone.getCentreY() - 3.0f,
-                      arrowZone.getCentreX(), arrowZone.getCentreY() + 3.0f);
-    g.setColour(box.findColour(juce::ComboBox::arrowColourId));
-    g.fillPath(arrow);
-}
-
-void ChartPreviewLookAndFeel::positionComboBoxText(juce::ComboBox& box, juce::Label& label)
-{
-    label.setBounds(6, 0, box.getWidth() - 24, box.getHeight());
-    label.setFont(getComboBoxFont(box));
-    label.setColour(juce::Label::textColourId, box.findColour(juce::ComboBox::textColourId));
-}
-
-juce::Font ChartPreviewLookAndFeel::getComboBoxFont(juce::ComboBox& box)
-{
-    return Theme::getUIFont(juce::jmin(13.0f, (float)box.getHeight() * 0.8f));
-}
-
-//==============================================================================
-// PopupMenu
-
-void ChartPreviewLookAndFeel::drawPopupMenuBackground(juce::Graphics& g, int width, int height)
-{
-    g.setColour(juce::Colour(Theme::darkBg));
-    g.fillRoundedRectangle(0.0f, 0.0f, (float)width, (float)height, Theme::cornerRadius);
-
-    g.setColour(juce::Colour(Theme::coral).withAlpha(0.5f));
-    g.drawRoundedRectangle(0.5f, 0.5f, (float)width - 1.0f, (float)height - 1.0f,
-                           Theme::cornerRadius, 1.0f);
-}
-
-void ChartPreviewLookAndFeel::drawPopupMenuItem(juce::Graphics& g,
-                                                 const juce::Rectangle<int>& area,
-                                                 bool isSeparator, bool isActive,
-                                                 bool isHighlighted, bool isTicked,
-                                                 bool /*hasSubMenu*/,
-                                                 const juce::String& text,
-                                                 const juce::String& /*shortcutKeyText*/,
-                                                 const juce::Drawable* /*icon*/,
-                                                 const juce::Colour* /*textColour*/)
-{
-    if (isSeparator)
-    {
-        auto r = area.reduced(4, 0);
-        r.removeFromTop(juce::roundToInt(((float)r.getHeight() * 0.5f) - 0.5f));
-        g.setColour(juce::Colour(Theme::darkBgLighter));
-        g.fillRect(r.removeFromTop(1));
-        return;
-    }
-
-    auto r = area.reduced(1);
-
-    if (isHighlighted && isActive)
-    {
-        // Hover state
-        g.setColour(juce::Colour(Theme::coral));
-        g.fillRoundedRectangle(r.toFloat(), 2.0f);
-        g.setColour(juce::Colours::white);
-    }
-    else if (isTicked)
-    {
-        // Selected/current item — subtle fill, no checkmark
-        g.setColour(juce::Colour(Theme::coral).withAlpha(0.2f));
-        g.fillRoundedRectangle(r.toFloat(), 2.0f);
-        g.setColour(juce::Colour(Theme::coral));
-    }
-    else
-    {
-        g.setColour(isActive ? juce::Colour(Theme::textWhite) : juce::Colour(Theme::textDim));
-    }
-
-    g.drawFittedText(text, r.reduced(8, 0), juce::Justification::centredLeft, 1);
 }
 
 //==============================================================================

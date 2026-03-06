@@ -34,7 +34,8 @@ Small scope. UI cleanup and verification before tagging stable.
 3. **Window sizing persistence** — Save/restore on REAPER restart.
 4. **Final user testing pass** — Verify note speed feel, latency offset UX.
 5. **Pre-release defaults audit** — Set highway texture to "None", verify all stepper/toggle defaults match intended release values. (grep for `TODO_RELEASE_DEFAULT` markers)
-6. **Toolbar interaction model polish** — Click-open vs hover-open has some wackiness: toggle glow transfer between buttons, hover dismiss timing, edge cases when mixing click-lock and hover modes across CircleIconSelector + PopupMenuButton. Needs hands-on testing pass.
+6. ~~**Toolbar interaction model polish**~~ — Done: member registry, scoped hover suppression, polling timers, click-lock upgrade.
+7. **Use SegmentedButtons for HOPO thresholds** — `SegmentedButtons.h` exists but is unused. HOPO stepper would be cleaner as segmented buttons. Look for other candidates too.
 
 ---
 
