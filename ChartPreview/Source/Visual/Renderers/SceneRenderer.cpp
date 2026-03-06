@@ -23,6 +23,7 @@ SceneRenderer::SceneRenderer(juce::ValueTree &state, MidiInterpreter &midiInterp
 	  gridlineRenderer(state, assetManager),
 	  animationRenderer(state, midiInterpreter, assetManager)
 {
+    std::copy_n(PositionConstants::OVERLAY_DEFAULTS, PositionConstants::NUM_OVERLAY_TYPES, overlayAdjusts);
 }
 
 SceneRenderer::~SceneRenderer()
@@ -86,6 +87,7 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     noteRenderer.gemCymScale = gemCymScale;
     noteRenderer.gemCymBaseScale = gemCymBaseScale;
     noteRenderer.gemSpScale = gemSpScale;
+    std::copy_n(overlayAdjusts, PositionConstants::NUM_OVERLAY_TYPES, noteRenderer.overlayAdjusts);
     for (int i = 0; i < 5; i++)
         noteRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
     for (int i = 0; i < 6; i++) {

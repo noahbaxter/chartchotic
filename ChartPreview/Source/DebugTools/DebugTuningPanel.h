@@ -94,6 +94,9 @@ public:
     float drumXOff[5]    = {0.0f, 2.5f, -0.5f, 0.5f, -2.5f};
     float drumXOff2[5]   = {0.0f, 1.0f, -0.5f, 0.5f, -1.0f};
 
+    // Overlay adjustments (mutable, for real-time tuning)
+    PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
+
     // Per-lane coordinates (mutable copies of BezierLaneCoords)
     static constexpr int GUITAR_LANES = 6;
     static constexpr int DRUM_LANES = 5;
@@ -213,6 +216,17 @@ private:
     ScrollableLabel dLaneX2Labels[DRUM_LANES];
     ScrollableLabel dLaneWLabels[DRUM_LANES];
     ScrollableLabel dLaneW2Labels[DRUM_LANES];
+
+    // --- Overlay Adjust section ---
+    SectionHeader overlayAdjustHeader;
+    static constexpr int NUM_OVERLAY_TYPES = PositionConstants::NUM_OVERLAY_TYPES;
+    static constexpr int OVERLAY_PARAMS = 5;
+    static constexpr const char* overlayRowNames[NUM_OVERLAY_TYPES] = {"GTap", "DGho", "DAcc", "CGho", "CAcc"};
+    static constexpr const char* overlayColNames[OVERLAY_PARAMS] = {"X", "Y", "W", "H", "S"};
+    juce::Label overlayColHeaderLabels[OVERLAY_PARAMS];
+    juce::Label overlayRowNameLabels[NUM_OVERLAY_TYPES];
+    ScrollableLabel overlayParamLabels[NUM_OVERLAY_TYPES][OVERLAY_PARAMS];
+    void refreshOverlayLabels();
 
     void refreshLaneLabels();
     void fireLaneChanged();

@@ -116,8 +116,33 @@ namespace PositionConstants
     constexpr float LANE_END_OFFSET = -0.010f;
 
     //==============================================================================
-    // Special Visual Scales
-    constexpr float DRUM_ACCENT_OVERLAY_SCALE = 1.1232876712f;  // Drum accent overlay base scale
+    // Overlay adjustment params (per overlay type)
+    struct OverlayAdjust
+    {
+        float offsetX = 0.0f;   // X offset (fraction of width)
+        float offsetY = 0.0f;   // Y offset (fraction of height)
+        float scaleX  = 1.0f;   // Horizontal scale
+        float scaleY  = 1.0f;   // Vertical scale
+        float scale   = 1.0f;   // Uniform scale (stacks with scaleX/scaleY)
+    };
+
+    enum OverlayType
+    {
+        OVERLAY_GUITAR_TAP = 0,
+        OVERLAY_DRUM_NOTE_GHOST,
+        OVERLAY_DRUM_NOTE_ACCENT,
+        OVERLAY_DRUM_CYM_GHOST,
+        OVERLAY_DRUM_CYM_ACCENT,
+        NUM_OVERLAY_TYPES
+    };
+
+    constexpr OverlayAdjust OVERLAY_DEFAULTS[NUM_OVERLAY_TYPES] = {
+        { 0.0f, -0.04f, 1.0f, 1.0f, 0.78f },                   // GUITAR_TAP
+        { 0.0f, -0.04f, 1.0f, 1.0f, 0.72f },                   // DRUM_NOTE_GHOST
+        { 0.0f, 0.0f, 1.0f, 1.0f, 1.1232876712f * GEM_SIZE },  // DRUM_NOTE_ACCENT
+        { 0.0f, -0.04f, 1.0f, 1.0f, 0.72f },                   // DRUM_CYM_GHOST
+        { 0.0f, 0.0f, 1.0f, 1.0f, 1.1232876712f * GEM_SIZE },  // DRUM_CYM_ACCENT
+    };
 
     //==============================================================================
     // Lane Counts

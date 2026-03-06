@@ -45,6 +45,7 @@ public:
     float gemCymScale = PositionConstants::GEM_CYM_SCALE;
     float gemCymBaseScale = PositionConstants::GEM_CYM_BASE_SCALE;
     float gemSpScale = PositionConstants::GEM_SP_SCALE;
+    PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
     float drumColZOffsets[5] = {};
     float guitarColXOffsets[6] = {};
     float guitarColXOffsets2[6] = {};
@@ -94,7 +95,8 @@ private:
     void drawGem(uint gemColumn, const GemWrapper& gemWrapper, float position, double frameTime);
 
     // Overlay positioning (absorbed from GlyphRenderer)
-    static juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect, bool isDrumAccent);
+    static juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect,
+                                                       const PositionConstants::OverlayAdjust& adj);
 
     // Curved note image cache
     struct CurvedImageEntry

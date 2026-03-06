@@ -89,6 +89,9 @@ class SceneRenderer
         float gemCymBaseScale = PositionConstants::GEM_CYM_BASE_SCALE;
         float gemSpScale = PositionConstants::GEM_SP_SCALE;
 
+        // Overlay adjustments
+        PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
+
         // Per-instrument Z offsets (guitar)
         float gridZOffsetGuitar = PositionConstants::GRID_Z_GUITAR;
         float gemZOffsetGuitar = PositionConstants::GEM_Z_GUITAR;

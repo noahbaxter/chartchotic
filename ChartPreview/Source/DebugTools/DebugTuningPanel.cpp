@@ -429,6 +429,49 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         };
     }
 
+    // --- Overlay Adjust section ---
+    setupSectionHeader(overlayAdjustHeader, "Overlay Adjust");
+    std::copy_n(PositionConstants::OVERLAY_DEFAULTS, NUM_OVERLAY_TYPES, overlayAdjusts);
+
+    for (int c = 0; c < OVERLAY_PARAMS; c++)
+    {
+        overlayColHeaderLabels[c].setText(overlayColNames[c], juce::dontSendNotification);
+        overlayColHeaderLabels[c].setJustificationType(juce::Justification::centred);
+        overlayColHeaderLabels[c].setColour(juce::Label::textColourId, juce::Colours::grey);
+        overlayColHeaderLabels[c].setFont(juce::Font(10.0f));
+    }
+
+    for (int r = 0; r < NUM_OVERLAY_TYPES; r++)
+    {
+        overlayRowNameLabels[r].setText(overlayRowNames[r], juce::dontSendNotification);
+        overlayRowNameLabels[r].setJustificationType(juce::Justification::centredLeft);
+        overlayRowNameLabels[r].setColour(juce::Label::textColourId, juce::Colours::white);
+        overlayRowNameLabels[r].setFont(juce::Font(10.0f));
+
+        for (int c = 0; c < OVERLAY_PARAMS; c++)
+        {
+            setupScrollLabel(overlayParamLabels[r][c]);
+            overlayParamLabels[r][c].setFont(juce::Font(10.0f));
+            overlayParamLabels[r][c].setJustificationType(juce::Justification::centred);
+            overlayParamLabels[r][c].onScroll = [this, r, c](int delta) {
+                float step = (c < 2) ? 0.01f : 0.01f;  // offset vs scale step
+                float lo = (c < 2) ? -1.0f : 0.10f;
+                float hi = (c < 2) ?  1.0f : 3.00f;
+                float* val = nullptr;
+                switch (c) {
+                case 0: val = &overlayAdjusts[r].offsetX; break;
+                case 1: val = &overlayAdjusts[r].offsetY; break;
+                case 2: val = &overlayAdjusts[r].scaleX; break;
+                case 3: val = &overlayAdjusts[r].scaleY; break;
+                case 4: val = &overlayAdjusts[r].scale; break;
+                }
+                *val = juce::jlimit(lo, hi, *val + delta * step);
+                overlayParamLabels[r][c].setText(juce::String(*val, 2), juce::dontSendNotification);
+                fireChanged();
+            };
+        }
+    }
+
     refreshLabels();
     refreshLayerLabels();
     refreshLaneLabels();
@@ -532,7 +575,17 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         tuningButton.addPanelChild(&dLaneW2Labels[i]);
     }
 
-    tuningButton.setPanelSize(170, 200);
+    tuningButton.addPanelChild(&overlayAdjustHeader);
+    for (int c = 0; c < OVERLAY_PARAMS; c++)
+        tuningButton.addPanelChild(&overlayColHeaderLabels[c]);
+    for (int r = 0; r < NUM_OVERLAY_TYPES; r++)
+    {
+        tuningButton.addPanelChild(&overlayRowNameLabels[r]);
+        for (int c = 0; c < OVERLAY_PARAMS; c++)
+            tuningButton.addPanelChild(&overlayParamLabels[r][c]);
+    }
+
+    tuningButton.setPanelSize(200, 200);
     tuningButton.onLayoutPanel = [this](juce::Component* panel) { layoutPanel(panel); };
 }
 
@@ -597,6 +650,7 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
 
     std::copy_n(guitarLaneCoords, GUITAR_LANES, sr.guitarLaneCoordsLocal);
     std::copy_n(drumLaneCoords, DRUM_LANES, sr.drumLaneCoordsLocal);
+    std::copy_n(overlayAdjusts, NUM_OVERLAY_TYPES, sr.overlayAdjusts);
 }
 
 void DebugTuningPanel::initDefaults(const TrackRenderer& trackRenderer)
@@ -723,6 +777,21 @@ void DebugTuningPanel::refreshLabels()
     for (int i = 0; i < 5; i++) {
         drumXOffLabels[i].setText(juce::String(drumXOffNames[i]) + " X1:" + juce::String(drumXOff[i], 1), juce::dontSendNotification);
         drumXOff2Labels[i].setText(juce::String(drumXOffNames[i]) + " X2:" + juce::String(drumXOff2[i], 1), juce::dontSendNotification);
+    }
+
+    refreshOverlayLabels();
+}
+
+void DebugTuningPanel::refreshOverlayLabels()
+{
+    for (int r = 0; r < NUM_OVERLAY_TYPES; r++)
+    {
+        const float vals[OVERLAY_PARAMS] = {
+            overlayAdjusts[r].offsetX, overlayAdjusts[r].offsetY,
+            overlayAdjusts[r].scaleX, overlayAdjusts[r].scaleY, overlayAdjusts[r].scale
+        };
+        for (int c = 0; c < OVERLAY_PARAMS; c++)
+            overlayParamLabels[r][c].setText(juce::String(vals[c], 2), juce::dontSendNotification);
     }
 }
 
@@ -907,6 +976,49 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         layoutRow(dLaneWLabels[i], drumLanesHeader.expanded);
         layoutRow(dLaneW2Labels[i], drumLanesHeader.expanded);
         if (drumLanesHeader.expanded) y += headerGap;
+    }
+    y += headerGap;
+
+    // Overlay Adjust (table layout)
+    overlayAdjustHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+
+    if (overlayAdjustHeader.expanded)
+    {
+        const int nameW = 34;
+        const int cellW = (w - nameW) / OVERLAY_PARAMS;
+
+        // Column headers
+        for (int c = 0; c < OVERLAY_PARAMS; c++)
+        {
+            overlayColHeaderLabels[c].setVisible(true);
+            overlayColHeaderLabels[c].setBounds(margin + nameW + c * cellW, y, cellW, rowHeight);
+        }
+        y += rowHeight + gap;
+
+        // Rows
+        for (int r = 0; r < NUM_OVERLAY_TYPES; r++)
+        {
+            overlayRowNameLabels[r].setVisible(true);
+            overlayRowNameLabels[r].setBounds(margin, y, nameW, rowHeight);
+            for (int c = 0; c < OVERLAY_PARAMS; c++)
+            {
+                overlayParamLabels[r][c].setVisible(true);
+                overlayParamLabels[r][c].setBounds(margin + nameW + c * cellW, y, cellW, rowHeight);
+            }
+            y += rowHeight + gap;
+        }
+    }
+    else
+    {
+        for (int c = 0; c < OVERLAY_PARAMS; c++)
+            overlayColHeaderLabels[c].setVisible(false);
+        for (int r = 0; r < NUM_OVERLAY_TYPES; r++)
+        {
+            overlayRowNameLabels[r].setVisible(false);
+            for (int c = 0; c < OVERLAY_PARAMS; c++)
+                overlayParamLabels[r][c].setVisible(false);
+        }
     }
 
     panel->setSize(panel->getWidth(), y + margin);

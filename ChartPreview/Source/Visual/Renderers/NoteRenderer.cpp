@@ -16,6 +16,7 @@ using namespace PositionConstants;
 NoteRenderer::NoteRenderer(juce::ValueTree& state, AssetManager& assetManager)
     : state(state), assetManager(assetManager)
 {
+    std::copy_n(OVERLAY_DEFAULTS, NUM_OVERLAY_TYPES, overlayAdjusts);
 }
 
 void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,
@@ -280,8 +281,17 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     juce::Image* overlayImage = assetManager.getOverlayImage(gemWrapper.gem, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS);
     if (overlayImage != nullptr)
     {
-        bool isDrumAccent = isDrums && (gemWrapper.gem == Gem::TAP_ACCENT || gemWrapper.gem == Gem::CYM_ACCENT);
-        juce::Rectangle<float> overlayRect = getOverlayGlyphRect(glyphRect, isDrumAccent);
+        const auto& overlayAdj = [&]() -> const OverlayAdjust& {
+            if (!isDrums) return overlayAdjusts[OVERLAY_GUITAR_TAP];
+            switch (gemWrapper.gem) {
+            case Gem::HOPO_GHOST: return overlayAdjusts[OVERLAY_DRUM_NOTE_GHOST];
+            case Gem::TAP_ACCENT: return overlayAdjusts[OVERLAY_DRUM_NOTE_ACCENT];
+            case Gem::CYM_GHOST:  return overlayAdjusts[OVERLAY_DRUM_CYM_GHOST];
+            case Gem::CYM_ACCENT: return overlayAdjusts[OVERLAY_DRUM_CYM_ACCENT];
+            default: { static const OverlayAdjust none; return none; }
+            }
+        }();
+        juce::Rectangle<float> overlayRect = getOverlayGlyphRect(glyphRect, overlayAdj);
 
         if (curvature != 0.0f)
         {
@@ -297,6 +307,8 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
             auto curvedOverlayRect = juce::Rectangle<float>(overlayRect.getX(), curvedY,
                                                              overlayRect.getWidth(), curvedH);
             curvedOverlayRect = scaleRect(curvedOverlayRect, oWScale, oHScale, zOff);
+            curvedOverlayRect.translate(overlayAdj.offsetX * curvedOverlayRect.getWidth(),
+                                        overlayAdj.offsetY * curvedOverlayRect.getHeight());
 
             (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([curvedOverlayPtr, opacity, curvedOverlayRect](juce::Graphics& g) {
                 g.setOpacity(opacity);
@@ -306,6 +318,8 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         else
         {
             auto drawRect = scaleRect(overlayRect, oWScale, oHScale, zOff);
+            drawRect.translate(overlayAdj.offsetX * drawRect.getWidth(),
+                               overlayAdj.offsetY * drawRect.getHeight());
 
             (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([=](juce::Graphics& g) {
                 g.setOpacity(opacity);
@@ -445,21 +459,18 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     return insertIt->second;
 }
 
-juce::Rectangle<float> NoteRenderer::getOverlayGlyphRect(juce::Rectangle<float> glyphRect, bool isDrumAccent)
+juce::Rectangle<float> NoteRenderer::getOverlayGlyphRect(juce::Rectangle<float> glyphRect, const OverlayAdjust& adj)
 {
-    if (isDrumAccent)
-    {
-        float scaleFactor = DRUM_ACCENT_OVERLAY_SCALE * GEM_SIZE;
-        float newWidth = glyphRect.getWidth() * scaleFactor;
-        float newHeight = glyphRect.getHeight() * scaleFactor;
-        float widthIncrease = newWidth - glyphRect.getWidth();
-        float heightIncrease = newHeight - glyphRect.getHeight();
+    float sx = adj.scaleX * adj.scale;
+    float sy = adj.scaleY * adj.scale;
 
-        float xPos = glyphRect.getX() - widthIncrease / 2;
-        float yPos = glyphRect.getY() - heightIncrease / 2;
+    if (std::abs(sx - 1.0f) < 0.0001f && std::abs(sy - 1.0f) < 0.0001f)
+        return glyphRect;
 
-        return juce::Rectangle<float>(xPos, yPos, newWidth, newHeight);
-    }
-
-    return glyphRect;
+    // Center-scale only — offsets are applied after curvature/scaleRect
+    float cx = glyphRect.getCentreX();
+    float cy = glyphRect.getCentreY();
+    float newW = glyphRect.getWidth() * sx;
+    float newH = glyphRect.getHeight() * sy;
+    return juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
 }
