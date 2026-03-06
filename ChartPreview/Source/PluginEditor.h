@@ -121,15 +121,28 @@ private:
 
     struct ClickableLabel : public juce::Label
     {
+        std::function<bool()> isClickable;
         std::function<void()> onClick;
-        void mouseDown(const juce::MouseEvent&) override { if (onClick) onClick(); }
+        juce::Colour normalColour, hoverColour;
+
+        void mouseDown(const juce::MouseEvent&) override
+        {
+            if (isClickable && isClickable() && onClick) onClick();
+        }
         void mouseEnter(const juce::MouseEvent&) override
         {
-            if (onClick) setMouseCursor(juce::MouseCursor::PointingHandCursor);
+            if (isClickable && isClickable())
+            {
+                setMouseCursor(juce::MouseCursor::PointingHandCursor);
+                setColour(juce::Label::textColourId, hoverColour);
+                repaint();
+            }
         }
         void mouseExit(const juce::MouseEvent&) override
         {
             setMouseCursor(juce::MouseCursor::NormalCursor);
+            setColour(juce::Label::textColourId, normalColour);
+            repaint();
         }
     };
     ClickableLabel versionLabel;

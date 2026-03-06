@@ -8,7 +8,6 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include "UpdateChecker.h"
 
 // CI injects CHARTPREVIEW_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
@@ -56,6 +55,7 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     addAndMakeVisible(toolbar);
 
     loadState();
+    resized();
 
     vblankAttachment = juce::VBlankAttachment(this, [this]() { onFrame(); });
 }
@@ -325,24 +325,23 @@ void ChartPreviewAudioProcessorEditor::initBottomBar()
     // Version label (clickable when update available)
     versionLabel.setText(juce::String("v") + CHART_PREVIEW_VERSION, juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
-    versionLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.6f));
+    versionLabel.normalColour = juce::Colours::white.withAlpha(0.6f);
+    versionLabel.hoverColour = juce::Colour(Theme::orange);
+    versionLabel.setColour(juce::Label::textColourId, versionLabel.normalColour);
+    versionLabel.isClickable = [this]() { return updateBanner.hasUpdate(); };
+    versionLabel.onClick = [this]() { updateBanner.showPrompt(); };
     addAndMakeVisible(versionLabel);
 
     // Update checker
     addAndMakeVisible(updateBanner);
-
-    versionLabel.onClick = [this]()
-    {
-        if (updateBanner.hasUpdate())
-            updateBanner.showPrompt();
-    };
 
     updateChecker.onUpdateCheckComplete = [this](const UpdateChecker::UpdateInfo& info)
     {
         if (info.available)
         {
             updateBanner.setUpdateInfo(info.version, info.downloadUrl);
-            versionLabel.setColour(juce::Label::textColourId, juce::Colour(Theme::orange).withAlpha(0.8f));
+            versionLabel.normalColour = juce::Colours::white.withAlpha(0.8f);
+            versionLabel.setColour(juce::Label::textColourId, versionLabel.normalColour);
             resized();
         }
     };
@@ -357,12 +356,14 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     // Visual feedback for REAPER connection status
     if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
     {
-        // Draw REAPER logo in bottom left corner
+        // Draw REAPER logo in bottom left corner — scaled with editor
         if (reaperLogo)
         {
-            const int logoSize = 24;
-            const int margin = 10;
-            juce::Rectangle<float> logoBounds(margin, getHeight() - logoSize - margin, logoSize, logoSize);
+            float s = (float)getHeight() / (float)defaultHeight;
+            int logoSize = juce::roundToInt(24.0f * s);
+            int logoMargin = juce::roundToInt(10.0f * s);
+            juce::Rectangle<float> logoBounds((float)logoMargin, (float)(getHeight() - logoSize - logoMargin),
+                                              (float)logoSize, (float)logoSize);
             reaperLogo->drawWithin(g, logoBounds, juce::RectanglePlacement::centred, 0.8f);
         }
     }
@@ -577,29 +578,32 @@ void ChartPreviewAudioProcessorEditor::resized()
     int tbHeight = juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio);
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Version label + update badge (bottom-left) — scales with editor
-    float scale = (float)getHeight() / (float)defaultHeight;
-    float versionFontSize = 13.0f * scale;
-    versionLabel.setFont(Theme::getUIFont(versionFontSize));
+    // Version label + update badge (bottom-left) — same scale as toolbar
+    float s = (float)tbHeight / (float)ToolbarComponent::referenceHeight;
 
-    int versionHeight = juce::roundToInt(20.0f * scale);
-    int bottomMargin = juce::roundToInt(10.0f * scale);
-    int logoOffset = juce::roundToInt(45.0f * scale);
-    int versionY = getHeight() - versionHeight - bottomMargin;
+    int barH = juce::roundToInt(20.0f * s);
+    int barMargin = juce::roundToInt(10.0f * s);
+    int barY = getHeight() - barH - barMargin;
+
+    // Font: use toolbar's font sizing approach
+    float fontSize = Theme::fontSize * s;
+    versionLabel.setFont(Theme::getUIFont(fontSize));
+
+    // Start after REAPER logo area
+    int logoArea = juce::roundToInt(40.0f * s);
+    int gap = juce::roundToInt(5.0f * s);
+    int x = logoArea;
 
     // Badge to the LEFT of the version label
-    int badgeSize = versionHeight;
-    int gap = juce::roundToInt(4.0f * scale);
-    int x = logoOffset;
-
     if (updateBanner.hasUpdate())
     {
-        updateBanner.setBounds(x, versionY, badgeSize, badgeSize);
+        int badgeSize = barH;
+        updateBanner.setBounds(x, barY, badgeSize, badgeSize);
         x += badgeSize + gap;
     }
 
-    int versionWidth = (int)versionLabel.getFont().getStringWidthFloat(versionLabel.getText()) + juce::roundToInt(8.0f * scale);
-    versionLabel.setBounds(x, versionY, versionWidth, versionHeight);
+    int versionWidth = (int)versionLabel.getFont().getStringWidthFloat(versionLabel.getText()) + juce::roundToInt(12.0f * s);
+    versionLabel.setBounds(x, barY, versionWidth, barH);
 
     #ifdef DEBUG
     int stripH = toolbar.getStripHeight();

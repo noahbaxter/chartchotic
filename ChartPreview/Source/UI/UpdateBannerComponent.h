@@ -10,6 +10,7 @@ public:
     UpdateBannerComponent()
     {
         badge.onClick = [this]() { showPrompt(); };
+        badge.pulsePhasePtr = &pulsePhase;
         badge.setVisible(false);
         addAndMakeVisible(badge);
     }
@@ -34,15 +35,15 @@ public:
 
         auto* overlay = new OverlayComponent();
         overlay->setVersion(updateVersion);
-        overlay->onDownload = [this, overlay]()
+        auto urlCopy = downloadUrl.isNotEmpty() ? downloadUrl
+            : juce::String("https://github.com/noahbaxter/chart-preview/releases");
+        overlay->onDownload = [overlay, urlCopy]()
         {
-            auto url = downloadUrl.isNotEmpty() ? downloadUrl
-                : juce::String("https://github.com/noahbaxter/chart-preview/releases");
             // Defer deletion — button is a child of overlay, can't delete mid-callback
-            juce::MessageManager::callAsync([overlay, url]()
+            juce::MessageManager::callAsync([overlay, urlCopy]()
             {
                 delete overlay;
-                juce::URL(url).launchInDefaultBrowser();
+                juce::URL(urlCopy).launchInDefaultBrowser();
             });
         };
         overlay->onDismiss = [overlay]()
@@ -57,11 +58,6 @@ public:
     void resized() override
     {
         badge.setBounds(getLocalBounds());
-    }
-
-    void parentHierarchyChanged() override
-    {
-        badge.pulsePhasePtr = &pulsePhase;
     }
 
 private:
