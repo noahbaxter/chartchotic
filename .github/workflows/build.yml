@@ -25,6 +25,8 @@ on:
         required: false
       APPLE_APP_PASSWORD:
         required: false
+      SUBMODULE_PAT:
+        required: false
 
 jobs:
   build-windows:
@@ -35,6 +37,7 @@ jobs:
       with:
         lfs: true
         submodules: recursive
+        token: ${{ secrets.SUBMODULE_PAT }}
 
     - name: Setup REAPER SDK headers
       shell: cmd
@@ -80,6 +83,7 @@ jobs:
       with:
         lfs: true
         submodules: recursive
+        token: ${{ secrets.SUBMODULE_PAT }}
 
     - name: Check signing secrets
       id: signing
@@ -260,6 +264,7 @@ jobs:
       with:
         lfs: true
         submodules: recursive
+        token: ${{ secrets.SUBMODULE_PAT }}
 
     - name: Install system dependencies
       run: |
