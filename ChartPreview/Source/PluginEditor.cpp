@@ -322,21 +322,27 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 
 void ChartPreviewAudioProcessorEditor::initBottomBar()
 {
-    // Version label
+    // Version label (clickable when update available)
     versionLabel.setText(juce::String("v") + CHART_PREVIEW_VERSION, juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.6f));
-    versionLabel.setFont(juce::Font(10.0f));
     addAndMakeVisible(versionLabel);
 
     // Update checker
     addAndMakeVisible(updateBanner);
+
+    versionLabel.onClick = [this]()
+    {
+        if (updateBanner.hasUpdate())
+            updateBanner.showPrompt();
+    };
 
     updateChecker.onUpdateCheckComplete = [this](const UpdateChecker::UpdateInfo& info)
     {
         if (info.available)
         {
             updateBanner.setUpdateInfo(info.version, info.downloadUrl);
+            versionLabel.setColour(juce::Label::textColourId, juce::Colour(Theme::orange).withAlpha(0.8f));
             resized();
         }
     };
@@ -571,15 +577,29 @@ void ChartPreviewAudioProcessorEditor::resized()
     int tbHeight = juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio);
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Version label (bottom-left, next to REAPER logo)
-    const int versionWidth = 250;
-    const int versionHeight = 15;
-    int versionY = getHeight() - versionHeight - 12;
-    versionLabel.setBounds(45, versionY, versionWidth, versionHeight);
+    // Version label + update badge (bottom-left) — scales with editor
+    float scale = (float)getHeight() / (float)defaultHeight;
+    float versionFontSize = 13.0f * scale;
+    versionLabel.setFont(Theme::getUIFont(versionFontSize));
 
-    // Update badge (next to version label)
-    int badgeX = 45 + (int)versionLabel.getFont().getStringWidthFloat(versionLabel.getText()) + 6;
-    updateBanner.setBounds(badgeX, versionY, versionHeight, versionHeight);
+    int versionHeight = juce::roundToInt(20.0f * scale);
+    int bottomMargin = juce::roundToInt(10.0f * scale);
+    int logoOffset = juce::roundToInt(45.0f * scale);
+    int versionY = getHeight() - versionHeight - bottomMargin;
+
+    // Badge to the LEFT of the version label
+    int badgeSize = versionHeight;
+    int gap = juce::roundToInt(4.0f * scale);
+    int x = logoOffset;
+
+    if (updateBanner.hasUpdate())
+    {
+        updateBanner.setBounds(x, versionY, badgeSize, badgeSize);
+        x += badgeSize + gap;
+    }
+
+    int versionWidth = (int)versionLabel.getFont().getStringWidthFloat(versionLabel.getText()) + juce::roundToInt(8.0f * scale);
+    versionLabel.setBounds(x, versionY, versionWidth, versionHeight);
 
     #ifdef DEBUG
     int stripH = toolbar.getStripHeight();

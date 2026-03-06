@@ -119,7 +119,20 @@ private:
     void scanBackgrounds();
     void loadBackground(const juce::String& filename);
 
-    juce::Label versionLabel;
+    struct ClickableLabel : public juce::Label
+    {
+        std::function<void()> onClick;
+        void mouseDown(const juce::MouseEvent&) override { if (onClick) onClick(); }
+        void mouseEnter(const juce::MouseEvent&) override
+        {
+            if (onClick) setMouseCursor(juce::MouseCursor::PointingHandCursor);
+        }
+        void mouseExit(const juce::MouseEvent&) override
+        {
+            setMouseCursor(juce::MouseCursor::NormalCursor);
+        }
+    };
+    ClickableLabel versionLabel;
 
     UpdateChecker updateChecker;
     UpdateBannerComponent updateBanner;

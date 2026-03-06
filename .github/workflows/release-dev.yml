@@ -85,3 +85,15 @@ jobs:
           release/ChartPreview-Windows.zip \
           release/ChartPreview-macOS.zip \
           release/ChartPreview-Linux.zip
+
+    - name: Upload to R2 CDN
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        AWS_ENDPOINT_URL: https://ee4f7641599153d817b6bddbea5483e7.r2.cloudflarestorage.com
+      run: |
+        VERSION="${{ needs.version.outputs.version_string }}"
+        for platform in Windows macOS Linux; do
+          aws s3 cp "release/ChartPreview-${platform}.zip" "s3://vst-chartchotic/dev/${VERSION}/ChartPreview-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
+          aws s3 cp "release/ChartPreview-${platform}.zip" "s3://vst-chartchotic/dev/latest/ChartPreview-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
+        done

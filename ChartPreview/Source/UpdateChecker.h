@@ -32,7 +32,6 @@ public:
 private:
     void run() override;
 
-    juce::var fetchLatestRelease();
     UpdateInfo checkReleaseChannel();
     UpdateInfo checkDevChannel();
 

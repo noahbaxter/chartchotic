@@ -65,42 +65,22 @@ void UpdateChecker::run()
     }
 }
 
-juce::var UpdateChecker::fetchLatestRelease()
+UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
 {
+    UpdateInfo info;
+
     auto options = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                        .withHttpRequestCmd("GET")
                        .withExtraHeaders("Accept: application/vnd.github+json\r\nUser-Agent: ChartPreview-UpdateChecker");
 
-    // Try stable releases first
+    // Only check /releases/latest — this skips prereleases by design
     auto stream = juce::URL(juce::String(GITHUB_API_BASE) + "/releases/latest")
                       .createInputStream(options);
 
-    if (stream != nullptr)
-    {
-        auto json = juce::JSON::parse(stream->readEntireStreamAsString());
-        if (json.isObject() && json.getProperty("tag_name", "").toString().isNotEmpty())
-            return json;
-    }
-
-    // No stable release — fall back to most recent release (including pre-releases)
-    stream = juce::URL(juce::String(GITHUB_API_BASE) + "/releases?per_page=1")
-                 .createInputStream(options);
-
     if (stream == nullptr)
-        return {};
+        return info;
 
     auto json = juce::JSON::parse(stream->readEntireStreamAsString());
-    if (json.isArray() && json.getArray() != nullptr && !json.getArray()->isEmpty())
-        return json.getArray()->getFirst();
-
-    return {};
-}
-
-UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
-{
-    UpdateInfo info;
-    auto json = fetchLatestRelease();
-
     if (!json.isObject())
         return info;
 
@@ -116,7 +96,8 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
         info.available = true;
         info.version = tagName;
         info.releaseNotes = json.getProperty("body", "").toString();
-        info.downloadUrl = json.getProperty("html_url", "").toString();
+        // Always link to /releases/latest — GitHub redirects to the right page
+        info.downloadUrl = "https://github.com/noahbaxter/chart-preview/releases/latest";
     }
 
     return info;

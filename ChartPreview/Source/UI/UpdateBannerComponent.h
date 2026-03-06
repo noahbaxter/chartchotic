@@ -24,6 +24,36 @@ public:
         showPrompt();
     }
 
+    bool hasUpdate() const { return updateVersion.isNotEmpty(); }
+    const juce::String& getDownloadUrl() const { return downloadUrl; }
+
+    void showPrompt()
+    {
+        auto* editor = findParentComponentOfClass<juce::AudioProcessorEditor>();
+        if (editor == nullptr) return;
+
+        auto* overlay = new OverlayComponent();
+        overlay->setVersion(updateVersion);
+        overlay->onDownload = [this, overlay]()
+        {
+            auto url = downloadUrl.isNotEmpty() ? downloadUrl
+                : juce::String("https://github.com/noahbaxter/chart-preview/releases");
+            // Defer deletion — button is a child of overlay, can't delete mid-callback
+            juce::MessageManager::callAsync([overlay, url]()
+            {
+                delete overlay;
+                juce::URL(url).launchInDefaultBrowser();
+            });
+        };
+        overlay->onDismiss = [overlay]()
+        {
+            juce::MessageManager::callAsync([overlay]() { delete overlay; });
+        };
+        editor->addAndMakeVisible(overlay);
+        overlay->setBounds(editor->getLocalBounds());
+        overlay->toFront(true);
+    }
+
     void resized() override
     {
         badge.setBounds(getLocalBounds());
@@ -47,30 +77,9 @@ private:
         badge.repaint();
     }
 
-    void showPrompt()
-    {
-        auto* editor = findParentComponentOfClass<juce::AudioProcessorEditor>();
-        if (editor == nullptr) return;
-
-        auto* overlay = new OverlayComponent();
-        overlay->setVersion(updateVersion);
-        overlay->onDownload = [this, overlay]()
-        {
-            if (downloadUrl.isNotEmpty())
-                juce::URL(downloadUrl).launchInDefaultBrowser();
-            delete overlay;
-        };
-        overlay->onDismiss = [overlay]()
-        {
-            delete overlay;
-        };
-        editor->addAndMakeVisible(overlay);
-        overlay->setBounds(editor->getLocalBounds());
-        overlay->toFront(true);
-    }
-
     //==========================================================================
-    struct BadgeComponent : public juce::Component
+    struct BadgeComponent : public juce::Component,
+                           public juce::SettableTooltipClient
     {
         std::function<void()> onClick;
         float* pulsePhasePtr = nullptr;
@@ -89,7 +98,7 @@ private:
             g.fillEllipse(bounds);
 
             g.setColour(juce::Colours::white);
-            g.setFont(Theme::getUIFont(bounds.getHeight() * 0.55f));
+            g.setFont(Theme::getUIFont(bounds.getHeight() * 0.5f));
             g.drawText("!", bounds, juce::Justification::centred);
         }
 
@@ -116,13 +125,11 @@ private:
         {
             setInterceptsMouseClicks(true, true);
 
-            dismissBtn.setButtonText("Dismiss");
             dismissBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(Theme::darkBgLighter));
             dismissBtn.setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::textDim));
             dismissBtn.onClick = [this]() { if (onDismiss) onDismiss(); };
             addAndMakeVisible(dismissBtn);
 
-            downloadBtn.setButtonText("Download");
             downloadBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(Theme::orange).withAlpha(0.15f));
             downloadBtn.setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::orange));
             downloadBtn.onClick = [this]() { if (onDownload) onDownload(); };
@@ -131,38 +138,47 @@ private:
 
         void paint(juce::Graphics& g) override
         {
-            g.fillAll(juce::Colours::black.withAlpha(0.6f));
+            float s = getHeight() / 600.0f;
+
+            g.fillAll(juce::Colours::black.withAlpha(0.65f));
 
             auto card = getCardBounds();
 
             g.setColour(juce::Colour(Theme::darkBg));
-            g.fillRoundedRectangle(card, 6.0f);
+            g.fillRoundedRectangle(card, 10.0f * s);
 
             g.setColour(juce::Colours::white.withAlpha(0.12f));
-            g.drawRoundedRectangle(card, 6.0f, 1.0f);
+            g.drawRoundedRectangle(card, 10.0f * s, 1.0f);
 
             auto inner = card;
-            auto titleArea = inner.removeFromTop(inner.getHeight() * 0.38f).reduced(16.0f, 8.0f);
+            float pad = 28.0f * s;
+            auto titleArea = inner.removeFromTop(inner.getHeight() * 0.36f).reduced(pad, pad * 0.3f);
             g.setColour(juce::Colour(Theme::orange));
-            g.setFont(Theme::getUIFont(14.0f));
+            g.setFont(Theme::getUIFont(24.0f * s));
             g.drawText("Update Available", titleArea, juce::Justification::centredBottom);
 
-            auto msgArea = inner.removeFromTop(inner.getHeight() * 0.35f).reduced(16.0f, 0.0f);
-            g.setColour(juce::Colour(Theme::textDim));
-            g.setFont(Theme::getUIFont(11.0f));
+            auto msgArea = inner.removeFromTop(inner.getHeight() * 0.32f).reduced(pad, 0.0f);
+            g.setColour(juce::Colour(Theme::textWhite));
+            g.setFont(Theme::getUIFont(16.0f * s));
             g.drawText("Chart Preview " + version + " is out.", msgArea, juce::Justification::centredTop);
         }
 
         void resized() override
         {
+            float s = getHeight() / 600.0f;
+
             auto card = getCardBounds();
-            auto buttonArea = card.removeFromBottom(card.getHeight() * 0.38f).reduced(16.0f, 8.0f);
-            int btnW = ((int)buttonArea.getWidth() - 8) / 2;
-            int btnH = juce::jlimit(22, 30, (int)buttonArea.getHeight() - 8);
+            float pad = 28.0f * s;
+            auto buttonArea = card.removeFromBottom(card.getHeight() * 0.36f).reduced(pad, pad * 0.3f);
+            int btnGap = juce::roundToInt(12.0f * s);
+            int btnW = ((int)buttonArea.getWidth() - btnGap) / 2;
+            int btnH = juce::roundToInt(36.0f * s);
             int btnY = (int)buttonArea.getY() + ((int)buttonArea.getHeight() - btnH) / 2;
 
+            dismissBtn.setButtonText("Dismiss");
             dismissBtn.setBounds((int)buttonArea.getX(), btnY, btnW, btnH);
-            downloadBtn.setBounds((int)buttonArea.getX() + btnW + 8, btnY, btnW, btnH);
+            downloadBtn.setButtonText("Download");
+            downloadBtn.setBounds((int)buttonArea.getX() + btnW + btnGap, btnY, btnW, btnH);
         }
 
         void mouseDown(const juce::MouseEvent& e) override
@@ -177,8 +193,9 @@ private:
 
         juce::Rectangle<float> getCardBounds() const
         {
-            float cardW = juce::jlimit(200.0f, 280.0f, getWidth() * 0.38f);
-            float cardH = juce::jlimit(110.0f, 160.0f, getHeight() * 0.28f);
+            float s = getHeight() / 600.0f;
+            float cardW = juce::jlimit(280.0f * s, 420.0f * s, getWidth() * 0.48f);
+            float cardH = juce::jlimit(160.0f * s, 240.0f * s, getHeight() * 0.35f);
             return juce::Rectangle<float>(cardW, cardH)
                 .withCentre(getLocalBounds().getCentre().toFloat());
         }
