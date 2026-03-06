@@ -209,7 +209,6 @@ juce_add_binary_data(ChartPreviewData
         assets/generated/overlays/overlay_cym_ghost.png
         assets/generated/overlays/overlay_note_tap.png
         assets/static/overlays/overlay_cym_accent.png
-        assets/static/overlays/overlay_cym_ghost_80scale.png
         assets/static/overlays/overlay_note_accent.png
         # Sustains (generated from PDFs)
         assets/generated/sustains/sustain_open.png

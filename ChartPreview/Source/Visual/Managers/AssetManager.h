@@ -72,7 +72,6 @@ public:
 
     // Overlay graphics
     juce::Image* getOverlayCymAccentImage() { return &overlayCymAccentImage; }
-    juce::Image* getOverlayCymGhost80scaleImage() { return &overlayCymGhost80scaleImage; }
     juce::Image* getOverlayCymGhostImage() { return &overlayCymGhostImage; }
     juce::Image* getOverlayNoteAccentImage() { return &overlayNoteAccentImage; }
     juce::Image* getOverlayNoteGhostImage() { return &overlayNoteGhostImage; }
@@ -156,7 +155,6 @@ private:
 
     // Overlay graphics
     juce::Image overlayCymAccentImage;
-    juce::Image overlayCymGhost80scaleImage;
     juce::Image overlayCymGhostImage;
     juce::Image overlayNoteAccentImage;
     juce::Image overlayNoteGhostImage;
