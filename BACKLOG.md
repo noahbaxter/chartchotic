@@ -49,6 +49,7 @@ Small scope. UI cleanup and verification before tagging stable.
 
 Features that make the plugin better. Pull into active work after 1.0.
 
+- **Update banner: show changelog** — `releaseNotes` already fetched from GitHub release body (release channel). Need: display in overlay card (taller/scrollable), strip markdown to plaintext, also fetch for dev channel.
 6. **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
 7. **Solo sections** — Blue highway background during solo passages.
 8. **Time sig changes display** — Symbols on left side, scroll with highway.
