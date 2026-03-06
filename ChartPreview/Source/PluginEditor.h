@@ -57,9 +57,6 @@ public:
 
     void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
     {
-        // Ignore scroll on slider controls
-        if (toolbar.getLatencyOffsetSlider().isMouseOver(true))
-            return;
 
 #ifdef DEBUG
         if (debugController.mouseWheelMove(wheel, event.mods.isShiftDown(),

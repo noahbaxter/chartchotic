@@ -159,12 +159,14 @@ target_sources(ChartPreview
         ChartPreview/Source/UI/Controls/PanelSectionHeader.h
         ChartPreview/Source/UI/Controls/PillToggle.h
         ChartPreview/Source/UI/Controls/PopupMenuButton.h
+        ChartPreview/Source/UI/Controls/CircleIconSelector.h
         ChartPreview/Source/UI/Controls/SegmentedButtons.h
         ChartPreview/Source/UI/Controls/ValueStepper.h
         # UI - LookAndFeel
         ChartPreview/Source/UI/LookAndFeel/ChartPreviewLookAndFeel.cpp
         ChartPreview/Source/UI/LookAndFeel/ChartPreviewLookAndFeel.h
         # UI - Core
+        ChartPreview/Source/UI/ChartchoticLogo.h
         ChartPreview/Source/UI/Theme.h
         ChartPreview/Source/UI/SectionHeader.h
         ChartPreview/Source/UI/ToolbarComponent.cpp
@@ -184,9 +186,16 @@ target_sources(ChartPreview
 juce_add_binary_data(ChartPreviewData
     NAMESPACE BinaryData
     SOURCES
+        # Fonts
+        assets/static/fonts/TurretRoad-Bold.ttf
+        assets/static/fonts/TurretRoad-Medium.ttf
+        assets/static/fonts/RussoOne-Regular.ttf
+        assets/static/fonts/ChakraPetch-Medium.ttf
         # UI / branding
         assets/static/backgrounds/background.png
         assets/static/backgrounds/background_red.jpg
+        assets/static/icons/icon_guitar.png
+        assets/static/icons/icon_drums.png
         assets/static/logo-reaper.svg
         # Notes (generated from PDFs)
         assets/generated/notes/note_blue.png

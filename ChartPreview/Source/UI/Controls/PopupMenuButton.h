@@ -12,18 +12,28 @@ public:
 
     void paint(juce::Graphics& g) override
     {
-        g.setColour(juce::Colour(Theme::darkBg));
+        g.setColour(juce::Colour(Theme::darkBg).withAlpha(Theme::panelBgAlpha));
         g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
 
         g.setColour(juce::Colour(Theme::coral).withAlpha(0.5f));
         g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.0f);
     }
+
+    // Outside-click callback — set by PopupMenuButton when click-locked
+    std::function<void(const juce::MouseEvent&)> onOutsideMouseDown;
+
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        if (e.eventComponent == this || isParentOf(e.eventComponent))
+            return;
+        if (onOutsideMouseDown)
+            onOutsideMouseDown(e);
+    }
 };
 
 // A button that toggles a PopupPanel below itself.
-// Panel is added as a child of the top-level component so it stays
-// within the plugin window and repositions on resize.
-// Only dismisses when the button is clicked again.
+// Participates in ToolbarPanelGroup: hover-transfers between toolbar items,
+// click-lock persists across transfers, click-outside dismisses.
 class PopupMenuButton : public juce::TextButton,
                         private juce::ComponentListener
 {
@@ -37,12 +47,8 @@ public:
 
     void addPanelChild(juce::Component* child) { panelChildren.push_back(child); }
 
-    void setExclusiveGroup(std::vector<PopupMenuButton*> group)
-    {
-        exclusiveGroup = group;
-    }
-
     void setPanelSize(int w, int h) { refPanelWidth = w; refPanelHeight = h; }
+    void setPanelAnchorYOffset(int offset) { panelAnchorYOffset = offset; }
 
     void setScale(float s)
     {
@@ -63,42 +69,20 @@ public:
     void showPanel()
     {
         if (panel != nullptr) { dismissPanel(); return; }
-
-        // Dismiss any other open panel in the exclusive group
-        for (auto* other : exclusiveGroup)
-            if (other != this && other->isPanelVisible())
-                other->dismissPanel();
-
-        auto* topLevel = getTopLevelComponent();
-        if (topLevel == nullptr) return;
-
-        int scaledW = juce::roundToInt(refPanelWidth * panelScale);
-
-        panel = std::make_unique<PopupPanel>();
-        panel->setSize(scaledW, refPanelHeight);
-
-        for (auto* child : panelChildren)
-            panel->addAndMakeVisible(child);
-
-        if (onLayoutPanel)
-            onLayoutPanel(panel.get());
-
-        topLevel->addAndMakeVisible(panel.get());
-        repositionPanel();
-
-        // Listen for top-level resize to reposition
-        topLevel->addComponentListener(this);
-
-        setToggleState(true, juce::dontSendNotification);
-        repaint();
+        openPanel(true);
     }
 
     void dismissPanel()
     {
+        hoverTimer.stopTimer();
+        ToolbarPanelGroup::deactivate(this);
         if (panel != nullptr)
         {
             if (auto* topLevel = getTopLevelComponent())
+            {
                 topLevel->removeComponentListener(this);
+                topLevel->removeMouseListener(panel.get());
+            }
 
             for (auto* child : panelChildren)
                 panel->removeChildComponent(child);
@@ -122,36 +106,119 @@ public:
 
     void clicked() override { showPanel(); }
 
+    // Hover: transfer from another active panel
+    void mouseEnter(const juce::MouseEvent&) override
+    {
+        hoverTimer.stopTimer();
+        if (panel != nullptr) return;
+
+        if (ToolbarPanelGroup::hasActive() && !ToolbarPanelGroup::isOwner(this))
+        {
+            bool wasLocked = ToolbarPanelGroup::locked;
+            openPanel(wasLocked);
+        }
+    }
+
+    // Hover: start dismiss timer when mouse leaves button (unless locked)
+    void mouseExit(const juce::MouseEvent&) override
+    {
+        if (panel != nullptr && !ToolbarPanelGroup::locked)
+            startHoverTimer();
+    }
+
 private:
+    void openPanel(bool locked)
+    {
+        if (panel != nullptr) return;
+
+        ToolbarPanelGroup::activate(this, [this]() { dismissPanel(); }, locked);
+
+        auto* topLevel = getTopLevelComponent();
+        if (topLevel == nullptr) return;
+
+        int scaledW = juce::roundToInt(refPanelWidth * panelScale);
+
+        panel = std::make_unique<PopupPanel>();
+        panel->setSize(scaledW, refPanelHeight);
+
+        for (auto* child : panelChildren)
+            panel->addAndMakeVisible(child);
+
+        if (onLayoutPanel)
+            onLayoutPanel(panel.get());
+
+        topLevel->addAndMakeVisible(panel.get());
+        repositionPanel();
+        topLevel->addComponentListener(this);
+
+        // Click-outside detection (panel as mouse listener on topLevel)
+        if (locked)
+        {
+            panel->onOutsideMouseDown = [this](const juce::MouseEvent& e) {
+                if (e.eventComponent == this) return;
+                dismissPanel();
+            };
+            topLevel->addMouseListener(panel.get(), true);
+        }
+
+        // Hover dismiss polling (when not locked)
+        if (!locked)
+            startHoverTimer();
+
+        setToggleState(locked, juce::dontSendNotification);
+        repaint();
+    }
+
     void repositionPanel()
     {
         if (panel == nullptr) return;
         auto* topLevel = getTopLevelComponent();
         if (topLevel == nullptr) return;
 
-        // Position panel below button, right-aligned to button's right edge
-        auto btnBottomRight = topLevel->getLocalPoint(this, juce::Point<int>(getWidth(), getHeight()));
+        auto btnBottomRight = topLevel->getLocalPoint(this, juce::Point<int>(getWidth(), getHeight() + panelAnchorYOffset));
         int panelX = btnBottomRight.x - panel->getWidth();
-        int panelY = btnBottomRight.y + 2;
+        int panelY = btnBottomRight.y + 6;
 
-        // Clamp to stay within the top-level bounds
         panelX = juce::jmax(0, juce::jmin(panelX, topLevel->getWidth() - panel->getWidth()));
         panelY = juce::jmin(panelY, topLevel->getHeight() - panel->getHeight());
 
         panel->setTopLeftPosition(panelX, panelY);
     }
 
-    // ComponentListener -- reposition when top-level resizes
     void componentMovedOrResized(juce::Component&, bool, bool wasResized) override
     {
         if (wasResized && panel != nullptr)
             repositionPanel();
     }
 
-    std::vector<PopupMenuButton*> exclusiveGroup;
+    // Polling timer: dismiss when mouse leaves both button and panel
+    struct HoverTimer : public juce::Timer
+    {
+        PopupMenuButton* owner = nullptr;
+        void timerCallback() override
+        {
+            if (!owner || !owner->panel) { stopTimer(); return; }
+            if (ToolbarPanelGroup::isOwner(owner) && ToolbarPanelGroup::locked)
+            { stopTimer(); return; }
+            if (owner->isMouseOver(false) || owner->panel->isMouseOver(true))
+                return;
+            stopTimer();
+            owner->dismissPanel();
+        }
+    };
+
+    HoverTimer hoverTimer;
+
+    void startHoverTimer()
+    {
+        hoverTimer.owner = this;
+        hoverTimer.startTimer(120);
+    }
+
     std::unique_ptr<PopupPanel> panel;
     std::vector<juce::Component*> panelChildren;
     int refPanelWidth = 160;
     int refPanelHeight = 200;
     float panelScale = 1.0f;
+    int panelAnchorYOffset = 0;
 };

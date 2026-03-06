@@ -33,6 +33,8 @@ Small scope. UI cleanup and verification before tagging stable.
 2. **Settings persistence audit** — Verify all options save/restore correctly.
 3. **Window sizing persistence** — Save/restore on REAPER restart.
 4. **Final user testing pass** — Verify note speed feel, latency offset UX.
+5. **Pre-release defaults audit** — Set highway texture to "None", verify all stepper/toggle defaults match intended release values. (grep for `TODO_RELEASE_DEFAULT` markers)
+6. **Toolbar interaction model polish** — Click-open vs hover-open has some wackiness: toggle glow transfer between buttons, hover dismiss timing, edge cases when mixing click-lock and hover modes across CircleIconSelector + PopupMenuButton. Needs hands-on testing pass.
 
 ---
 
@@ -76,6 +78,7 @@ Unordered. Pull into Up Next when the time comes.
 - Note color customization (CH color profile templates)
 - GH style gems toggle
 - Star Power rendering (partially working, architectural approach unclear — finish or remove)
+- **SP sustain mid-join bug** — Starting playback mid-way through an SP sustain shows colored hit image instead of white SP image
 
 **Real Drums:**
 - Flam note types, HH open/closed/foot gems

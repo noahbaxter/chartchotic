@@ -45,7 +45,7 @@ public:
                                  : juce::Colour(Theme::textDim));
         }
 
-        g.setFont(juce::Font((float)getHeight() * 0.5f));
+        g.setFont(Theme::getUIFont((float)getHeight() * 0.5f));
         g.drawText(label, getLocalBounds(), juce::Justification::centred);
     }
 

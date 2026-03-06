@@ -8,14 +8,14 @@ ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
 {
     initTopBar();
     initChartPanel();
-    initViewPanel();
     initSettingsPanel();
 }
 
 ToolbarComponent::~ToolbarComponent()
 {
+    instrumentSelector.dismissPanel();
+    difficultySelector.dismissPanel();
     chartButton.dismissPanel();
-    viewButton.dismissPanel();
     settingsButton.dismissPanel();
 }
 
@@ -24,37 +24,45 @@ ToolbarComponent::~ToolbarComponent()
 
 void ToolbarComponent::initTopBar()
 {
-    // Title
-    titleLabel.setText("CHARTCHOTIC", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(13.0f, juce::Font::bold));
-    titleLabel.setColour(juce::Label::textColourId, juce::Colour(Theme::coral));
-    titleLabel.setJustificationType(juce::Justification::centredLeft);
-    addAndMakeVisible(titleLabel);
+    // Logo
+    addAndMakeVisible(logo);
 
-    // Difficulty buttons: E M H X
-    skillButtons.setItems({"E", "M", "H", "X"});
-    skillButtons.onSelectionChanged = [this](int index) {
-        if (onSkillChanged) onSkillChanged(index + 1); // 1-based ID
-    };
-    addAndMakeVisible(skillButtons);
-
-    // Instrument buttons: Guitar Drums
-    partButtons.setItems({"Guitar", "Drums"});
-    partButtons.onSelectionChanged = [this](int index) {
+    // Instrument selector (circle icons)
+    {
+        auto guitarImg = juce::ImageCache::getFromMemory(BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize);
+        auto drumsImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);
+        instrumentSelector.setItems({
+            { "Guitar", guitarImg },
+            { "Drums",  drumsImg }
+        });
+    }
+    instrumentSelector.onSelectionChanged = [this](int index) {
         if (onPartChanged) onPartChanged(index + 1);
         updateVisibility();
-        // Re-layout chart panel if open
         if (chartButton.isPanelVisible())
         {
             chartButton.dismissPanel();
             chartButton.showPanel();
         }
     };
-    addAndMakeVisible(partButtons);
+    addAndMakeVisible(instrumentSelector);
 
-    // Note Speed stepper
+    // Difficulty selector (text circles: E M H X)
+    difficultySelector.setItems({
+        { "E", {}, juce::Colour(Theme::green),  "Easy" },
+        { "M", {}, juce::Colour(Theme::yellow), "Medium" },
+        { "H", {}, juce::Colour(Theme::orange), "Hard" },
+        { "X", {}, juce::Colour(Theme::red),    "Expert" }
+    });
+    difficultySelector.onSelectionChanged = [this](int index) {
+        if (onSkillChanged) onSkillChanged(index + 1); // 1-based ID
+    };
+    addAndMakeVisible(difficultySelector);
+
+    // Note Speed stepper (no label — tooltip on hover)
     noteSpeedStepper.setDisplayValue("7");
-    noteSpeedStepper.setLabelRatio(0.52f);
+    noteSpeedStepper.setLabelRatio(0.0f);
+    noteSpeedStepper.setTooltip("Note Speed");
     noteSpeedStepper.onStep = [this](int delta) {
         noteSpeed = juce::jlimit(2, 20, noteSpeed + delta);
         noteSpeedStepper.setDisplayValue(juce::String(noteSpeed));
@@ -74,8 +82,8 @@ void ToolbarComponent::initChartPanel()
         if (onStarPowerChanged) onStarPowerChanged(starPowerToggle.getToggleState());
     };
 
-    // Auto HOPO stepper (guitar only)
-    autoHopoStepper.setDisplayValue(hopoModeLabels[0]);
+    // Auto HOPO stepper (guitar only) — default to "170 Tick"
+    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
     autoHopoStepper.onStep = [this](int delta) {
         int count = hopoModeLabels.size();
         autoHopoIndex = juce::jlimit(0, count - 1, autoHopoIndex + delta);
@@ -143,27 +151,15 @@ void ToolbarComponent::initChartPanel()
 }
 
 //==============================================================================
-// View panel — Playback, Style, Performance
+// Settings panel (gear) — Style, Playback, Sync
 
-void ToolbarComponent::initViewPanel()
+void ToolbarComponent::initSettingsPanel()
 {
-    // --- Playback ---
-
-    highwayLengthStepper.setDisplayValue(juce::String(highwayLengthPct) + "%");
-    highwayLengthStepper.onStep = [this](int delta) {
-        highwayLengthPct = juce::jlimit(hwLenMinPct, hwLenMaxPct,
-            highwayLengthPct + delta * hwLenStepPct);
-        highwayLengthStepper.setDisplayValue(juce::String(highwayLengthPct) + "%");
-        if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
-    };
-
     // --- Style ---
 
     backgroundStepper.setDisplayValue("Default");
     backgroundStepper.onStep = [this](int delta) {
-        // Built-in options + folder entries
-        // Index 0 = Default, 1+ = folder backgrounds
-        int totalCount = 1 + backgroundNames.size(); // "Default" + folder entries
+        int totalCount = 1 + backgroundNames.size();
         backgroundIndex += delta;
         if (backgroundIndex < 0) backgroundIndex = totalCount - 1;
         if (backgroundIndex >= totalCount) backgroundIndex = 0;
@@ -201,12 +197,12 @@ void ToolbarComponent::initViewPanel()
     };
 
     textureScaleLabel.setText("Scale", juce::dontSendNotification);
-    textureScaleLabel.setFont(juce::Font(Theme::fontSize));
+    textureScaleLabel.setFont(Theme::getUIFont(Theme::fontSize));
     textureScaleLabel.setColour(juce::Label::textColourId, juce::Colour(Theme::textDim));
     textureScaleLabel.setJustificationType(juce::Justification::centred);
 
     textureOpacityLabel.setText("Opacity", juce::dontSendNotification);
-    textureOpacityLabel.setFont(juce::Font(Theme::fontSize));
+    textureOpacityLabel.setFont(Theme::getUIFont(Theme::fontSize));
     textureOpacityLabel.setColour(juce::Label::textColourId, juce::Colour(Theme::textDim));
     textureOpacityLabel.setJustificationType(juce::Justification::centred);
 
@@ -228,7 +224,15 @@ void ToolbarComponent::initViewPanel()
         if (onTextureOpacityChanged) onTextureOpacityChanged(textureOpacityPct / 100.0f);
     };
 
-    // --- Performance ---
+    // --- Playback ---
+
+    highwayLengthStepper.setDisplayValue(juce::String(highwayLengthPct) + "%");
+    highwayLengthStepper.onStep = [this](int delta) {
+        highwayLengthPct = juce::jlimit(hwLenMinPct, hwLenMaxPct,
+            highwayLengthPct + delta * hwLenStepPct);
+        highwayLengthStepper.setDisplayValue(juce::String(highwayLengthPct) + "%");
+        if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
+    };
 
     framerateStepper.setDisplayValue(framerateLabels[framerateIndex]);
     framerateStepper.onStep = [this](int delta) {
@@ -238,29 +242,8 @@ void ToolbarComponent::initViewPanel()
         if (onFramerateChanged) onFramerateChanged(framerateIndex + 1);
     };
 
-    // Register all children
-    viewButton.addPanelChild(&playbackHeader);
-    viewButton.addPanelChild(&highwayLengthStepper);
-    viewButton.addPanelChild(&styleHeader);
-    viewButton.addPanelChild(&backgroundStepper);
-    viewButton.addPanelChild(&gemScaleStepper);
-    viewButton.addPanelChild(&highwayTextureStepper);
-    viewButton.addPanelChild(&textureScaleLabel);
-    viewButton.addPanelChild(&textureOpacityLabel);
-    viewButton.addPanelChild(&textureScaleStepper);
-    viewButton.addPanelChild(&textureOpacityStepper);
-    viewButton.addPanelChild(&performanceHeader);
-    viewButton.addPanelChild(&framerateStepper);
-    viewButton.setPanelSize(200, 300);
-    viewButton.onLayoutPanel = [this](juce::Component* panel) { layoutViewPanel(panel); };
-    addAndMakeVisible(viewButton);
-}
+    // --- Sync ---
 
-//==============================================================================
-// Settings panel (gear) — Sync
-
-void ToolbarComponent::initSettingsPanel()
-{
     latencyStepper.setDisplayValue(latencyLabels[0]);
     latencyStepper.onStep = [this](int delta) {
         int count = latencyLabels.size();
@@ -269,33 +252,31 @@ void ToolbarComponent::initSettingsPanel()
         if (onLatencyChanged) onLatencyChanged(latencyIndex + 1);
     };
 
-    latencyOffsetLabel.setText("Offset", juce::dontSendNotification);
-    latencyOffsetLabel.setFont(juce::Font(Theme::fontSize));
-    latencyOffsetLabel.setColour(juce::Label::textColourId, juce::Colour(Theme::textDim));
-
-    latencyOffsetSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-    latencyOffsetSlider.setRange(0.0, 2000.0, 5.0);
-    latencyOffsetSlider.setValue(0.0, juce::dontSendNotification);
-    latencyOffsetSlider.setTextValueSuffix(" ms");
-    latencyOffsetSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 55, 18);
-    latencyOffsetSlider.onValueChange = [this]() {
-        int offsetMs = (int)latencyOffsetSlider.getValue();
-        state.setProperty("latencyOffsetMs", offsetMs, nullptr);
-        if (onLatencyOffsetChanged) onLatencyOffsetChanged(offsetMs);
+    syncOffsetStepper.setDisplayValue("0 ms");
+    syncOffsetStepper.onStep = [this](int delta) {
+        syncOffsetMs = juce::jlimit(syncOffsetMin, syncOffsetMax, syncOffsetMs + delta * 25);
+        syncOffsetStepper.setDisplayValue(juce::String(syncOffsetMs) + " ms");
+        state.setProperty("latencyOffsetMs", syncOffsetMs, nullptr);
+        if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
     };
 
+    // Register all children
+    settingsButton.addPanelChild(&visualHeader);
+    settingsButton.addPanelChild(&framerateStepper);
+    settingsButton.addPanelChild(&highwayLengthStepper);
+    settingsButton.addPanelChild(&highwayTextureStepper);
+    settingsButton.addPanelChild(&textureScaleLabel);
+    settingsButton.addPanelChild(&textureOpacityLabel);
+    settingsButton.addPanelChild(&textureScaleStepper);
+    settingsButton.addPanelChild(&textureOpacityStepper);
+    settingsButton.addPanelChild(&backgroundStepper);
+    settingsButton.addPanelChild(&gemScaleStepper);
+    settingsButton.addPanelChild(&syncHeader);
+    settingsButton.addPanelChild(&syncOffsetStepper);
     settingsButton.addPanelChild(&latencyStepper);
-    settingsButton.addPanelChild(&latencyOffsetLabel);
-    settingsButton.addPanelChild(&latencyOffsetSlider);
-    settingsButton.setPanelSize(200, 100);
+    settingsButton.setPanelSize(240, 300);
     settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
     addAndMakeVisible(settingsButton);
-
-    // Only one panel open at a time
-    std::vector<PopupMenuButton*> group = { &chartButton, &viewButton, &settingsButton };
-    chartButton.setExclusiveGroup(group);
-    viewButton.setExclusiveGroup(group);
-    settingsButton.setExclusiveGroup(group);
 
 #ifdef DEBUG
     addAndMakeVisible(debugPanel.getButton());
@@ -315,56 +296,59 @@ void ToolbarComponent::paint(juce::Graphics& g)
 void ToolbarComponent::resized()
 {
     if (getHeight() == 0) return;
-    float scale = (float)getHeight() / (float)referenceHeight;
+    int stripH = getStripHeight();
+    float scale = (float)stripH / (float)referenceHeight;
 
     int h = juce::roundToInt(28.0f * scale);
     int gap = juce::roundToInt(6.0f * scale);
-    int y = (getHeight() - h) / 2;
+    int y = (stripH - h) / 2;
 
-    int x = juce::roundToInt(6.0f * scale);
+    int margin = juce::roundToInt(6.0f * scale);
+    int x = margin;
 
-    // Title
-    int titleW = juce::roundToInt(90.0f * scale);
-    titleLabel.setFont(juce::Font(13.0f * scale, juce::Font::bold));
-    titleLabel.setBounds(x, y, titleW, h);
-    x += titleW + gap;
+    // Instrument circle
+    instrumentSelector.setBounds(x, y, h, h);
+    x += h + gap;
 
-    // Difficulty: 4 segments, compact
-    int skillW = juce::roundToInt(100.0f * scale);
-    skillButtons.setBounds(x, y, skillW, h);
-    x += skillW + gap;
+    // Difficulty circle
+    difficultySelector.setBounds(x, y, h, h);
+    x += h + gap + juce::roundToInt(6.0f * scale);
 
-    // Instrument: 2 segments
-    int partW = juce::roundToInt(120.0f * scale);
-    partButtons.setBounds(x, y, partW, h);
-    x += partW + gap;
+    // Logo
+    int logoH = stripH;
+    logo.setFontSize((float)logoH * logoFontRatio);
+    int logoW = (int)std::ceil(logo.getIdealWidth()) + juce::roundToInt(8.0f * scale);
+    logo.setBounds(x, 0, logoW, logoH);
+    int leftEdge = logo.getRight();
 
-    // Note Speed stepper
-    int speedW = juce::roundToInt(110.0f * scale);
-    noteSpeedStepper.setBounds(x, y, speedW, h);
-
-    // Right side: popup buttons
+    // Right side: popup buttons (compute positions first for centering)
     int btnW = juce::roundToInt(56.0f * scale);
     int gearW = juce::roundToInt(36.0f * scale);
-    int rx = getWidth() - juce::roundToInt(6.0f * scale);
+    int rx = getWidth() - margin;
 
     chartButton.setScale(scale);
-    viewButton.setScale(scale);
     settingsButton.setScale(scale);
 
     rx -= gearW;
     settingsButton.setBounds(rx, y, gearW, h);
     rx -= (gap + btnW);
-    viewButton.setBounds(rx, y, btnW, h);
-    rx -= (gap + btnW);
     chartButton.setBounds(rx, y, btnW, h);
 
 #ifdef DEBUG
-    rx -= (gap + btnW);
-    debugPanel.getButton().setBounds(rx, y, btnW, h);
-    rx -= (gap + btnW);
-    tuningPanel.getButton().setBounds(rx, y, btnW, h);
+    // Debug (D) and Tuning (T) as small stacked squares
+    debugPanel.getButton().setScale(scale);
+    tuningPanel.getButton().setScale(scale);
+    int sqSize = (h - juce::roundToInt(2.0f * scale)) / 2;
+    rx -= (gap + sqSize);
+    debugPanel.getButton().setBounds(rx, y, sqSize, sqSize);
+    debugPanel.getButton().setPanelAnchorYOffset(h - sqSize);
+    tuningPanel.getButton().setBounds(rx, y + h - sqSize, sqSize, sqSize);
 #endif
+
+    // Note Speed stepper — centered between logo and right-side buttons
+    int speedW = juce::roundToInt(68.0f * scale);
+    int speedX = leftEdge + (rx - leftEdge - speedW) / 2;
+    noteSpeedStepper.setBounds(speedX, y, speedW, h);
 }
 
 //==============================================================================
@@ -375,12 +359,12 @@ void ToolbarComponent::loadState()
     // Difficulty (1-based → 0-based)
     int skill = (int)state["skillLevel"];
     if (skill >= 1 && skill <= 4)
-        skillButtons.setSelectedIndex(skill - 1);
+        difficultySelector.setSelectedIndex(skill - 1);
 
     // Part (1-based → 0-based)
     int part = (int)state["part"];
     if (part >= 1 && part <= 2)
-        partButtons.setSelectedIndex(part - 1);
+        instrumentSelector.setSelectedIndex(part - 1);
 
     // Note speed
     noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;
@@ -390,13 +374,18 @@ void ToolbarComponent::loadState()
     int drumType = (int)state["drumType"];
     cymbalsToggle.setToggleState(drumType == 2);
 
-    // Auto HOPO (1-based → 0-based)
+    // Auto HOPO (1-based → 0-based, default: 170 Tick = index 3)
     int autoHopo = (int)state["autoHopo"];
     if (autoHopo >= 1 && autoHopo <= hopoModeLabels.size())
     {
         autoHopoIndex = autoHopo - 1;
-        autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
     }
+    else
+    {
+        // No saved value — apply default and persist
+        state.setProperty("autoHopo", autoHopoIndex + 1, nullptr);
+    }
+    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
 
     // Toggles
     gemsToggle.setToggleState(!state.hasProperty("showGems") || (bool)state["showGems"]);
@@ -431,9 +420,9 @@ void ToolbarComponent::loadState()
         latencyStepper.setDisplayValue(latencyLabels[latencyIndex]);
     }
 
-    // Latency offset
-    int latencyOffsetMs = (int)state["latencyOffsetMs"];
-    latencyOffsetSlider.setValue(latencyOffsetMs, juce::dontSendNotification);
+    // Sync offset
+    syncOffsetMs = juce::jlimit(syncOffsetMin, syncOffsetMax, (int)state["latencyOffsetMs"]);
+    syncOffsetStepper.setDisplayValue(juce::String(syncOffsetMs) + " ms");
 
     // Gem scale
     float savedGemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;
@@ -502,11 +491,11 @@ void ToolbarComponent::setReaperMode(bool isReaper)
 void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 {
     float s = chartButton.getScale();
-    int margin = juce::roundToInt(10.0f * s);
-    int pillH = juce::roundToInt(22.0f * s);
-    int stepperH = juce::roundToInt(20.0f * s);
-    int headerH = juce::roundToInt(16.0f * s);
-    int gap = juce::roundToInt(4.0f * s);
+    int margin = juce::roundToInt(12.0f * s);
+    int pillH = juce::roundToInt(26.0f * s);
+    int stepperH = juce::roundToInt(24.0f * s);
+    int headerH = juce::roundToInt(18.0f * s);
+    int gap = juce::roundToInt(5.0f * s);
     int sectionGap = juce::roundToInt(8.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
@@ -567,32 +556,25 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
     panel->setSize(panel->getWidth(), y + margin);
 }
 
-void ToolbarComponent::layoutViewPanel(juce::Component* panel)
+void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
 {
-    float s = viewButton.getScale();
-    int margin = juce::roundToInt(10.0f * s);
-    int stepperH = juce::roundToInt(20.0f * s);
-    int headerH = juce::roundToInt(16.0f * s);
-    int gap = juce::roundToInt(4.0f * s);
+    float s = settingsButton.getScale();
+    int margin = juce::roundToInt(12.0f * s);
+    int stepperH = juce::roundToInt(24.0f * s);
+    int headerH = juce::roundToInt(18.0f * s);
+    int gap = juce::roundToInt(5.0f * s);
     int sectionGap = juce::roundToInt(8.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
-    // --- Playback ---
-    playbackHeader.setBounds(margin, y, w, headerH);
+    // --- Visual ---
+    visualHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
-    highwayLengthStepper.setBounds(margin, y, w, stepperH);
-    y += stepperH + sectionGap;
-
-    // --- Style ---
-    styleHeader.setBounds(margin, y, w, headerH);
-    y += headerH + gap;
-
-    backgroundStepper.setBounds(margin, y, w, stepperH);
+    framerateStepper.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
-    gemScaleStepper.setBounds(margin, y, w, stepperH);
+    highwayLengthStepper.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
     highwayTextureStepper.setBounds(margin, y, w, stepperH);
@@ -602,62 +584,49 @@ void ToolbarComponent::layoutViewPanel(juce::Component* panel)
     {
         int colW = (w - gap) / 2;
         int labelH = juce::roundToInt(14.0f * s);
-        textureScaleLabel.setFont(juce::Font(Theme::fontSize * s));
-        textureOpacityLabel.setFont(juce::Font(Theme::fontSize * s));
+        textureScaleLabel.setFont(Theme::getUIFont(Theme::fontSize * s));
+        textureOpacityLabel.setFont(Theme::getUIFont(Theme::fontSize * s));
         textureScaleLabel.setBounds(margin, y, colW, labelH);
         textureOpacityLabel.setBounds(margin + colW + gap, y, colW, labelH);
         y += labelH + juce::roundToInt(1.0f * s);
         textureScaleStepper.setBounds(margin, y, colW, stepperH);
         textureOpacityStepper.setBounds(margin + colW + gap, y, colW, stepperH);
-        y += stepperH + sectionGap;
+        y += stepperH + gap;
     }
 
-    // --- Performance ---
-    performanceHeader.setBounds(margin, y, w, headerH);
+    backgroundStepper.setBounds(margin, y, w, stepperH);
+    y += stepperH + gap;
+
+    gemScaleStepper.setBounds(margin, y, w, stepperH);
+    y += stepperH + sectionGap;
+
+    // --- Sync ---
+    syncHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
-    framerateStepper.setBounds(margin, y, w, stepperH);
-    y += stepperH;
-
-    panel->setSize(panel->getWidth(), y + margin);
-}
-
-void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
-{
-    float s = settingsButton.getScale();
-    int margin = juce::roundToInt(10.0f * s);
-    int stepperH = juce::roundToInt(20.0f * s);
-    int gap = juce::roundToInt(4.0f * s);
-    int y = margin;
-    int w = panel->getWidth() - margin * 2;
+    syncOffsetStepper.setBounds(margin, y, w, stepperH);
 
     if (!reaperMode)
     {
+        y += stepperH + gap;
         latencyStepper.setBounds(margin, y, w, stepperH);
         latencyStepper.setVisible(true);
-        y += stepperH + gap;
     }
     else
     {
         latencyStepper.setVisible(false);
     }
 
-    int labelH = juce::roundToInt(14.0f * s);
-    int sliderH = juce::roundToInt(20.0f * s);
-    latencyOffsetLabel.setFont(juce::Font(Theme::fontSize * s));
-    latencyOffsetLabel.setBounds(margin, y, w, labelH);
-    y += labelH + juce::roundToInt(2.0f * s);
-    latencyOffsetSlider.setBounds(margin - 2, y, w + 4, sliderH);
-    y += sliderH;
-
+    y += stepperH;
     panel->setSize(panel->getWidth(), y + margin);
 }
 
 void ToolbarComponent::setLatencyOffsetRange(int minMs, int maxMs)
 {
-    double current = latencyOffsetSlider.getValue();
-    latencyOffsetSlider.setRange((double)minMs, (double)maxMs, 5.0);
-    latencyOffsetSlider.setValue(juce::jlimit((double)minMs, (double)maxMs, current), juce::dontSendNotification);
+    syncOffsetMin = minMs;
+    syncOffsetMax = maxMs;
+    syncOffsetMs = juce::jlimit(minMs, maxMs, syncOffsetMs);
+    syncOffsetStepper.setDisplayValue(juce::String(syncOffsetMs) + " ms");
 }
 
 #ifdef DEBUG

@@ -1,7 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "Controls/SegmentedButtons.h"
+#include "ChartchoticLogo.h"
+#include "Controls/CircleIconSelector.h"
 #include "Controls/PillToggle.h"
 #include "Controls/ValueStepper.h"
 #include "Controls/PanelSectionHeader.h"
@@ -16,8 +17,12 @@
 class ToolbarComponent : public juce::Component
 {
 public:
-    static constexpr float toolbarRatio = 0.06f;  // fraction of editor height
-    static constexpr int referenceHeight = 36;    // design reference (at 600px)
+    static constexpr float toolbarRatio = 0.09f;   // fraction of editor height (single strip)
+    static constexpr int referenceHeight = 36;     // design reference for the strip portion
+    static constexpr float stripFraction = 1.0f;   // strip is the full toolbar height
+    static constexpr float logoFontRatio = 0.90f;  // logo font size as fraction of strip height
+
+    int getStripHeight() const { return getHeight(); }
 
     ToolbarComponent(juce::ValueTree& state);
     ~ToolbarComponent() override;
@@ -59,9 +64,6 @@ public:
     void setHighwayTextureList(const juce::StringArray& names) { highwayTextureNames = names; }
     void setBackgroundList(const juce::StringArray& names) { backgroundNames = names; }
 
-    // Expose slider for mouse-over checks in editor
-    juce::Slider& getLatencyOffsetSlider() { return latencyOffsetSlider; }
-
     void setLatencyOffsetRange(int minMs, int maxMs);
 
     // Expose for scroll-wheel handling in editor
@@ -74,9 +76,9 @@ private:
     //==============================================================================
     // Top bar — always visible
 
-    juce::Label titleLabel;
-    SegmentedButtons skillButtons;
-    SegmentedButtons partButtons;
+    ChartchoticLogo logo;
+    CircleIconSelector instrumentSelector;
+    CircleIconSelector difficultySelector;
     ValueStepper noteSpeedStepper{"Speed"};
 
     //==============================================================================
@@ -87,7 +89,7 @@ private:
 
     // Guitar modifiers
     ValueStepper autoHopoStepper{"HOPO"};
-    int autoHopoIndex = 0; // 0-based index into hopoModeLabels
+    int autoHopoIndex = 3; // 0-based index into hopoModeLabels (default: "170 Tick")
 
     // Drum modifiers
     PillToggle dynamicsToggle{"Dynamics"};
@@ -104,65 +106,57 @@ private:
     PillToggle hitIndicatorsToggle{"Hits"};
 
     //==============================================================================
-    // View panel — Playback
+    // Settings panel (gear icon) — Style, Playback, Sync
 
-    PanelSectionHeader playbackHeader{"Playback"};
-    ValueStepper highwayLengthStepper{"Hwy Length"};
-
-    // View panel — Style
-    PanelSectionHeader styleHeader{"Style"};
+    PanelSectionHeader visualHeader{"Visual"};
+    ValueStepper highwayLengthStepper{"Length"};
     ValueStepper backgroundStepper{"Background"};
-    ValueStepper gemScaleStepper{"Gem Size"};
     ValueStepper highwayTextureStepper{"Texture"};
     juce::Label textureScaleLabel;
     juce::Label textureOpacityLabel;
     ValueStepper textureScaleStepper{"Scale"};
     ValueStepper textureOpacityStepper{"Opacity"};
+    ValueStepper gemScaleStepper{"Gem Size"};
 
-    // View panel — Performance
-    PanelSectionHeader performanceHeader{"Performance"};
+    PanelSectionHeader syncHeader{"Sync"};
+    ValueStepper syncOffsetStepper{"Calibration"};
+    int syncOffsetMs = 0;
+    int syncOffsetMin = 0;
+    int syncOffsetMax = 2000;
+    ValueStepper latencyStepper{"Latency"};
+    int latencyIndex = 0;
     ValueStepper framerateStepper{"Framerate"};
     int framerateIndex = 3; // 0-based: 15, 30, 60, Native
 
     //==============================================================================
-    // Settings panel (gear icon) — Sync
+    // Value data — TODO_RELEASE_DEFAULT: audit all defaults before tagging release
 
-    ValueStepper latencyStepper{"Latency"};
-    int latencyIndex = 0;
-    juce::Label latencyOffsetLabel;
-    juce::Slider latencyOffsetSlider;
-
-    //==============================================================================
-    // Value data
-
-    int noteSpeed = 7;
+    int noteSpeed = 7;                    // TODO_RELEASE_DEFAULT
+    int backgroundIndex = 0;              // TODO_RELEASE_DEFAULT (0 = Default)
+    int highwayTextureIndex = -1;         // TODO_RELEASE_DEFAULT (-1 = None)
+    int textureOpacityPct = 45;           // TODO_RELEASE_DEFAULT
+    int gemScaleIndex = gemScaleDefault;  // TODO_RELEASE_DEFAULT
+    int highwayLengthPct = hwLenDefaultPct; // TODO_RELEASE_DEFAULT
 
     juce::StringArray backgroundNames;
-    int backgroundIndex = 0; // 0 = Default, then folder entries
-
     juce::StringArray highwayTextureNames;
-    int highwayTextureIndex = -1;
 
     static constexpr int texScaleValues[] = { 25, 50, 75, 100, 125, 150, 200, 300, 400 };
     static constexpr int texScaleDefault = 3;
     int texScaleIndex = texScaleDefault;
-    int textureOpacityPct = 45;
 
     static constexpr float gemScaleValues[] = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f };
     static constexpr int gemScaleDefault = 5;
-    int gemScaleIndex = gemScaleDefault;
 
     static constexpr int hwLenMinPct = (int)(FAR_FADE_MIN * 100);
     static constexpr int hwLenMaxPct = (int)(FAR_FADE_MAX * 100);
     static constexpr int hwLenStepPct = 10;
     static constexpr int hwLenDefaultPct = (int)(FAR_FADE_DEFAULT * 100);
-    int highwayLengthPct = hwLenDefaultPct;
 
     //==============================================================================
     // Popup buttons
 
     PopupMenuButton chartButton{"Chart"};
-    PopupMenuButton viewButton{"View"};
     PopupMenuButton settingsButton{juce::CharPointer_UTF8("\xe2\x9a\x99")}; // ⚙
 
     //==============================================================================
@@ -179,10 +173,8 @@ private:
 
     void initTopBar();
     void initChartPanel();
-    void initViewPanel();
     void initSettingsPanel();
     void layoutChartPanel(juce::Component* panel);
-    void layoutViewPanel(juce::Component* panel);
     void layoutSettingsPanel(juce::Component* panel);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ToolbarComponent)

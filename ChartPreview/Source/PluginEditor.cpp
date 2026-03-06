@@ -591,8 +591,9 @@ void ChartPreviewAudioProcessorEditor::resized()
     updateBanner.setBounds(getWidth() - 150, getHeight() - 30, 140, 22);
 
     #ifdef DEBUG
-    debugController.getClearButton().setBounds(margin, tbHeight + 4, 100, 20);
-    debugController.getConsole().setBounds(margin, tbHeight + 28, getWidth() - (2 * margin), getHeight() - tbHeight - 38);
+    int stripH = toolbar.getStripHeight();
+    debugController.getClearButton().setBounds(margin, stripH + 4, 100, 20);
+    debugController.getConsole().setBounds(margin, stripH + 28, getWidth() - (2 * margin), getHeight() - stripH - 38);
     #endif
 
     rebuildFadedTrackImage();

@@ -67,7 +67,7 @@ void ChartPreviewLookAndFeel::positionComboBoxText(juce::ComboBox& box, juce::La
 
 juce::Font ChartPreviewLookAndFeel::getComboBoxFont(juce::ComboBox& box)
 {
-    return juce::Font(juce::jmin(13.0f, (float)box.getHeight() * 0.8f));
+    return Theme::getUIFont(juce::jmin(13.0f, (float)box.getHeight() * 0.8f));
 }
 
 //==============================================================================
@@ -220,8 +220,13 @@ juce::Label* ChartPreviewLookAndFeel::createSliderTextBox(juce::Slider& slider)
 {
     auto* label = LookAndFeel_V4::createSliderTextBox(slider);
     label->setColour(juce::Label::textColourId, juce::Colour(Theme::textWhite));
-    label->setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
-    label->setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
+    label->setColour(juce::Label::backgroundColourId, juce::Colour(Theme::darkBg));
+    label->setColour(juce::Label::outlineColourId, juce::Colour(Theme::coral).withAlpha(0.3f));
+    label->setColour(juce::TextEditor::backgroundColourId, juce::Colour(Theme::darkBg));
+    label->setColour(juce::TextEditor::textColourId, juce::Colour(Theme::textWhite));
+    label->setColour(juce::TextEditor::outlineColourId, juce::Colour(Theme::coral).withAlpha(0.5f));
+    label->setColour(juce::TextEditor::focusedOutlineColourId, juce::Colour(Theme::coral));
+    label->setFont(Theme::getUIFont(Theme::fontSize));
     label->setJustificationType(juce::Justification::centred);
     return label;
 }
@@ -269,21 +274,16 @@ void ChartPreviewLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butt
     }
     else
     {
-        auto baseColour = backgroundColour;
-        if (shouldDrawButtonAsDown)
-            baseColour = baseColour.darker(0.2f);
-        else if (shouldDrawButtonAsHighlighted)
-            baseColour = baseColour.brighter(0.1f);
-
-        g.setColour(baseColour);
+        g.setColour(backgroundColour);
         g.fillRoundedRectangle(bounds.reduced(0.5f), Theme::cornerRadius);
 
-        g.setColour(juce::Colour(Theme::coral).withAlpha(0.6f));
+        float borderAlpha = shouldDrawButtonAsHighlighted ? 1.0f : 0.6f;
+        g.setColour(juce::Colour(Theme::coral).withAlpha(borderAlpha));
         g.drawRoundedRectangle(bounds.reduced(0.5f), Theme::cornerRadius, 1.0f);
     }
 }
 
 juce::Font ChartPreviewLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
 {
-    return juce::Font((float)buttonHeight * 0.46f);
+    return Theme::getUIFont((float)buttonHeight * 0.46f);
 }

@@ -87,7 +87,7 @@ public:
 
 private:
     juce::ValueTree& state;
-    PopupMenuButton tuningButton{"Tuning"};
+    PopupMenuButton tuningButton{"T"};
 
     class ScrollableLabel : public juce::Label
     {

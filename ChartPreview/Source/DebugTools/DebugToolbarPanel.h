@@ -23,7 +23,7 @@ public:
 
 private:
     juce::ValueTree& state;
-    PopupMenuButton debugButton{"Debug"};
+    PopupMenuButton debugButton{"D"};
 
     class ScrollableLabel : public juce::Label
     {

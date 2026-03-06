@@ -28,11 +28,15 @@ public:
 
         // Label
         g.setColour(juce::Colour(Theme::textDim));
-        g.setFont(juce::Font(scaledFontSize));
-        g.drawText(name, 0, 0, nameW, getHeight(), juce::Justification::centredLeft);
+        g.setFont(Theme::getUIFont(scaledFontSize));
+        if (labelOnRight)
+            g.drawText(name, bounds.getWidth() - nameW, 0, nameW, getHeight(), juce::Justification::centredRight);
+        else
+            g.drawText(name, 0, 0, nameW, getHeight(), juce::Justification::centredLeft);
 
         // Value pill
-        auto valueRect = bounds.withLeft(nameW).toFloat().reduced(1.0f);
+        auto valueRect = (labelOnRight ? bounds.withRight(bounds.getWidth() - nameW)
+                                       : bounds.withLeft(nameW)).toFloat().reduced(1.0f);
         auto cornerSize = valueRect.getHeight() * Theme::pillRadius;
 
         g.setColour(juce::Colour(Theme::darkBg));
@@ -55,7 +59,7 @@ public:
         auto textRect = valueRect.withLeft(valueRect.getX() + scaledArrowW)
                                   .withRight(valueRect.getRight() - scaledArrowW);
         g.setColour(juce::Colour(Theme::textWhite));
-        g.setFont(juce::Font(scaledFontSize));
+        g.setFont(Theme::getUIFont(scaledFontSize));
         g.drawText(displayValue, textRect, juce::Justification::centred);
     }
 
@@ -65,11 +69,14 @@ public:
         int nameW = (int)(getWidth() * labelRatio);
         float scaledArrowW = (float)getHeight() * 0.571f;
 
-        if (e.x >= nameW && e.x < nameW + scaledArrowW)
+        int pillLeft = labelOnRight ? 0 : nameW;
+        int pillRight = labelOnRight ? (getWidth() - nameW) : getWidth();
+
+        if (e.x >= pillLeft && e.x < pillLeft + scaledArrowW)
         {
             if (onStep) onStep(-1);
         }
-        else if (e.x > getWidth() - scaledArrowW)
+        else if (e.x > pillRight - scaledArrowW && e.x <= pillRight)
         {
             if (onStep) onStep(1);
         }
@@ -81,13 +88,70 @@ public:
         if (onStep) onStep(delta);
     }
 
-    void mouseEnter(const juce::MouseEvent&) override { repaint(); }
-    void mouseExit(const juce::MouseEvent&) override { repaint(); }
+    void mouseEnter(const juce::MouseEvent&) override
+    {
+        repaint();
+        if (tooltip.isNotEmpty())
+            showTooltip();
+    }
+
+    void mouseExit(const juce::MouseEvent&) override
+    {
+        repaint();
+        hideTooltip();
+    }
 
     void setLabelRatio(float ratio) { labelRatio = ratio; }
+    void setLabelOnRight(bool right) { labelOnRight = right; }
+    void setTooltip(const juce::String& text) { tooltip = text; }
 
 private:
     juce::String name;
     juce::String displayValue;
+    juce::String tooltip;
     float labelRatio = 0.42f;
+    bool labelOnRight = false;
+
+    struct TooltipLabel : public juce::Component
+    {
+        juce::String text;
+        void paint(juce::Graphics& g) override
+        {
+            float h = (float)getHeight();
+            g.setColour(juce::Colour(Theme::darkBg).withAlpha(0.92f));
+            g.fillRoundedRectangle(getLocalBounds().toFloat(), 3.0f);
+            g.setColour(juce::Colour(Theme::textDim));
+            g.setFont(Theme::getUIFont(h * 0.6f));
+            g.drawText(text, getLocalBounds(), juce::Justification::centred);
+        }
+    };
+
+    std::unique_ptr<TooltipLabel> tooltipLabel;
+
+    void showTooltip()
+    {
+        auto* topLevel = getTopLevelComponent();
+        if (!topLevel) return;
+
+        tooltipLabel = std::make_unique<TooltipLabel>();
+        tooltipLabel->text = tooltip;
+        tooltipLabel->setAlwaysOnTop(true);
+
+        float h = (float)getHeight();
+        int tipH = juce::roundToInt(h * 0.6f);
+        int tipW = juce::roundToInt(Theme::getUIFont(tipH * 0.6f).getStringWidthFloat(tooltip)) + tipH;
+
+        auto pos = topLevel->getLocalPoint(this, juce::Point<int>(getWidth() / 2, getHeight()));
+        int tipX = pos.x - tipW / 2;
+        int tipY = pos.y + 4;
+        tipX = juce::jmax(0, juce::jmin(tipX, topLevel->getWidth() - tipW));
+
+        tooltipLabel->setBounds(tipX, tipY, tipW, tipH);
+        topLevel->addAndMakeVisible(tooltipLabel.get());
+    }
+
+    void hideTooltip()
+    {
+        tooltipLabel.reset();
+    }
 };
