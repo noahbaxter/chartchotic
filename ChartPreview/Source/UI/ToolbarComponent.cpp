@@ -2,6 +2,7 @@
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
 static const juce::StringArray latencyLabels = { "250ms", "500ms", "750ms", "1000ms", "1500ms" };
+static const juce::StringArray hopoThresholdLabels = { "1/16", "Dot 1/16", "170 Tick", "1/8" };
 
 ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
     : state(state)
@@ -82,15 +83,31 @@ void ToolbarComponent::initChartPanel()
         if (onStarPowerChanged) onStarPowerChanged(starPowerToggle.getToggleState());
     };
 
-    // Auto HOPO stepper (guitar only) — default to "170 Tick"
-    autoHopoStepper.setLabelRatio(0.0f);
-    autoHopoStepper.setTooltip("HOPO Threshold");
-    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
-    autoHopoStepper.onStep = [this](int delta) {
-        int count = hopoModeLabels.size();
-        autoHopoIndex = juce::jlimit(0, count - 1, autoHopoIndex + delta);
-        autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
-        if (onAutoHopoChanged) onAutoHopoChanged(autoHopoIndex + 1);
+    // Auto HOPO toggle + threshold (guitar only)
+    autoHopoToggle.setToggleState(true);
+    autoHopoToggle.onClick = [this]() {
+        bool on = autoHopoToggle.getToggleState();
+        if (on)
+        {
+            if (onAutoHopoChanged) onAutoHopoChanged(hopoThresholdIndex + 2); // +2: skip "Off", 1-based
+        }
+        else
+        {
+            if (onAutoHopoChanged) onAutoHopoChanged(1); // 1 = Off
+        }
+        // Relayout to show/hide threshold
+        if (chartButton.isPanelVisible())
+            chartButton.relayoutPanel();
+    };
+
+    hopoThresholdStepper.setLabelRatio(0.0f);
+    hopoThresholdStepper.setTooltip("HOPO Threshold");
+    hopoThresholdStepper.setDisplayValue(hopoThresholdLabels[hopoThresholdIndex]);
+    hopoThresholdStepper.onStep = [this](int delta) {
+        int count = hopoThresholdLabels.size();
+        hopoThresholdIndex = juce::jlimit(0, count - 1, hopoThresholdIndex + delta);
+        hopoThresholdStepper.setDisplayValue(hopoThresholdLabels[hopoThresholdIndex]);
+        if (onAutoHopoChanged) onAutoHopoChanged(hopoThresholdIndex + 2);
     };
 
     // Drum modifiers
@@ -136,7 +153,8 @@ void ToolbarComponent::initChartPanel()
     // Register all children
     chartButton.addPanelChild(&modifiersHeader);
     chartButton.addPanelChild(&starPowerToggle);
-    chartButton.addPanelChild(&autoHopoStepper);
+    chartButton.addPanelChild(&autoHopoToggle);
+    chartButton.addPanelChild(&hopoThresholdStepper);
     chartButton.addPanelChild(&dynamicsToggle);
     chartButton.addPanelChild(&kick2xToggle);
     chartButton.addPanelChild(&cymbalsToggle);
@@ -374,17 +392,26 @@ void ToolbarComponent::loadState()
     int drumType = (int)state["drumType"];
     cymbalsToggle.setToggleState(drumType == 2);
 
-    // Auto HOPO (1-based → 0-based, default: 170 Tick = index 3)
-    int autoHopo = (int)state["autoHopo"];
-    if (autoHopo >= 1 && autoHopo <= hopoModeLabels.size())
+    // Auto HOPO (1-based: 1=Off, 2=16th, 3=Dot16th, 4=170Tick, 5=8th)
     {
-        autoHopoIndex = autoHopo - 1;
+        int autoHopo = (int)state["autoHopo"];
+        if (autoHopo == 1)
+        {
+            autoHopoToggle.setToggleState(false);
+        }
+        else if (autoHopo >= 2 && autoHopo <= 5)
+        {
+            autoHopoToggle.setToggleState(true);
+            hopoThresholdIndex = autoHopo - 2;
+            hopoThresholdStepper.setDisplayValue(hopoThresholdLabels[hopoThresholdIndex]);
+        }
+        else
+        {
+            // No saved value — default: on, 170 Tick
+            autoHopoToggle.setToggleState(true);
+            state.setProperty("autoHopo", hopoThresholdIndex + 2, nullptr);
+        }
     }
-    else
-    {
-        state.setProperty("autoHopo", autoHopoIndex + 1, nullptr);
-    }
-    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
 
     // Toggles
     gemsToggle.setToggleState(!state.hasProperty("showGems") || (bool)state["showGems"]);
@@ -519,7 +546,8 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         kick2xToggle.setVisible(true);
         y += pillH + gap;
 
-        autoHopoStepper.setVisible(false);
+        autoHopoToggle.setVisible(false);
+        hopoThresholdStepper.setVisible(false);
     }
     else
     {
@@ -527,9 +555,20 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         dynamicsToggle.setVisible(false);
         kick2xToggle.setVisible(false);
 
-        autoHopoStepper.setBounds(margin + col2, y, pillW, pillH);
-        autoHopoStepper.setVisible(true);
+        autoHopoToggle.setBounds(margin + col2, y, pillW, pillH);
+        autoHopoToggle.setVisible(true);
         y += pillH + gap;
+
+        if (autoHopoToggle.getToggleState())
+        {
+            hopoThresholdStepper.setBounds(margin, y, w, stepperH);
+            hopoThresholdStepper.setVisible(true);
+            y += stepperH + gap;
+        }
+        else
+        {
+            hopoThresholdStepper.setVisible(false);
+        }
     }
 
     y += sectionGap - gap;

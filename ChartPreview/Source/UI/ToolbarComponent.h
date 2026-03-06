@@ -89,8 +89,9 @@ private:
     PillToggle starPowerToggle{"Star Power"};
 
     // Guitar modifiers
-    ValueStepper autoHopoStepper{"HOPO"};
-    int autoHopoIndex = 3; // 0-based index into hopoModeLabels (default: "170 Tick")
+    PillToggle autoHopoToggle{"Auto HOPO"};
+    ValueStepper hopoThresholdStepper{"Threshold"};
+    int hopoThresholdIndex = 2; // 0-based into hopoThresholdLabels (default: "170 Tick")
 
     // Drum modifiers
     PillToggle dynamicsToggle{"Dynamics"};
