@@ -155,10 +155,17 @@ target_sources(ChartPreview
         ChartPreview/Source/Visual/Managers/AssetManager.cpp
         ChartPreview/Source/Visual/Managers/AssetManager.h
         ChartPreview/Source/Visual/Managers/GridlineGenerator.h
-        # UI
-        ChartPreview/Source/UI/ChartPreviewLookAndFeel.cpp
-        ChartPreview/Source/UI/ChartPreviewLookAndFeel.h
-        ChartPreview/Source/UI/PopupMenuButton.h
+        # UI - Controls
+        ChartPreview/Source/UI/Controls/PanelSectionHeader.h
+        ChartPreview/Source/UI/Controls/PillToggle.h
+        ChartPreview/Source/UI/Controls/PopupMenuButton.h
+        ChartPreview/Source/UI/Controls/SegmentedButtons.h
+        ChartPreview/Source/UI/Controls/ValueStepper.h
+        # UI - LookAndFeel
+        ChartPreview/Source/UI/LookAndFeel/ChartPreviewLookAndFeel.cpp
+        ChartPreview/Source/UI/LookAndFeel/ChartPreviewLookAndFeel.h
+        # UI - Core
+        ChartPreview/Source/UI/Theme.h
         ChartPreview/Source/UI/SectionHeader.h
         ChartPreview/Source/UI/ToolbarComponent.cpp
         ChartPreview/Source/UI/ToolbarComponent.h

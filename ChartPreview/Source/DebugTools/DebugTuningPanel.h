@@ -3,7 +3,7 @@
 #ifdef DEBUG
 
 #include <JuceHeader.h>
-#include "../UI/PopupMenuButton.h"
+#include "../UI/Controls/PopupMenuButton.h"
 #include "../UI/SectionHeader.h"
 #include "../Utils/Utils.h"
 #include "../Visual/Utils/PositionConstants.h"

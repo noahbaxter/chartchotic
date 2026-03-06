@@ -1,19 +1,11 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "../Theme.h"
 
 class ChartPreviewLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    // Colour palette
-    static constexpr juce::uint32 coralAccent    = 0xFFE85D45;
-    static constexpr juce::uint32 darkBg         = 0xFF1A1A1A;
-    static constexpr juce::uint32 darkBgLighter  = 0xFF2A2A2A;
-    static constexpr juce::uint32 darkBgHover    = 0xFF333333;
-    static constexpr juce::uint32 textWhite      = 0xFFEEEEEE;
-    static constexpr juce::uint32 textDim        = 0xFFAAAAAA;
-    static constexpr juce::uint32 toolbarBg      = 0xCC111111;
-
     ChartPreviewLookAndFeel();
 
     // ComboBox
@@ -31,7 +23,7 @@ public:
                            const juce::String& text, const juce::String& shortcutKeyText,
                            const juce::Drawable* icon, const juce::Colour* textColour) override;
 
-    // ToggleButton
+    // ToggleButton (used by debug panels)
     void drawToggleButton(juce::Graphics&, juce::ToggleButton&,
                           bool shouldDrawButtonAsHighlighted,
                           bool shouldDrawButtonAsDown) override;

@@ -18,7 +18,7 @@
 #include "Utils/TimeConverter.h"
 #include "Visual/Utils/LatencySmoother.h"
 #include "UpdateChecker.h"
-#include "UI/ChartPreviewLookAndFeel.h"
+#include "UI/LookAndFeel/ChartPreviewLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
@@ -52,49 +52,13 @@ public:
             return true;
 #endif
 
-        // Handle arrow keys for latency offset when text box has focus
-        auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
-        if (latencyOffsetInput.hasKeyboardFocus(true))
-        {
-            int currentOffset = latencyOffsetInput.getText().getIntValue();
-
-            // Get pipeline type to determine valid range
-            bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-            int minValue = isReaperMode ? -2000 : 0;
-            int maxValue = 2000;
-
-            if (key == juce::KeyPress::upKey)
-            {
-                if (currentOffset < maxValue)
-                {
-                    int newValue = currentOffset + 10;  // Increment by 10ms
-                    if (newValue > maxValue) newValue = maxValue;
-                    latencyOffsetInput.setText(juce::String(newValue), false);
-                    applyLatencyOffsetChange();
-                }
-                return true;
-            }
-            else if (key == juce::KeyPress::downKey)
-            {
-                if (currentOffset > minValue)
-                {
-                    int newValue = currentOffset - 10;  // Decrement by 10ms
-                    if (newValue < minValue) newValue = minValue;
-                    latencyOffsetInput.setText(juce::String(newValue), false);
-                    applyLatencyOffsetChange();
-                }
-                return true;
-            }
-        }
-
         return false;
     }
 
     void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
     {
-        // Ignore scroll on text input fields
-        auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
-        if (latencyOffsetInput.isMouseOver(true))
+        // Ignore scroll on slider controls
+        if (toolbar.getLatencyOffsetSlider().isMouseOver(true))
             return;
 
 #ifdef DEBUG
@@ -148,8 +112,14 @@ private:
 
     // Background Assets
     juce::Image backgroundImageDefault;
-    juce::Image backgroundImageRed;
+    juce::Image backgroundImageCurrent;
     std::unique_ptr<juce::Drawable> reaperLogo;
+
+    // Background image folder
+    juce::StringArray backgroundNames;
+    juce::File backgroundDirectory;
+    void scanBackgrounds();
+    void loadBackground(const juce::String& filename);
 
     juce::Label versionLabel;
 
@@ -164,7 +134,6 @@ private:
     void loadState();
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
-    void applyLatencyOffsetChange();
 
     void paintReaperMode(juce::Graphics& g);
     void paintStandardMode(juce::Graphics& g);

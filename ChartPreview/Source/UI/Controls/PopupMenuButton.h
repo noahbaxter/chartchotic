@@ -1,59 +1,43 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "../Theme.h"
 
 // A panel that appears below a button and holds arbitrary child controls.
 // Dismisses when clicking outside via a desktop-level mouse listener.
 class PopupPanel : public juce::Component
 {
 public:
-    PopupPanel()
-    {
-        setAlwaysOnTop(true);
-    }
+    PopupPanel() { setAlwaysOnTop(true); }
 
     void paint(juce::Graphics& g) override
     {
-        g.setColour(juce::Colour(0xFF1A1A1A));
+        g.setColour(juce::Colour(Theme::darkBg));
         g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
 
-        g.setColour(juce::Colour(0xFFE85D45).withAlpha(0.5f));
+        g.setColour(juce::Colour(Theme::coral).withAlpha(0.5f));
         g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.0f);
     }
 };
 
 // A button that toggles a PopupPanel below itself.
-// Uses a separate mouse listener object to detect clicks outside the panel for dismissal.
+// Uses a separate mouse listener to detect clicks outside for dismissal.
 class PopupMenuButton : public juce::TextButton
 {
 public:
     PopupMenuButton(const juce::String& buttonText) : juce::TextButton(buttonText) {}
 
-    ~PopupMenuButton() override
-    {
-        dismissPanel();
-    }
+    ~PopupMenuButton() override { dismissPanel(); }
 
-    void addPanelChild(juce::Component* child)
-    {
-        panelChildren.push_back(child);
-    }
+    void addPanelChild(juce::Component* child) { panelChildren.push_back(child); }
 
-    void setPanelSize(int w, int h)
-    {
-        panelWidth = w;
-        panelHeight = h;
-    }
+    void setPanelSize(int w, int h) { panelWidth = w; panelHeight = h; }
 
     bool isPanelVisible() const { return panel != nullptr && panel->isVisible(); }
 
     void showPanel()
     {
-        if (panel != nullptr)
-        {
-            dismissPanel();
-            return;
-        }
+        if (panel != nullptr) { dismissPanel(); return; }
 
         panel = std::make_unique<PopupPanel>();
         panel->setSize(panelWidth, panelHeight);
@@ -64,18 +48,18 @@ public:
         if (onLayoutPanel)
             onLayoutPanel(panel.get());
 
-        // Position below this button, right-aligned
         auto screenPos = localPointToGlobal(juce::Point<int>(getWidth(), getHeight()));
-        int panelX = screenPos.x - panelWidth;
-        int panelY = screenPos.y + 2;
-
-        panel->setTopLeftPosition(panelX, panelY);
+        panel->setTopLeftPosition(screenPos.x - panelWidth, screenPos.y + 2);
+        panel->setLookAndFeel(&getLookAndFeel());
         panel->addToDesktop(juce::ComponentPeer::windowIsTemporary);
         panel->setVisible(true);
         panel->toFront(true);
 
         dismissListener = std::make_unique<DismissListener>(*this);
         juce::Desktop::getInstance().addGlobalMouseListener(dismissListener.get());
+
+        setToggleState(true, juce::dontSendNotification);
+        repaint();
     }
 
     void dismissPanel()
@@ -91,9 +75,11 @@ public:
                 panel->removeChildComponent(child);
             panel.reset();
         }
+
+        setToggleState(false, juce::dontSendNotification);
+        repaint();
     }
 
-    // Re-run layout on the existing panel (e.g. after section toggle)
     void relayoutPanel()
     {
         if (panel != nullptr && onLayoutPanel)
@@ -103,13 +89,9 @@ public:
         }
     }
 
-    // Called to layout children inside the panel
     std::function<void(juce::Component* panel)> onLayoutPanel;
 
-    void clicked() override
-    {
-        showPanel();
-    }
+    void clicked() override { showPanel(); }
 
 private:
     struct DismissListener : public juce::MouseListener
@@ -120,12 +102,9 @@ private:
         void mouseDown(const juce::MouseEvent& e) override
         {
             if (owner.panel == nullptr) return;
-
             auto pos = e.getScreenPosition();
             if (!owner.panel->getScreenBounds().contains(pos) && !owner.getScreenBounds().contains(pos))
-            {
                 juce::MessageManager::callAsync([this]() { owner.dismissPanel(); });
-            }
         }
     };
 

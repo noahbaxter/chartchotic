@@ -86,6 +86,7 @@ void ChartPreviewAudioProcessorEditor::onFrame()
 
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
     toolbar.setReaperMode(isReaperMode);
+    toolbar.setLatencyOffsetRange(isReaperMode ? -2000 : 0, 2000);
     toolbar.updateVisibility();
 
     // Track position changes for render logic
@@ -135,11 +136,12 @@ void ChartPreviewAudioProcessorEditor::onFrame()
 void ChartPreviewAudioProcessorEditor::initAssets()
 {
     backgroundImageDefault = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
-    backgroundImageRed = juce::ImageCache::getFromMemory(BinaryData::background_red_jpg, BinaryData::background_red_jpgSize);
+    backgroundImageCurrent = backgroundImageDefault;
 
     // Load REAPER logo SVG
     reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
 
+    scanBackgrounds();
     scanHighwayTextures();
 }
 
@@ -263,11 +265,17 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
     };
 
     toolbar.onLatencyOffsetChanged = [this](int offsetMs) {
-        applyLatencyOffsetChange();
+        // State is already set by the slider; apply side-effects
+        audioProcessor.refreshMidiDisplay();
+        bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+        if (isReaperMode)
+            audioProcessor.invalidateReaperCache();
+        repaint();
     };
 
-    toolbar.onRedBackgroundChanged = [this](bool useRed) {
-        state.setProperty("redBackground", useRed ? 1 : 0, nullptr);
+    toolbar.onBackgroundChanged = [this](const juce::String& bgName) {
+        state.setProperty("background", bgName, nullptr);
+        loadBackground(bgName);
         repaint();
     };
 
@@ -349,8 +357,7 @@ void ChartPreviewAudioProcessorEditor::initBottomBar()
 //==============================================================================
 void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    auto& bg = (bool)state["redBackground"] ? backgroundImageRed : backgroundImageDefault;
-    g.drawImage(bg, getLocalBounds().toFloat());
+    g.drawImage(backgroundImageCurrent, getLocalBounds().toFloat());
 
     // Visual feedback for REAPER connection status
     if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
@@ -594,7 +601,8 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
     // Convert note speed to highway time: 7.87 is the default highway length in world units,
     // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
-    displayWindowTimeSeconds = 7.87 / toolbar.getChartSpeedSlider().getValue();
+    int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;
+    displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
 
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
     // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.
@@ -608,6 +616,20 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 
 void ChartPreviewAudioProcessorEditor::loadState()
 {
+    // Migrate old redBackground bool to new background string
+    if (state.hasProperty("redBackground") && !state.hasProperty("background"))
+    {
+        if ((bool)state["redBackground"] && backgroundNames.contains("background_red"))
+            state.setProperty("background", "background_red", nullptr);
+        state.removeProperty("redBackground", nullptr);
+    }
+
+    // Load saved background image
+    {
+        juce::String savedBg = state.getProperty("background").toString();
+        loadBackground(savedBg);
+    }
+
     // Default to random highway texture if no saved preference (before toolbar reads state)
     if (!state.hasProperty("highwayTexture") && highwayTextureNames.size() > 0)
     {
@@ -667,35 +689,6 @@ void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
     audioProcessor.setLatencyInSeconds(latencyInSeconds);
 }
 
-void ChartPreviewAudioProcessorEditor::applyLatencyOffsetChange()
-{
-    auto& latencyOffsetInput = toolbar.getLatencyOffsetInput();
-    int offsetValue = latencyOffsetInput.getText().getIntValue();
-
-    // Get pipeline type to determine valid range
-    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-    int minValue = isReaperMode ? -2000 : 0;
-    int maxValue = 2000;
-
-    if (offsetValue >= minValue && offsetValue <= maxValue)
-    {
-        state.setProperty("latencyOffsetMs", offsetValue, nullptr);
-        audioProcessor.refreshMidiDisplay();
-
-        // In REAPER mode, invalidate cache to immediately apply offset
-        if (isReaperMode)
-        {
-            audioProcessor.invalidateReaperCache();
-        }
-
-        repaint();
-    }
-    else
-    {
-        // Invalid value, restore previous
-        latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
-    }
-}
 
 juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrainer()
 {
@@ -705,6 +698,56 @@ juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrain
 void ChartPreviewAudioProcessorEditor::parentSizeChanged()
 {
     AudioProcessorEditor::parentSizeChanged();
+}
+
+void ChartPreviewAudioProcessorEditor::scanBackgrounds()
+{
+#if JUCE_MAC
+    backgroundDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("Application Support/Chart Preview/backgrounds");
+#elif JUCE_WINDOWS
+    backgroundDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("Chart Preview/backgrounds");
+#endif
+
+    backgroundNames.clear();
+
+    if (!backgroundDirectory.isDirectory())
+        backgroundDirectory.createDirectory();
+
+    auto files = backgroundDirectory.findChildFiles(juce::File::findFiles, false, "*.png;*.jpg;*.jpeg");
+    files.sort();
+    for (auto& f : files)
+        backgroundNames.add(f.getFileNameWithoutExtension());
+
+    toolbar.setBackgroundList(backgroundNames);
+}
+
+void ChartPreviewAudioProcessorEditor::loadBackground(const juce::String& filename)
+{
+    if (filename.isEmpty())
+    {
+        backgroundImageCurrent = backgroundImageDefault;
+        return;
+    }
+
+    // Try common extensions
+    for (auto ext : { ".png", ".jpg", ".jpeg" })
+    {
+        auto file = backgroundDirectory.getChildFile(filename + ext);
+        if (file.existsAsFile())
+        {
+            auto img = juce::ImageFileFormat::loadFrom(file);
+            if (img.isValid())
+            {
+                backgroundImageCurrent = img;
+                return;
+            }
+        }
+    }
+
+    // File not found, fall back to default
+    backgroundImageCurrent = backgroundImageDefault;
 }
 
 void ChartPreviewAudioProcessorEditor::scanHighwayTextures()
