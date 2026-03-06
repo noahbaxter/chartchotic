@@ -70,11 +70,16 @@ void ChartPreviewAudioProcessorEditor::onFrame()
     if (targetFrameInterval > 0.0)
     {
         juce::int64 now = juce::Time::getHighResolutionTicks();
-        double elapsed = (now - lastFrameTicks)
-            / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        double ticksPerSec = static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        double elapsed = (now - lastFrameTicks) / ticksPerSec;
         if (elapsed < targetFrameInterval)
             return;
-        lastFrameTicks = now;
+        // Advance by target interval to stay on a stable grid.
+        // If we overshot by more than a full interval (e.g. app was suspended), snap to now.
+        juce::int64 intervalTicks = static_cast<juce::int64>(targetFrameInterval * ticksPerSec);
+        lastFrameTicks += intervalTicks;
+        if ((now - lastFrameTicks) / ticksPerSec > targetFrameInterval)
+            lastFrameTicks = now;
     }
 
     printCallback();
