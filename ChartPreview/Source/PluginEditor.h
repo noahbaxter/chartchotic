@@ -170,6 +170,7 @@ private:
     void loadHighwayTexture(const juce::String& filename);
     float computeScrollOffset();
 
+    bool showHighway = true;
     float latencyInSeconds = 0.0;
 
     // Resize constraints

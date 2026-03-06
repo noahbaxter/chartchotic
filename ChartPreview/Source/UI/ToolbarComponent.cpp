@@ -158,6 +158,10 @@ void ToolbarComponent::initChartPanel()
         if (onStrikelineChanged) onStrikelineChanged(strikelineToggle.getToggleState());
     };
 
+    highwayToggle.onClick = [this]() {
+        if (onHighwayChanged) onHighwayChanged(highwayToggle.getToggleState());
+    };
+
     // Register all children
     chartButton.addPanelChild(&modifiersHeader);
     chartButton.addPanelChild(&starPowerToggle);
@@ -175,6 +179,7 @@ void ToolbarComponent::initChartPanel()
     chartButton.addPanelChild(&hitIndicatorsToggle);
     chartButton.addPanelChild(&trackToggle);
     chartButton.addPanelChild(&strikelineToggle);
+    chartButton.addPanelChild(&highwayToggle);
     chartButton.setPanelSize(175, 300);
     chartButton.onLayoutPanel = [this](juce::Component* panel) { layoutChartPanel(panel); };
     addAndMakeVisible(chartButton);
@@ -434,6 +439,7 @@ void ToolbarComponent::loadState()
     hitIndicatorsToggle.setToggleState(!state.hasProperty("hitIndicators") || (bool)state["hitIndicators"]);
     trackToggle.setToggleState(!state.hasProperty("showTrack") || (bool)state["showTrack"]);
     strikelineToggle.setToggleState(!state.hasProperty("showStrikeline") || (bool)state["showStrikeline"]);
+    highwayToggle.setToggleState(!state.hasProperty("showHighway") || (bool)state["showHighway"]);
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     // Background
@@ -586,25 +592,29 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 
     y += sectionGap - gap;
 
-    // --- Elements ---
+    // --- Elements (3x3 grid, smaller pills) ---
     elementsHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
-    gemsToggle.setBounds(margin, y, pillW, pillH);
-    barsToggle.setBounds(margin + col2, y, pillW, pillH);
-    y += pillH + gap;
+    int elemH = juce::roundToInt(22.0f * s);
+    int elemGap = juce::roundToInt(3.0f * s);
+    int col3 = w / 3;
+    int elemW = col3 - juce::roundToInt(2.0f * s);
 
-    sustainsToggle.setBounds(margin, y, pillW, pillH);
-    lanesToggle.setBounds(margin + col2, y, pillW, pillH);
-    y += pillH + gap;
+    gemsToggle.setBounds(margin, y, elemW, elemH);
+    barsToggle.setBounds(margin + col3, y, elemW, elemH);
+    sustainsToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
+    y += elemH + elemGap;
 
-    gridlinesToggle.setBounds(margin, y, pillW, pillH);
-    hitIndicatorsToggle.setBounds(margin + col2, y, pillW, pillH);
-    y += pillH + gap;
+    lanesToggle.setBounds(margin, y, elemW, elemH);
+    gridlinesToggle.setBounds(margin + col3, y, elemW, elemH);
+    hitIndicatorsToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
+    y += elemH + elemGap;
 
-    trackToggle.setBounds(margin, y, pillW, pillH);
-    strikelineToggle.setBounds(margin + col2, y, pillW, pillH);
-    y += pillH;
+    trackToggle.setBounds(margin, y, elemW, elemH);
+    strikelineToggle.setBounds(margin + col3, y, elemW, elemH);
+    highwayToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
+    y += elemH;
 
     panel->setSize(panel->getWidth(), y + margin);
 }

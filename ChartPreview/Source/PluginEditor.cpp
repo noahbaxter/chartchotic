@@ -250,6 +250,12 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         repaint();
     };
 
+    toolbar.onHighwayChanged = [this](bool on) {
+        state.setProperty("showHighway", on ? 1 : 0, nullptr);
+        showHighway = on;
+        repaint();
+    };
+
     toolbar.onNoteSpeedChanged = [this](int speed) {
         state.setProperty("noteSpeed", speed, nullptr);
         updateDisplaySizeFromSpeedSlider();
@@ -380,11 +386,10 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         }
     }
 
-    // Draw highway (faded track background)
-    trackRenderer.paint(g);
-
-    // Draw scrolling highway texture overlay
+    // Draw highway (faded track background + scrolling texture)
+    if (showHighway)
     {
+        trackRenderer.paint(g);
 #ifdef DEBUG
         ScopedPhaseMeasure m(debugController.textureRender_us, sceneRenderer.collectPhaseTiming);
 #endif
@@ -677,6 +682,7 @@ void ChartPreviewAudioProcessorEditor::loadState()
     sceneRenderer.showGridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
     sceneRenderer.showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
     sceneRenderer.showStrikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
+    showHighway = !state.hasProperty("showHighway") || (bool)state["showHighway"];
 
     // Restore highway length
     if (state.hasProperty("highwayLength"))

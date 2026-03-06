@@ -50,6 +50,7 @@ public:
     std::function<void(bool)> onHitIndicatorsChanged;
     std::function<void(bool)> onTrackChanged;
     std::function<void(bool)> onStrikelineChanged;
+    std::function<void(bool)> onHighwayChanged;
     std::function<void(bool)> onStarPowerChanged;
     std::function<void(bool)> onKick2xChanged;
     std::function<void(bool)> onDynamicsChanged;
@@ -109,7 +110,8 @@ private:
     PillToggle gridlinesToggle{"Gridlines"};
     PillToggle hitIndicatorsToggle{"Hits"};
     PillToggle trackToggle{"Track"};
-    PillToggle strikelineToggle{"Strikeline"};
+    PillToggle strikelineToggle{"Strike"};
+    PillToggle highwayToggle{"Hwy"};
 
     //==============================================================================
     // Settings panel (gear icon) — Style, Playback, Sync
