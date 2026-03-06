@@ -281,6 +281,7 @@ void ToolbarComponent::initSettingsPanel()
     // Register all children
     settingsButton.addPanelChild(&visualHeader);
     settingsButton.addPanelChild(&framerateButtons);
+    settingsButton.addPanelChild(&highwayHeader);
     settingsButton.addPanelChild(&highwayLengthStepper);
     settingsButton.addPanelChild(&highwayTextureStepper);
     settingsButton.addPanelChild(&textureScaleLabel);
@@ -610,6 +611,16 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     framerateButtons.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
+    backgroundStepper.setBounds(margin, y, w, stepperH);
+    y += stepperH + gap;
+
+    gemScaleStepper.setBounds(margin, y, w, stepperH);
+    y += stepperH + sectionGap;
+
+    // --- Highway ---
+    highwayHeader.setBounds(margin, y, w, headerH);
+    y += headerH + gap;
+
     highwayLengthStepper.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
@@ -627,14 +638,8 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         y += labelH + juce::roundToInt(1.0f * s);
         textureScaleStepper.setBounds(margin, y, colW, stepperH);
         textureOpacityStepper.setBounds(margin + colW + gap, y, colW, stepperH);
-        y += stepperH + gap;
+        y += stepperH + sectionGap;
     }
-
-    backgroundStepper.setBounds(margin, y, w, stepperH);
-    y += stepperH + gap;
-
-    gemScaleStepper.setBounds(margin, y, w, stepperH);
-    y += stepperH + sectionGap;
 
     // --- Sync ---
     syncHeader.setBounds(margin, y, w, headerH);

@@ -111,9 +111,10 @@ private:
     // Settings panel (gear icon) — Style, Playback, Sync
 
     PanelSectionHeader visualHeader{"Visual"};
+    PanelSectionHeader highwayHeader{"Highway"};
     ValueStepper highwayLengthStepper{"Length"};
     ValueStepper backgroundStepper{"Background"};
-    ValueStepper highwayTextureStepper{"Hwy Texture"};
+    ValueStepper highwayTextureStepper{"Texture"};
     juce::Label textureScaleLabel;
     juce::Label textureOpacityLabel;
     ValueStepper textureScaleStepper{"Scale"};
