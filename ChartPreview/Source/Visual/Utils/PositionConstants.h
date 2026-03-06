@@ -188,19 +188,19 @@ namespace PositionConstants
     //==============================================================================
     // Bezier Lane Coordinate Tables (sustain/lane rendering, slightly different from glyph tables)
     constexpr NormalizedCoordinates guitarBezierLaneCoords[] = {
-        {0.179f, 0.34f, 0.73f, 0.234f, 0.639f, 0.32f},     // Open
-        {0.22725f, 0.3615f, 0.71f, 0.22f, 0.099f, 0.055f},  // Green
-        {0.330f, 0.4115f, 0.71f, 0.22f, 0.112f, 0.065f},    // Red
-        {0.4445f, 0.4675f, 0.71f, 0.22f, 0.111f, 0.065f},   // Yellow
-        {0.558f, 0.5235f, 0.71f, 0.22f, 0.112f, 0.065f},    // Blue
-        {0.67325f, 0.5785f, 0.71f, 0.22f, 0.100f, 0.065f}   // Orange
+        {0.182f, 0.358f, 0.73f, 0.234f, 0.632f, 0.280f},     // Open
+        {0.226f, 0.378f, 0.71f, 0.22f, 0.095f, 0.040f},      // Green
+        {0.324f, 0.418f, 0.71f, 0.22f, 0.116f, 0.054f},      // Red
+        {0.442f, 0.482f, 0.71f, 0.22f, 0.118f, 0.054f},      // Yellow
+        {0.558f, 0.526f, 0.71f, 0.22f, 0.118f, 0.056f},      // Blue
+        {0.678f, 0.580f, 0.71f, 0.22f, 0.096f, 0.040f}       // Orange
     };
     constexpr NormalizedCoordinates drumBezierLaneCoords[] = {
-        {0.182f, 0.34f, 0.735f, 0.239f, 0.636f, 0.32f},      // Kick
-        {0.22775f, 0.3673f, 0.70f, 0.22f, 0.136f, 0.0714f},   // Red
-        {0.365f, 0.4318f, 0.70f, 0.22f, 0.134f, 0.0714f},     // Yellow
-        {0.501f, 0.4968f, 0.70f, 0.22f, 0.134f, 0.0714f},     // Blue
-        {0.63575f, 0.5613f, 0.70f, 0.22f, 0.137f, 0.0714f}    // Green
+        {0.190f, 0.354f, 0.735f, 0.239f, 0.620f, 0.290f},    // Kick (1x and 2x)
+        {0.232f, 0.376f, 0.70f, 0.22f, 0.132f, 0.060f},      // Red
+        {0.366f, 0.436f, 0.70f, 0.22f, 0.134f, 0.064f},      // Yellow
+        {0.500f, 0.500f, 0.70f, 0.22f, 0.134f, 0.066f},      // Blue
+        {0.636f, 0.564f, 0.70f, 0.22f, 0.132f, 0.060f}       // Green
     };
 
     //==============================================================================
@@ -243,7 +243,7 @@ namespace PositionConstants
     //==============================================================================
     // Gem width/height scales
     constexpr float GEM_WIDTH_SCALE = 1.0f;
-    constexpr float GEM_HEIGHT_SCALE = 1.0f;
+    constexpr float GEM_HEIGHT_SCALE = 1.15f;
     constexpr float BAR_WIDTH_SCALE = 1.0f;
     constexpr float BAR_HEIGHT_SCALE = 1.0f;
 
@@ -252,7 +252,7 @@ namespace PositionConstants
     constexpr float HIT_GEM_SCALE = 1.5f;
     constexpr float HIT_BAR_SCALE = 1.0f;
     constexpr float HIT_GEM_WIDTH_SCALE = 1.0f;
-    constexpr float HIT_GEM_HEIGHT_SCALE = 1.0f;
+    constexpr float HIT_GEM_HEIGHT_SCALE = 1.20f;
     constexpr float HIT_BAR_WIDTH_SCALE = 1.0f;
     constexpr float HIT_BAR_HEIGHT_SCALE = 1.0f;
 

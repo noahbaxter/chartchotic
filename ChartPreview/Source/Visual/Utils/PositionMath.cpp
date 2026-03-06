@@ -118,10 +118,20 @@ LaneCorners PositionMath::getColumnPosition(
 
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
 
-    // Column center and width as fractions of fretboard (derived from strikeline coords)
-    float colCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
-    float centerFrac = (colCenterNorm - fbCoords.normX1) / fbCoords.normWidth1;
-    float widthFrac = (colCoords.normWidth1 / fbCoords.normWidth1) * sizeScale;
+    // Blend t: 0 at strikeline (near), 1 at far end
+    float range = posEnd - posStart;
+    float t = (range > 0.0f) ? juce::jlimit(0.0f, 1.0f, (position - posStart) / range) : 0.0f;
+
+    // Near fractions (X1/W1) and far fractions (X2/W2) relative to fretboard
+    float nearCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
+    float farCenterNorm  = colCoords.normX2 + colCoords.normWidth2 * 0.5f;
+    float nearCenterFrac = (nearCenterNorm - fbCoords.normX1) / fbCoords.normWidth1;
+    float farCenterFrac  = (farCenterNorm  - fbCoords.normX2) / fbCoords.normWidth2;
+    float nearWidthFrac  = (colCoords.normWidth1 / fbCoords.normWidth1) * sizeScale;
+    float farWidthFrac   = (colCoords.normWidth2 / fbCoords.normWidth2) * sizeScale;
+
+    float centerFrac = nearCenterFrac + t * (farCenterFrac - nearCenterFrac);
+    float widthFrac  = nearWidthFrac  + t * (farWidthFrac  - nearWidthFrac);
 
     // Expand fretboard reference from center (matches visual highway width)
     float edgeCenter = (edge.leftX + edge.rightX) * 0.5f;
