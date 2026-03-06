@@ -160,6 +160,20 @@ public:
         if (hoverIndex >= 0) { hoverIndex = -1; repaint(); }
     }
 
+    void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& wheel) override
+    {
+        if (items.isEmpty()) return;
+        int delta = (wheel.deltaY > 0.0f) ? 1 : (wheel.deltaY < 0.0f) ? -1 : 0;
+        if (delta == 0) return;
+        int newIndex = juce::jlimit(0, items.size() - 1, selectedIndex + delta);
+        if (newIndex != selectedIndex)
+        {
+            selectedIndex = newIndex;
+            repaint();
+            if (onSelectionChanged) onSelectionChanged(selectedIndex);
+        }
+    }
+
 private:
     juce::StringArray items;
     int selectedIndex = 0;

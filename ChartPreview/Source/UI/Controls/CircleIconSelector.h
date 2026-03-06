@@ -112,12 +112,12 @@ public:
             startHoverTimer();
     }
 
-    // Scroll: cycle through items with wrapping (only over the main circle icon)
+    // Scroll: cycle through items without wrapping (only over the main circle icon)
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& wheel) override
     {
         if (items.empty() || !isMouseOver(false)) return;
         int dir = (wheel.deltaY > 0) ? -1 : 1;
-        int newIndex = (selectedIndex + dir + (int)items.size()) % (int)items.size();
+        int newIndex = juce::jlimit(0, (int)items.size() - 1, selectedIndex + dir);
         setSelectedIndex(newIndex, juce::sendNotification);
     }
 
