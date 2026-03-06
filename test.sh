@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Chart Preview - Test Runner
+# Chartchotic - Test Runner
 #
 # Usage:
 #   ./test.sh test [unit|integration|compliance] [-v]   Run tests (all by default)

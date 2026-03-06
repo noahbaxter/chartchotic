@@ -13,13 +13,13 @@
 #include "../Utils/PPQ.h"
 #include "../Midi/Utils/InstrumentMapper.h"
 
-class ChartPreviewAudioProcessor;
+class ChartchoticAudioProcessor;
 
 class ReaperIntegration
 {
 public:
     static void processReaperTimelineMidi(
-        ChartPreviewAudioProcessor& processor,
+        ChartchoticAudioProcessor& processor,
         PPQ startPPQ,
         PPQ endPPQ,
         double bpm,

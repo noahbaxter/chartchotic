@@ -58,7 +58,7 @@ jobs:
       shell: cmd
       run: |
         mkdir dist-windows
-        xcopy "build\ChartPreview_artefacts\Release\VST3\Chart Preview.vst3" "dist-windows\Chart Preview.vst3\" /E /I
+        xcopy "build\Chartchotic_artefacts\Release\VST3\Chartchotic.vst3" "dist-windows\Chartchotic.vst3\" /E /I
 
     - name: Build Windows installer
       shell: cmd
@@ -69,10 +69,10 @@ jobs:
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ChartPreview-Windows
+        name: Chartchotic-Windows
         path: |
           dist-windows/
-          .ci/Output/ChartPreview-Windows-Installer.exe
+          .ci/Output/Chartchotic-Windows-Installer.exe
         retention-days: 7
 
   build-macos:
@@ -113,10 +113,10 @@ jobs:
           -DVERSION_STRING="${{ inputs.version_string }}"
 
     - name: Build VST3
-      run: cmake --build build --config Release --target ChartPreview_VST3
+      run: cmake --build build --config Release --target Chartchotic_VST3
 
     - name: Build AU
-      run: cmake --build build --config Release --target ChartPreview_AU
+      run: cmake --build build --config Release --target Chartchotic_AU
 
     - name: Import signing certificates
       if: steps.signing.outputs.available == 'true'
@@ -156,19 +156,19 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
         APP_IDENTITY="Developer ID Application: Noah Baxter ($APPLE_TEAM_ID)"
-        BUILD_DIR="build/ChartPreview_artefacts/Release"
+        BUILD_DIR="build/Chartchotic_artefacts/Release"
 
         codesign --force --deep --sign "$APP_IDENTITY" \
           --options runtime --timestamp \
-          "$BUILD_DIR/VST3/Chart Preview.vst3"
+          "$BUILD_DIR/VST3/Chartchotic.vst3"
 
         codesign --force --deep --sign "$APP_IDENTITY" \
           --options runtime --timestamp \
-          "$BUILD_DIR/AU/Chart Preview.component"
+          "$BUILD_DIR/AU/Chartchotic.component"
 
         echo "Verifying signatures..."
-        codesign --verify --deep --strict "$BUILD_DIR/VST3/Chart Preview.vst3"
-        codesign --verify --deep --strict "$BUILD_DIR/AU/Chart Preview.component"
+        codesign --verify --deep --strict "$BUILD_DIR/VST3/Chartchotic.vst3"
+        codesign --verify --deep --strict "$BUILD_DIR/AU/Chartchotic.component"
 
     - name: Create signed installer package
       if: steps.signing.outputs.available == 'true'
@@ -177,52 +177,52 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
         INSTALLER_IDENTITY="Developer ID Installer: Noah Baxter ($APPLE_TEAM_ID)"
-        BUILD_DIR="build/ChartPreview_artefacts/Release"
+        BUILD_DIR="build/Chartchotic_artefacts/Release"
         VERSION="${{ inputs.version_string }}"
         PKG_DIR=$RUNNER_TEMP/pkg-root
 
         # VST3 component package
         mkdir -p "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3"
-        cp -R "$BUILD_DIR/VST3/Chart Preview.vst3" "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3/"
-        pkgbuild --root "$PKG_DIR/vst3" --identifier "com.dichoticstudios.chartpreview.vst3" \
+        cp -R "$BUILD_DIR/VST3/Chartchotic.vst3" "$PKG_DIR/vst3/Library/Audio/Plug-Ins/VST3/"
+        pkgbuild --root "$PKG_DIR/vst3" --identifier "com.dichoticstudios.chartchotic.vst3" \
           --version "$VERSION" --install-location "/" \
-          "$RUNNER_TEMP/ChartPreview-VST3.pkg"
+          "$RUNNER_TEMP/Chartchotic-VST3.pkg"
 
         # AU component package
         mkdir -p "$PKG_DIR/au/Library/Audio/Plug-Ins/Components"
-        cp -R "$BUILD_DIR/AU/Chart Preview.component" "$PKG_DIR/au/Library/Audio/Plug-Ins/Components/"
-        pkgbuild --root "$PKG_DIR/au" --identifier "com.dichoticstudios.chartpreview.au" \
+        cp -R "$BUILD_DIR/AU/Chartchotic.component" "$PKG_DIR/au/Library/Audio/Plug-Ins/Components/"
+        pkgbuild --root "$PKG_DIR/au" --identifier "com.dichoticstudios.chartchotic.au" \
           --version "$VERSION" --install-location "/" \
-          "$RUNNER_TEMP/ChartPreview-AU.pkg"
+          "$RUNNER_TEMP/Chartchotic-AU.pkg"
 
         # Combined product archive
         cat > $RUNNER_TEMP/distribution.xml << 'DISTXML'
         <?xml version="1.0" encoding="utf-8"?>
         <installer-gui-script minSpecVersion="2">
-            <title>Chart Preview</title>
+            <title>Chartchotic</title>
             <options customize="allow" require-scripts="false"/>
             <choices-outline>
                 <line choice="vst3"/>
                 <line choice="au"/>
             </choices-outline>
-            <choice id="vst3" title="VST3 Plugin" description="Install Chart Preview VST3 to /Library/Audio/Plug-Ins/VST3">
-                <pkg-ref id="com.dichoticstudios.chartpreview.vst3"/>
+            <choice id="vst3" title="VST3 Plugin" description="Install Chartchotic VST3 to /Library/Audio/Plug-Ins/VST3">
+                <pkg-ref id="com.dichoticstudios.chartchotic.vst3"/>
             </choice>
-            <choice id="au" title="Audio Unit Plugin" description="Install Chart Preview AU to /Library/Audio/Plug-Ins/Components">
-                <pkg-ref id="com.dichoticstudios.chartpreview.au"/>
+            <choice id="au" title="Audio Unit Plugin" description="Install Chartchotic AU to /Library/Audio/Plug-Ins/Components">
+                <pkg-ref id="com.dichoticstudios.chartchotic.au"/>
             </choice>
-            <pkg-ref id="com.dichoticstudios.chartpreview.vst3" version="0" onConclusion="none">ChartPreview-VST3.pkg</pkg-ref>
-            <pkg-ref id="com.dichoticstudios.chartpreview.au" version="0" onConclusion="none">ChartPreview-AU.pkg</pkg-ref>
+            <pkg-ref id="com.dichoticstudios.chartchotic.vst3" version="0" onConclusion="none">Chartchotic-VST3.pkg</pkg-ref>
+            <pkg-ref id="com.dichoticstudios.chartchotic.au" version="0" onConclusion="none">Chartchotic-AU.pkg</pkg-ref>
         </installer-gui-script>
         DISTXML
 
         productbuild --distribution $RUNNER_TEMP/distribution.xml \
           --package-path $RUNNER_TEMP \
-          "$RUNNER_TEMP/ChartPreview-unsigned.pkg"
+          "$RUNNER_TEMP/Chartchotic-unsigned.pkg"
 
         productsign --sign "$INSTALLER_IDENTITY" \
-          "$RUNNER_TEMP/ChartPreview-unsigned.pkg" \
-          "ChartPreview-macOS.pkg"
+          "$RUNNER_TEMP/Chartchotic-unsigned.pkg" \
+          "Chartchotic-macOS.pkg"
 
     - name: Notarize installer
       if: steps.signing.outputs.available == 'true'
@@ -232,13 +232,13 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       run: |
-        xcrun notarytool submit "ChartPreview-macOS.pkg" \
+        xcrun notarytool submit "Chartchotic-macOS.pkg" \
           --apple-id "$APPLE_ID" \
           --team-id "$APPLE_TEAM_ID" \
           --password "$APPLE_APP_PASSWORD" \
           --wait --timeout 600
 
-        xcrun stapler staple "ChartPreview-macOS.pkg"
+        xcrun stapler staple "Chartchotic-macOS.pkg"
         echo "Notarization complete"
 
     - name: Cleanup keychain
@@ -249,11 +249,11 @@ jobs:
     - name: Upload macOS artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ChartPreview-macOS
+        name: Chartchotic-macOS
         path: |
-          ChartPreview-macOS.pkg
-          build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3
-          build/ChartPreview_artefacts/Release/AU/Chart Preview.component
+          Chartchotic-macOS.pkg
+          build/Chartchotic_artefacts/Release/VST3/Chartchotic.vst3
+          build/Chartchotic_artefacts/Release/AU/Chartchotic.component
         retention-days: 7
 
   build-linux:
@@ -303,7 +303,7 @@ jobs:
     - name: Verify Linux plugin bundles
       run: |
         echo "=== Checking VST3 bundle ==="
-        VST3_PATH="build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3"
+        VST3_PATH="build/Chartchotic_artefacts/Release/VST3/Chartchotic.vst3"
         if [ -d "$VST3_PATH" ]; then
           echo "[OK] VST3 bundle exists"
           ls -la "$VST3_PATH/Contents/x86_64-linux/"
@@ -313,7 +313,7 @@ jobs:
         fi
 
         echo "=== Checking Standalone ==="
-        STANDALONE_PATH="build/ChartPreview_artefacts/Release/Standalone/Chart Preview"
+        STANDALONE_PATH="build/Chartchotic_artefacts/Release/Standalone/Chartchotic"
         if [ -f "$STANDALONE_PATH" ]; then
           echo "[OK] Standalone exists ($(stat -c%s "$STANDALONE_PATH") bytes)"
         else
@@ -323,8 +323,8 @@ jobs:
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ChartPreview-Linux
+        name: Chartchotic-Linux
         path: |
-          build/ChartPreview_artefacts/Release/VST3/Chart Preview.vst3
-          build/ChartPreview_artefacts/Release/Standalone/Chart Preview
+          build/Chartchotic_artefacts/Release/VST3/Chartchotic.vst3
+          build/Chartchotic_artefacts/Release/Standalone/Chartchotic
         retention-days: 7

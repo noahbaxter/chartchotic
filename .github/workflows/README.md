@@ -1,6 +1,6 @@
 # GitHub Actions Build Workflow
 
-This workflow automatically builds Chart Preview VST3 plugin for Windows, macOS, and Linux.
+This workflow automatically builds Chartchotic VST3 plugin for Windows, macOS, and Linux.
 
 ## Triggers
 
@@ -11,15 +11,15 @@ This workflow automatically builds Chart Preview VST3 plugin for Windows, macOS,
 ## Build Outputs
 
 ### Windows (windows-latest)
-- **VST3**: `ChartPreview-VST3-Windows-x64.zip`
-- **AU**: `ChartPreview-AU-Windows-x64.zip` (if available)
-- **Standalone**: `ChartPreview-Standalone-Windows-x64.zip` (if available)
+- **VST3**: `Chartchotic-VST3-Windows-x64.zip`
+- **AU**: `Chartchotic-AU-Windows-x64.zip` (if available)
+- **Standalone**: `Chartchotic-Standalone-Windows-x64.zip` (if available)
 
 ### macOS (macos-latest)  
-- **VST3**: `ChartPreview-VST3-macOS.zip`
+- **VST3**: `Chartchotic-VST3-macOS.zip`
 
 ### Linux (ubuntu-22.04)
-- **VST3**: `ChartPreview-VST3-Linux-x64.zip`
+- **VST3**: `Chartchotic-VST3-Linux-x64.zip`
 
 ## Artifacts
 
@@ -43,21 +43,21 @@ If builds fail:
 2. Common issues:
    - Missing dependencies
    - Projucer file changes
-   - Path issues with spaces in "Chart Preview" folder name
+   - Path issues with spaces in "Chartchotic" folder name
 
 ## Local Testing
 
 To test locally before pushing:
 ```bash
 # macOS
-cd ChartPreview
+cd Chartchotic
 ./build.sh
 
 # Windows (in Visual Studio Command Prompt)
-cd ChartPreview  
-msbuild "Builds/VisualStudio2022/ChartPreview.sln" /p:Configuration=Release /p:Platform=x64
+cd Chartchotic  
+msbuild "Builds/VisualStudio2022/Chartchotic.sln" /p:Configuration=Release /p:Platform=x64
 
 # Linux
-cd ChartPreview
+cd Chartchotic
 ./build-linux.sh
 ```

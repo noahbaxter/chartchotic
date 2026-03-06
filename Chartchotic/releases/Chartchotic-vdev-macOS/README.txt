@@ -1,8 +1,8 @@
-Chart Preview vdev - macOS Release
+Chartchotic vdev - macOS Release
 
 This bundle contains:
-- ChartPreview.vst3 (VST3 plugin)
-- ChartPreview.component (Audio Unit plugin)
+- Chartchotic.vst3 (VST3 plugin)
+- Chartchotic.component (Audio Unit plugin)
 - install-macos.sh (automatic installer script)
 
 Installation:

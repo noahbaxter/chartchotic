@@ -1,4 +1,4 @@
-# Chart Preview
+# Chartchotic
 
 VST/AU plugin visualizing MIDI as rhythm game charts (Clone Hero/YARG style).
 
@@ -20,7 +20,7 @@ CMake). macOS builds are signed + notarized. Windows builds include Inno Setup i
 
 `VERSION` file at repo root is the single source of truth. CI injects it into `.jucer` before
 Projucer runs. The `JucePlugin_VersionString` define is used in code (not hardcoded strings).
-Build channel (`DEV`/`RELEASE`) is injected via preprocessor define `CHARTPREVIEW_BUILD_CHANNEL`.
+Build channel (`DEV`/`RELEASE`) is injected via preprocessor define `CHARTCHOTIC_BUILD_CHANNEL`.
 
 ## Watch Out
 

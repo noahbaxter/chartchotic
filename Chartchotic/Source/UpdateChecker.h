@@ -2,8 +2,8 @@
 
 #include <JuceHeader.h>
 
-#ifndef CHARTPREVIEW_BUILD_CHANNEL
-  #define CHARTPREVIEW_BUILD_CHANNEL "RELEASE"
+#ifndef CHARTCHOTIC_BUILD_CHANNEL
+  #define CHARTCHOTIC_BUILD_CHANNEL "RELEASE"
 #endif
 
 class UpdateChecker : private juce::Thread
@@ -42,7 +42,7 @@ private:
     std::atomic<bool> checking{false};
     std::shared_ptr<std::atomic<bool>> callbacksEnabled = std::make_shared<std::atomic<bool>>(true);
 
-    static constexpr const char* GITHUB_API_BASE = "https://api.github.com/repos/noahbaxter/chart-preview";
+    static constexpr const char* GITHUB_API_BASE = "https://api.github.com/repos/noahbaxter/chartchotic";
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UpdateChecker)
 };

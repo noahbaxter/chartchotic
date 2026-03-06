@@ -20,14 +20,14 @@ class MidiPipeline;
 //==============================================================================
 /**
 */
-class ChartPreviewAudioProcessor  : public juce::AudioProcessor
+class ChartchoticAudioProcessor  : public juce::AudioProcessor
                             #if JucePlugin_Enable_ARA
                              , public juce::AudioProcessorARAExtension
                             #endif
 {
 public:
-    ChartPreviewAudioProcessor();
-    ~ChartPreviewAudioProcessor() override;
+    ChartchoticAudioProcessor();
+    ~ChartchoticAudioProcessor() override;
 
     uint playheadPositionInSamples = 0;
     PPQ playheadPositionInPPQ = 0.0;
@@ -146,5 +146,5 @@ public:
     // VST3 extensions instance (forward declared in .cpp)
     std::unique_ptr<juce::VST3ClientExtensions> vst3Extensions;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartchoticAudioProcessor)
 };

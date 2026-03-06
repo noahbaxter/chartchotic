@@ -11,14 +11,14 @@
 #include "../PluginProcessor.h"
 
 // Define static member
-std::map<ChartPreviewAudioProcessor*, std::function<ChartPreviewVST2Extensions::VstHostCallbackType>*> ChartPreviewVST2Extensions::instanceCallbacks;
+std::map<ChartchoticAudioProcessor*, std::function<ChartchoticVST2Extensions::VstHostCallbackType>*> ChartchoticVST2Extensions::instanceCallbacks;
 
-ChartPreviewVST2Extensions::ChartPreviewVST2Extensions(ChartPreviewAudioProcessor* proc)
+ChartchoticVST2Extensions::ChartchoticVST2Extensions(ChartchoticAudioProcessor* proc)
     : processor(proc)
 {
 }
 
-juce::pointer_sized_int ChartPreviewVST2Extensions::handleVstPluginCanDo(juce::int32 index, juce::pointer_sized_int value, void* ptr, float opt)
+juce::pointer_sized_int ChartchoticVST2Extensions::handleVstPluginCanDo(juce::int32 index, juce::pointer_sized_int value, void* ptr, float opt)
 {
     // Check if REAPER is asking about specific capabilities
     if (ptr != nullptr)
@@ -45,20 +45,20 @@ juce::pointer_sized_int ChartPreviewVST2Extensions::handleVstPluginCanDo(juce::i
     return 0; // Return 0 for "don't know"
 }
 
-juce::pointer_sized_int ChartPreviewVST2Extensions::handleVstManufacturerSpecific(juce::int32 index, juce::pointer_sized_int value, void* ptr, float)
+juce::pointer_sized_int ChartchoticVST2Extensions::handleVstManufacturerSpecific(juce::int32 index, juce::pointer_sized_int value, void* ptr, float)
 {
     // Handle REAPER custom plugin name query (effGetEffectName with 0x50)
     if (index == 0x2d && value == 0x50 && ptr)
     {
         // Provide a custom name for this plugin instance
-        *(const char**)ptr = "Chart Preview (VST2)";
+        *(const char**)ptr = "Chartchotic (VST2)";
         return 0xf00d; // Magic return value indicating we handled the name query
     }
 
     return 0;
 }
 
-void ChartPreviewVST2Extensions::handleVstHostCallbackAvailable(std::function<VstHostCallbackType>&& callback)
+void ChartchoticVST2Extensions::handleVstHostCallbackAvailable(std::function<VstHostCallbackType>&& callback)
 {
     // Store the callback for later use
     hostCallback = std::move(callback);
@@ -67,7 +67,7 @@ void ChartPreviewVST2Extensions::handleVstHostCallbackAvailable(std::function<Vs
     tryGetReaperApi();
 }
 
-void ChartPreviewVST2Extensions::tryGetReaperApi()
+void ChartchoticVST2Extensions::tryGetReaperApi()
 {
     if (!hostCallback)
         return;
@@ -89,7 +89,7 @@ void ChartPreviewVST2Extensions::tryGetReaperApi()
         auto wrapperFunc = +[](const char* funcname) -> void* {
             // Try each instance's callback until we find one that works
             // In most cases, this will be the first one tried
-            for (auto& pair : ChartPreviewVST2Extensions::instanceCallbacks)
+            for (auto& pair : ChartchoticVST2Extensions::instanceCallbacks)
             {
                 if (pair.second)
                 {

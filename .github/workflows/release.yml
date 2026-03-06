@@ -41,27 +41,27 @@ jobs:
     - name: Download Windows artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ChartPreview-Windows
+        name: Chartchotic-Windows
         path: ./artifacts/windows/
 
     - name: Download macOS artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ChartPreview-macOS
+        name: Chartchotic-macOS
         path: ./artifacts/macos/
 
     - name: Download Linux artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ChartPreview-Linux
+        name: Chartchotic-Linux
         path: ./artifacts/linux/
 
     - name: Create release archives
       run: |
         mkdir -p release
-        cd artifacts/windows && zip -r ../../release/ChartPreview-Windows.zip . && cd ../..
-        cd artifacts/macos && zip -r ../../release/ChartPreview-macOS.zip . && cd ../..
-        cd artifacts/linux && zip -r ../../release/ChartPreview-Linux.zip . && cd ../..
+        cd artifacts/windows && zip -r ../../release/Chartchotic-Windows.zip . && cd ../..
+        cd artifacts/macos && zip -r ../../release/Chartchotic-macOS.zip . && cd ../..
+        cd artifacts/linux && zip -r ../../release/Chartchotic-Linux.zip . && cd ../..
         ls -la release/
 
     - name: Extract changelog for this version
@@ -82,11 +82,11 @@ jobs:
         VERSION="${{ needs.version.outputs.version_string }}"
         gh release create "v${VERSION}" \
           --repo ${{ github.repository }} \
-          --title "Chart Preview v${VERSION}" \
+          --title "Chartchotic v${VERSION}" \
           --notes-file release_notes.md \
-          release/ChartPreview-Windows.zip \
-          release/ChartPreview-macOS.zip \
-          release/ChartPreview-Linux.zip
+          release/Chartchotic-Windows.zip \
+          release/Chartchotic-macOS.zip \
+          release/Chartchotic-Linux.zip
 
     - name: Upload to R2 CDN
       env:
@@ -96,6 +96,6 @@ jobs:
       run: |
         VERSION="${{ needs.version.outputs.version_string }}"
         for platform in Windows macOS Linux; do
-          aws s3 cp "release/ChartPreview-${platform}.zip" "s3://vst-chartchotic/releases/v${VERSION}/ChartPreview-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
-          aws s3 cp "release/ChartPreview-${platform}.zip" "s3://vst-chartchotic/releases/latest/ChartPreview-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
+          aws s3 cp "release/Chartchotic-${platform}.zip" "s3://vst-chartchotic/releases/v${VERSION}/Chartchotic-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
+          aws s3 cp "release/Chartchotic-${platform}.zip" "s3://vst-chartchotic/releases/latest/Chartchotic-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
         done

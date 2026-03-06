@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Chart Preview - Local Build Script
+# Chartchotic - Local Build Script
 # Builds VST3 + AU for local testing and installs to plugin directories
 #
 # Usage:
@@ -62,7 +62,7 @@ else
 fi
 
 echo "========================================"
-echo "Chart Preview — $BUILD_CONFIG Build (update channel: $BUILD_CHANNEL)"
+echo "Chartchotic — $BUILD_CONFIG Build (update channel: $BUILD_CHANNEL)"
 echo "========================================"
 
 # Setup REAPER SDK header if missing
@@ -78,7 +78,7 @@ if [ "$OPEN_REAPER" = true ]; then
     killall -9 REAPER 2>/dev/null || true
 fi
 if [ "$BUILD_STANDALONE" = true ]; then
-    killall -9 "Chart Preview" 2>/dev/null || true
+    killall -9 "Chartchotic" 2>/dev/null || true
 fi
 
 # Ninja is single-config: build type is set at configure time, so each config
@@ -104,16 +104,16 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
 fi
 
 # Ensure user data directories exist
-mkdir -p "$HOME/Library/Application Support/Chart Preview/highways"
+mkdir -p "$HOME/Library/Application Support/Chartchotic/highways"
 
-ARTIFACT_DIR="$NINJA_BUILD_DIR/ChartPreview_artefacts/$BUILD_CONFIG"
+ARTIFACT_DIR="$NINJA_BUILD_DIR/Chartchotic_artefacts/$BUILD_CONFIG"
 
 if [ "$BUILD_VST3" = true ]; then
     echo ""
     echo "Building VST3..."
-    cmake --build "$NINJA_BUILD_DIR" --target ChartPreview_VST3
+    cmake --build "$NINJA_BUILD_DIR" --target Chartchotic_VST3
 
-    VST3_PATH="$ARTIFACT_DIR/VST3/Chart Preview.vst3"
+    VST3_PATH="$ARTIFACT_DIR/VST3/Chartchotic.vst3"
     if [ -d "$VST3_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/VST3/
         rm -rf ~/Library/Audio/Plug-Ins/VST3/Chart\ Preview.vst3
@@ -128,9 +128,9 @@ fi
 if [ "$BUILD_AU" = true ]; then
     echo ""
     echo "Building AU..."
-    cmake --build "$NINJA_BUILD_DIR" --target ChartPreview_AU
+    cmake --build "$NINJA_BUILD_DIR" --target Chartchotic_AU
 
-    AU_PATH="$ARTIFACT_DIR/AU/Chart Preview.component"
+    AU_PATH="$ARTIFACT_DIR/AU/Chartchotic.component"
     if [ -d "$AU_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/Components/
         rm -rf ~/Library/Audio/Plug-Ins/Components/Chart\ Preview.component
@@ -145,9 +145,9 @@ fi
 if [ "$BUILD_STANDALONE" = true ]; then
     echo ""
     echo "Building Standalone..."
-    cmake --build "$NINJA_BUILD_DIR" --target ChartPreview_Standalone
+    cmake --build "$NINJA_BUILD_DIR" --target Chartchotic_Standalone
 
-    APP_PATH="$ARTIFACT_DIR/Standalone/Chart Preview.app"
+    APP_PATH="$ARTIFACT_DIR/Standalone/Chartchotic.app"
     if [ -d "$APP_PATH" ]; then
         echo "  Standalone built: $APP_PATH"
     else
@@ -185,8 +185,8 @@ echo ""
 echo "========================================"
 echo "Build complete! (channel: $BUILD_CHANNEL)"
 echo "========================================"
-[ "$BUILD_VST3" = true ]      && echo "  VST3:       ~/Library/Audio/Plug-Ins/VST3/Chart Preview.vst3"
-[ "$BUILD_AU" = true ]         && echo "  AU:         ~/Library/Audio/Plug-Ins/Components/Chart Preview.component"
+[ "$BUILD_VST3" = true ]      && echo "  VST3:       ~/Library/Audio/Plug-Ins/VST3/Chartchotic.vst3"
+[ "$BUILD_AU" = true ]         && echo "  AU:         ~/Library/Audio/Plug-Ins/Components/Chartchotic.component"
 [ "$BUILD_STANDALONE" = true ] && echo "  Standalone: $APP_PATH"
 [ "$BUILD_BENCHMARK" = true ]  && echo "  Benchmark:  $BENCH_BIN"
 echo ""

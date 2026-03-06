@@ -4,10 +4,10 @@
 #include "../Theme.h"
 #include "../ToolbarPanelGroup.h"
 
-class ChartPreviewLookAndFeel : public juce::LookAndFeel_V4
+class ChartchoticLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    ChartPreviewLookAndFeel();
+    ChartchoticLookAndFeel();
 
     // ToggleButton (used by debug panels)
     void drawToggleButton(juce::Graphics&, juce::ToggleButton&,

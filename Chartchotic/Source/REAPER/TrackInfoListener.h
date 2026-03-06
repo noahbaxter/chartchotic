@@ -14,12 +14,12 @@
 #include <JuceHeader.h>
 #include <pluginterfaces/vst/ivstchannelcontextinfo.h>
 
-class ChartPreviewAudioProcessor;
+class ChartchoticAudioProcessor;
 
 class TrackInfoListener : public Steinberg::Vst::ChannelContext::IInfoListener
 {
 public:
-    explicit TrackInfoListener(ChartPreviewAudioProcessor* proc);
+    explicit TrackInfoListener(ChartchoticAudioProcessor* proc);
     virtual ~TrackInfoListener() = default;
 
     // IInfoListener
@@ -31,7 +31,7 @@ public:
     Steinberg::uint32 release() override;
 
 private:
-    ChartPreviewAudioProcessor* processor;
+    ChartchoticAudioProcessor* processor;
     std::atomic<Steinberg::uint32> refCount{1};
 };
 

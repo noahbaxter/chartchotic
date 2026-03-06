@@ -1,6 +1,6 @@
-#include "ChartPreviewLookAndFeel.h"
+#include "ChartchoticLookAndFeel.h"
 
-ChartPreviewLookAndFeel::ChartPreviewLookAndFeel()
+ChartchoticLookAndFeel::ChartchoticLookAndFeel()
 {
     setColour(juce::TextEditor::backgroundColourId, juce::Colour(Theme::darkBg));
     setColour(juce::TextEditor::textColourId, juce::Colour(Theme::textWhite));
@@ -24,7 +24,7 @@ ChartPreviewLookAndFeel::ChartPreviewLookAndFeel()
 //==============================================================================
 // ToggleButton (used by debug panels)
 
-void ChartPreviewLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
+void ChartchoticLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
                                                  bool shouldDrawButtonAsHighlighted,
                                                  bool /*shouldDrawButtonAsDown*/)
 {
@@ -63,7 +63,7 @@ void ChartPreviewLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleBu
 //==============================================================================
 // Slider
 
-void ChartPreviewLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y,
+void ChartchoticLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y,
                                                 int width, int height,
                                                 float sliderPos,
                                                 float /*minSliderPos*/, float /*maxSliderPos*/,
@@ -111,7 +111,7 @@ void ChartPreviewLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y,
     }
 }
 
-juce::Label* ChartPreviewLookAndFeel::createSliderTextBox(juce::Slider& slider)
+juce::Label* ChartchoticLookAndFeel::createSliderTextBox(juce::Slider& slider)
 {
     auto* label = LookAndFeel_V4::createSliderTextBox(slider);
     label->setColour(juce::Label::textColourId, juce::Colour(Theme::textWhite));
@@ -129,14 +129,14 @@ juce::Label* ChartPreviewLookAndFeel::createSliderTextBox(juce::Slider& slider)
 //==============================================================================
 // TextEditor
 
-void ChartPreviewLookAndFeel::fillTextEditorBackground(juce::Graphics& g, int width, int height,
+void ChartchoticLookAndFeel::fillTextEditorBackground(juce::Graphics& g, int width, int height,
                                                         juce::TextEditor& editor)
 {
     g.setColour(editor.findColour(juce::TextEditor::backgroundColourId));
     g.fillRoundedRectangle(0.0f, 0.0f, (float)width, (float)height, Theme::cornerRadius);
 }
 
-void ChartPreviewLookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height,
+void ChartchoticLookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height,
                                                      juce::TextEditor& editor)
 {
     auto colour = editor.hasKeyboardFocus(true)
@@ -150,7 +150,7 @@ void ChartPreviewLookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width
 //==============================================================================
 // TextButton
 
-void ChartPreviewLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button,
+void ChartchoticLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button,
                                                      const juce::Colour& backgroundColour,
                                                      bool shouldDrawButtonAsHighlighted,
                                                      bool shouldDrawButtonAsDown)
@@ -184,7 +184,7 @@ void ChartPreviewLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butt
     }
 }
 
-juce::Font ChartPreviewLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
+juce::Font ChartchoticLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
 {
     if (buttonHeight > 0 && (float)buttonHeight < Theme::buttonFont.getHeight())
         return Theme::smallFont;

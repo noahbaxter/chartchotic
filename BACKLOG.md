@@ -104,9 +104,9 @@ Unordered. Pull into Up Next when the time comes.
 
 Blocked or no clear path forward.
 
-- **#17 — Linux REAPER scan failure** — May be resolved by cross-platform build fixes. Needs verification. [GitHub](https://github.com/noahbaxter/chart-preview/issues/17)
-- **#16 — FL Studio: no notes appear** — *Blocked: don't own FL Studio.* [GitHub](https://github.com/noahbaxter/chart-preview/issues/16)
-- **#3 — Logic: AU loads as Audio FX, no MIDI** — *Blocked: don't own Logic.* [GitHub](https://github.com/noahbaxter/chart-preview/issues/3)
+- **#17 — Linux REAPER scan failure** — May be resolved by cross-platform build fixes. Needs verification. [GitHub](https://github.com/noahbaxter/chartchotic/issues/17)
+- **#16 — FL Studio: no notes appear** — *Blocked: don't own FL Studio.* [GitHub](https://github.com/noahbaxter/chartchotic/issues/16)
+- **#3 — Logic: AU loads as Audio FX, no MIDI** — *Blocked: don't own Logic.* [GitHub](https://github.com/noahbaxter/chartchotic/issues/3)
 - Multi-instrument view (multiple MIDI streams in one plugin)
 - Elite Drums (beyond Real Drums)
 - Extended memory for standard pipeline (notes visible when transport stops)
@@ -120,5 +120,5 @@ Blocked or no clear path forward.
 
 ## Notes
 
-- **Moonscraper overlap**: Community consensus is Chart Preview is for preview, not charting.
+- **Moonscraper overlap**: Community consensus is Chartchotic is for preview, not charting.
 - **Key dependency chain**: EVENTS parsing (#6) -> section detection -> autodetection -> Real Drums MIDI refactor -> generic gem system

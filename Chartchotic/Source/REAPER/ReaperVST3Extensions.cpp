@@ -17,14 +17,14 @@
 // Define the interface IDs (once per project)
 DEF_CLASS_IID(IReaperHostApplication)
 
-ChartPreviewVST3Extensions::ChartPreviewVST3Extensions(ChartPreviewAudioProcessor* proc)
+ChartchoticVST3Extensions::ChartchoticVST3Extensions(ChartchoticAudioProcessor* proc)
     : processor(proc), trackInfoListener(std::make_unique<TrackInfoListener>(proc))
 {
 }
 
-ChartPreviewVST3Extensions::~ChartPreviewVST3Extensions() = default;
+ChartchoticVST3Extensions::~ChartchoticVST3Extensions() = default;
 
-void ChartPreviewVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
+void ChartchoticVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
 {
     if (!host)
         return;
@@ -37,7 +37,7 @@ void ChartPreviewVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
 
         // Store the REAPER interface per-instance using a map
         // This allows multiple plugin instances to work simultaneously
-        static std::map<ChartPreviewAudioProcessor*, Steinberg::FUnknownPtr<IReaperHostApplication>> reaperInstances;
+        static std::map<ChartchoticAudioProcessor*, Steinberg::FUnknownPtr<IReaperHostApplication>> reaperInstances;
         reaperInstances[processor] = reaperHost;
 
         // Create a wrapper function that looks up the correct instance
@@ -79,7 +79,7 @@ void ChartPreviewVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
     }
 }
 
-int32_t ChartPreviewVST3Extensions::queryIEditController(const Steinberg::TUID tuid, void** obj)
+int32_t ChartchoticVST3Extensions::queryIEditController(const Steinberg::TUID tuid, void** obj)
 {
     // Provide TrackInfoListener for standard VST3 track info (per-instance, not static!)
     if (trackInfoListener && trackInfoListener->queryInterface(tuid, obj) == Steinberg::kResultOk)

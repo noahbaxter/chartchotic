@@ -8,11 +8,11 @@ sys.path.insert(0, str(TESTS_DIR))
 PROJECT_ROOT = TESTS_DIR.parent
 FIXTURES_DIR = TESTS_DIR / "fixtures"
 
-PLUGIN_NAME = "Chart Preview"
+PLUGIN_NAME = "Chartchotic"
 
 
 def get_platform_plugin_path():
-    env_path = os.environ.get("CHARTPREVIEW_VST3_PATH")
+    env_path = os.environ.get("CHARTCHOTIC_VST3_PATH")
     if env_path:
         return Path(env_path)
 

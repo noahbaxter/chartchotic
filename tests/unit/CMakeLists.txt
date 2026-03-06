@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(ChartPreviewUnitTests VERSION 1.0.0)
+project(ChartchoticUnitTests VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,9 +17,9 @@ FetchContent_MakeAvailable(Catch2)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/JUCE ${CMAKE_BINARY_DIR}/JUCE)
 
 # Source root for project headers
-set(SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../ChartPreview/Source)
+set(SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../Chartchotic/Source)
 
-juce_add_console_app(unit_tests PRODUCT_NAME "Chart Preview Unit Tests")
+juce_add_console_app(unit_tests PRODUCT_NAME "Chartchotic Unit Tests")
 
 target_sources(unit_tests PRIVATE
     test_smoke.cpp
@@ -46,7 +46,7 @@ target_compile_definitions(unit_tests PRIVATE
     JUCE_STANDALONE_APPLICATION=1
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0
-    JucePlugin_Name="Chart Preview"
+    JucePlugin_Name="Chartchotic"
     JucePlugin_Build_VST3=0
     JucePlugin_Build_AU=0
 )

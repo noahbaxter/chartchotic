@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
 # Read version from VERSION file
-file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTPREVIEW_VERSION)
-string(STRIP "${CHARTPREVIEW_VERSION}" CHARTPREVIEW_VERSION)
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTCHOTIC_VERSION)
+string(STRIP "${CHARTCHOTIC_VERSION}" CHARTCHOTIC_VERSION)
 
-project(ChartPreview VERSION ${CHARTPREVIEW_VERSION} LANGUAGES C CXX)
+project(Chartchotic VERSION ${CHARTCHOTIC_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,9 +29,9 @@ if(NOT DEFINED VERSION_STRING)
         if(_short_sha STREQUAL "")
             set(_short_sha "local")
         endif()
-        set(VERSION_STRING "${CHARTPREVIEW_VERSION}-dev.${_timestamp}.${_short_sha}")
+        set(VERSION_STRING "${CHARTCHOTIC_VERSION}-dev.${_timestamp}.${_short_sha}")
     else()
-        set(VERSION_STRING "${CHARTPREVIEW_VERSION}")
+        set(VERSION_STRING "${CHARTCHOTIC_VERSION}")
     endif()
 endif()
 
@@ -42,14 +42,14 @@ add_subdirectory(third_party/JUCE)
 set(CMAKE_CXX_FLAGS "${_saved_cxx_flags}")
 
 # Plugin definition
-juce_add_plugin(ChartPreview
+juce_add_plugin(Chartchotic
     VERSION ${PROJECT_VERSION}
     COMPANY_NAME "Dichotic Studios"
-    BUNDLE_ID "com.dichoticstudios.chartpreview"
+    BUNDLE_ID "com.dichoticstudios.chartchotic"
     PLUGIN_MANUFACTURER_CODE Dich
     PLUGIN_CODE ChPv
     FORMATS VST3 AU Standalone
-    PRODUCT_NAME "Chart Preview"
+    PRODUCT_NAME "Chartchotic"
     PLUGIN_DESC "A tool for visualizing midi as guitar/drum game charts"
 
     IS_SYNTH FALSE
@@ -63,128 +63,128 @@ juce_add_plugin(ChartPreview
     VST3_CATEGORIES Tools
 )
 
-juce_generate_juce_header(ChartPreview)
+juce_generate_juce_header(Chartchotic)
 
 # Source files
-target_sources(ChartPreview
+target_sources(Chartchotic
     PRIVATE
-        ChartPreview/Source/PluginProcessor.cpp
-        ChartPreview/Source/PluginProcessor.h
-        ChartPreview/Source/PluginEditor.cpp
-        ChartPreview/Source/PluginEditor.h
-        ChartPreview/Source/ReaperVST3.h
-        ChartPreview/Source/UpdateChecker.cpp
-        ChartPreview/Source/UpdateChecker.h
+        Chartchotic/Source/PluginProcessor.cpp
+        Chartchotic/Source/PluginProcessor.h
+        Chartchotic/Source/PluginEditor.cpp
+        Chartchotic/Source/PluginEditor.h
+        Chartchotic/Source/ReaperVST3.h
+        Chartchotic/Source/UpdateChecker.cpp
+        Chartchotic/Source/UpdateChecker.h
         # DebugTools
-        ChartPreview/Source/DebugTools/DebugEditorController.cpp
-        ChartPreview/Source/DebugTools/DebugEditorController.h
-        ChartPreview/Source/DebugTools/DebugMidiFilePlayer.h
-        ChartPreview/Source/DebugTools/DebugPlaybackController.h
-        ChartPreview/Source/DebugTools/DebugToolbarPanel.cpp
-        ChartPreview/Source/DebugTools/DebugToolbarPanel.h
-        ChartPreview/Source/DebugTools/DebugTuningPanel.cpp
-        ChartPreview/Source/DebugTools/DebugTuningPanel.h
-        ChartPreview/Source/DebugTools/Logger.h
-        ChartPreview/Source/DebugTools/DataGenerators.h
+        Chartchotic/Source/DebugTools/DebugEditorController.cpp
+        Chartchotic/Source/DebugTools/DebugEditorController.h
+        Chartchotic/Source/DebugTools/DebugMidiFilePlayer.h
+        Chartchotic/Source/DebugTools/DebugPlaybackController.h
+        Chartchotic/Source/DebugTools/DebugToolbarPanel.cpp
+        Chartchotic/Source/DebugTools/DebugToolbarPanel.h
+        Chartchotic/Source/DebugTools/DebugTuningPanel.cpp
+        Chartchotic/Source/DebugTools/DebugTuningPanel.h
+        Chartchotic/Source/DebugTools/Logger.h
+        Chartchotic/Source/DebugTools/DataGenerators.h
         # Midi / Processing
-        ChartPreview/Source/Midi/Processing/MidiInterpreter.cpp
-        ChartPreview/Source/Midi/Processing/MidiInterpreter.h
-        ChartPreview/Source/Midi/Processing/MidiProcessor.cpp
-        ChartPreview/Source/Midi/Processing/MidiProcessor.h
-        ChartPreview/Source/Midi/Processing/NoteProcessor.cpp
-        ChartPreview/Source/Midi/Processing/NoteProcessor.h
+        Chartchotic/Source/Midi/Processing/MidiInterpreter.cpp
+        Chartchotic/Source/Midi/Processing/MidiInterpreter.h
+        Chartchotic/Source/Midi/Processing/MidiProcessor.cpp
+        Chartchotic/Source/Midi/Processing/MidiProcessor.h
+        Chartchotic/Source/Midi/Processing/NoteProcessor.cpp
+        Chartchotic/Source/Midi/Processing/NoteProcessor.h
         # Midi / Providers / REAPER
-        ChartPreview/Source/Midi/Providers/REAPER/MidiCache.cpp
-        ChartPreview/Source/Midi/Providers/REAPER/MidiCache.h
-        ChartPreview/Source/Midi/Providers/REAPER/ReaperApiHelpers.h
-        ChartPreview/Source/Midi/Providers/REAPER/ReaperMidiProvider.cpp
-        ChartPreview/Source/Midi/Providers/REAPER/ReaperMidiProvider.h
-        ChartPreview/Source/Midi/Providers/REAPER/ReaperNoteFetcher.cpp
-        ChartPreview/Source/Midi/Providers/REAPER/ReaperNoteFetcher.h
+        Chartchotic/Source/Midi/Providers/REAPER/MidiCache.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/MidiCache.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperApiHelpers.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.h
         # Midi / Pipelines
-        ChartPreview/Source/Midi/Pipelines/MidiPipeline.h
-        ChartPreview/Source/Midi/Pipelines/MidiPipelineFactory.cpp
-        ChartPreview/Source/Midi/Pipelines/MidiPipelineFactory.h
-        ChartPreview/Source/Midi/Pipelines/ReaperMidiPipeline.cpp
-        ChartPreview/Source/Midi/Pipelines/ReaperMidiPipeline.h
-        ChartPreview/Source/Midi/Pipelines/StandardMidiPipeline.cpp
-        ChartPreview/Source/Midi/Pipelines/StandardMidiPipeline.h
+        Chartchotic/Source/Midi/Pipelines/MidiPipeline.h
+        Chartchotic/Source/Midi/Pipelines/MidiPipelineFactory.cpp
+        Chartchotic/Source/Midi/Pipelines/MidiPipelineFactory.h
+        Chartchotic/Source/Midi/Pipelines/ReaperMidiPipeline.cpp
+        Chartchotic/Source/Midi/Pipelines/ReaperMidiPipeline.h
+        Chartchotic/Source/Midi/Pipelines/StandardMidiPipeline.cpp
+        Chartchotic/Source/Midi/Pipelines/StandardMidiPipeline.h
         # Midi / Utils
-        ChartPreview/Source/Midi/Utils/ChordAnalyzer.cpp
-        ChartPreview/Source/Midi/Utils/ChordAnalyzer.h
-        ChartPreview/Source/Midi/Utils/GemCalculator.cpp
-        ChartPreview/Source/Midi/Utils/GemCalculator.h
-        ChartPreview/Source/Midi/Utils/InstrumentMapper.h
-        ChartPreview/Source/Midi/Utils/LaneDetector.cpp
-        ChartPreview/Source/Midi/Utils/LaneDetector.h
-        ChartPreview/Source/Midi/Utils/MidiConstants.h
-        ChartPreview/Source/Midi/Utils/MidiTypes.h
+        Chartchotic/Source/Midi/Utils/ChordAnalyzer.cpp
+        Chartchotic/Source/Midi/Utils/ChordAnalyzer.h
+        Chartchotic/Source/Midi/Utils/GemCalculator.cpp
+        Chartchotic/Source/Midi/Utils/GemCalculator.h
+        Chartchotic/Source/Midi/Utils/InstrumentMapper.h
+        Chartchotic/Source/Midi/Utils/LaneDetector.cpp
+        Chartchotic/Source/Midi/Utils/LaneDetector.h
+        Chartchotic/Source/Midi/Utils/MidiConstants.h
+        Chartchotic/Source/Midi/Utils/MidiTypes.h
         # REAPER
-        ChartPreview/Source/REAPER/ReaperIntegration.cpp
-        ChartPreview/Source/REAPER/ReaperIntegration.h
-        ChartPreview/Source/REAPER/ReaperTrackDetector.cpp
-        ChartPreview/Source/REAPER/ReaperTrackDetector.h
-        ChartPreview/Source/REAPER/ReaperVST2Extensions.cpp
-        ChartPreview/Source/REAPER/ReaperVST2Extensions.h
-        ChartPreview/Source/REAPER/ReaperVST3Extensions.cpp
-        ChartPreview/Source/REAPER/ReaperVST3Extensions.h
-        ChartPreview/Source/REAPER/TrackInfoListener.cpp
-        ChartPreview/Source/REAPER/TrackInfoListener.h
+        Chartchotic/Source/REAPER/ReaperIntegration.cpp
+        Chartchotic/Source/REAPER/ReaperIntegration.h
+        Chartchotic/Source/REAPER/ReaperTrackDetector.cpp
+        Chartchotic/Source/REAPER/ReaperTrackDetector.h
+        Chartchotic/Source/REAPER/ReaperVST2Extensions.cpp
+        Chartchotic/Source/REAPER/ReaperVST2Extensions.h
+        Chartchotic/Source/REAPER/ReaperVST3Extensions.cpp
+        Chartchotic/Source/REAPER/ReaperVST3Extensions.h
+        Chartchotic/Source/REAPER/TrackInfoListener.cpp
+        Chartchotic/Source/REAPER/TrackInfoListener.h
         # Visual / Renderers
-        ChartPreview/Source/Visual/Renderers/AnimationRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/AnimationRenderer.h
-        ChartPreview/Source/Visual/Renderers/SceneRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/SceneRenderer.h
-        ChartPreview/Source/Visual/Renderers/GridlineRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/GridlineRenderer.h
-        ChartPreview/Source/Visual/Renderers/TrackRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/TrackRenderer.h
-        ChartPreview/Source/Visual/Renderers/NoteRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/NoteRenderer.h
-        ChartPreview/Source/Visual/Renderers/SustainRenderer.cpp
-        ChartPreview/Source/Visual/Renderers/SustainRenderer.h
+        Chartchotic/Source/Visual/Renderers/AnimationRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/AnimationRenderer.h
+        Chartchotic/Source/Visual/Renderers/SceneRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/SceneRenderer.h
+        Chartchotic/Source/Visual/Renderers/GridlineRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/GridlineRenderer.h
+        Chartchotic/Source/Visual/Renderers/TrackRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/TrackRenderer.h
+        Chartchotic/Source/Visual/Renderers/NoteRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/NoteRenderer.h
+        Chartchotic/Source/Visual/Renderers/SustainRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/SustainRenderer.h
         # Visual / Utils
-        ChartPreview/Source/Visual/Utils/DrawingConstants.h
-        ChartPreview/Source/Visual/Utils/PositionConstants.h
-        ChartPreview/Source/Visual/Utils/PositionMath.cpp
-        ChartPreview/Source/Visual/Utils/PositionMath.h
-        ChartPreview/Source/Visual/Utils/RenderTiming.h
-        ChartPreview/Source/Visual/Renderers/TrackFade.h
+        Chartchotic/Source/Visual/Utils/DrawingConstants.h
+        Chartchotic/Source/Visual/Utils/PositionConstants.h
+        Chartchotic/Source/Visual/Utils/PositionMath.cpp
+        Chartchotic/Source/Visual/Utils/PositionMath.h
+        Chartchotic/Source/Visual/Utils/RenderTiming.h
+        Chartchotic/Source/Visual/Renderers/TrackFade.h
         # Visual / Managers
-        ChartPreview/Source/Visual/Managers/AnimationManager.h
-        ChartPreview/Source/Visual/Managers/AssetManager.cpp
-        ChartPreview/Source/Visual/Managers/AssetManager.h
-        ChartPreview/Source/Visual/Managers/GridlineGenerator.h
+        Chartchotic/Source/Visual/Managers/AnimationManager.h
+        Chartchotic/Source/Visual/Managers/AssetManager.cpp
+        Chartchotic/Source/Visual/Managers/AssetManager.h
+        Chartchotic/Source/Visual/Managers/GridlineGenerator.h
         # UI - Controls
-        ChartPreview/Source/UI/Controls/PanelSectionHeader.h
-        ChartPreview/Source/UI/Controls/PillToggle.h
-        ChartPreview/Source/UI/Controls/PopupMenuButton.h
-        ChartPreview/Source/UI/Controls/CircleIconSelector.h
-        ChartPreview/Source/UI/Controls/SegmentedButtons.h
-        ChartPreview/Source/UI/Controls/ValueStepper.h
+        Chartchotic/Source/UI/Controls/PanelSectionHeader.h
+        Chartchotic/Source/UI/Controls/PillToggle.h
+        Chartchotic/Source/UI/Controls/PopupMenuButton.h
+        Chartchotic/Source/UI/Controls/CircleIconSelector.h
+        Chartchotic/Source/UI/Controls/SegmentedButtons.h
+        Chartchotic/Source/UI/Controls/ValueStepper.h
         # UI - LookAndFeel
-        ChartPreview/Source/UI/LookAndFeel/ChartPreviewLookAndFeel.cpp
-        ChartPreview/Source/UI/LookAndFeel/ChartPreviewLookAndFeel.h
+        Chartchotic/Source/UI/LookAndFeel/ChartchoticLookAndFeel.cpp
+        Chartchotic/Source/UI/LookAndFeel/ChartchoticLookAndFeel.h
         # UI - Core
-        ChartPreview/Source/UI/ChartchoticLogo.h
-        ChartPreview/Source/UI/Theme.h
-        ChartPreview/Source/UI/ToolbarPanelGroup.h
-        ChartPreview/Source/UI/SectionHeader.h
-        ChartPreview/Source/UI/ToolbarComponent.cpp
-        ChartPreview/Source/UI/ToolbarComponent.h
+        Chartchotic/Source/UI/ChartchoticLogo.h
+        Chartchotic/Source/UI/Theme.h
+        Chartchotic/Source/UI/ToolbarPanelGroup.h
+        Chartchotic/Source/UI/SectionHeader.h
+        Chartchotic/Source/UI/ToolbarComponent.cpp
+        Chartchotic/Source/UI/ToolbarComponent.h
         # Utils
-        ChartPreview/Source/Visual/Utils/LatencySmoother.h
-        ChartPreview/Source/Utils/PPQ.h
-        ChartPreview/Source/Utils/TempoTimeSignatureEventHelper.h
-        ChartPreview/Source/Utils/TimeConverter.h
-        ChartPreview/Source/Utils/Utils.h
+        Chartchotic/Source/Visual/Utils/LatencySmoother.h
+        Chartchotic/Source/Utils/PPQ.h
+        Chartchotic/Source/Utils/TempoTimeSignatureEventHelper.h
+        Chartchotic/Source/Utils/TimeConverter.h
+        Chartchotic/Source/Utils/Utils.h
 )
 
 # Binary data (images + SVG)
 # Generated assets come from assets/generated/<category>/ (via convert_assets.sh)
 # Static assets (no PDF source) come from assets/static/
 # MIDI test files come from assets/midi/
-juce_add_binary_data(ChartPreviewData
+juce_add_binary_data(ChartchoticData
     NAMESPACE BinaryData
     SOURCES
         # Fonts
@@ -275,31 +275,31 @@ juce_add_binary_data(ChartPreviewData
         assets/static/hits/hit_open_5.png
         assets/static/hits/hit_open_6.png
         assets/static/hits/hit_open_7.png
-        # MIDI test files loaded from disk at runtime (see CHARTPREVIEW_MIDI_ASSET_DIR)
+        # MIDI test files loaded from disk at runtime (see CHARTCHOTIC_MIDI_ASSET_DIR)
 )
 
 # REAPER SDK header path
-target_include_directories(ChartPreview
+target_include_directories(Chartchotic
     PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/reaper-sdk/sdk
 )
 
 # Compile definitions
-target_compile_definitions(ChartPreview
+target_compile_definitions(Chartchotic
     PUBLIC
         JUCE_STRICT_REFCOUNTEDPOINTER=1
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_WEB_BROWSER=0
     PRIVATE
-        CHARTPREVIEW_BUILD_CHANNEL="${BUILD_CHANNEL}"
-        CHARTPREVIEW_VERSION_STRING="${VERSION_STRING}"
-        CHARTPREVIEW_MIDI_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/midi"
+        CHARTCHOTIC_BUILD_CHANNEL="${BUILD_CHANNEL}"
+        CHARTCHOTIC_VERSION_STRING="${VERSION_STRING}"
+        CHARTCHOTIC_MIDI_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/midi"
 )
 
 # Link libraries
-target_link_libraries(ChartPreview
+target_link_libraries(Chartchotic
     PRIVATE
-        ChartPreviewData
+        ChartchoticData
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_gui_extra
@@ -310,7 +310,7 @@ target_link_libraries(ChartPreview
 
 # Platform-specific flags
 if(APPLE)
-    target_compile_options(ChartPreview PRIVATE
+    target_compile_options(Chartchotic PRIVATE
         -Wno-deprecated-declarations
     )
 endif()

@@ -9,18 +9,18 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-// CI injects CHARTPREVIEW_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
+// CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
-#ifdef CHARTPREVIEW_VERSION_STRING
-  #define CHART_PREVIEW_VERSION CHARTPREVIEW_VERSION_STRING
+#ifdef CHARTCHOTIC_VERSION_STRING
+  #define CHARTCHOTIC_VERSION CHARTCHOTIC_VERSION_STRING
 #elif defined(JucePlugin_VersionString)
-  #define CHART_PREVIEW_VERSION JucePlugin_VersionString
+  #define CHARTCHOTIC_VERSION JucePlugin_VersionString
 #else
-  #define CHART_PREVIEW_VERSION "dev"
+  #define CHARTCHOTIC_VERSION "dev"
 #endif
 
 //==============================================================================
-ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
+ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudioProcessor &p, juce::ValueTree &state)
     : AudioProcessorEditor(&p),
       state(state),
       audioProcessor(p),
@@ -60,12 +60,12 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     vblankAttachment = juce::VBlankAttachment(this, [this]() { onFrame(); });
 }
 
-ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
+ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
 {
     setLookAndFeel(nullptr);
 }
 
-void ChartPreviewAudioProcessorEditor::onFrame()
+void ChartchoticAudioProcessorEditor::onFrame()
 {
     if (targetFrameInterval > 0.0)
     {
@@ -133,7 +133,7 @@ void ChartPreviewAudioProcessorEditor::onFrame()
     repaint();
 }
 
-void ChartPreviewAudioProcessorEditor::initAssets()
+void ChartchoticAudioProcessorEditor::initAssets()
 {
     backgroundImageDefault = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
     backgroundImageCurrent = backgroundImageDefault;
@@ -145,7 +145,7 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     scanHighwayTextures();
 }
 
-void ChartPreviewAudioProcessorEditor::rebuildFadedTrackImage()
+void ChartchoticAudioProcessorEditor::rebuildFadedTrackImage()
 {
     bool isDrums = isPart(state, Part::DRUMS);
     const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
@@ -162,7 +162,7 @@ void ChartPreviewAudioProcessorEditor::rebuildFadedTrackImage()
     sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
 }
 
-void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
+void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 {
     toolbar.onSkillChanged = [this](int id) {
         state.setProperty("skillLevel", id, nullptr);
@@ -346,10 +346,10 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
 #endif
 }
 
-void ChartPreviewAudioProcessorEditor::initBottomBar()
+void ChartchoticAudioProcessorEditor::initBottomBar()
 {
     // Version label (clickable when update available)
-    versionLabel.setText(juce::String("v") + CHART_PREVIEW_VERSION, juce::dontSendNotification);
+    versionLabel.setText(juce::String("v") + CHARTCHOTIC_VERSION, juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.normalColour = juce::Colours::white.withAlpha(0.6f);
     versionLabel.hoverColour = juce::Colour(Theme::coral);
@@ -376,7 +376,7 @@ void ChartPreviewAudioProcessorEditor::initBottomBar()
 }
 
 //==============================================================================
-void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
+void ChartchoticAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.drawImage(backgroundImageCurrent, getLocalBounds().toFloat());
 
@@ -422,7 +422,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 #endif
 }
 
-void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
+void ChartchoticAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
 {
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
@@ -492,7 +492,7 @@ void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
-void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
+void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 {
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
@@ -596,7 +596,7 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
-void ChartPreviewAudioProcessorEditor::resized()
+void ChartchoticAudioProcessorEditor::resized()
 {
     const int margin = 10;
 
@@ -639,7 +639,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     rebuildFadedTrackImage();
 }
 
-void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
+void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
     // Convert note speed to highway time: 7.87 is the default highway length in world units,
     // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
@@ -656,7 +656,7 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
     audioProcessor.setDisplayWindowSize(displaySizeInPPQ);
 }
 
-void ChartPreviewAudioProcessorEditor::loadState()
+void ChartchoticAudioProcessorEditor::loadState()
 {
     // Migrate old redBackground bool to new background string
     if (state.hasProperty("redBackground") && !state.hasProperty("background"))
@@ -721,7 +721,7 @@ void ChartPreviewAudioProcessorEditor::loadState()
     rebuildFadedTrackImage();
 }
 
-void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
+void ChartchoticAudioProcessorEditor::applyLatencySetting(int latencyValue)
 {
     switch (latencyValue) {
     case 1: latencyInSeconds = 0.250; break;
@@ -735,24 +735,24 @@ void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
 }
 
 
-juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrainer()
+juce::ComponentBoundsConstrainer* ChartchoticAudioProcessorEditor::getConstrainer()
 {
     return &constrainer;
 }
 
-void ChartPreviewAudioProcessorEditor::parentSizeChanged()
+void ChartchoticAudioProcessorEditor::parentSizeChanged()
 {
     AudioProcessorEditor::parentSizeChanged();
 }
 
-void ChartPreviewAudioProcessorEditor::scanBackgrounds()
+void ChartchoticAudioProcessorEditor::scanBackgrounds()
 {
 #if JUCE_MAC
     backgroundDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Application Support/Chart Preview/backgrounds");
+        .getChildFile("Application Support/Chartchotic/backgrounds");
 #elif JUCE_WINDOWS
     backgroundDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Chart Preview/backgrounds");
+        .getChildFile("Chartchotic/backgrounds");
 #endif
 
     backgroundNames.clear();
@@ -768,7 +768,7 @@ void ChartPreviewAudioProcessorEditor::scanBackgrounds()
     toolbar.setBackgroundList(backgroundNames);
 }
 
-void ChartPreviewAudioProcessorEditor::loadBackground(const juce::String& filename)
+void ChartchoticAudioProcessorEditor::loadBackground(const juce::String& filename)
 {
     if (filename.isEmpty())
     {
@@ -795,14 +795,14 @@ void ChartPreviewAudioProcessorEditor::loadBackground(const juce::String& filena
     backgroundImageCurrent = backgroundImageDefault;
 }
 
-void ChartPreviewAudioProcessorEditor::scanHighwayTextures()
+void ChartchoticAudioProcessorEditor::scanHighwayTextures()
 {
 #if JUCE_MAC
     highwayTextureDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Application Support/Chart Preview/highways");
+        .getChildFile("Application Support/Chartchotic/highways");
 #elif JUCE_WINDOWS
     highwayTextureDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Chart Preview/highways");
+        .getChildFile("Chartchotic/highways");
 #endif
 
     highwayTextureNames.clear();
@@ -818,7 +818,7 @@ void ChartPreviewAudioProcessorEditor::scanHighwayTextures()
     toolbar.setHighwayTextureList(highwayTextureNames);
 }
 
-void ChartPreviewAudioProcessorEditor::loadHighwayTexture(const juce::String& filename)
+void ChartchoticAudioProcessorEditor::loadHighwayTexture(const juce::String& filename)
 {
     auto file = highwayTextureDirectory.getChildFile(filename + ".png");
     if (!file.existsAsFile())
@@ -834,7 +834,7 @@ void ChartPreviewAudioProcessorEditor::loadHighwayTexture(const juce::String& fi
         trackRenderer.clearTexture();
 }
 
-float ChartPreviewAudioProcessorEditor::computeScrollOffset()
+float ChartchoticAudioProcessorEditor::computeScrollOffset()
 {
     // Get current playhead position in PPQ and BPM
     double ppq = 0.0;

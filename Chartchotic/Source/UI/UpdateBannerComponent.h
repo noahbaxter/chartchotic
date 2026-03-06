@@ -38,7 +38,7 @@ public:
         auto* overlay = new OverlayComponent();
         overlay->setVersion(updateVersion);
         auto urlCopy = downloadUrl.isNotEmpty() ? downloadUrl
-            : juce::String("https://github.com/noahbaxter/chart-preview/releases");
+            : juce::String("https://github.com/noahbaxter/chartchotic/releases");
         overlay->onDownload = [overlay, urlCopy]()
         {
             // Defer deletion — button is a child of overlay, can't delete mid-callback

@@ -13,7 +13,7 @@
 #if JucePlugin_Build_VST3
 using namespace Steinberg;
 
-TrackInfoListener::TrackInfoListener(ChartPreviewAudioProcessor* proc)
+TrackInfoListener::TrackInfoListener(ChartchoticAudioProcessor* proc)
     : processor(proc)
 {
 }

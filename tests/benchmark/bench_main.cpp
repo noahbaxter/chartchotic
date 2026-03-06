@@ -5,7 +5,7 @@
     Created: 4 Mar 2026
     Author:  Noah Baxter
 
-    Headless rendering benchmark for Chart Preview.
+    Headless rendering benchmark for Chartchotic.
     Renders into offscreen images and collects per-phase timing.
     Runs both guitar and drums scenarios.
 

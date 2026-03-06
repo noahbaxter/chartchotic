@@ -1,5 +1,5 @@
-# Chart Preview
-Chart Preview is a vst plugin designed for Reaper that visualizes midi notes as they'd appear in rhythm games like Clone Hero and YARG. Just throw the plugin on any track with midi notes and happy charting on **Windows**, **MacOS**, and **Linux**!
+# Chartchotic
+Chartchotic is a vst plugin designed for Reaper that visualizes midi notes as they'd appear in rhythm games like Clone Hero and YARG. Just throw the plugin on any track with midi notes and happy charting on **Windows**, **MacOS**, and **Linux**!
 
 This plugin relies on the reaper-sdk for tight DAW integration allowing zero latency timeline scrubbing and a host of advanced midi features, BUT it can also work in any DAW with a reduced feature set if you prefer by relying on midi lookahead (which adds latency).
 
@@ -33,7 +33,7 @@ This plugin relies on the reaper-sdk for tight DAW integration allowing zero lat
 
 ## Installation
 
-Download the latest version from [releases](https://github.com/noahbaxter/chart-preview/releases).
+Download the latest version from [releases](https://github.com/noahbaxter/chartchotic/releases).
 
 **macOS:**
 - VST3: `~/Library/Audio/Plug-Ins/VST3/`
@@ -53,7 +53,7 @@ After installing, restart your DAW to autoscan for the plugin.
 
 ## Quick Start
 
-1. Add Chart Preview to any MIDI track
+1. Add Chartchotic to any MIDI track
 2. Select your instrument (Guitar or Drums)
 3. Choose difficulty level (Easy/Medium/Hard/Expert)
 4. Adjust playback speed to your liking
@@ -63,7 +63,7 @@ After installing, restart your DAW to autoscan for the plugin.
 
 ---
 
-## Why Chart Preview?
+## Why Chartchotic?
 
 - **Open source** — Fully built from the groundup as an MIT license
 - **Cross-platform** — Works on Windows, macOS, and Linux
@@ -76,7 +76,7 @@ After installing, restart your DAW to autoscan for the plugin.
 
 ## Support
 
-Have questions or found a bug? [Open an issue](https://github.com/noahbaxter/chart-preview/issues).
+Have questions or found a bug? [Open an issue](https://github.com/noahbaxter/chartchotic/issues).
 
 Want to support development? [Donate here](https://www.paypal.com/donate/?business=3P35P46JLEDJA&no_recurring=0&item_name=Support+the+ongoing+development+of+Chart+Preview.&currency_code=USD).
 
@@ -84,6 +84,6 @@ Want to support development? [Donate here](https://www.paypal.com/donate/?busine
 
 ## License
 
-Chart Preview is open source under the MIT license. Art assets are provided for build purposes only.
+Chartchotic is open source under the MIT license. Art assets are provided for build purposes only.
 
 **Credits:** Huge thanks to Inventor211 for the custom art assets!

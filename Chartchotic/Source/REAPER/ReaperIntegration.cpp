@@ -12,7 +12,7 @@
 #include "../Utils/Utils.h"
 
 void ReaperIntegration::processReaperTimelineMidi(
-    ChartPreviewAudioProcessor& processor,
+    ChartchoticAudioProcessor& processor,
     PPQ startPPQ,
     PPQ endPPQ,
     double bpm,

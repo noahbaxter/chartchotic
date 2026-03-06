@@ -18,7 +18,7 @@
 #include "Utils/TimeConverter.h"
 #include "Visual/Utils/LatencySmoother.h"
 #include "UpdateChecker.h"
-#include "UI/LookAndFeel/ChartPreviewLookAndFeel.h"
+#include "UI/LookAndFeel/ChartchoticLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
 #include "UI/UpdateBannerComponent.h"
 #ifdef DEBUG
@@ -28,12 +28,12 @@
 //==============================================================================
 /**
 */
-class ChartPreviewAudioProcessorEditor  :
+class ChartchoticAudioProcessorEditor  :
     public juce::AudioProcessorEditor
 {
 public:
-    ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor&, juce::ValueTree &state);
-    ~ChartPreviewAudioProcessorEditor() override;
+    ChartchoticAudioProcessorEditor (ChartchoticAudioProcessor&, juce::ValueTree &state);
+    ~ChartchoticAudioProcessorEditor() override;
 
     //==============================================================================
     void paint (juce::Graphics&) override;
@@ -89,13 +89,13 @@ public:
 private:
     juce::ValueTree& state;
 
-    ChartPreviewAudioProcessor& audioProcessor;
+    ChartchoticAudioProcessor& audioProcessor;
     MidiInterpreter midiInterpreter;
     SceneRenderer sceneRenderer;
     TrackRenderer trackRenderer;
 
     // Custom look and feel
-    ChartPreviewLookAndFeel chartPreviewLnF;
+    ChartchoticLookAndFeel chartPreviewLnF;
 
     // UI Components
     ToolbarComponent toolbar;
@@ -204,7 +204,7 @@ private:
     double lastRepaintTimestamp = 0.0;
 #endif
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartchoticAudioProcessorEditor)
 
     // Latency tracking
     PPQ defaultLatencyInPPQ = 0.0;

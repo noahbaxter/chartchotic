@@ -16,7 +16,7 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 BUILD_DIR="$PROJECT_ROOT/build"
 TESTS_DIR="$PROJECT_ROOT/tests"
 VENV_DIR="$PROJECT_ROOT/.venv"
-PLUGIN_NAME="Chart Preview"
+PLUGIN_NAME="Chartchotic"
 
 # Ensure Python venv exists and is activated
 ensure_venv() {

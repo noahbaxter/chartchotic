@@ -1,4 +1,4 @@
-# Integration tests for Chart Preview.
+# Integration tests for Chartchotic.
 # Note: pedalboard can't load this plugin (no audio output), so we verify
 # the VST3 bundle structure directly.
 
@@ -13,5 +13,5 @@ def test_vst3_bundle_exists(plugin_path):
 
 def test_vst3_bundle_has_binary(plugin_path):
     bundle = Path(plugin_path)
-    binary = bundle / "Contents" / "MacOS" / "Chart Preview"
+    binary = bundle / "Contents" / "MacOS" / "Chartchotic"
     assert binary.exists(), f"Missing binary at {binary}"

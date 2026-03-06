@@ -6,13 +6,13 @@
 #include "../Visual/Managers/GridlineGenerator.h"
 #include "../Utils/TimeConverter.h"
 
-#ifndef CHARTPREVIEW_MIDI_ASSET_DIR
-  #define CHARTPREVIEW_MIDI_ASSET_DIR ""
+#ifndef CHARTCHOTIC_MIDI_ASSET_DIR
+  #define CHARTCHOTIC_MIDI_ASSET_DIR ""
 #endif
 
 DebugEditorController::DebugEditorController() {}
 
-void DebugEditorController::init(juce::Component& parent, ChartPreviewAudioProcessor& processor,
+void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProcessor& processor,
                                   juce::ValueTree& state, bool isStandalone)
 {
     processorPtr = &processor;
@@ -268,7 +268,7 @@ void DebugEditorController::scanMidiDirectory()
     chartEntries.clear();
     chartEntries.push_back({"None", {}});
 
-    juce::File midiDir(CHARTPREVIEW_MIDI_ASSET_DIR);
+    juce::File midiDir(CHARTCHOTIC_MIDI_ASSET_DIR);
     if (!midiDir.isDirectory()) return;
 
     auto files = midiDir.findChildFiles(juce::File::findFiles, false, "*.mid");

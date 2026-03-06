@@ -1,6 +1,6 @@
-#define MyAppName "Chart Preview"
+#define MyAppName "Chartchotic"
 #define MyAppPublisher "Dichotic Studios"
-#define MyAppURL "https://github.com/noahbaxter/chart-preview"
+#define MyAppURL "https://github.com/noahbaxter/chartchotic"
 
 [Setup]
 AppId={{E8A3B2C1-4D5F-6789-ABCD-EF0123456789}
@@ -11,7 +11,7 @@ AppPublisherURL={#MyAppURL}
 DefaultDirName={commonpf64}\Common Files\VST3
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=ChartPreview-Windows-Installer
+OutputBaseFilename=Chartchotic-Windows-Installer
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -22,7 +22,7 @@ DisableDirPage=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#SourceDir}\Chart Preview.vst3\*"; DestDir: "{commonpf64}\Common Files\VST3\Chart Preview.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\Chartchotic.vst3\*"; DestDir: "{commonpf64}\Common Files\VST3\Chartchotic.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"

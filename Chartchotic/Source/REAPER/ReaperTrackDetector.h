@@ -2,7 +2,7 @@
   ==============================================================================
 
     ReaperTrackDetector.h
-    Automatic detection of which track contains the Chart Preview plugin
+    Automatic detection of which track contains the Chartchotic plugin
 
   ==============================================================================
 */
@@ -17,7 +17,7 @@ class ReaperTrackDetector
 public:
     using ReaperGetFunc = std::function<void*(const char*)>;
 
-    // Detect which track contains the Chart Preview plugin
+    // Detect which track contains the Chartchotic plugin
     // Returns -1 if not found or on error
     static int detectPluginTrack(ReaperGetFunc reaperGetFunc);
 

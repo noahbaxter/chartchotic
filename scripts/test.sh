@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test runner for Chart Preview
+# Test runner for Chartchotic
 #
 # Usage:
 #   ./scripts/test.sh              # Run all tests
@@ -50,7 +50,7 @@ for arg in "$@"; do
     esac
 done
 
-echo -e "${YELLOW}=== Chart Preview Test Runner ===${NC}"
+echo -e "${YELLOW}=== Chartchotic Test Runner ===${NC}"
 echo "Test type: $TEST_TYPE"
 
 ensure_venv
@@ -59,7 +59,7 @@ run_unit_tests() {
     echo -e "\n${BLUE}=== Running C++ Unit Tests ===${NC}"
     local unit_build_dir="$TESTS_DIR/unit/build"
     local unit_binary="$unit_build_dir/unit_tests_artefacts/Release/unit_tests"
-    local source_root="$PROJECT_ROOT/ChartPreview/Source"
+    local source_root="$PROJECT_ROOT/Chartchotic/Source"
 
     # Rebuild if binary missing, or any test/source file is newer than the binary
     local needs_build=false

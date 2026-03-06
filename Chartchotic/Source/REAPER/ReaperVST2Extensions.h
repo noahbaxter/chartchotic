@@ -11,12 +11,12 @@
 
 #include <JuceHeader.h>
 
-class ChartPreviewAudioProcessor;
+class ChartchoticAudioProcessor;
 
-class ChartPreviewVST2Extensions : public juce::VST2ClientExtensions
+class ChartchoticVST2Extensions : public juce::VST2ClientExtensions
 {
 public:
-    ChartPreviewVST2Extensions(ChartPreviewAudioProcessor* proc);
+    ChartchoticVST2Extensions(ChartchoticAudioProcessor* proc);
 
     juce::pointer_sized_int handleVstPluginCanDo(juce::int32 index, juce::pointer_sized_int value, void* ptr, float opt) override;
     juce::pointer_sized_int handleVstManufacturerSpecific(juce::int32 index, juce::pointer_sized_int value, void* ptr, float) override;
@@ -25,9 +25,9 @@ public:
 private:
     void tryGetReaperApi();
 
-    ChartPreviewAudioProcessor* processor;
+    ChartchoticAudioProcessor* processor;
     std::function<VstHostCallbackType> hostCallback;
 
     // Per-instance storage for callbacks (keyed by processor pointer)
-    static std::map<ChartPreviewAudioProcessor*, std::function<VstHostCallbackType>*> instanceCallbacks;
+    static std::map<ChartchoticAudioProcessor*, std::function<VstHostCallbackType>*> instanceCallbacks;
 };

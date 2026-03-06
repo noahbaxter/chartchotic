@@ -1,6 +1,6 @@
 # REAPER Integration
 
-Everything about how Chart Preview connects to REAPER's API for direct timeline MIDI access.
+Everything about how Chartchotic connects to REAPER's API for direct timeline MIDI access.
 
 ---
 
@@ -51,7 +51,7 @@ if (reaperGetFunc) {
 ### Plugin-Side Implementation
 
 ```
-Source/PluginProcessor.h:38-54    — ChartPreviewVST2Extensions declaration
+Source/PluginProcessor.h:38-54    — ChartchoticVST2Extensions declaration
 Source/PluginProcessor.cpp:218-325 — VST2 extensions implementation
 Source/Midi/ReaperMidiProvider.h/cpp — REAPER API wrapper
 ```
@@ -87,7 +87,7 @@ DEF_CLASS_IID(IReaperHostApplication)
 
 **VST3 Extensions** (in PluginProcessor.cpp):
 ```cpp
-class ChartPreviewVST3Extensions : public juce::VST3ClientExtensions {
+class ChartchoticVST3Extensions : public juce::VST3ClientExtensions {
     void setIHostApplication(Steinberg::FUnknown* host) override {
         auto reaper = FUnknownPtr<IReaperHostApplication>(host);
         if (reaper) {

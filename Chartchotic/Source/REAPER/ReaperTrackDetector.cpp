@@ -2,7 +2,7 @@
   ==============================================================================
 
     ReaperTrackDetector.cpp
-    Automatic detection of which track contains the Chart Preview plugin
+    Automatic detection of which track contains the Chartchotic plugin
 
   ==============================================================================
 */
@@ -26,7 +26,7 @@ int ReaperTrackDetector::detectPluginTrack(ReaperGetFunc reaperGetFunc)
 
     int trackCount = CountTracks(0);  // 0 = current project
 
-    // Search all tracks for the Chart Preview plugin
+    // Search all tracks for the Chartchotic plugin
     for (int trackIdx = 0; trackIdx < trackCount; trackIdx++)
     {
         void* track = GetTrack(0, trackIdx);  // 0 = current project
@@ -41,8 +41,8 @@ int ReaperTrackDetector::detectPluginTrack(ReaperGetFunc reaperGetFunc)
             if (TrackFX_GetFXName(track, fxIdx, fxName, sizeof(fxName)))
             {
                 // Check if this is our plugin (case-insensitive)
-                if (strstr(fxName, "Chart Preview") != nullptr ||
-                    strstr(fxName, "ChartPreview") != nullptr)
+                if (strstr(fxName, "Chartchotic") != nullptr ||
+                    strstr(fxName, "Chartchotic") != nullptr)
                 {
                     return trackIdx;  // Found it!
                 }

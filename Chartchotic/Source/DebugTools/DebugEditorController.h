@@ -11,7 +11,7 @@
 #include "../Visual/Utils/DrawingConstants.h"
 #include "../Utils/Utils.h"
 
-class ChartPreviewAudioProcessor;
+class ChartchoticAudioProcessor;
 class ToolbarComponent;
 
 class DebugEditorController
@@ -19,7 +19,7 @@ class DebugEditorController
 public:
     DebugEditorController();
 
-    void init(juce::Component& parent, ChartPreviewAudioProcessor& processor,
+    void init(juce::Component& parent, ChartchoticAudioProcessor& processor,
               juce::ValueTree& state, bool isStandalone);
 
     void wireCallbacks(ToolbarComponent& toolbar,
@@ -67,7 +67,7 @@ public:
 private:
     bool standalone = false;
     juce::ValueTree* statePtr = nullptr;
-    ChartPreviewAudioProcessor* processorPtr = nullptr;
+    ChartchoticAudioProcessor* processorPtr = nullptr;
 
     DebugPlaybackController playbackController;
 

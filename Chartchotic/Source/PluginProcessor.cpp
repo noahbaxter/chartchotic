@@ -17,7 +17,7 @@
 #include "Midi/Pipelines/ReaperMidiPipeline.h"
 
 //==============================================================================
-ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
+ChartchoticAudioProcessor::ChartchoticAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -39,11 +39,11 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
                                                       [this](const juce::String& msg) { print(msg); });
 }
 
-ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
+ChartchoticAudioProcessor::~ChartchoticAudioProcessor()
 {
 }
 
-void ChartPreviewAudioProcessor::initializeDefaultState()
+void ChartchoticAudioProcessor::initializeDefaultState()
 {
     state = juce::ValueTree("state");
     
@@ -72,7 +72,7 @@ void ChartPreviewAudioProcessor::initializeDefaultState()
     state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
 }
 
-void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
+void ChartchoticAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
 {
     this->latencyInSeconds = latencyInSeconds;
     double sampleRate = getSampleRate();
@@ -93,7 +93,7 @@ void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
     }
 }
 
-void ChartPreviewAudioProcessor::invalidateReaperCache()
+void ChartchoticAudioProcessor::invalidateReaperCache()
 {
     if (midiPipeline)
     {
@@ -106,7 +106,7 @@ void ChartPreviewAudioProcessor::invalidateReaperCache()
     }
 }
 
-void ChartPreviewAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased)
+void ChartchoticAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased)
 {
     // Convert 0-based to 1-based for storage in state
     int trackNumber1Based = trackNumberZeroBased + 1;
@@ -125,18 +125,18 @@ void ChartPreviewAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased
 }
 
 // MANUAL OVERRIDES
-void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void ChartchoticAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     setLatencyInSeconds(latencyInSeconds);
 }
 
-void ChartPreviewAudioProcessor::releaseResources()
+void ChartchoticAudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
 }
 
-void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages)
+void ChartchoticAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages)
 {
     // Can't process if there is no playhead
     auto* playHead = getPlayHead();
@@ -218,22 +218,22 @@ void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, 
 }
 //==============================================
 // Stock JUCE
-juce::AudioProcessorEditor *ChartPreviewAudioProcessor::createEditor()
+juce::AudioProcessorEditor *ChartchoticAudioProcessor::createEditor()
 {
-    return new ChartPreviewAudioProcessorEditor(*this, state);
+    return new ChartchoticAudioProcessorEditor(*this, state);
 }
 
-bool ChartPreviewAudioProcessor::hasEditor() const
+bool ChartchoticAudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-const juce::String ChartPreviewAudioProcessor::getName() const
+const juce::String ChartchoticAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool ChartPreviewAudioProcessor::acceptsMidi() const
+bool ChartchoticAudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -242,7 +242,7 @@ bool ChartPreviewAudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool ChartPreviewAudioProcessor::producesMidi() const
+bool ChartchoticAudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -251,7 +251,7 @@ bool ChartPreviewAudioProcessor::producesMidi() const
    #endif
 }
 
-bool ChartPreviewAudioProcessor::isMidiEffect() const
+bool ChartchoticAudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -260,36 +260,36 @@ bool ChartPreviewAudioProcessor::isMidiEffect() const
    #endif
 }
 
-double ChartPreviewAudioProcessor::getTailLengthSeconds() const
+double ChartchoticAudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int ChartPreviewAudioProcessor::getNumPrograms()
+int ChartchoticAudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int ChartPreviewAudioProcessor::getCurrentProgram()
+int ChartchoticAudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void ChartPreviewAudioProcessor::setCurrentProgram (int index)
+void ChartchoticAudioProcessor::setCurrentProgram (int index)
 {
 }
 
-const juce::String ChartPreviewAudioProcessor::getProgramName (int index)
+const juce::String ChartchoticAudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void ChartPreviewAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void ChartchoticAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
 }
 
-void ChartPreviewAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void ChartchoticAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
 #ifdef DEBUG
     // Don't persist state in debug standalone — always start fresh for testing
@@ -304,7 +304,7 @@ void ChartPreviewAudioProcessor::getStateInformation (juce::MemoryBlock& destDat
     }
 }
 
-void ChartPreviewAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void ChartchoticAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
 #ifdef DEBUG
     // Don't restore state in debug standalone — always use defaults for testing
@@ -319,7 +319,7 @@ void ChartPreviewAudioProcessor::setStateInformation (const void* data, int size
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool ChartPreviewAudioProcessor::isBusesLayoutSupported(const BusesLayout &layouts) const
+bool ChartchoticAudioProcessor::isBusesLayoutSupported(const BusesLayout &layouts) const
 {
 #if JucePlugin_IsMidiEffect
     juce::ignoreUnused(layouts);
@@ -344,16 +344,16 @@ bool ChartPreviewAudioProcessor::isBusesLayoutSupported(const BusesLayout &layou
 #endif
 
 
-juce::VST2ClientExtensions* ChartPreviewAudioProcessor::getVST2ClientExtensions()
+juce::VST2ClientExtensions* ChartchoticAudioProcessor::getVST2ClientExtensions()
 {
     // Create VST2 extensions instance on demand
     if (!vst2Extensions)
-        vst2Extensions = std::make_unique<ChartPreviewVST2Extensions>(this);
+        vst2Extensions = std::make_unique<ChartchoticVST2Extensions>(this);
 
     return vst2Extensions.get();
 }
 
-bool ChartPreviewAudioProcessor::attemptReaperConnection()
+bool ChartchoticAudioProcessor::attemptReaperConnection()
 {
     if (!isReaperHost || !reaperGetFunc)
         return false;
@@ -369,7 +369,7 @@ bool ChartPreviewAudioProcessor::attemptReaperConnection()
     return false;
 }
 
-void* ChartPreviewAudioProcessor::getReaperApi(const char* funcname)
+void* ChartchoticAudioProcessor::getReaperApi(const char* funcname)
 {
     if (reaperGetFunc)
         return reaperGetFunc(funcname);
@@ -377,7 +377,7 @@ void* ChartPreviewAudioProcessor::getReaperApi(const char* funcname)
 }
 
 
-std::string ChartPreviewAudioProcessor::getHostInfo()
+std::string ChartchoticAudioProcessor::getHostInfo()
 {
     // Try to get host information
     juce::String hostName = getPlayHead() ? "Unknown Host" : "No PlayHead";
@@ -388,12 +388,12 @@ std::string ChartPreviewAudioProcessor::getHostInfo()
 }
 
 
-juce::VST3ClientExtensions* ChartPreviewAudioProcessor::getVST3ClientExtensions()
+juce::VST3ClientExtensions* ChartchoticAudioProcessor::getVST3ClientExtensions()
 {
 #if JucePlugin_Build_VST3
     // Create VST3 extensions instance on demand
     if (!vst3Extensions)
-        vst3Extensions = std::make_unique<ChartPreviewVST3Extensions>(this);
+        vst3Extensions = std::make_unique<ChartchoticVST3Extensions>(this);
 
     return vst3Extensions.get();
 #else
@@ -401,7 +401,7 @@ juce::VST3ClientExtensions* ChartPreviewAudioProcessor::getVST3ClientExtensions(
 #endif
 }
 
-void ChartPreviewAudioProcessor::processReaperTimelineMidi(PPQ startPPQ, PPQ endPPQ, double bpm, uint timeSignatureNumerator, uint timeSignatureDenominator)
+void ChartchoticAudioProcessor::processReaperTimelineMidi(PPQ startPPQ, PPQ endPPQ, double bpm, uint timeSignatureNumerator, uint timeSignatureDenominator)
 {
     // If using the new pipeline system, set the display window
     if (midiPipeline)
@@ -415,7 +415,7 @@ void ChartPreviewAudioProcessor::processReaperTimelineMidi(PPQ startPPQ, PPQ end
     }
 }
 
-void ChartPreviewAudioProcessor::requestTimelinePositionChange(PPQ newPosition)
+void ChartchoticAudioProcessor::requestTimelinePositionChange(PPQ newPosition)
 {
     if (isReaperHost && reaperMidiProvider.isReaperApiAvailable())
     {
@@ -434,6 +434,6 @@ void ChartPreviewAudioProcessor::requestTimelinePositionChange(PPQ newPosition)
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new ChartPreviewAudioProcessor();
+    return new ChartchoticAudioProcessor();
 }
 

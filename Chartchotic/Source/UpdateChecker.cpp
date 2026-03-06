@@ -1,11 +1,11 @@
 #include "UpdateChecker.h"
 
-#ifdef CHARTPREVIEW_VERSION_STRING
-  #define CHART_PREVIEW_VERSION CHARTPREVIEW_VERSION_STRING
+#ifdef CHARTCHOTIC_VERSION_STRING
+  #define CHARTCHOTIC_VERSION CHARTCHOTIC_VERSION_STRING
 #elif defined(JucePlugin_VersionString)
-  #define CHART_PREVIEW_VERSION JucePlugin_VersionString
+  #define CHARTCHOTIC_VERSION JucePlugin_VersionString
 #else
-  #define CHART_PREVIEW_VERSION "dev"
+  #define CHARTCHOTIC_VERSION "dev"
 #endif
 
 UpdateChecker::UpdateChecker() : Thread("UpdateChecker") {}
@@ -40,7 +40,7 @@ void UpdateChecker::run()
 {
     UpdateInfo result;
 
-    juce::String channel(CHARTPREVIEW_BUILD_CHANNEL);
+    juce::String channel(CHARTCHOTIC_BUILD_CHANNEL);
     if (channel == "DEV")
         result = checkDevChannel();
     else
@@ -71,7 +71,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
 
     auto options = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                        .withHttpRequestCmd("GET")
-                       .withExtraHeaders("Accept: application/vnd.github+json\r\nUser-Agent: ChartPreview-UpdateChecker");
+                       .withExtraHeaders("Accept: application/vnd.github+json\r\nUser-Agent: Chartchotic-UpdateChecker");
 
     // Only check /releases/latest — this skips prereleases by design
     auto stream = juce::URL(juce::String(GITHUB_API_BASE) + "/releases/latest")
@@ -89,7 +89,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
         return info;
 
     juce::String remoteVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
-    juce::String localVersion(CHART_PREVIEW_VERSION);
+    juce::String localVersion(CHARTCHOTIC_VERSION);
 
     bool shouldUpdate;
 #ifdef DEBUG
@@ -106,7 +106,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
         info.version = tagName;
         info.releaseNotes = json.getProperty("body", "").toString();
         // Always link to /releases/latest — GitHub redirects to the right page
-        info.downloadUrl = "https://github.com/noahbaxter/chart-preview/releases/latest";
+        info.downloadUrl = "https://github.com/noahbaxter/chartchotic/releases/latest";
     }
 
     return info;
@@ -119,7 +119,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkDevChannel()
 
     auto options = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                        .withHttpRequestCmd("GET")
-                       .withExtraHeaders("Accept: application/vnd.github+json\r\nUser-Agent: ChartPreview-UpdateChecker");
+                       .withExtraHeaders("Accept: application/vnd.github+json\r\nUser-Agent: Chartchotic-UpdateChecker");
 
     auto stream = url.createInputStream(options);
     if (stream == nullptr)
@@ -139,7 +139,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkDevChannel()
         return info;
 
     auto remoteFullVersion = title.substring(openParen + 1, closeParen);
-    juce::String localVersion(CHART_PREVIEW_VERSION);
+    juce::String localVersion(CHARTCHOTIC_VERSION);
 
 #ifdef DEBUG
     // Debug: show banner if version string differs at all
