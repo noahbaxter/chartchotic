@@ -149,12 +149,12 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: return getHopoBarWhiteImage();
+            case 0: return getBarWhiteImage();
             case 1:
             case 2:
             case 3:
             case 4:
-            case 5: return getHopoWhiteImage();
+            case 5: return getNoteWhiteImage();
             } break;
         default: break;
         }
@@ -187,11 +187,11 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
             switch (gemColumn)
             {
             case 0: return getBarOpenImage();
-            case 1: return getHopoGreenImage();
-            case 2: return getHopoRedImage();
-            case 3: return getHopoYellowImage();
-            case 4: return getHopoBlueImage();
-            case 5: return getHopoOrangeImage();
+            case 1: return getNoteGreenImage();
+            case 2: return getNoteRedImage();
+            case 3: return getNoteYellowImage();
+            case 4: return getNoteBlueImage();
+            case 5: return getNoteOrangeImage();
             } break;
         default: break;
         }
