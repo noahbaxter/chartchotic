@@ -51,7 +51,7 @@ public:
         float cy = (float)getHeight() * 0.5f;
 
         // "CHART" — white bold
-        g.setColour(juce::Colours::white);
+        g.setColour(juce::Colour(Theme::textWhite));
         g.setFont(boldFont);
         g.drawText("CHART", juce::Rectangle<float>(x, 0.0f, chartW, (float)getHeight()),
                    juce::Justification::centredLeft, false);
@@ -81,7 +81,7 @@ private:
         Theme::yellow,
         Theme::blue,
         Theme::orange,
-        0xFFFFFFFF  // White (star power)
+        Theme::textWhite  // Star power
     };
 
     struct FontPair

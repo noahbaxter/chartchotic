@@ -18,7 +18,7 @@ ChartPreviewLookAndFeel::ChartPreviewLookAndFeel()
 
     setColour(juce::TextButton::buttonColourId, juce::Colour(Theme::darkBgLighter));
     setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::textWhite));
-    setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+    setColour(juce::TextButton::textColourOnId, juce::Colour(Theme::textWhite));
 }
 
 //==============================================================================
@@ -39,7 +39,7 @@ void ChartPreviewLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleBu
         g.setColour(juce::Colour(Theme::coral));
         g.fillRoundedRectangle(boxBounds, 2.0f);
 
-        g.setColour(juce::Colours::white);
+        g.setColour(juce::Colour(Theme::textWhite));
         juce::Path tick;
         auto b = boxBounds.reduced(3.0f);
         tick.startNewSubPath(b.getX(), b.getCentreY());
@@ -186,5 +186,7 @@ void ChartPreviewLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butt
 
 juce::Font ChartPreviewLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
 {
-    return Theme::getUIFont((float)buttonHeight * 0.46f);
+    if (buttonHeight > 0 && (float)buttonHeight < Theme::buttonFont.getHeight())
+        return Theme::smallFont;
+    return Theme::buttonFont;
 }

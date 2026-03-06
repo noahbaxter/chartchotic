@@ -13,7 +13,7 @@ public:
     void paint(juce::Graphics& g) override
     {
         auto bounds = getLocalBounds().toFloat();
-        auto font = Theme::getUIFont(bounds.getHeight() * 0.625f);
+        auto font = Theme::headerFont;
 
         g.setColour(juce::Colour(Theme::textDim).withAlpha(0.5f));
         g.setFont(font);

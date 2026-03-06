@@ -334,6 +334,7 @@ void ToolbarComponent::resized()
     float scale = (float)stripH / (float)referenceHeight;
 
     int h = juce::roundToInt(28.0f * scale);
+    Theme::setControlHeight((float)h);
     int gap = juce::roundToInt(6.0f * scale);
     int y = (stripH - h) / 2;
 
@@ -657,8 +658,8 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     {
         int colW = (w - gap) / 2;
         int labelH = juce::roundToInt(14.0f * s);
-        textureScaleLabel.setFont(Theme::getUIFont(Theme::fontSize * s));
-        textureOpacityLabel.setFont(Theme::getUIFont(Theme::fontSize * s));
+        textureScaleLabel.setFont(Theme::getUIFont(Theme::fontSize));
+        textureOpacityLabel.setFont(Theme::getUIFont(Theme::fontSize));
         textureScaleLabel.setBounds(margin, y, colW, labelH);
         textureOpacityLabel.setBounds(margin + colW + gap, y, colW, labelH);
         y += labelH + juce::roundToInt(1.0f * s);

@@ -168,6 +168,7 @@ target_sources(ChartPreview
         # UI - Core
         ChartPreview/Source/UI/ChartchoticLogo.h
         ChartPreview/Source/UI/Theme.h
+        ChartPreview/Source/UI/ToolbarPanelGroup.h
         ChartPreview/Source/UI/SectionHeader.h
         ChartPreview/Source/UI/ToolbarComponent.cpp
         ChartPreview/Source/UI/ToolbarComponent.h

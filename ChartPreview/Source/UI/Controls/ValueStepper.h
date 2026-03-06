@@ -21,14 +21,10 @@ public:
         auto bounds = getLocalBounds();
         int nameW = (int)(bounds.getWidth() * labelRatio);
         bool hovering = isMouseOver();
-        float h = (float)getHeight();
-        float scaledFontSize = h * 0.393f;
-        float scaledArrowW = h * 0.571f;
-        float scaledArrowFont = h * 0.321f;
 
         // Label
         g.setColour(juce::Colour(Theme::textDim));
-        g.setFont(Theme::getUIFont(scaledFontSize));
+        g.setFont(Theme::controlFont);
         if (labelOnRight)
             g.drawText(name, bounds.getWidth() - nameW, 0, nameW, getHeight(), juce::Justification::centredRight);
         else
@@ -37,29 +33,28 @@ public:
         // Value pill
         auto valueRect = (labelOnRight ? bounds.withRight(bounds.getWidth() - nameW)
                                        : bounds.withLeft(nameW)).toFloat().reduced(1.0f);
-        auto cornerSize = valueRect.getHeight() * Theme::pillRadius;
 
         g.setColour(juce::Colour(Theme::darkBg));
-        g.fillRoundedRectangle(valueRect, cornerSize);
+        g.fillRoundedRectangle(valueRect, Theme::pillCorner);
 
         g.setColour(hovering ? juce::Colour(Theme::coral).withAlpha(0.5f)
                              : juce::Colour(Theme::textDim).withAlpha(0.3f));
-        g.drawRoundedRectangle(valueRect, cornerSize, 1.0f);
+        g.drawRoundedRectangle(valueRect, Theme::pillCorner, 1.0f);
 
         // Arrows
         g.setColour(juce::Colour(Theme::coral).withAlpha(hovering ? 1.0f : 0.7f));
-        g.setFont(juce::Font(scaledArrowFont));
+        g.setFont(juce::Font(Theme::arrowFontSize));
 
-        auto leftArrow = valueRect.withWidth(scaledArrowW);
-        auto rightArrow = valueRect.withLeft(valueRect.getRight() - scaledArrowW);
+        auto leftArrow = valueRect.withWidth(Theme::arrowZone);
+        auto rightArrow = valueRect.withLeft(valueRect.getRight() - Theme::arrowZone);
         g.drawText(juce::CharPointer_UTF8("\xe2\x97\x80"), leftArrow, juce::Justification::centred);
         g.drawText(juce::CharPointer_UTF8("\xe2\x96\xb6"), rightArrow, juce::Justification::centred);
 
         // Value text
-        auto textRect = valueRect.withLeft(valueRect.getX() + scaledArrowW)
-                                  .withRight(valueRect.getRight() - scaledArrowW);
+        auto textRect = valueRect.withLeft(valueRect.getX() + Theme::arrowZone)
+                                  .withRight(valueRect.getRight() - Theme::arrowZone);
         g.setColour(juce::Colour(Theme::textWhite));
-        g.setFont(Theme::getUIFont(scaledFontSize));
+        g.setFont(Theme::controlFont);
         g.drawText(displayValue, textRect, juce::Justification::centred);
     }
 
@@ -67,16 +62,15 @@ public:
     {
         if (!getLocalBounds().contains(e.getPosition())) return;
         int nameW = (int)(getWidth() * labelRatio);
-        float scaledArrowW = (float)getHeight() * 0.571f;
 
         int pillLeft = labelOnRight ? 0 : nameW;
         int pillRight = labelOnRight ? (getWidth() - nameW) : getWidth();
 
-        if (e.x >= pillLeft && e.x < pillLeft + scaledArrowW)
+        if (e.x >= pillLeft && e.x < pillLeft + Theme::arrowZone)
         {
             if (onStep) onStep(-1);
         }
-        else if (e.x > pillRight - scaledArrowW && e.x <= pillRight)
+        else if (e.x > pillRight - Theme::arrowZone && e.x <= pillRight)
         {
             if (onStep) onStep(1);
         }

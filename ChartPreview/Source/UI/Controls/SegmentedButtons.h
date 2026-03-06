@@ -37,7 +37,7 @@ public:
         if (items.isEmpty()) return;
 
         auto bounds = getLocalBounds().toFloat().reduced(0.5f);
-        auto cornerSize = bounds.getHeight() * Theme::pillRadius;
+        auto cornerSize = Theme::pillCorner;
         int count = items.size();
         float segW = bounds.getWidth() / (float)count;
 
@@ -84,7 +84,7 @@ public:
                 g.fillRect(segBounds);
                 g.restoreState();
 
-                g.setColour(juce::Colours::white);
+                g.setColour(juce::Colour(Theme::textWhite));
             }
             else
             {
@@ -113,7 +113,7 @@ public:
                 g.setColour(juce::Colour(Theme::textDim));
             }
 
-            g.setFont(Theme::getUIFont(bounds.getHeight() * 0.393f));
+            g.setFont(Theme::controlFont);
             g.drawText(items[i], segBounds.toNearestInt(), juce::Justification::centred);
 
             // Divider line between segments (not after last)

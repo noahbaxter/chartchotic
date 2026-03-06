@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
+#include "../ToolbarPanelGroup.h"
 
 struct CircleItem
 {
@@ -203,7 +204,7 @@ private:
                         (float)labelW - padding, circle.getHeight());
                     g.setColour(hovering ? juce::Colour(Theme::textWhite)
                                          : juce::Colour(Theme::textDim));
-                    g.setFont(Theme::getUIFont(d * 0.38f));
+                    g.setFont(Theme::controlFont);
                     g.drawText(text, labelBounds.toNearestInt(),
                                juce::Justification::centredLeft);
                 }
@@ -324,10 +325,10 @@ private:
         }
         else if (item.label.isNotEmpty())
         {
-            g.setColour(juce::Colours::white);
+            g.setColour(juce::Colour(Theme::textWhite));
             auto typeface = juce::Typeface::createSystemTypefaceFor(
                 BinaryData::RussoOneRegular_ttf, BinaryData::RussoOneRegular_ttfSize);
-            auto font = juce::Font(typeface).withHeight(bounds.getHeight() * 0.62f);
+            auto font = juce::Font(typeface).withHeight(bounds.getHeight() * 0.72f);
             g.setFont(font);
             g.drawText(item.label, bounds.translated(0.5f, 0.0f).toNearestInt(), juce::Justification::centred);
             g.drawText(item.label, bounds.toNearestInt(), juce::Justification::centred);
@@ -383,6 +384,6 @@ private:
     void startHoverTimer()
     {
         hoverTimer.owner = this;
-        hoverTimer.startTimer(120);
+        hoverTimer.startTimer(Theme::hoverDismissMs);
     }
 };

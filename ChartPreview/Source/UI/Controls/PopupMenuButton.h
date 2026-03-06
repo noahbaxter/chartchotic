@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
+#include "../ToolbarPanelGroup.h"
 
 // A panel that appears below a button and holds arbitrary child controls.
 // Rendered as a child of the top-level component (not a desktop window).
@@ -13,10 +14,10 @@ public:
     void paint(juce::Graphics& g) override
     {
         g.setColour(juce::Colour(Theme::darkBg).withAlpha(Theme::panelBgAlpha));
-        g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
+        g.fillRoundedRectangle(getLocalBounds().toFloat(), Theme::panelRadius);
 
         g.setColour(juce::Colour(Theme::coral).withAlpha(0.5f));
-        g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.0f);
+        g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), Theme::panelRadius, 1.0f);
     }
 
     // Outside-click callback — set by PopupMenuButton when click-locked
@@ -208,8 +209,9 @@ private:
         if (topLevel == nullptr) return;
 
         auto btnBottom = topLevel->getLocalPoint(this, juce::Point<int>(0, getHeight() + panelAnchorYOffset));
-        int panelX = topLevel->getWidth() - panel->getWidth();
-        int panelY = btnBottom.y + 6;
+        int gap = 6;
+        int panelX = topLevel->getWidth() - panel->getWidth() - gap;
+        int panelY = btnBottom.y + gap;
 
         panelY = juce::jmin(panelY, topLevel->getHeight() - panel->getHeight());
 
@@ -243,7 +245,7 @@ private:
     void startHoverTimer()
     {
         hoverTimer.owner = this;
-        hoverTimer.startTimer(120);
+        hoverTimer.startTimer(Theme::hoverDismissMs);
     }
 
     std::unique_ptr<PopupPanel> panel;

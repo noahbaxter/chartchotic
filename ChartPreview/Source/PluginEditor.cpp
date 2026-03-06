@@ -603,8 +603,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     int barY = getHeight() - barH - barMargin;
 
     // Font: use toolbar's font sizing approach
-    float fontSize = Theme::fontSize * s;
-    versionLabel.setFont(Theme::getUIFont(fontSize));
+    versionLabel.setFont(Theme::getUIFont(Theme::fontSize));
 
     // Start after REAPER logo area
     int logoArea = juce::roundToInt(40.0f * s);

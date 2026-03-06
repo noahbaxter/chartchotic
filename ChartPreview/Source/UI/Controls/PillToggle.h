@@ -27,7 +27,7 @@ public:
     void paint(juce::Graphics& g) override
     {
         auto bounds = getLocalBounds().toFloat().reduced(1.0f);
-        auto cornerSize = bounds.getHeight() * Theme::pillRadius;
+        auto cornerSize = Theme::pillCorner;
         bool hovering = isMouseOver();
 
         if (on)
@@ -35,7 +35,7 @@ public:
             g.setColour(hovering ? juce::Colour(Theme::coral).brighter(0.15f)
                                  : juce::Colour(Theme::coral));
             g.fillRoundedRectangle(bounds, cornerSize);
-            g.setColour(juce::Colours::white);
+            g.setColour(juce::Colour(Theme::textWhite));
         }
         else
         {
@@ -46,7 +46,7 @@ public:
                                  : juce::Colour(Theme::textDim));
         }
 
-        g.setFont(Theme::getUIFont((float)getHeight() * 0.5f));
+        g.setFont(Theme::smallFont);
         g.drawText(label, getLocalBounds(), juce::Justification::centred);
     }
 

@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
+#include "../ToolbarPanelGroup.h"
 
 class ChartPreviewLookAndFeel : public juce::LookAndFeel_V4
 {

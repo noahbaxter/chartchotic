@@ -93,7 +93,7 @@ private:
             g.setColour(orange);
             g.fillEllipse(bounds);
 
-            g.setColour(juce::Colours::white);
+            g.setColour(juce::Colour(Theme::textWhite));
             g.setFont(Theme::getUIFont(bounds.getHeight() * 0.5f));
             g.drawText("!", bounds, juce::Justification::centred);
         }
@@ -136,15 +136,15 @@ private:
         {
             float s = getHeight() / 600.0f;
 
-            g.fillAll(juce::Colours::black.withAlpha(0.65f));
+            g.fillAll(juce::Colours::black.withAlpha(Theme::overlayDimAlpha));
 
             auto card = getCardBounds();
 
             g.setColour(juce::Colour(Theme::darkBg));
-            g.fillRoundedRectangle(card, 10.0f * s);
+            g.fillRoundedRectangle(card, Theme::cardRadius);
 
-            g.setColour(juce::Colours::white.withAlpha(0.12f));
-            g.drawRoundedRectangle(card, 10.0f * s, 1.0f);
+            g.setColour(juce::Colours::white.withAlpha(Theme::borderAlpha));
+            g.drawRoundedRectangle(card, Theme::cardRadius, 1.0f);
 
             auto inner = card;
             float pad = 28.0f * s;
