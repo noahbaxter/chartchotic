@@ -41,13 +41,13 @@ private:
     juce::ToggleButton debugConsoleToggle;
     juce::ToggleButton profilerToggle;
 
-    static constexpr int CHART_COUNT = 8;
-    const juce::String chartNames[CHART_COUNT] = {
-        "None", "Test", "Stress", "Sleepy Tea",
-        "Further Side", "Scarlet", "Everything", "Akroasis"
-    };
-    int chartIndex = 1;
+    std::vector<juce::String> chartNames = {"None"};
+    int chartIndex = 0;
     ScrollableLabel chartSelectLabel;
+
+public:
+    void setChartNames(const std::vector<juce::String>& names);
+private:
 
     void layoutPanel(juce::Component* panel);
 };

@@ -268,14 +268,7 @@ juce_add_binary_data(ChartPreviewData
         assets/raster/hit_open_5.png
         assets/raster/hit_open_6.png
         assets/raster/hit_open_7.png
-        # MIDI test files
-        assets/midi/test.mid
-        assets/midi/stress.mid
-        assets/midi/sleepy_tea.mid
-        assets/midi/further_side.mid
-        assets/midi/scarlet.mid
-        assets/midi/everything_went_black.mid
-        assets/midi/akroasis.mid
+        # MIDI test files loaded from disk at runtime (see CHARTPREVIEW_MIDI_ASSET_DIR)
 )
 
 # REAPER SDK header path
@@ -293,6 +286,7 @@ target_compile_definitions(ChartPreview
     PRIVATE
         CHARTPREVIEW_BUILD_CHANNEL="${BUILD_CHANNEL}"
         CHARTPREVIEW_VERSION_STRING="${VERSION_STRING}"
+        CHARTPREVIEW_MIDI_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/midi"
 )
 
 # Link libraries

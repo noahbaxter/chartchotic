@@ -78,14 +78,14 @@ private:
     juce::TextEditor consoleOutput;
     juce::TextButton clearLogsButton;
 
-    // Debug chart loading
+    // Debug chart loading (scans assets/midi/ directory)
     TempoTimeSignatureMap debugMidiTempoMap;
     double debugChartLengthInBeats = 0.0;
     void loadDebugChart(int index);
+    void scanMidiDirectory();
 
-    struct DebugChartEntry { const char* data; int size; };
-    static constexpr int CHART_REGISTRY_SIZE = 8;
-    static const DebugChartEntry debugChartRegistry[CHART_REGISTRY_SIZE];
+    struct DebugChartEntry { juce::String name; juce::File file; };
+    std::vector<DebugChartEntry> chartEntries; // index 0 = "None" (empty)
 };
 
 #endif

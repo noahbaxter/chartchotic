@@ -6,6 +6,10 @@
 #include "../Visual/Managers/GridlineGenerator.h"
 #include "../Utils/TimeConverter.h"
 
+#ifndef CHARTPREVIEW_MIDI_ASSET_DIR
+  #define CHARTPREVIEW_MIDI_ASSET_DIR ""
+#endif
+
 DebugEditorController::DebugEditorController() {}
 
 void DebugEditorController::init(juce::Component& parent, ChartPreviewAudioProcessor& processor,
@@ -14,6 +18,8 @@ void DebugEditorController::init(juce::Component& parent, ChartPreviewAudioProce
     processorPtr = &processor;
     statePtr = &state;
     standalone = isStandalone;
+
+    scanMidiDirectory();
 
     if (standalone)
         loadDebugChart(playbackController.getChartIndex());
@@ -37,6 +43,14 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
                                            std::function<void()> repaintEditor)
 {
     auto& dbg = toolbar.getDebugPanel();
+
+    // Pass discovered chart names to the toolbar panel
+    {
+        std::vector<juce::String> names;
+        for (auto& entry : chartEntries)
+            names.push_back(entry.name);
+        dbg.setChartNames(names);
+    }
 
     dbg.onDebugPlayChanged = [this](bool playing) {
         playbackController.setPlaying(playing);
@@ -74,6 +88,11 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
     };
 
     tune.onTuningChanged = [&tune, &sceneRenderer, repaintEditor]() {
+        tune.applyTo(sceneRenderer);
+        repaintEditor();
+    };
+
+    tune.onLaneCoordsChanged = [&tune, &sceneRenderer, repaintEditor]() {
         tune.applyTo(sceneRenderer);
         repaintEditor();
     };
@@ -222,10 +241,27 @@ bool DebugEditorController::collectPhaseTiming() const
     return false; // Caller should check sceneRenderer.collectPhaseTiming directly
 }
 
+void DebugEditorController::scanMidiDirectory()
+{
+    chartEntries.clear();
+    chartEntries.push_back({"None", {}});
+
+    juce::File midiDir(CHARTPREVIEW_MIDI_ASSET_DIR);
+    if (!midiDir.isDirectory()) return;
+
+    auto files = midiDir.findChildFiles(juce::File::findFiles, false, "*.mid");
+    files.sort();
+
+    for (auto& f : files)
+    {
+        juce::String name = f.getFileNameWithoutExtension().replaceCharacter('_', ' ');
+        chartEntries.push_back({name, f});
+    }
+}
+
 void DebugEditorController::loadDebugChart(int index)
 {
-    constexpr int registrySize = CHART_REGISTRY_SIZE;
-    if (index <= 0 || index >= registrySize)
+    if (index <= 0 || index >= (int)chartEntries.size() || !chartEntries[index].file.existsAsFile())
     {
         {
             const juce::ScopedLock lock(processorPtr->getNoteStateMapLock());
@@ -236,11 +272,13 @@ void DebugEditorController::loadDebugChart(int index)
         return;
     }
 
-    const auto& entry = debugChartRegistry[index];
+    juce::MemoryBlock data;
+    chartEntries[index].file.loadFileAsData(data);
+
     bool isDrums = isPart(*statePtr, Part::DRUMS);
 
     auto result = DebugMidiFilePlayer::loadMidiFile(
-        entry.data, entry.size,
+        (const char*)data.getData(), (int)data.getSize(),
         isDrums,
         processorPtr->getNoteStateMapArray(),
         processorPtr->getNoteStateMapLock(),
@@ -251,16 +289,5 @@ void DebugEditorController::loadDebugChart(int index)
     debugChartLengthInBeats = result.lengthInBeats;
     playbackController.setBPM(result.initialBPM);
 }
-
-const DebugEditorController::DebugChartEntry DebugEditorController::debugChartRegistry[] = {
-    {nullptr,                               0},
-    {BinaryData::test_mid,                  BinaryData::test_midSize},
-    {BinaryData::stress_mid,                BinaryData::stress_midSize},
-    {BinaryData::sleepy_tea_mid,            BinaryData::sleepy_tea_midSize},
-    {BinaryData::further_side_mid,          BinaryData::further_side_midSize},
-    {BinaryData::scarlet_mid,               BinaryData::scarlet_midSize},
-    {BinaryData::everything_went_black_mid, BinaryData::everything_went_black_midSize},
-    {BinaryData::akroasis_mid,              BinaryData::akroasis_midSize},
-};
 
 #endif

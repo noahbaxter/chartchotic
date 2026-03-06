@@ -15,7 +15,9 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
     chartSelectLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     chartSelectLabel.setInterceptsMouseClicks(true, true);
     chartSelectLabel.onScroll = [this](int delta) {
-        chartIndex = (chartIndex + delta + CHART_COUNT) % CHART_COUNT;
+        int count = (int)chartNames.size();
+        if (count == 0) return;
+        chartIndex = (chartIndex + delta + count) % count;
         chartSelectLabel.setText("Chart: " + chartNames[chartIndex], juce::dontSendNotification);
         if (onDebugChartChanged) onDebugChartChanged(chartIndex);
     };
@@ -42,6 +44,14 @@ DebugToolbarPanel::DebugToolbarPanel(juce::ValueTree& state)
 DebugToolbarPanel::~DebugToolbarPanel()
 {
     debugButton.dismissPanel();
+}
+
+void DebugToolbarPanel::setChartNames(const std::vector<juce::String>& names)
+{
+    chartNames = names;
+    chartIndex = chartNames.size() > 1 ? 1 : 0;
+    chartSelectLabel.setText("Chart: " + chartNames[chartIndex], juce::dontSendNotification);
+    if (onDebugChartChanged) onDebugChartChanged(chartIndex);
 }
 
 void DebugToolbarPanel::setDebugPlay(bool playing)
