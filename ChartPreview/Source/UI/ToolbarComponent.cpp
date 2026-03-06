@@ -1,7 +1,7 @@
 #include "ToolbarComponent.h"
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
-static const juce::StringArray latencyLabels = { "250ms", "500ms", "750ms", "1.0s", "1.5s" };
+static const juce::StringArray latencyLabels = { "250ms", "500ms", "750ms", "1000ms", "1500ms" };
 
 ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
     : state(state)
@@ -82,11 +82,13 @@ void ToolbarComponent::initChartPanel()
         if (onStarPowerChanged) onStarPowerChanged(starPowerToggle.getToggleState());
     };
 
-    // Auto HOPO (guitar only) — default to "170 Tick" (index 3)
-    autoHopoButtons.setItems(hopoModeLabels);
-    autoHopoButtons.setSelectedIndex(3);
-    autoHopoButtons.onSelectionChanged = [this](int index) {
-        if (onAutoHopoChanged) onAutoHopoChanged(index + 1);
+    // Auto HOPO stepper (guitar only) — default to "170 Tick"
+    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
+    autoHopoStepper.onStep = [this](int delta) {
+        int count = hopoModeLabels.size();
+        autoHopoIndex = juce::jlimit(0, count - 1, autoHopoIndex + delta);
+        autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
+        if (onAutoHopoChanged) onAutoHopoChanged(autoHopoIndex + 1);
     };
 
     // Drum modifiers
@@ -132,7 +134,7 @@ void ToolbarComponent::initChartPanel()
     // Register all children
     chartButton.addPanelChild(&modifiersHeader);
     chartButton.addPanelChild(&starPowerToggle);
-    chartButton.addPanelChild(&autoHopoButtons);
+    chartButton.addPanelChild(&autoHopoStepper);
     chartButton.addPanelChild(&dynamicsToggle);
     chartButton.addPanelChild(&kick2xToggle);
     chartButton.addPanelChild(&cymbalsToggle);
@@ -240,10 +242,12 @@ void ToolbarComponent::initSettingsPanel()
 
     // --- Sync ---
 
-    latencyButtons.setItems(latencyLabels);
-    latencyButtons.setSelectedIndex(0);
-    latencyButtons.onSelectionChanged = [this](int index) {
-        if (onLatencyChanged) onLatencyChanged(index + 1);
+    latencyStepper.setDisplayValue(latencyLabels[0]);
+    latencyStepper.onStep = [this](int delta) {
+        int count = latencyLabels.size();
+        latencyIndex = juce::jlimit(0, count - 1, latencyIndex + delta);
+        latencyStepper.setDisplayValue(latencyLabels[latencyIndex]);
+        if (onLatencyChanged) onLatencyChanged(latencyIndex + 1);
     };
 
     syncOffsetStepper.setDisplayValue("0 ms");
@@ -267,7 +271,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&syncHeader);
     settingsButton.addPanelChild(&syncOffsetStepper);
-    settingsButton.addPanelChild(&latencyButtons);
+    settingsButton.addPanelChild(&latencyStepper);
     settingsButton.setPanelSize(240, 300);
     settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
     addAndMakeVisible(settingsButton);
@@ -371,12 +375,14 @@ void ToolbarComponent::loadState()
     // Auto HOPO (1-based → 0-based, default: 170 Tick = index 3)
     int autoHopo = (int)state["autoHopo"];
     if (autoHopo >= 1 && autoHopo <= hopoModeLabels.size())
-        autoHopoButtons.setSelectedIndex(autoHopo - 1);
+    {
+        autoHopoIndex = autoHopo - 1;
+    }
     else
     {
-        autoHopoButtons.setSelectedIndex(3);
-        state.setProperty("autoHopo", 4, nullptr);
+        state.setProperty("autoHopo", autoHopoIndex + 1, nullptr);
     }
+    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
 
     // Toggles
     gemsToggle.setToggleState(!state.hasProperty("showGems") || (bool)state["showGems"]);
@@ -405,7 +411,10 @@ void ToolbarComponent::loadState()
     // Latency (1-based → 0-based)
     int savedLatency = (int)state["latency"];
     if (savedLatency >= 1 && savedLatency <= latencyLabels.size())
-        latencyButtons.setSelectedIndex(savedLatency - 1);
+    {
+        latencyIndex = savedLatency - 1;
+        latencyStepper.setDisplayValue(latencyLabels[latencyIndex]);
+    }
 
     // Sync offset
     syncOffsetMs = juce::jlimit(syncOffsetMin, syncOffsetMax, (int)state["latencyOffsetMs"]);
@@ -508,7 +517,7 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         kick2xToggle.setVisible(true);
         y += pillH + gap;
 
-        autoHopoButtons.setVisible(false);
+        autoHopoStepper.setVisible(false);
     }
     else
     {
@@ -517,8 +526,8 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         kick2xToggle.setVisible(false);
         y += pillH + gap;
 
-        autoHopoButtons.setBounds(margin, y, w, stepperH);
-        autoHopoButtons.setVisible(true);
+        autoHopoStepper.setBounds(margin, y, w, stepperH);
+        autoHopoStepper.setVisible(true);
         y += stepperH + gap;
     }
 
@@ -596,12 +605,12 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     if (!reaperMode)
     {
         y += stepperH + gap;
-        latencyButtons.setBounds(margin, y, w, stepperH);
-        latencyButtons.setVisible(true);
+        latencyStepper.setBounds(margin, y, w, stepperH);
+        latencyStepper.setVisible(true);
     }
     else
     {
-        latencyButtons.setVisible(false);
+        latencyStepper.setVisible(false);
     }
 
     y += stepperH;
