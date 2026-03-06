@@ -237,7 +237,7 @@ void ToolbarComponent::initSettingsPanel()
     };
 
     textureOpacityStepper.setLabelRatio(0.0f);
-    textureOpacityStepper.setDisplayValue("45%");
+    textureOpacityStepper.setDisplayValue("50%");
     textureOpacityStepper.onStep = [this](int delta) {
         textureOpacityPct = juce::jlimit(5, 100, textureOpacityPct + delta * 5);
         textureOpacityStepper.setDisplayValue(juce::String(textureOpacityPct) + "%");

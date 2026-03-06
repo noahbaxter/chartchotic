@@ -113,7 +113,7 @@ private:
     PanelSectionHeader visualHeader{"Visual"};
     ValueStepper highwayLengthStepper{"Length"};
     ValueStepper backgroundStepper{"Background"};
-    ValueStepper highwayTextureStepper{"Texture"};
+    ValueStepper highwayTextureStepper{"Hwy Texture"};
     juce::Label textureScaleLabel;
     juce::Label textureOpacityLabel;
     ValueStepper textureScaleStepper{"Scale"};
@@ -135,7 +135,7 @@ private:
     int noteSpeed = 7;                    // TODO_RELEASE_DEFAULT
     int backgroundIndex = 0;              // TODO_RELEASE_DEFAULT (0 = Default)
     int highwayTextureIndex = -1;         // TODO_RELEASE_DEFAULT (-1 = None)
-    int textureOpacityPct = 45;           // TODO_RELEASE_DEFAULT
+    int textureOpacityPct = 50;           // TODO_RELEASE_DEFAULT
     int gemScaleIndex = gemScaleDefault;  // TODO_RELEASE_DEFAULT
     int highwayLengthPct = hwLenDefaultPct; // TODO_RELEASE_DEFAULT
 
