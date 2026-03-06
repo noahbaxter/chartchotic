@@ -16,7 +16,8 @@
 class ToolbarComponent : public juce::Component
 {
 public:
-    static constexpr int toolbarHeight = 36;
+    static constexpr float toolbarRatio = 0.06f;  // fraction of editor height
+    static constexpr int referenceHeight = 36;    // design reference (at 600px)
 
     ToolbarComponent(juce::ValueTree& state);
     ~ToolbarComponent() override;

@@ -114,7 +114,7 @@ public:
                 g.setColour(juce::Colour(Theme::textDim));
             }
 
-            g.setFont(juce::Font(Theme::fontSize));
+            g.setFont(juce::Font(bounds.getHeight() * 0.393f));
             g.drawText(items[i], segBounds.toNearestInt(), juce::Justification::centred);
 
             // Divider line between segments (not after last)

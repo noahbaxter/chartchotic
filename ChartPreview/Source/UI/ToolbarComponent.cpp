@@ -291,6 +291,12 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
     addAndMakeVisible(settingsButton);
 
+    // Only one panel open at a time
+    std::vector<PopupMenuButton*> group = { &chartButton, &viewButton, &settingsButton };
+    chartButton.setExclusiveGroup(group);
+    viewButton.setExclusiveGroup(group);
+    settingsButton.setExclusiveGroup(group);
+
 #ifdef DEBUG
     addAndMakeVisible(debugPanel.getButton());
     addAndMakeVisible(tuningPanel.getButton());
@@ -308,35 +314,43 @@ void ToolbarComponent::paint(juce::Graphics& g)
 
 void ToolbarComponent::resized()
 {
-    const int h = 28;
-    const int gap = 6;
+    if (getHeight() == 0) return;
+    float scale = (float)getHeight() / (float)referenceHeight;
+
+    int h = juce::roundToInt(28.0f * scale);
+    int gap = juce::roundToInt(6.0f * scale);
     int y = (getHeight() - h) / 2;
 
-    int x = 6;
+    int x = juce::roundToInt(6.0f * scale);
 
     // Title
-    int titleW = 90;
+    int titleW = juce::roundToInt(90.0f * scale);
+    titleLabel.setFont(juce::Font(13.0f * scale, juce::Font::bold));
     titleLabel.setBounds(x, y, titleW, h);
     x += titleW + gap;
 
     // Difficulty: 4 segments, compact
-    int skillW = 100;
+    int skillW = juce::roundToInt(100.0f * scale);
     skillButtons.setBounds(x, y, skillW, h);
     x += skillW + gap;
 
     // Instrument: 2 segments
-    int partW = 120;
+    int partW = juce::roundToInt(120.0f * scale);
     partButtons.setBounds(x, y, partW, h);
     x += partW + gap;
 
     // Note Speed stepper
-    int speedW = 110;
+    int speedW = juce::roundToInt(110.0f * scale);
     noteSpeedStepper.setBounds(x, y, speedW, h);
 
     // Right side: popup buttons
-    const int btnW = 56;
-    const int gearW = 36;
-    int rx = getWidth() - 6;
+    int btnW = juce::roundToInt(56.0f * scale);
+    int gearW = juce::roundToInt(36.0f * scale);
+    int rx = getWidth() - juce::roundToInt(6.0f * scale);
+
+    chartButton.setScale(scale);
+    viewButton.setScale(scale);
+    settingsButton.setScale(scale);
 
     rx -= gearW;
     settingsButton.setBounds(rx, y, gearW, h);
@@ -487,16 +501,17 @@ void ToolbarComponent::setReaperMode(bool isReaper)
 
 void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 {
-    const int margin = 10;
-    const int pillH = 22;
-    const int stepperH = 20;
-    const int headerH = 16;
-    const int gap = 4;
-    const int sectionGap = 8;
+    float s = chartButton.getScale();
+    int margin = juce::roundToInt(10.0f * s);
+    int pillH = juce::roundToInt(22.0f * s);
+    int stepperH = juce::roundToInt(20.0f * s);
+    int headerH = juce::roundToInt(16.0f * s);
+    int gap = juce::roundToInt(4.0f * s);
+    int sectionGap = juce::roundToInt(8.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
     int col2 = w / 2;
-    int pillW = col2 - 2;
+    int pillW = col2 - juce::roundToInt(2.0f * s);
     bool isDrums = isPart(state, Part::DRUMS);
 
     // --- Modifiers ---
@@ -554,12 +569,12 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 
 void ToolbarComponent::layoutViewPanel(juce::Component* panel)
 {
-    const int margin = 10;
-    const int pillH = 22;
-    const int stepperH = 20;
-    const int headerH = 16;
-    const int gap = 4;
-    const int sectionGap = 8;
+    float s = viewButton.getScale();
+    int margin = juce::roundToInt(10.0f * s);
+    int stepperH = juce::roundToInt(20.0f * s);
+    int headerH = juce::roundToInt(16.0f * s);
+    int gap = juce::roundToInt(4.0f * s);
+    int sectionGap = juce::roundToInt(8.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
@@ -586,10 +601,12 @@ void ToolbarComponent::layoutViewPanel(juce::Component* panel)
     // Scale + Opacity: labels above, value-only steppers below, two columns
     {
         int colW = (w - gap) / 2;
-        int labelH = 14;
+        int labelH = juce::roundToInt(14.0f * s);
+        textureScaleLabel.setFont(juce::Font(Theme::fontSize * s));
+        textureOpacityLabel.setFont(juce::Font(Theme::fontSize * s));
         textureScaleLabel.setBounds(margin, y, colW, labelH);
         textureOpacityLabel.setBounds(margin + colW + gap, y, colW, labelH);
-        y += labelH + 1;
+        y += labelH + juce::roundToInt(1.0f * s);
         textureScaleStepper.setBounds(margin, y, colW, stepperH);
         textureOpacityStepper.setBounds(margin + colW + gap, y, colW, stepperH);
         y += stepperH + sectionGap;
@@ -607,9 +624,10 @@ void ToolbarComponent::layoutViewPanel(juce::Component* panel)
 
 void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
 {
-    const int margin = 10;
-    const int stepperH = 20;
-    const int gap = 4;
+    float s = settingsButton.getScale();
+    int margin = juce::roundToInt(10.0f * s);
+    int stepperH = juce::roundToInt(20.0f * s);
+    int gap = juce::roundToInt(4.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
@@ -624,10 +642,13 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         latencyStepper.setVisible(false);
     }
 
-    latencyOffsetLabel.setBounds(margin, y, w, 14);
-    y += 14 + 2;
-    latencyOffsetSlider.setBounds(margin - 2, y, w + 4, 20);
-    y += 20;
+    int labelH = juce::roundToInt(14.0f * s);
+    int sliderH = juce::roundToInt(20.0f * s);
+    latencyOffsetLabel.setFont(juce::Font(Theme::fontSize * s));
+    latencyOffsetLabel.setBounds(margin, y, w, labelH);
+    y += labelH + juce::roundToInt(2.0f * s);
+    latencyOffsetSlider.setBounds(margin - 2, y, w + 4, sliderH);
+    y += sliderH;
 
     panel->setSize(panel->getWidth(), y + margin);
 }

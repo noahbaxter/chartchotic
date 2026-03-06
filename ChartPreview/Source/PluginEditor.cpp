@@ -578,8 +578,9 @@ void ChartPreviewAudioProcessorEditor::resized()
 {
     const int margin = 10;
 
-    // Toolbar at top
-    toolbar.setBounds(0, 0, getWidth(), ToolbarComponent::toolbarHeight);
+    // Toolbar at top — scales with editor height
+    int tbHeight = juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio);
+    toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
     // Version label (bottom-left, next to REAPER logo)
     const int versionWidth = 250;
@@ -590,8 +591,8 @@ void ChartPreviewAudioProcessorEditor::resized()
     updateBanner.setBounds(getWidth() - 150, getHeight() - 30, 140, 22);
 
     #ifdef DEBUG
-    debugController.getClearButton().setBounds(margin, ToolbarComponent::toolbarHeight + 4, 100, 20);
-    debugController.getConsole().setBounds(margin, ToolbarComponent::toolbarHeight + 28, getWidth() - (2 * margin), getHeight() - ToolbarComponent::toolbarHeight - 38);
+    debugController.getClearButton().setBounds(margin, tbHeight + 4, 100, 20);
+    debugController.getConsole().setBounds(margin, tbHeight + 28, getWidth() - (2 * margin), getHeight() - tbHeight - 38);
     #endif
 
     rebuildFadedTrackImage();

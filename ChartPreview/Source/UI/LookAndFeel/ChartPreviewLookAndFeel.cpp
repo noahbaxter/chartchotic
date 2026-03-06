@@ -285,5 +285,5 @@ void ChartPreviewLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butt
 
 juce::Font ChartPreviewLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
 {
-    return juce::Font(juce::jmin(13.0f, (float)buttonHeight * 0.8f));
+    return juce::Font((float)buttonHeight * 0.46f);
 }
