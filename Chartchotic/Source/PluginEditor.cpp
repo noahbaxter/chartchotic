@@ -119,14 +119,23 @@ void ChartchoticAudioProcessorEditor::onFrame()
         }
     }
 
-#ifdef DEBUG
+    // Frame delta tracking (used by FPS overlay and debug profiler)
     {
         double now = juce::Time::getHighResolutionTicks()
             / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
-        if (lastRepaintTimestamp > 0.0)
-            debugController.frameDelta_us = (now - lastRepaintTimestamp) * 1000000.0;
-        lastRepaintTimestamp = now;
+        if (lastFrameTimestamp > 0.0)
+        {
+            double delta_us = (now - lastFrameTimestamp) * 1000000.0;
+            fpsRing[fpsRingIndex] = delta_us;
+            fpsRingIndex = (fpsRingIndex + 1) % FPS_RING_SIZE;
+#ifdef DEBUG
+            debugController.frameDelta_us = delta_us;
+#endif
+        }
+        lastFrameTimestamp = now;
     }
+
+#ifdef DEBUG
     debugController.onFrame(lastKnownPosition, lastPlayingState);
 #endif
 
@@ -277,6 +286,10 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         }
     };
 
+    toolbar.onShowFpsChanged = [this](bool on) {
+        showFps = on;
+    };
+
     toolbar.onLatencyChanged = [this](int id) {
         state.setProperty("latency", id, nullptr);
         applyLatencySetting(id);
@@ -415,6 +428,9 @@ void ChartchoticAudioProcessorEditor::paint (juce::Graphics& g)
     {
         paintStandardMode(g);
     }
+
+    if (showFps)
+        drawFpsOverlay(g);
 
 #ifdef DEBUG
     if (sceneRenderer.collectPhaseTiming)
@@ -717,6 +733,8 @@ void ChartchoticAudioProcessorEditor::loadState()
                           (frId == 2) ? 1.0 / 30.0 :
                           (frId == 3) ? 1.0 / 60.0 : 0.0;
 
+    showFps = (bool)state.getProperty("showFps", false);
+
     updateDisplaySizeFromSpeedSlider();
     rebuildFadedTrackImage();
 }
@@ -870,5 +888,27 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
     double scrollRate = 1.0 / displayWindowTimeSeconds;
     double raw = std::fmod(-absoluteTime * scrollRate, 1.0);
     return (float)(raw < 0.0 ? raw + 1.0 : raw);
+}
+
+void ChartchoticAudioProcessorEditor::drawFpsOverlay(juce::Graphics& g)
+{
+    double sum = 0.0;
+    int count = 0;
+    for (int i = 0; i < FPS_RING_SIZE; ++i)
+        if (fpsRing[i] > 0.0) { sum += fpsRing[i]; ++count; }
+    double avgDelta = count > 0 ? sum / count : 0.0;
+    double fps = avgDelta > 0.0 ? 1000000.0 / avgDelta : 0.0;
+
+    float s = (float)getHeight() / (float)defaultHeight;
+    int tbHeight = juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio);
+    int pad = juce::roundToInt(8.0f * s);
+    int textH = juce::roundToInt(16.0f * s);
+    auto area = juce::Rectangle<int>(pad, tbHeight + pad, juce::roundToInt(80.0f * s), textH);
+
+    g.setColour(juce::Colours::black.withAlpha(0.5f));
+    g.fillRoundedRectangle(area.toFloat().expanded(4.0f * s, 2.0f * s), 3.0f);
+    g.setColour(juce::Colours::white);
+    g.setFont(Theme::getUIFont(12.0f * s));
+    g.drawText(juce::String(fps, 1) + " FPS", area, juce::Justification::centredLeft);
 }
 

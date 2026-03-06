@@ -192,6 +192,14 @@ private:
     juce::int64 lastFrameTicks = 0;
     void onFrame();
 
+    // FPS counter
+    bool showFps = false;
+    static constexpr int FPS_RING_SIZE = 60;
+    double fpsRing[FPS_RING_SIZE] = {};
+    int fpsRingIndex = 0;
+    double lastFrameTimestamp = 0.0;
+    void drawFpsOverlay(juce::Graphics& g);
+
     // Cache invalidation throttling (for REAPER MIDI edit detection while paused)
     juce::int64 lastCacheInvalidationTicks = 0;
 
@@ -201,7 +209,6 @@ private:
 
 #ifdef DEBUG
     DebugEditorController debugController;
-    double lastRepaintTimestamp = 0.0;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartchoticAudioProcessorEditor)

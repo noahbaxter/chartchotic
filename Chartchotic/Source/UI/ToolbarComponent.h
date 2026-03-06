@@ -4,6 +4,7 @@
 #include "ChartchoticLogo.h"
 #include "Controls/CircleIconSelector.h"
 #include "Controls/PillToggle.h"
+#include "Controls/CheckboxToggle.h"
 #include "Controls/ValueStepper.h"
 #include "Controls/SegmentedButtons.h"
 #include "Controls/PanelSectionHeader.h"
@@ -64,6 +65,7 @@ public:
     std::function<void(float opacity)> onTextureOpacityChanged;
     std::function<void(float scale)> onGemScaleChanged;
     std::function<void(float length)> onHighwayLengthChanged;
+    std::function<void(bool)> onShowFpsChanged;
     std::function<void()> onOpenBackgroundFolder;
     std::function<void()> onOpenTextureFolder;
 
@@ -156,6 +158,7 @@ private:
     ValueStepper latencyStepper{"Latency"};
     int latencyIndex = 0;
     SegmentedButtons framerateButtons;
+    CheckboxToggle showFpsToggle{"Show FPS"};
 
     //==============================================================================
     // Value data — TODO_RELEASE_DEFAULT: audit all defaults before tagging release

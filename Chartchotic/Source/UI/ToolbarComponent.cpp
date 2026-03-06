@@ -282,6 +282,13 @@ void ToolbarComponent::initSettingsPanel()
         if (onFramerateChanged) onFramerateChanged(index + 1);
     };
 
+    showFpsToggle.setToggleState(false);
+    showFpsToggle.onClick = [this]() {
+        bool on = showFpsToggle.getToggleState();
+        state.setProperty("showFps", on, nullptr);
+        if (onShowFpsChanged) onShowFpsChanged(on);
+    };
+
     // --- Sync ---
 
     latencyStepper.setDisplayValue(latencyLabels[0]);
@@ -303,6 +310,7 @@ void ToolbarComponent::initSettingsPanel()
     // Register all children
     settingsButton.addPanelChild(&visualHeader);
     settingsButton.addPanelChild(&framerateButtons);
+    settingsButton.addPanelChild(&showFpsToggle);
     settingsButton.addPanelChild(&highwayHeader);
     settingsButton.addPanelChild(&highwayLengthStepper);
     settingsButton.addPanelChild(&highwayTextureStepper);
@@ -315,7 +323,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&syncHeader);
     settingsButton.addPanelChild(&syncOffsetStepper);
     settingsButton.addPanelChild(&latencyStepper);
-    settingsButton.setPanelSize(240, 300);
+    settingsButton.setPanelSize(240, 330);
     settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
     addAndMakeVisible(settingsButton);
 
@@ -469,6 +477,9 @@ void ToolbarComponent::loadState()
     int savedFramerate = (int)state["framerate"];
     if (savedFramerate < 1 || savedFramerate > 4) savedFramerate = 4;
     framerateButtons.setSelectedIndex(savedFramerate - 1);
+
+    if (state.hasProperty("showFps"))
+        showFpsToggle.setToggleState((bool)state["showFps"]);
 
     // Latency (1-based → 0-based)
     int savedLatency = (int)state["latency"];
@@ -644,11 +655,11 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
 {
     float s = settingsButton.getScale();
-    int margin = juce::roundToInt(12.0f * s);
-    int stepperH = juce::roundToInt(24.0f * s);
-    int headerH = juce::roundToInt(18.0f * s);
-    int gap = juce::roundToInt(5.0f * s);
-    int sectionGap = juce::roundToInt(8.0f * s);
+    int margin = juce::roundToInt(10.0f * s);
+    int stepperH = juce::roundToInt(22.0f * s);
+    int headerH = juce::roundToInt(16.0f * s);
+    int gap = juce::roundToInt(4.0f * s);
+    int sectionGap = juce::roundToInt(6.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
@@ -657,6 +668,9 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     y += headerH + gap;
 
     framerateButtons.setBounds(margin, y, w, stepperH);
+    y += stepperH + gap;
+
+    showFpsToggle.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
     backgroundStepper.setBounds(margin, y, w, stepperH);
