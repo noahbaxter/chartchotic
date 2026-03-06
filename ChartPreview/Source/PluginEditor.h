@@ -123,6 +123,7 @@ private:
     {
         std::function<bool()> isClickable;
         std::function<void()> onClick;
+        std::function<void(bool)> onHover;
         juce::Colour normalColour, hoverColour;
 
         void mouseDown(const juce::MouseEvent&) override
@@ -136,6 +137,7 @@ private:
                 setMouseCursor(juce::MouseCursor::PointingHandCursor);
                 setColour(juce::Label::textColourId, hoverColour);
                 repaint();
+                if (onHover) onHover(true);
             }
         }
         void mouseExit(const juce::MouseEvent&) override
@@ -143,6 +145,7 @@ private:
             setMouseCursor(juce::MouseCursor::NormalCursor);
             setColour(juce::Label::textColourId, normalColour);
             repaint();
+            if (onHover) onHover(false);
         }
     };
     ClickableLabel versionLabel;

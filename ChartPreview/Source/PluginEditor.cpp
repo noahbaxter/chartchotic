@@ -352,10 +352,11 @@ void ChartPreviewAudioProcessorEditor::initBottomBar()
     versionLabel.setText(juce::String("v") + CHART_PREVIEW_VERSION, juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.normalColour = juce::Colours::white.withAlpha(0.6f);
-    versionLabel.hoverColour = juce::Colour(Theme::orange);
+    versionLabel.hoverColour = juce::Colour(Theme::coral);
     versionLabel.setColour(juce::Label::textColourId, versionLabel.normalColour);
     versionLabel.isClickable = [this]() { return updateBanner.hasUpdate(); };
     versionLabel.onClick = [this]() { updateBanner.showPrompt(); };
+    versionLabel.onHover = [this](bool h) { updateBanner.setBadgeHovered(h); };
     addAndMakeVisible(versionLabel);
 
     // Update checker
@@ -372,6 +373,12 @@ void ChartPreviewAudioProcessorEditor::initBottomBar()
         }
     };
     updateChecker.checkForUpdates();
+
+#ifdef DEBUG
+    // Always show update banner in debug builds for testing
+    updateBanner.setUpdateInfo("99.0.0", "https://github.com/noahbaxter/chart-preview/releases");
+    resized();
+#endif
 }
 
 //==============================================================================

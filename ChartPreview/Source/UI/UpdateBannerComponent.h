@@ -27,6 +27,7 @@ public:
 
     bool hasUpdate() const { return updateVersion.isNotEmpty(); }
     const juce::String& getDownloadUrl() const { return downloadUrl; }
+    void setBadgeHovered(bool h) { badge.setHovered(h); }
 
     void showPrompt()
     {
@@ -79,6 +80,9 @@ private:
     {
         std::function<void()> onClick;
         float* pulsePhasePtr = nullptr;
+        bool hovered = false;
+
+        void setHovered(bool h) { if (hovered != h) { hovered = h; repaint(); } }
 
         void paint(juce::Graphics& g) override
         {
@@ -86,11 +90,20 @@ private:
             float pulse = pulsePhasePtr ? (0.5f + 0.5f * std::sin(*pulsePhasePtr)) : 0.5f;
             auto orange = juce::Colour(Theme::orange);
 
-            float glowAlpha = 0.3f + 0.3f * pulse;
-            g.setColour(orange.withAlpha(glowAlpha));
-            g.fillEllipse(bounds.expanded(2.0f));
-
-            g.setColour(orange);
+            auto coral = juce::Colour(Theme::coral);
+            if (hovered)
+            {
+                g.setColour(coral.withAlpha(0.5f));
+                g.fillEllipse(bounds.expanded(2.0f));
+                g.setColour(coral);
+            }
+            else
+            {
+                float glowAlpha = 0.1f + 0.1f * pulse;
+                g.setColour(coral.withAlpha(glowAlpha));
+                g.fillEllipse(bounds.expanded(2.0f));
+                g.setColour(coral.withAlpha(0.5f));
+            }
             g.fillEllipse(bounds);
 
             g.setColour(juce::Colour(Theme::textWhite));
@@ -106,6 +119,12 @@ private:
         void mouseEnter(const juce::MouseEvent&) override
         {
             setMouseCursor(juce::MouseCursor::PointingHandCursor);
+            setHovered(true);
+        }
+
+        void mouseExit(const juce::MouseEvent&) override
+        {
+            setHovered(false);
         }
     };
 
