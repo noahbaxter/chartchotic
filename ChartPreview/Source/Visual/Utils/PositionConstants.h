@@ -227,8 +227,10 @@ namespace PositionConstants
     constexpr float HIT_BAR_Z_DRUMS = 10.0f;
 
     // Per-column X offsets (pixels at strikeline, perspective-scaled)
-    constexpr float GUITAR_X_OFFSETS[6] = {0.0f, 2.0f, -1.5f, 0.0f, 1.5f, -2.0f};
-    constexpr float DRUM_X_OFFSETS[5]   = {0.0f, 1.0f, -1.5f, 1.5f, -1.0f};
+    constexpr float GUITAR_X_OFFSETS[6]    = {0.0f, 1.0f, -2.5f, 0.0f, 2.5f, -2.5f};
+    constexpr float GUITAR_X_OFFSETS_2[6] = {0.0f, 2.5f,  0.0f, 0.0f, 0.0f, -1.0f};
+    constexpr float DRUM_X_OFFSETS[5]     = {0.0f, 2.5f, -0.5f, 0.5f, -2.5f};
+    constexpr float DRUM_X_OFFSETS_2[5]   = {0.0f, 1.0f, -0.5f, 0.5f, -1.0f};
 
     //==============================================================================
     // Gem dynamic scales (per gem type, applied in NoteRenderer)

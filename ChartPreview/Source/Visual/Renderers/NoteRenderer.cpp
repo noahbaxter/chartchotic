@@ -168,14 +168,18 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         zOff += drumColZOffsets[drumIdx];
     }
 
-    // Per-column X offset (perspective-scaled)
-    float xOff = 0.0f;
-    if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT)
-        xOff = guitarColXOffsets[gemColumn];
-    else if (isDrums)
-        xOff = drumColXOffsets[drumColumnIndex(gemColumn)];
+    // Per-column X offset: interpolate between near (X1) and far (X2) based on position
+    float xOff1 = 0.0f, xOff2 = 0.0f;
+    if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
+        xOff1 = guitarColXOffsets[gemColumn];
+        xOff2 = guitarColXOffsets2[gemColumn];
+    } else if (isDrums) {
+        uint drumIdx = drumColumnIndex(gemColumn);
+        xOff1 = drumColXOffsets[drumIdx];
+        xOff2 = drumColXOffsets2[drumIdx];
+    }
 
-    // Scale Z/X offsets by perspective: compute width at strikeline (pos=0) as reference
+    // Scale Z offset by perspective
     {
         float sizeScaleRef = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
         const auto& colCoordsRef = isPart(state, Part::GUITAR)
@@ -188,9 +192,12 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         {
             float perspScale = curWidth / strikeWidth;
             zOff *= perspScale;
-            xOff *= perspScale;
         }
     }
+
+    // Interpolate X offset: position 0 = strikeline (X1), position ~1 = far end (X2)
+    float t = juce::jlimit(0.0f, 1.0f, position);
+    float xOff = xOff1 + (xOff2 - xOff1) * t;
 
     // Apply X offset to glyphRect
     if (std::abs(xOff) > 0.01f)

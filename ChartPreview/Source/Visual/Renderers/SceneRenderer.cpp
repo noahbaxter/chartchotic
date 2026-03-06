@@ -83,10 +83,14 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     noteRenderer.gemSpScale = gemSpScale;
     for (int i = 0; i < 5; i++)
         noteRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < 6; i++) {
         noteRenderer.guitarColXOffsets[i] = guitarGemXOffsets[i] * resScale;
-    for (int i = 0; i < 5; i++)
+        noteRenderer.guitarColXOffsets2[i] = guitarGemXOffsets2[i] * resScale;
+    }
+    for (int i = 0; i < 5; i++) {
         noteRenderer.drumColXOffsets[i] = drumGemXOffsets[i] * resScale;
+        noteRenderer.drumColXOffsets2[i] = drumGemXOffsets2[i] * resScale;
+    }
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);

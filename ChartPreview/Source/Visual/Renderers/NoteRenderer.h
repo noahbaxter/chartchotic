@@ -42,7 +42,9 @@ public:
     float gemSpScale = PositionConstants::GEM_SP_SCALE;
     float drumColZOffsets[5] = {};
     float guitarColXOffsets[6] = {};
+    float guitarColXOffsets2[6] = {};
     float drumColXOffsets[5] = {};
+    float drumColXOffsets2[5] = {};
     float gemZOffset = 0.0f;
     float barZOffset = 0.0f;
     float strikePosGem = 0.0f;

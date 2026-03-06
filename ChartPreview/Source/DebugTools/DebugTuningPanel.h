@@ -83,15 +83,11 @@ public:
     // Per-column Z offsets (drums only)
     float drumZ[5] = {};
 
-    // Per-column X offsets (pixels at strikeline)
-    float guitarXOff[6] = {
-        PositionConstants::GUITAR_X_OFFSETS[0], PositionConstants::GUITAR_X_OFFSETS[1],
-        PositionConstants::GUITAR_X_OFFSETS[2], PositionConstants::GUITAR_X_OFFSETS[3],
-        PositionConstants::GUITAR_X_OFFSETS[4], PositionConstants::GUITAR_X_OFFSETS[5]};
-    float drumXOff[5] = {
-        PositionConstants::DRUM_X_OFFSETS[0], PositionConstants::DRUM_X_OFFSETS[1],
-        PositionConstants::DRUM_X_OFFSETS[2], PositionConstants::DRUM_X_OFFSETS[3],
-        PositionConstants::DRUM_X_OFFSETS[4]};
+    // Per-column X offsets (near=strikeline, far=top of highway)
+    float guitarXOff[6]  = {0.0f, 1.0f, -2.5f, 0.0f, 2.5f, -2.5f};
+    float guitarXOff2[6] = {0.0f, 2.5f,  0.0f, 0.0f, 0.0f, -1.0f};
+    float drumXOff[5]    = {0.0f, 2.5f, -0.5f, 0.5f, -2.5f};
+    float drumXOff2[5]   = {0.0f, 1.0f, -0.5f, 0.5f, -1.0f};
 
     // Per-lane coordinates (mutable copies of BezierLaneCoords)
     static constexpr int GUITAR_LANES = 6;
@@ -188,10 +184,12 @@ private:
     SectionHeader guitarXOffHeader;
     static constexpr const char* guitarXOffNames[6] = {"Open", "Grn", "Red", "Yel", "Blu", "Org"};
     ScrollableLabel guitarXOffLabels[6];
+    ScrollableLabel guitarXOff2Labels[6];
 
     SectionHeader drumXOffHeader;
     static constexpr const char* drumXOffNames[5] = {"Kick", "Red", "Yel", "Blu", "Grn"};
     ScrollableLabel drumXOffLabels[5];
+    ScrollableLabel drumXOff2Labels[5];
 
     // --- Guitar Lanes section ---
     SectionHeader guitarLanesHeader;

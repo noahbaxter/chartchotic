@@ -101,15 +101,23 @@ class SceneRenderer
         // Per-column Z offsets (drums only)
         float drumColZOffsets[5] = {};
 
-        // Per-column X offsets (perspective-scaled)
+        // Per-column X offsets (near=strikeline, far=top of highway)
         float guitarGemXOffsets[6] = {
             PositionConstants::GUITAR_X_OFFSETS[0], PositionConstants::GUITAR_X_OFFSETS[1],
             PositionConstants::GUITAR_X_OFFSETS[2], PositionConstants::GUITAR_X_OFFSETS[3],
             PositionConstants::GUITAR_X_OFFSETS[4], PositionConstants::GUITAR_X_OFFSETS[5]};
+        float guitarGemXOffsets2[6] = {
+            PositionConstants::GUITAR_X_OFFSETS_2[0], PositionConstants::GUITAR_X_OFFSETS_2[1],
+            PositionConstants::GUITAR_X_OFFSETS_2[2], PositionConstants::GUITAR_X_OFFSETS_2[3],
+            PositionConstants::GUITAR_X_OFFSETS_2[4], PositionConstants::GUITAR_X_OFFSETS_2[5]};
         float drumGemXOffsets[5] = {
             PositionConstants::DRUM_X_OFFSETS[0], PositionConstants::DRUM_X_OFFSETS[1],
             PositionConstants::DRUM_X_OFFSETS[2], PositionConstants::DRUM_X_OFFSETS[3],
             PositionConstants::DRUM_X_OFFSETS[4]};
+        float drumGemXOffsets2[5] = {
+            PositionConstants::DRUM_X_OFFSETS_2[0], PositionConstants::DRUM_X_OFFSETS_2[1],
+            PositionConstants::DRUM_X_OFFSETS_2[2], PositionConstants::DRUM_X_OFFSETS_2[3],
+            PositionConstants::DRUM_X_OFFSETS_2[4]};
 
         // Strike position offset (normalized, shifts clip/trigger/render point)
         float strikePosGemGuitar = PositionConstants::STRIKE_POS_GEM_GUITAR;

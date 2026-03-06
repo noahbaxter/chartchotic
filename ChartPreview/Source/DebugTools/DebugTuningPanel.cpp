@@ -289,7 +289,13 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         setupScrollLabel(guitarXOffLabels[i]);
         guitarXOffLabels[i].onScroll = [this, i, name](int delta) {
             guitarXOff[i] = juce::jlimit(-30.0f, 30.0f, guitarXOff[i] + delta * 0.5f);
-            guitarXOffLabels[i].setText(name + ": " + juce::String(guitarXOff[i], 1), juce::dontSendNotification);
+            guitarXOffLabels[i].setText(name + " X1:" + juce::String(guitarXOff[i], 1), juce::dontSendNotification);
+            fireChanged();
+        };
+        setupScrollLabel(guitarXOff2Labels[i]);
+        guitarXOff2Labels[i].onScroll = [this, i, name](int delta) {
+            guitarXOff2[i] = juce::jlimit(-30.0f, 30.0f, guitarXOff2[i] + delta * 0.5f);
+            guitarXOff2Labels[i].setText(name + " X2:" + juce::String(guitarXOff2[i], 1), juce::dontSendNotification);
             fireChanged();
         };
     }
@@ -303,7 +309,13 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         setupScrollLabel(drumXOffLabels[i]);
         drumXOffLabels[i].onScroll = [this, i, name](int delta) {
             drumXOff[i] = juce::jlimit(-30.0f, 30.0f, drumXOff[i] + delta * 0.5f);
-            drumXOffLabels[i].setText(name + ": " + juce::String(drumXOff[i], 1), juce::dontSendNotification);
+            drumXOffLabels[i].setText(name + " X1:" + juce::String(drumXOff[i], 1), juce::dontSendNotification);
+            fireChanged();
+        };
+        setupScrollLabel(drumXOff2Labels[i]);
+        drumXOff2Labels[i].onScroll = [this, i, name](int delta) {
+            drumXOff2[i] = juce::jlimit(-30.0f, 30.0f, drumXOff2[i] + delta * 0.5f);
+            drumXOff2Labels[i].setText(name + " X2:" + juce::String(drumXOff2[i], 1), juce::dontSendNotification);
             fireChanged();
         };
     }
@@ -451,12 +463,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         tuningButton.addPanelChild(&drumColLabels[i]);
 
     tuningButton.addPanelChild(&guitarXOffHeader);
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < 6; i++) {
         tuningButton.addPanelChild(&guitarXOffLabels[i]);
+        tuningButton.addPanelChild(&guitarXOff2Labels[i]);
+    }
 
     tuningButton.addPanelChild(&drumXOffHeader);
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 5; i++) {
         tuningButton.addPanelChild(&drumXOffLabels[i]);
+        tuningButton.addPanelChild(&drumXOff2Labels[i]);
+    }
 
     tuningButton.addPanelChild(&guitarLanesHeader);
     for (int i = 0; i < GUITAR_LANES; i++)
@@ -530,7 +546,9 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
 
     std::copy(std::begin(drumZ), std::end(drumZ), sr.drumColZOffsets);
     std::copy(std::begin(guitarXOff), std::end(guitarXOff), sr.guitarGemXOffsets);
+    std::copy(std::begin(guitarXOff2), std::end(guitarXOff2), sr.guitarGemXOffsets2);
     std::copy(std::begin(drumXOff), std::end(drumXOff), sr.drumGemXOffsets);
+    std::copy(std::begin(drumXOff2), std::end(drumXOff2), sr.drumGemXOffsets2);
 
     std::copy_n(guitarLaneCoords, GUITAR_LANES, sr.guitarLaneCoordsLocal);
     std::copy_n(drumLaneCoords, DRUM_LANES, sr.drumLaneCoordsLocal);
@@ -648,10 +666,14 @@ void DebugTuningPanel::refreshLabels()
     for (int i = 0; i < 5; i++)
         drumColLabels[i].setText(juce::String(drumColNames[i]) + ": " + juce::String(drumZ[i], 1), juce::dontSendNotification);
 
-    for (int i = 0; i < 6; i++)
-        guitarXOffLabels[i].setText(juce::String(guitarXOffNames[i]) + ": " + juce::String(guitarXOff[i], 1), juce::dontSendNotification);
-    for (int i = 0; i < 5; i++)
-        drumXOffLabels[i].setText(juce::String(drumXOffNames[i]) + ": " + juce::String(drumXOff[i], 1), juce::dontSendNotification);
+    for (int i = 0; i < 6; i++) {
+        guitarXOffLabels[i].setText(juce::String(guitarXOffNames[i]) + " X1:" + juce::String(guitarXOff[i], 1), juce::dontSendNotification);
+        guitarXOff2Labels[i].setText(juce::String(guitarXOffNames[i]) + " X2:" + juce::String(guitarXOff2[i], 1), juce::dontSendNotification);
+    }
+    for (int i = 0; i < 5; i++) {
+        drumXOffLabels[i].setText(juce::String(drumXOffNames[i]) + " X1:" + juce::String(drumXOff[i], 1), juce::dontSendNotification);
+        drumXOff2Labels[i].setText(juce::String(drumXOffNames[i]) + " X2:" + juce::String(drumXOff2[i], 1), juce::dontSendNotification);
+    }
 }
 
 void DebugTuningPanel::setupSectionHeader(SectionHeader& header, const juce::String& text)
@@ -792,15 +814,19 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     // Guitar Note X Offsets
     guitarXOffHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < 6; i++) {
         layoutRow(guitarXOffLabels[i], guitarXOffHeader.expanded);
+        layoutRow(guitarXOff2Labels[i], guitarXOffHeader.expanded);
+    }
     y += headerGap;
 
     // Drum Note X Offsets
     drumXOffHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 5; i++) {
         layoutRow(drumXOffLabels[i], drumXOffHeader.expanded);
+        layoutRow(drumXOff2Labels[i], drumXOffHeader.expanded);
+    }
     y += headerGap;
 
     // Guitar Lanes
