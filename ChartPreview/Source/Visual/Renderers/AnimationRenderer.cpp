@@ -175,8 +175,12 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
     bool isGuitar = isPart(state, Part::GUITAR);
     bool isDrums = !isGuitar;
 
+    bool useWhiteSP = anim.starPower && spWhiteFlare;
+
     juce::Image* animFrame = nullptr;
-    if (isGuitar && anim.isOpen) {
+    if (useWhiteSP) {
+        animFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
+    } else if (isGuitar && anim.isOpen) {
         animFrame = assetManager.getOpenAnimationFrame(anim.currentFrame);
     } else {
         animFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
@@ -206,7 +210,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
         g.drawImage(*animFrame, kickRect);
 
         // White SP flare for bar hits
-        if (anim.starPower && spWhiteFlare)
+        if (useWhiteSP)
         {
             auto* flareImage = assetManager.getHitFlareWhiteImage();
             if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
