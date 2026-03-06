@@ -236,8 +236,8 @@ namespace PositionConstants
     // Gem dynamic scales (per gem type, applied in NoteRenderer)
     constexpr float GEM_GHOST_SCALE = 1.0f;             // Drum ghost gems
     constexpr float GEM_ACCENT_SCALE = 1.0f;            // Drum accent gems
-    constexpr float GEM_HOPO_SCALE = 1.0f;              // Guitar HOPO gems
-    constexpr float GEM_TAP_SCALE = 1.0f;               // Guitar tap gems
+    constexpr float GEM_HOPO_SCALE = 1.05f;             // Guitar HOPO gems
+    constexpr float GEM_TAP_SCALE = 0.90f;              // Guitar tap gems (overlay is wider than HOPO art)
     constexpr float GEM_SP_SCALE = 1.0f;                // Star power gems
 
     //==============================================================================
