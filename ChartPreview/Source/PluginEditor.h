@@ -20,6 +20,7 @@
 #include "UpdateChecker.h"
 #include "UI/LookAndFeel/ChartPreviewLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
+#include "UI/UpdateBannerComponent.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
 #endif
@@ -121,7 +122,7 @@ private:
     juce::Label versionLabel;
 
     UpdateChecker updateChecker;
-    juce::TextButton updateBanner;
+    UpdateBannerComponent updateBanner;
 
     //==============================================================================
 

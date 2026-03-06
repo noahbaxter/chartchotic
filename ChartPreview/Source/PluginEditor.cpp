@@ -330,24 +330,13 @@ void ChartPreviewAudioProcessorEditor::initBottomBar()
     addAndMakeVisible(versionLabel);
 
     // Update checker
-    updateBanner.setButtonText("Update Available");
-    updateBanner.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFFE85D45));
-    updateBanner.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
-    updateBanner.setVisible(false);
-    updateBanner.onClick = [this]()
-    {
-        auto info = updateChecker.getLatestUpdateInfo();
-        if (info.downloadUrl.isNotEmpty())
-            juce::URL(info.downloadUrl).launchInDefaultBrowser();
-    };
     addAndMakeVisible(updateBanner);
 
     updateChecker.onUpdateCheckComplete = [this](const UpdateChecker::UpdateInfo& info)
     {
         if (info.available)
         {
-            updateBanner.setButtonText("Update: " + info.version);
-            updateBanner.setVisible(true);
+            updateBanner.setUpdateInfo(info.version, info.downloadUrl);
             resized();
         }
     };
@@ -585,10 +574,12 @@ void ChartPreviewAudioProcessorEditor::resized()
     // Version label (bottom-left, next to REAPER logo)
     const int versionWidth = 250;
     const int versionHeight = 15;
-    versionLabel.setBounds(45, getHeight() - versionHeight - 12, versionWidth, versionHeight);
+    int versionY = getHeight() - versionHeight - 12;
+    versionLabel.setBounds(45, versionY, versionWidth, versionHeight);
 
-    // Update banner (bottom-right) — always set bounds so it appears when toggled visible
-    updateBanner.setBounds(getWidth() - 150, getHeight() - 30, 140, 22);
+    // Update badge (next to version label)
+    int badgeX = 45 + (int)versionLabel.getFont().getStringWidthFloat(versionLabel.getText()) + 6;
+    updateBanner.setBounds(badgeX, versionY, versionHeight, versionHeight);
 
     #ifdef DEBUG
     int stripH = toolbar.getStripHeight();
