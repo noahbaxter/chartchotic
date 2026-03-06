@@ -83,11 +83,8 @@ void ToolbarComponent::initChartPanel()
     };
 
     // Auto HOPO stepper (guitar only) — default to "170 Tick"
-    autoHopoLabel.setText("HOPO", juce::dontSendNotification);
-    autoHopoLabel.setFont(Theme::getUIFont(Theme::fontSize));
-    autoHopoLabel.setColour(juce::Label::textColourId, juce::Colour(Theme::textDim));
-    autoHopoLabel.setJustificationType(juce::Justification::centred);
     autoHopoStepper.setLabelRatio(0.0f);
+    autoHopoStepper.setTooltip("HOPO Threshold");
     autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
     autoHopoStepper.onStep = [this](int delta) {
         int count = hopoModeLabels.size();
@@ -139,7 +136,6 @@ void ToolbarComponent::initChartPanel()
     // Register all children
     chartButton.addPanelChild(&modifiersHeader);
     chartButton.addPanelChild(&starPowerToggle);
-    chartButton.addPanelChild(&autoHopoLabel);
     chartButton.addPanelChild(&autoHopoStepper);
     chartButton.addPanelChild(&dynamicsToggle);
     chartButton.addPanelChild(&kick2xToggle);
@@ -523,7 +519,6 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         kick2xToggle.setVisible(true);
         y += pillH + gap;
 
-        autoHopoLabel.setVisible(false);
         autoHopoStepper.setVisible(false);
     }
     else
@@ -532,12 +527,7 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         dynamicsToggle.setVisible(false);
         kick2xToggle.setVisible(false);
 
-        // HOPO: label above stepper, right column, same row as Star Power
-        int labelH = juce::roundToInt(14.0f * s);
-        autoHopoLabel.setFont(Theme::getUIFont(Theme::fontSize * s));
-        autoHopoLabel.setBounds(margin + col2, y, pillW, labelH);
-        autoHopoLabel.setVisible(true);
-        autoHopoStepper.setBounds(margin + col2, y + labelH + juce::roundToInt(1.0f * s), pillW, stepperH);
+        autoHopoStepper.setBounds(margin + col2, y, pillW, pillH);
         autoHopoStepper.setVisible(true);
         y += pillH + gap;
     }
