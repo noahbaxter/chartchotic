@@ -106,9 +106,18 @@ private:
             }
             g.fillEllipse(bounds);
 
+            // Hand-drawn "!" — beam + dot with more separation than font glyphs
             g.setColour(juce::Colour(Theme::textWhite));
-            g.setFont(Theme::getUIFont(bounds.getHeight() * 0.5f));
-            g.drawText("!", bounds, juce::Justification::centred);
+            float cx = bounds.getCentreX();
+            float cy = bounds.getCentreY();
+            float h = bounds.getHeight();
+            float beamW = h * 0.18f;
+            float beamTop = cy - h * 0.32f;
+            float beamBot = cy + h * 0.08f;
+            float dotY = cy + h * 0.26f;
+            float dotR = h * 0.1f;
+            g.fillRoundedRectangle(cx - beamW * 0.5f, beamTop, beamW, beamBot - beamTop, beamW * 0.3f);
+            g.fillEllipse(cx - dotR, dotY - dotR, dotR * 2.0f, dotR * 2.0f);
         }
 
         void mouseDown(const juce::MouseEvent&) override
@@ -175,7 +184,7 @@ private:
             auto msgArea = inner.removeFromTop(inner.getHeight() * 0.32f).reduced(pad, 0.0f);
             g.setColour(juce::Colour(Theme::textWhite));
             g.setFont(Theme::getUIFont(16.0f * s));
-            g.drawText("Chart Preview " + version + " is out.", msgArea, juce::Justification::centredTop);
+            g.drawText("Chartchotic " + version + " is available.", msgArea, juce::Justification::centredTop);
         }
 
         void resized() override
