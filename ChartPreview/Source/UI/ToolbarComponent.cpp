@@ -192,18 +192,22 @@ void ToolbarComponent::initSettingsPanel()
 {
     // --- Style ---
 
-    backgroundStepper.setDisplayValue("Default");
+    backgroundStepper.setDisplayValue("n/a");
+    backgroundStepper.setFolderIconVisible(true);
+    backgroundStepper.setValueClickable(true);
+    backgroundStepper.onFolderClick = [this]() {
+        if (onOpenBackgroundFolder) onOpenBackgroundFolder();
+    };
     backgroundStepper.onStep = [this](int delta) {
-        int totalCount = 1 + backgroundNames.size();
+        int count = backgroundNames.size();
+        if (count == 0) return;
+
         backgroundIndex += delta;
-        if (backgroundIndex < 0) backgroundIndex = totalCount - 1;
-        if (backgroundIndex >= totalCount) backgroundIndex = 0;
+        if (backgroundIndex < 0) backgroundIndex = count - 1;
+        if (backgroundIndex >= count) backgroundIndex = 0;
 
-        juce::String name = (backgroundIndex == 0) ? "Default" : backgroundNames[backgroundIndex - 1];
-        backgroundStepper.setDisplayValue(name);
-
-        if (onBackgroundChanged)
-            onBackgroundChanged(backgroundIndex == 0 ? "" : backgroundNames[backgroundIndex - 1]);
+        backgroundStepper.setDisplayValue(backgroundNames[backgroundIndex]);
+        if (onBackgroundChanged) onBackgroundChanged(backgroundNames[backgroundIndex]);
     };
 
     gemScaleStepper.setDisplayValue("100%");
@@ -215,20 +219,23 @@ void ToolbarComponent::initSettingsPanel()
         if (onGemScaleChanged) onGemScaleChanged(scale);
     };
 
-    highwayTextureStepper.setDisplayValue("None");
+    highwayTextureStepper.setDisplayValue("n/a");
+    highwayTextureStepper.setFolderIconVisible(true);
+    highwayTextureStepper.setValueClickable(true);
+    highwayTextureStepper.onFolderClick = [this]() {
+        if (onOpenTextureFolder) onOpenTextureFolder();
+    };
     highwayTextureStepper.onStep = [this](int delta) {
         int count = highwayTextureNames.size();
         if (count == 0) return;
 
         highwayTextureIndex += delta;
-        if (highwayTextureIndex < -1) highwayTextureIndex = count - 1;
-        if (highwayTextureIndex >= count) highwayTextureIndex = -1;
+        if (highwayTextureIndex < 0) highwayTextureIndex = count - 1;
+        if (highwayTextureIndex >= count) highwayTextureIndex = 0;
 
-        juce::String name = (highwayTextureIndex < 0) ? "None" : highwayTextureNames[highwayTextureIndex];
-        highwayTextureStepper.setDisplayValue(name);
-
-        if (onHighwayTextureChanged)
-            onHighwayTextureChanged(highwayTextureIndex < 0 ? "" : highwayTextureNames[highwayTextureIndex]);
+        highwayTextureStepper.setDisplayValue(highwayTextureNames[highwayTextureIndex]);
+        highwayTextureStepper.setValueClickable(false);
+        if (onHighwayTextureChanged) onHighwayTextureChanged(highwayTextureNames[highwayTextureIndex]);
     };
 
     textureScaleLabel.setText("Scale", juce::dontSendNotification);
@@ -444,12 +451,18 @@ void ToolbarComponent::loadState()
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     // Background
-    juce::String savedBg = state.getProperty("background").toString();
-    if (savedBg.isNotEmpty())
+    if (backgroundNames.isEmpty())
     {
-        backgroundIndex = backgroundNames.indexOf(savedBg) + 1; // +1 because 0 = Default
+        backgroundStepper.setDisplayValue("n/a");
+        backgroundStepper.setValueClickable(true);
+    }
+    else
+    {
+        juce::String savedBg = state.getProperty("background").toString();
+        backgroundIndex = savedBg.isNotEmpty() ? backgroundNames.indexOf(savedBg) : 0;
         if (backgroundIndex < 0) backgroundIndex = 0;
-        backgroundStepper.setDisplayValue(backgroundIndex == 0 ? "Default" : savedBg);
+        backgroundStepper.setDisplayValue(backgroundNames[backgroundIndex]);
+        backgroundStepper.setValueClickable(false);
     }
 
     // Framerate (1-based → 0-based)
@@ -510,11 +523,19 @@ void ToolbarComponent::loadState()
     }
 
     // Highway texture
-    juce::String savedTexture = state.getProperty("highwayTexture").toString();
-    if (savedTexture.isNotEmpty())
+    // Highway texture
+    if (highwayTextureNames.isEmpty())
     {
-        highwayTextureIndex = highwayTextureNames.indexOf(savedTexture);
-        highwayTextureStepper.setDisplayValue(highwayTextureIndex >= 0 ? savedTexture : "None");
+        highwayTextureStepper.setDisplayValue("n/a");
+        highwayTextureStepper.setValueClickable(true);
+    }
+    else
+    {
+        juce::String savedTexture = state.getProperty("highwayTexture").toString();
+        highwayTextureIndex = savedTexture.isNotEmpty() ? highwayTextureNames.indexOf(savedTexture) : 0;
+        if (highwayTextureIndex < 0) highwayTextureIndex = 0;
+        highwayTextureStepper.setDisplayValue(highwayTextureNames[highwayTextureIndex]);
+        highwayTextureStepper.setValueClickable(false);
     }
 
     updateVisibility();
@@ -648,10 +669,10 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     highwayHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
-    highwayLengthStepper.setBounds(margin, y, w, stepperH);
+    highwayTextureStepper.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
-    highwayTextureStepper.setBounds(margin, y, w, stepperH);
+    highwayLengthStepper.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
     // Scale + Opacity: labels above, value-only steppers below, two columns

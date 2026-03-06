@@ -331,6 +331,14 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         repaint();
     };
 
+    toolbar.onOpenBackgroundFolder = [this]() {
+        backgroundDirectory.revealToUser();
+    };
+
+    toolbar.onOpenTextureFolder = [this]() {
+        highwayTextureDirectory.revealToUser();
+    };
+
 #ifdef DEBUG
     debugController.wireCallbacks(toolbar, sceneRenderer, trackRenderer,
         [this]() { rebuildFadedTrackImage(); },

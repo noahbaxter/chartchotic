@@ -64,9 +64,30 @@ public:
     std::function<void(float opacity)> onTextureOpacityChanged;
     std::function<void(float scale)> onGemScaleChanged;
     std::function<void(float length)> onHighwayLengthChanged;
+    std::function<void()> onOpenBackgroundFolder;
+    std::function<void()> onOpenTextureFolder;
 
-    void setHighwayTextureList(const juce::StringArray& names) { highwayTextureNames = names; }
-    void setBackgroundList(const juce::StringArray& names) { backgroundNames = names; }
+    void setHighwayTextureList(const juce::StringArray& names)
+    {
+        highwayTextureNames = names;
+        if (names.isEmpty())
+        {
+            highwayTextureIndex = 0;
+            highwayTextureStepper.setDisplayValue("n/a");
+            highwayTextureStepper.setValueClickable(true);
+        }
+    }
+
+    void setBackgroundList(const juce::StringArray& names)
+    {
+        backgroundNames = names;
+        if (names.isEmpty())
+        {
+            backgroundIndex = 0;
+            backgroundStepper.setDisplayValue("n/a");
+            backgroundStepper.setValueClickable(true);
+        }
+    }
 
     void setLatencyOffsetRange(int minMs, int maxMs);
 
@@ -140,8 +161,8 @@ private:
     // Value data — TODO_RELEASE_DEFAULT: audit all defaults before tagging release
 
     int noteSpeed = 7;                    // TODO_RELEASE_DEFAULT
-    int backgroundIndex = 0;              // TODO_RELEASE_DEFAULT (0 = Default)
-    int highwayTextureIndex = -1;         // TODO_RELEASE_DEFAULT (-1 = None)
+    int backgroundIndex = 0;              // TODO_RELEASE_DEFAULT
+    int highwayTextureIndex = 0;          // TODO_RELEASE_DEFAULT
     int textureOpacityPct = 50;           // TODO_RELEASE_DEFAULT
     int gemScaleIndex = gemScaleDefault;  // TODO_RELEASE_DEFAULT
     int highwayLengthPct = hwLenDefaultPct; // TODO_RELEASE_DEFAULT
