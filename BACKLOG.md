@@ -35,7 +35,7 @@ Small scope. UI cleanup and verification before tagging stable.
 4. **Final user testing pass** — Verify note speed feel, latency offset UX.
 5. **Pre-release defaults audit** — Set highway texture to "None", verify all stepper/toggle defaults match intended release values. (grep for `TODO_RELEASE_DEFAULT` markers)
 6. ~~**Toolbar interaction model polish**~~ — Done: member registry, scoped hover suppression, polling timers, click-lock upgrade.
-7. **Use SegmentedButtons for HOPO thresholds** — `SegmentedButtons.h` exists but is unused. HOPO stepper would be cleaner as segmented buttons. Look for other candidates too.
+7. ~~**Use SegmentedButtons for fixed-choice controls**~~ — Done: HOPO, Framerate, Latency converted from ValueStepper to SegmentedButtons.
 
 ---
 

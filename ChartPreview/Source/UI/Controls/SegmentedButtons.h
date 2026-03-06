@@ -28,7 +28,6 @@ public:
 
     int getSelectedIndex() const { return selectedIndex; }
 
-    // Returns 1-based ID to match ComboBox convention
     int getSelectedId() const { return selectedIndex + 1; }
 
     std::function<void(int index)> onSelectionChanged;
@@ -114,7 +113,7 @@ public:
                 g.setColour(juce::Colour(Theme::textDim));
             }
 
-            g.setFont(juce::Font(bounds.getHeight() * 0.393f));
+            g.setFont(Theme::getUIFont(bounds.getHeight() * 0.393f));
             g.drawText(items[i], segBounds.toNearestInt(), juce::Justification::centred);
 
             // Divider line between segments (not after last)

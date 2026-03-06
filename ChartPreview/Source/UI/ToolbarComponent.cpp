@@ -82,13 +82,11 @@ void ToolbarComponent::initChartPanel()
         if (onStarPowerChanged) onStarPowerChanged(starPowerToggle.getToggleState());
     };
 
-    // Auto HOPO stepper (guitar only) — default to "170 Tick"
-    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
-    autoHopoStepper.onStep = [this](int delta) {
-        int count = hopoModeLabels.size();
-        autoHopoIndex = juce::jlimit(0, count - 1, autoHopoIndex + delta);
-        autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
-        if (onAutoHopoChanged) onAutoHopoChanged(autoHopoIndex + 1);
+    // Auto HOPO (guitar only) — default to "170 Tick" (index 3)
+    autoHopoButtons.setItems(hopoModeLabels);
+    autoHopoButtons.setSelectedIndex(3);
+    autoHopoButtons.onSelectionChanged = [this](int index) {
+        if (onAutoHopoChanged) onAutoHopoChanged(index + 1);
     };
 
     // Drum modifiers
@@ -134,7 +132,7 @@ void ToolbarComponent::initChartPanel()
     // Register all children
     chartButton.addPanelChild(&modifiersHeader);
     chartButton.addPanelChild(&starPowerToggle);
-    chartButton.addPanelChild(&autoHopoStepper);
+    chartButton.addPanelChild(&autoHopoButtons);
     chartButton.addPanelChild(&dynamicsToggle);
     chartButton.addPanelChild(&kick2xToggle);
     chartButton.addPanelChild(&cymbalsToggle);
@@ -234,22 +232,18 @@ void ToolbarComponent::initSettingsPanel()
         if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
     };
 
-    framerateStepper.setDisplayValue(framerateLabels[framerateIndex]);
-    framerateStepper.onStep = [this](int delta) {
-        int count = framerateLabels.size();
-        framerateIndex = juce::jlimit(0, count - 1, framerateIndex + delta);
-        framerateStepper.setDisplayValue(framerateLabels[framerateIndex]);
-        if (onFramerateChanged) onFramerateChanged(framerateIndex + 1);
+    framerateButtons.setItems(framerateLabels);
+    framerateButtons.setSelectedIndex(3); // Native
+    framerateButtons.onSelectionChanged = [this](int index) {
+        if (onFramerateChanged) onFramerateChanged(index + 1);
     };
 
     // --- Sync ---
 
-    latencyStepper.setDisplayValue(latencyLabels[0]);
-    latencyStepper.onStep = [this](int delta) {
-        int count = latencyLabels.size();
-        latencyIndex = juce::jlimit(0, count - 1, latencyIndex + delta);
-        latencyStepper.setDisplayValue(latencyLabels[latencyIndex]);
-        if (onLatencyChanged) onLatencyChanged(latencyIndex + 1);
+    latencyButtons.setItems(latencyLabels);
+    latencyButtons.setSelectedIndex(0);
+    latencyButtons.onSelectionChanged = [this](int index) {
+        if (onLatencyChanged) onLatencyChanged(index + 1);
     };
 
     syncOffsetStepper.setDisplayValue("0 ms");
@@ -262,7 +256,7 @@ void ToolbarComponent::initSettingsPanel()
 
     // Register all children
     settingsButton.addPanelChild(&visualHeader);
-    settingsButton.addPanelChild(&framerateStepper);
+    settingsButton.addPanelChild(&framerateButtons);
     settingsButton.addPanelChild(&highwayLengthStepper);
     settingsButton.addPanelChild(&highwayTextureStepper);
     settingsButton.addPanelChild(&textureScaleLabel);
@@ -273,7 +267,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&syncHeader);
     settingsButton.addPanelChild(&syncOffsetStepper);
-    settingsButton.addPanelChild(&latencyStepper);
+    settingsButton.addPanelChild(&latencyButtons);
     settingsButton.setPanelSize(240, 300);
     settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
     addAndMakeVisible(settingsButton);
@@ -377,15 +371,12 @@ void ToolbarComponent::loadState()
     // Auto HOPO (1-based → 0-based, default: 170 Tick = index 3)
     int autoHopo = (int)state["autoHopo"];
     if (autoHopo >= 1 && autoHopo <= hopoModeLabels.size())
-    {
-        autoHopoIndex = autoHopo - 1;
-    }
+        autoHopoButtons.setSelectedIndex(autoHopo - 1);
     else
     {
-        // No saved value — apply default and persist
-        state.setProperty("autoHopo", autoHopoIndex + 1, nullptr);
+        autoHopoButtons.setSelectedIndex(3);
+        state.setProperty("autoHopo", 4, nullptr);
     }
-    autoHopoStepper.setDisplayValue(hopoModeLabels[autoHopoIndex]);
 
     // Toggles
     gemsToggle.setToggleState(!state.hasProperty("showGems") || (bool)state["showGems"]);
@@ -409,16 +400,12 @@ void ToolbarComponent::loadState()
     // Framerate (1-based → 0-based)
     int savedFramerate = (int)state["framerate"];
     if (savedFramerate < 1 || savedFramerate > 4) savedFramerate = 4;
-    framerateIndex = savedFramerate - 1;
-    framerateStepper.setDisplayValue(framerateLabels[framerateIndex]);
+    framerateButtons.setSelectedIndex(savedFramerate - 1);
 
     // Latency (1-based → 0-based)
     int savedLatency = (int)state["latency"];
     if (savedLatency >= 1 && savedLatency <= latencyLabels.size())
-    {
-        latencyIndex = savedLatency - 1;
-        latencyStepper.setDisplayValue(latencyLabels[latencyIndex]);
-    }
+        latencyButtons.setSelectedIndex(savedLatency - 1);
 
     // Sync offset
     syncOffsetMs = juce::jlimit(syncOffsetMin, syncOffsetMax, (int)state["latencyOffsetMs"]);
@@ -521,7 +508,7 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         kick2xToggle.setVisible(true);
         y += pillH + gap;
 
-        autoHopoStepper.setVisible(false);
+        autoHopoButtons.setVisible(false);
     }
     else
     {
@@ -530,8 +517,8 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         kick2xToggle.setVisible(false);
         y += pillH + gap;
 
-        autoHopoStepper.setBounds(margin, y, w, stepperH);
-        autoHopoStepper.setVisible(true);
+        autoHopoButtons.setBounds(margin, y, w, stepperH);
+        autoHopoButtons.setVisible(true);
         y += stepperH + gap;
     }
 
@@ -571,7 +558,7 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     visualHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
-    framerateStepper.setBounds(margin, y, w, stepperH);
+    framerateButtons.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
     highwayLengthStepper.setBounds(margin, y, w, stepperH);
@@ -609,12 +596,12 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     if (!reaperMode)
     {
         y += stepperH + gap;
-        latencyStepper.setBounds(margin, y, w, stepperH);
-        latencyStepper.setVisible(true);
+        latencyButtons.setBounds(margin, y, w, stepperH);
+        latencyButtons.setVisible(true);
     }
     else
     {
-        latencyStepper.setVisible(false);
+        latencyButtons.setVisible(false);
     }
 
     y += stepperH;

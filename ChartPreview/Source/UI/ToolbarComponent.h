@@ -5,6 +5,7 @@
 #include "Controls/CircleIconSelector.h"
 #include "Controls/PillToggle.h"
 #include "Controls/ValueStepper.h"
+#include "Controls/SegmentedButtons.h"
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
 #include "../Utils/Utils.h"
@@ -88,8 +89,7 @@ private:
     PillToggle starPowerToggle{"Star Power"};
 
     // Guitar modifiers
-    ValueStepper autoHopoStepper{"HOPO"};
-    int autoHopoIndex = 3; // 0-based index into hopoModeLabels (default: "170 Tick")
+    SegmentedButtons autoHopoButtons;
 
     // Drum modifiers
     PillToggle dynamicsToggle{"Dynamics"};
@@ -123,10 +123,8 @@ private:
     int syncOffsetMs = 0;
     int syncOffsetMin = 0;
     int syncOffsetMax = 2000;
-    ValueStepper latencyStepper{"Latency"};
-    int latencyIndex = 0;
-    ValueStepper framerateStepper{"Framerate"};
-    int framerateIndex = 3; // 0-based: 15, 30, 60, Native
+    SegmentedButtons latencyButtons;
+    SegmentedButtons framerateButtons;
 
     //==============================================================================
     // Value data — TODO_RELEASE_DEFAULT: audit all defaults before tagging release
