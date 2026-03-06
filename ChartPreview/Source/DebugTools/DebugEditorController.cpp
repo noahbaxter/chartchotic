@@ -87,6 +87,21 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         rebuildTrackImage();
     };
 
+    tune.onTextureScaleChanged = [&trackRenderer, repaintEditor](float val) {
+        trackRenderer.textureScale = val;
+        repaintEditor();
+    };
+
+    tune.onTextureOpacityChanged = [&trackRenderer, repaintEditor](float val) {
+        trackRenderer.textureOpacity = val;
+        repaintEditor();
+    };
+
+    tune.onFretboardChanged = [&tune, &sceneRenderer, rebuildTrackImage]() {
+        tune.applyTo(sceneRenderer);
+        rebuildTrackImage();
+    };
+
     tune.onTuningChanged = [&tune, &sceneRenderer, repaintEditor]() {
         tune.applyTo(sceneRenderer);
         repaintEditor();

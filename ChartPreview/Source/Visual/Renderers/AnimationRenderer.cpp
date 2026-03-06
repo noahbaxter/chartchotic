@@ -175,7 +175,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
     bool isGuitar = isPart(state, Part::GUITAR);
     bool isDrums = !isGuitar;
 
-    bool useWhiteSP = anim.starPower && spWhiteFlare;
+    bool useWhiteSP = anim.starPower && hitTypeConfig.spWhiteFlare;
 
     juce::Image* animFrame = nullptr;
     if (useWhiteSP) {
@@ -202,8 +202,8 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 
         // Apply hit bar scale + animation offset
         kickRect = kickRect.withSizeKeepingCentre(
-            kickRect.getWidth() * hitBarScale * hitBarWidthScale * offset.widthScale,
-            kickRect.getHeight() * hitBarScale * hitBarHeightScale * offset.heightScale
+            kickRect.getWidth() * hitBarScale.scale * hitBarScale.width * offset.widthScale,
+            kickRect.getHeight() * hitBarScale.scale * hitBarScale.height * offset.heightScale
         ).translated(offset.xOffset, offset.yOffset);
 
         g.setOpacity(1.0f);
@@ -233,8 +233,8 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
 
     // Use white flare for SP, purple for tap, otherwise colored
-    bool useWhite = (anim.starPower && spWhiteFlare);
-    bool usePurple = (isGuitar && anim.gemType == Gem::TAP_ACCENT && tapPurpleFlare);
+    bool useWhite = (anim.starPower && hitTypeConfig.spWhiteFlare);
+    bool usePurple = (isGuitar && anim.gemType == Gem::TAP_ACCENT && hitTypeConfig.tapPurpleFlare);
     auto flareImage = useWhite
         ? assetManager.getHitFlareWhiteImage()
         : usePurple
@@ -263,7 +263,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     float zOff = barNote ? hitBarZOffset : hitGemZOffset;
     if (!barNote && isDrums) {
         uint drumIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
-        zOff += drumColZOffsets[drumIdx];
+        zOff += drumColZAdjust[drumIdx];
     }
 
     // Arc offset to match note curvature (same formula as NoteRenderer)
@@ -286,23 +286,21 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     // Drums:  HOPO_GHOST=ghost, TAP_ACCENT=accent, CYM_GHOST=ghost, CYM_ACCENT=accent
     float dynScale = 1.0f;
     if (anim.gemType == Gem::HOPO_GHOST)
-        dynScale = isGuitar ? hopoScale : ghostScale;
+        dynScale = isGuitar ? hitTypeConfig.hopo : hitTypeConfig.ghost;
     else if (anim.gemType == Gem::CYM_GHOST)
-        dynScale = ghostScale;
+        dynScale = hitTypeConfig.ghost;
     else if (anim.gemType == Gem::TAP_ACCENT)
-        dynScale = isGuitar ? tapScale : accentScale;
+        dynScale = isGuitar ? hitTypeConfig.tap : hitTypeConfig.accent;
     else if (anim.gemType == Gem::CYM_ACCENT)
-        dynScale = accentScale;
+        dynScale = hitTypeConfig.accent;
 
-    if (anim.starPower && std::abs(spScale - 1.0f) > 0.001f)
-        dynScale *= spScale;
+    if (anim.starPower && std::abs(hitTypeConfig.sp - 1.0f) > 0.001f)
+        dynScale *= hitTypeConfig.sp;
 
-    float hitScale = barNote ? hitBarScale : hitGemScale;
-    float hitWScale = barNote ? hitBarWidthScale : hitGemWidthScale;
-    float hitHScale = barNote ? hitBarHeightScale : hitGemHeightScale;
+    const auto& hs = barNote ? hitBarScale : hitGemScale;
     hitRect = hitRect.withSizeKeepingCentre(
-        hitRect.getWidth() * hitScale * hitWScale * dynScale * offset.widthScale,
-        hitRect.getHeight() * hitScale * hitHScale * dynScale * offset.heightScale
+        hitRect.getWidth() * hs.scale * hs.width * dynScale * offset.widthScale,
+        hitRect.getHeight() * hs.scale * hs.height * dynScale * offset.heightScale
     ).translated(offset.xOffset, offset.yOffset);
 
     if (hitFrame)

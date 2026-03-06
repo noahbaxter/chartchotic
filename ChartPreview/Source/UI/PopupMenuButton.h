@@ -93,6 +93,16 @@ public:
         }
     }
 
+    // Re-run layout on the existing panel (e.g. after section toggle)
+    void relayoutPanel()
+    {
+        if (panel != nullptr && onLayoutPanel)
+        {
+            onLayoutPanel(panel.get());
+            panel->repaint();
+        }
+    }
+
     // Called to layout children inside the panel
     std::function<void(juce::Component* panel)> onLayoutPanel;
 

@@ -34,65 +34,42 @@ public:
     std::function<void(int, float, float, float)> onLayerChanged;
     std::function<void(float)> onTileStepChanged;
     std::function<void(float)> onTileScaleStepChanged;
+    std::function<void(float)> onTextureScaleChanged;
+    std::function<void(float)> onTextureOpacityChanged;
+    std::function<void()> onFretboardChanged;
 
     // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
     float drumCurvature = PositionConstants::NOTE_CURVATURE;
-    float gemW = PositionConstants::GEM_WIDTH_SCALE;
-    float gemH = PositionConstants::GEM_HEIGHT_SCALE;
-    float barW = PositionConstants::BAR_WIDTH_SCALE;
-    float barH = PositionConstants::BAR_HEIGHT_SCALE;
-    float hitGemScale = PositionConstants::HIT_GEM_SCALE;
-    float hitBarScale = PositionConstants::HIT_BAR_SCALE;
-    float hitGemW = PositionConstants::HIT_GEM_WIDTH_SCALE;
-    float hitGemH = PositionConstants::HIT_GEM_HEIGHT_SCALE;
-    float hitBarW = PositionConstants::HIT_BAR_WIDTH_SCALE;
-    float hitBarH = PositionConstants::HIT_BAR_HEIGHT_SCALE;
-    float hitGhostScale = PositionConstants::HIT_GHOST_SCALE;
-    float hitAccentScale = PositionConstants::HIT_ACCENT_SCALE;
-    float hitHopoScale = PositionConstants::HIT_HOPO_SCALE;
-    float hitTapScale = PositionConstants::HIT_TAP_SCALE;
-    float hitSpScale = PositionConstants::HIT_SP_SCALE;
-    bool spWhiteFlare = SP_WHITE_FLARE_DEFAULT;
-    bool tapPurpleFlare = TAP_PURPLE_FLARE_DEFAULT;
+    float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
 
-    float gemNoteScale = PositionConstants::GEM_NOTE_SCALE;
-    float gemHopoScale = PositionConstants::GEM_HOPO_SCALE;
-    float gemHopoBaseScale = PositionConstants::GEM_HOPO_BASE_SCALE;
-    float gemTapOverlayScale = PositionConstants::GEM_TAP_OVERLAY_SCALE;
-    float gemGhostOverlayScale = PositionConstants::GEM_GHOST_OVERLAY_SCALE;
-    float gemAccentOverlayScale = PositionConstants::GEM_ACCENT_OVERLAY_SCALE;
-    float gemNoteBaseScale = PositionConstants::GEM_NOTE_BASE_SCALE;
-    float gemCymScale = PositionConstants::GEM_CYM_SCALE;
-    float gemCymBaseScale = PositionConstants::GEM_CYM_BASE_SCALE;
-    float gemSpScale = PositionConstants::GEM_SP_SCALE;
+    // Base note/bar scale (ElementScale table: 2 rows × 2 cols)
+    PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
+    PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
 
-    // Per-instrument Z offsets (guitar)
-    float gGridZ = PositionConstants::GRID_Z_GUITAR;
-    float gGemZ = PositionConstants::GEM_Z_GUITAR;
-    float gBarZ = PositionConstants::BAR_Z_GUITAR;
-    float gHitGemZ = PositionConstants::HIT_GEM_Z_GUITAR;
-    float gHitBarZ = PositionConstants::HIT_BAR_Z_GUITAR;
-    float gStrikePosGem = PositionConstants::STRIKE_POS_GEM_GUITAR;
-    float gStrikePosBar = PositionConstants::STRIKE_POS_BAR_GUITAR;
+    // Hit animation scale (HitScale table: 2 rows × 3 cols)
+    PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
+    PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
 
-    // Per-instrument Z offsets (drums)
-    float dGridZ = PositionConstants::GRID_Z_DRUMS;
-    float dGemZ = PositionConstants::GEM_Z_DRUMS;
-    float dBarZ = PositionConstants::BAR_Z_DRUMS;
-    float dHitGemZ = PositionConstants::HIT_GEM_Z_DRUMS;
-    float dHitBarZ = PositionConstants::HIT_BAR_Z_DRUMS;
-    float dStrikePosGem = PositionConstants::STRIKE_POS_GEM_DRUMS;
-    float dStrikePosBar = PositionConstants::STRIKE_POS_BAR_DRUMS;
+    // Per-hit-type scales + flare config
+    PositionConstants::HitTypeConfig hitTypeConfig;
 
-    // Per-column Z offsets (drums only)
-    float drumZ[5] = {};
+    // Per-gem-type scales
+    PositionConstants::GemTypeScales gemTypeScales;
 
-    // Per-column X offsets (near=strikeline, far=top of highway)
-    float guitarXOff[6]  = {0.0f, 1.0f, -2.5f, 0.0f, 2.5f, -2.5f};
-    float guitarXOff2[6] = {0.0f, 2.5f,  0.0f, 0.0f, 0.0f, -1.0f};
-    float drumXOff[5]    = {0.0f, 2.5f, -0.5f, 0.5f, -2.5f};
-    float drumXOff2[5]   = {0.0f, 1.0f, -0.5f, 0.5f, -1.0f};
+    // Per-instrument offsets (Z + strike positions, table: 5+2 rows × 2 cols)
+    PositionConstants::InstrumentOffsets guitarOffsets = PositionConstants::GUITAR_OFFSETS;
+    PositionConstants::InstrumentOffsets drumOffsets = PositionConstants::DRUM_OFFSETS;
+
+    // Per-column adjustments (X near/far + Z offsets)
+    PositionConstants::ColumnAdjust guitarColAdjust[6] = {
+        PositionConstants::GUITAR_COL_ADJUST[0], PositionConstants::GUITAR_COL_ADJUST[1],
+        PositionConstants::GUITAR_COL_ADJUST[2], PositionConstants::GUITAR_COL_ADJUST[3],
+        PositionConstants::GUITAR_COL_ADJUST[4], PositionConstants::GUITAR_COL_ADJUST[5]};
+    PositionConstants::ColumnAdjust drumColAdjust[5] = {
+        PositionConstants::DRUM_COL_ADJUST[0], PositionConstants::DRUM_COL_ADJUST[1],
+        PositionConstants::DRUM_COL_ADJUST[2], PositionConstants::DRUM_COL_ADJUST[3],
+        PositionConstants::DRUM_COL_ADJUST[4]};
 
     // Overlay adjustments (mutable, for real-time tuning)
     PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
@@ -104,6 +81,9 @@ public:
     PositionConstants::NormalizedCoordinates drumLaneCoords[DRUM_LANES];
 
     std::function<void()> onLaneCoordsChanged;
+
+    // Lane shape config (tuneable)
+    PositionConstants::LaneShapeConfig laneShape;
 
 private:
     juce::ValueTree& state;
@@ -135,87 +115,144 @@ private:
         static constexpr int dragPixelsPerStep = 3;
     };
 
-    // --- Layers section (moved from DebugToolbarPanel) ---
-    SectionHeader layersHeader;
+    // --- Track section (layers table + tiling) ---
+    SectionHeader trackHeader;
     static constexpr int NUM_LAYERS = 4;
+    static constexpr int LAYER_COLS = 3;
     static constexpr const char* layerNames[NUM_LAYERS] = {"Side", "Lane", "Strike", "Conn"};
+    static constexpr const char* layerColNames[LAYER_COLS] = {"S", "X", "Y"};
 
     using LayerTransform = TrackRenderer::LayerTransform;
     LayerTransform guitarStates[NUM_LAYERS];
     LayerTransform drumStates[NUM_LAYERS];
     LayerTransform* layerStates = guitarStates;
 
-    ScrollableLabel layerScaleLabels[NUM_LAYERS];
-    ScrollableLabel layerXLabels[NUM_LAYERS];
-    ScrollableLabel layerYLabels[NUM_LAYERS];
+    juce::Label layerColHdrLabels[LAYER_COLS];
+    juce::Label layerRowLabels[NUM_LAYERS];
+    ScrollableLabel layerParams[NUM_LAYERS][LAYER_COLS];
 
-    // --- Tiling section (moved from DebugToolbarPanel) ---
-    SectionHeader tilingHeader;
     float tileStepValue = 0.80f;
     float tileScaleStepValue = 0.50f;
     ScrollableLabel tileStepLabel;
     ScrollableLabel tileScaleStepLabel;
 
+    // Texture controls (read by DebugEditorController)
+    float textureScaleValue = 1.0f;
+    float textureOpacityValue = 0.45f;
+    ScrollableLabel textureScaleLabel;
+    ScrollableLabel textureOpacityLabel;
+    // Gridline position offset
+    float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
+    ScrollableLabel gridPosLabel;
+
+    // Fretboard width table (2 rows × 3 cols: N, M, F)
+    static constexpr int FB_ROWS = 2;
+    static constexpr int FB_COLS = 3;
+    static constexpr const char* fbRowNames[FB_ROWS] = {"Gtr", "Drm"};
+    static constexpr const char* fbColNames[FB_COLS] = {"N", "M", "F"};
+    PositionConstants::FretboardWidths fbWidths[FB_ROWS] = {
+        PositionConstants::FB_WIDTHS_GUITAR,
+        PositionConstants::FB_WIDTHS_DRUMS
+    };
+    juce::Label fbColHdrLabels[FB_COLS];
+    juce::Label fbRowLabels[FB_ROWS];
+    ScrollableLabel fbParams[FB_ROWS][FB_COLS];
+
     void fireLayer(int idx);
-    void refreshLayerLabels();
+    void refreshTrackLabels();
 
     // --- Curvature section ---
     SectionHeader curvatureHeader;
-    ScrollableLabel guitarCurvLabel, drumCurvLabel;
+    ScrollableLabel guitarCurvLabel, drumCurvLabel, depthForeshortenLabel;
 
-    // --- Gem scale section ---
-    SectionHeader gemScaleHeader;
-    ScrollableLabel gemWLabel, gemHLabel, barWLabel, barHLabel;
+    // --- Base Scale table (2 rows × 2 cols: W, H) ---
+    SectionHeader baseScaleHeader;
+    static constexpr int BASE_SCALE_ROWS = 2;
+    static constexpr int BASE_SCALE_COLS = 2;
+    static constexpr const char* baseScaleRowNames[BASE_SCALE_ROWS] = {"Gem", "Bar"};
+    static constexpr const char* baseScaleColNames[BASE_SCALE_COLS] = {"W", "H"};
+    juce::Label baseScaleColHdrLabels[BASE_SCALE_COLS];
+    juce::Label baseScaleRowLabels[BASE_SCALE_ROWS];
+    ScrollableLabel baseScaleParams[BASE_SCALE_ROWS][BASE_SCALE_COLS];
 
-    // --- Hit animation scale section ---
+    // --- Gem type scale labels (backed by gemTypeScales struct) ---
+    static constexpr int GEM_TYPE_COUNT = 9;
+    ScrollableLabel gemTypeScaleLabels[GEM_TYPE_COUNT];
+
+    // --- Hit Scale table (2 rows × 3 cols: S, W, H) ---
     SectionHeader hitScaleHeader;
-    ScrollableLabel hitGemScaleLabel, hitBarScaleLabel;
-    ScrollableLabel hitGemWLabel, hitGemHLabel, hitBarWLabel, hitBarHLabel;
-    ScrollableLabel hitGhostScaleLabel, hitAccentScaleLabel, hitHopoScaleLabel, hitTapScaleLabel, hitSpScaleLabel;
-    ScrollableLabel spWhiteFlareLabel, tapPurpleFlareLabel;
+    static constexpr int HIT_SCALE_ROWS = 2;
+    static constexpr int HIT_SCALE_COLS = 3;
+    static constexpr const char* hitScaleRowNames[HIT_SCALE_ROWS] = {"Gem", "Bar"};
+    static constexpr const char* hitScaleColNames[HIT_SCALE_COLS] = {"S", "W", "H"};
+    juce::Label hitScaleColHdrLabels[HIT_SCALE_COLS];
+    juce::Label hitScaleRowLabels[HIT_SCALE_ROWS];
+    ScrollableLabel hitScaleParams[HIT_SCALE_ROWS][HIT_SCALE_COLS];
 
-    // --- Gem dynamic scale labels ---
-    ScrollableLabel gemNoteScaleLabel, gemHopoScaleLabel, gemHopoBaseScaleLabel;
-    ScrollableLabel gemTapOverlayScaleLabel, gemGhostOverlayScaleLabel, gemAccentOverlayScaleLabel;
-    ScrollableLabel gemNoteBaseScaleLabel, gemCymScaleLabel, gemCymBaseScaleLabel, gemSpScaleLabel;
+    // --- Hit type scale labels (backed by hitTypeConfig struct) ---
+    static constexpr int HIT_TYPE_FLOAT_COUNT = 5;
+    static constexpr int HIT_TYPE_BOOL_COUNT = 2;
+    ScrollableLabel hitTypeScaleLabels[HIT_TYPE_FLOAT_COUNT];
+    ScrollableLabel hitTypeBoolLabels[HIT_TYPE_BOOL_COUNT];
 
-    // --- Guitar Z offsets ---
-    SectionHeader guitarHeader;
-    ScrollableLabel gGridZLabel, gGemZLabel, gBarZLabel, gHitGemZLabel, gHitBarZLabel;
-    ScrollableLabel gStrikePosGemLabel, gStrikePosBarLabel;
+    // --- Z Offsets table (5 rows × 2 cols: Guitar, Drums) ---
+    SectionHeader zOffsetsHeader;
+    static constexpr int Z_ROWS = 5;
+    static constexpr int Z_COLS = 2;
+    static constexpr const char* zRowNames[Z_ROWS] = {"Grid", "Gem", "Bar", "HitN", "HitB"};
+    static constexpr const char* zColNames[Z_COLS] = {"Gtr", "Drm"};
+    juce::Label zColHdrLabels[Z_COLS];
+    juce::Label zRowLabels[Z_ROWS];
+    ScrollableLabel zParams[Z_ROWS][Z_COLS];
 
-    // --- Drum Z offsets ---
-    SectionHeader drumHeader;
-    ScrollableLabel dGridZLabel, dGemZLabel, dBarZLabel, dHitGemZLabel, dHitBarZLabel;
-    ScrollableLabel dStrikePosGemLabel, dStrikePosBarLabel;
-    ScrollableLabel drumColLabels[5];
+    // --- Strike Position table (2 rows × 2 cols: Guitar, Drums) ---
+    SectionHeader strikeHeader;
+    static constexpr int STRIKE_ROWS = 2;
+    static constexpr int STRIKE_COLS = 2;
+    static constexpr const char* strikeRowNames[STRIKE_ROWS] = {"Gem", "Bar"};
+    static constexpr const char* strikeColNames[STRIKE_COLS] = {"Gtr", "Drm"};
+    juce::Label strikeColHdrLabels[STRIKE_COLS];
+    juce::Label strikeRowLabels[STRIKE_ROWS];
+    ScrollableLabel strikeParams[STRIKE_ROWS][STRIKE_COLS];
 
-    // --- Note X Offsets section ---
-    SectionHeader guitarXOffHeader;
-    static constexpr const char* guitarXOffNames[6] = {"Open", "Grn", "Red", "Yel", "Blu", "Org"};
-    ScrollableLabel guitarXOffLabels[6];
-    ScrollableLabel guitarXOff2Labels[6];
+    // --- Guitar Cols section (notes table + lanes table) ---
+    SectionHeader guitarColsHeader;
+    static constexpr const char* guitarColNames[GUITAR_LANES] = {"Open", "Grn", "Red", "Yel", "Blu", "Org"};
+    static constexpr int COL_NOTE_COLS = 7;   // X1, X2, Z, S1, S2, W, H
+    static constexpr int COL_LANE_COLS = 4;   // X1, X2, W1, W2
+    static constexpr const char* colNoteColNames[COL_NOTE_COLS] = {"X1", "X2", "Z", "S1", "S2", "W", "H"};
+    static constexpr const char* colLaneColNames[COL_LANE_COLS] = {"X1", "X2", "W1", "W2"};
+    juce::Label gcolSubNoteLabel;   // "Notes" sub-header
+    juce::Label gcolSubLaneLabel;   // "Lanes" sub-header
+    juce::Label gcolNoteHdrLabels[COL_NOTE_COLS];
+    juce::Label gcolNoteRowLabels[GUITAR_LANES];
+    ScrollableLabel gcolNoteParams[GUITAR_LANES][COL_NOTE_COLS];
+    juce::Label gcolLaneHdrLabels[COL_LANE_COLS];
+    juce::Label gcolLaneRowLabels[GUITAR_LANES];
+    ScrollableLabel gcolLaneParams[GUITAR_LANES][COL_LANE_COLS];
 
-    SectionHeader drumXOffHeader;
-    static constexpr const char* drumXOffNames[5] = {"Kick", "Red", "Yel", "Blu", "Grn"};
-    ScrollableLabel drumXOffLabels[5];
-    ScrollableLabel drumXOff2Labels[5];
+    // --- Drum Cols section (notes table + lanes table) ---
+    SectionHeader drumColsHeader;
+    static constexpr const char* drumColNames[DRUM_LANES] = {"Kick", "Red", "Yel", "Blu", "Grn"};
+    juce::Label dcolSubNoteLabel;   // "Notes" sub-header
+    juce::Label dcolSubLaneLabel;   // "Lanes" sub-header
+    juce::Label dcolNoteHdrLabels[COL_NOTE_COLS];
+    juce::Label dcolNoteRowLabels[DRUM_LANES];
+    ScrollableLabel dcolNoteParams[DRUM_LANES][COL_NOTE_COLS];
+    juce::Label dcolLaneHdrLabels[COL_LANE_COLS];
+    juce::Label dcolLaneRowLabels[DRUM_LANES];
+    ScrollableLabel dcolLaneParams[DRUM_LANES][COL_LANE_COLS];
 
-    // --- Guitar Lanes section ---
-    SectionHeader guitarLanesHeader;
-    static constexpr const char* guitarLaneNames[GUITAR_LANES] = {"Open", "Grn", "Red", "Yel", "Blu", "Org"};
-    ScrollableLabel gLaneXLabels[GUITAR_LANES];
-    ScrollableLabel gLaneX2Labels[GUITAR_LANES];
-    ScrollableLabel gLaneWLabels[GUITAR_LANES];
-    ScrollableLabel gLaneW2Labels[GUITAR_LANES];
-
-    // --- Drum Lanes section ---
-    SectionHeader drumLanesHeader;
-    static constexpr const char* drumLaneNames[DRUM_LANES] = {"Kick", "Red", "Yel", "Blu", "Grn"};
-    ScrollableLabel dLaneXLabels[DRUM_LANES];
-    ScrollableLabel dLaneX2Labels[DRUM_LANES];
-    ScrollableLabel dLaneWLabels[DRUM_LANES];
-    ScrollableLabel dLaneW2Labels[DRUM_LANES];
+    // --- Lane Shape section (2 rows × 3 cols: Offset, Inner, Outer) ---
+    SectionHeader laneShapeHeader;
+    static constexpr int LANE_SHAPE_ROWS = 2;
+    static constexpr int LANE_SHAPE_COLS = 3;
+    static constexpr const char* laneShapeRowNames[LANE_SHAPE_ROWS] = {"Start", "End"};
+    static constexpr const char* laneShapeColNames[LANE_SHAPE_COLS] = {"Pos", "Arc", "Bow"};
+    juce::Label laneShapeColHdrLabels[LANE_SHAPE_COLS];
+    juce::Label laneShapeRowLabels[LANE_SHAPE_ROWS];
+    ScrollableLabel laneShapeParams[LANE_SHAPE_ROWS][LANE_SHAPE_COLS];
+    void refreshLaneShapeLabels();
 
     // --- Overlay Adjust section ---
     SectionHeader overlayAdjustHeader;
@@ -228,14 +265,23 @@ private:
     ScrollableLabel overlayParamLabels[NUM_OVERLAY_TYPES][OVERLAY_PARAMS];
     void refreshOverlayLabels();
 
-    void refreshLaneLabels();
+    void refreshColLabels();
     void fireLaneChanged();
 
+    // Table layout helpers
+    void setupTableHeader(juce::Label& label);
     void setupSectionHeader(SectionHeader& header, const juce::String& text);
     void setupScrollLabel(ScrollableLabel& label);
     void refreshLabels();
     void layoutPanel(juce::Component* panel);
     void fireChanged();
+
+    // Generic table layout: positions column headers, row names, and cells
+    // Returns Y after the table. nameW = width of row name column.
+    int layoutTable(int y, int x, int w, int rowHeight, int gap,
+                    juce::Label* colHdrs, int numCols,
+                    juce::Label* rowNames, ScrollableLabel* params,
+                    int numRows, int paramStride, int nameW);
 };
 
 #endif

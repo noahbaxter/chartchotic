@@ -43,8 +43,6 @@ constexpr float HIT_FLARE_OPACITY = 0.6f;    // Colored flare overlay opacity
 constexpr double HIT_ANIMATION_DURATION = 0.10;   // Hit flash total duration (seconds)
 constexpr double KICK_ANIMATION_DURATION = 0.15;  // Kick/bar flash total duration (seconds)
 constexpr int HIT_FLARE_MAX_FRAME = 2;            // Show flare for first N frames of hit animation
-constexpr bool SP_WHITE_FLARE_DEFAULT = true;     // Use white flare for star power hits
-constexpr bool TAP_PURPLE_FLARE_DEFAULT = true;   // Use purple flare for tap note hits
 
 // Far-end fade (highway length)
 constexpr float FAR_FADE_DEFAULT = 1.20f;     // Default farFadeEnd (normalized position)

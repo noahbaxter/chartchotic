@@ -84,8 +84,8 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     float startOffset, endOffset;
     if (isLane)
     {
-        startOffset = LANE_START_OFFSET;
-        endOffset = LANE_END_OFFSET;
+        startOffset = laneShape.startOffset;
+        endOffset = laneShape.endOffset;
     }
     else if (isBarNote(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS))
     {
@@ -169,8 +169,8 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
     float startCurve, endCurve;
     if (isLane)
     {
-        startCurve = LANE_INNER_START_CURVE;
-        endCurve = LANE_INNER_END_CURVE;
+        startCurve = laneShape.innerStartArc;
+        endCurve = laneShape.innerEndArc;
     }
     else if (isBar)
     {
@@ -202,8 +202,8 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
         float startT = (startFretboardWidth > 0.0f) ? (startCenterX - startFretboard.leftX) / startFretboardWidth : 0.5f;
         float endT = (endFretboardWidth > 0.0f) ? (endCenterX - endFretboard.leftX) / endFretboardWidth : 0.5f;
 
-        laneStartParabolaY = LANE_START_CURVE * startFretboardWidth * 4.0f * startT * (1.0f - startT);
-        laneEndParabolaY = LANE_END_CURVE * endFretboardWidth * 4.0f * endT * (1.0f - endT);
+        laneStartParabolaY = laneShape.outerStartArc * startFretboardWidth * 4.0f * startT * (1.0f - startT);
+        laneEndParabolaY = laneShape.outerEndArc * endFretboardWidth * 4.0f * endT * (1.0f - endT);
     }
 
     juce::Path path;

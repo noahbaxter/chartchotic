@@ -108,13 +108,26 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
     float adjustedPosition = barNote ? position + PositionConstants::BAR_NOTE_POS_OFFSET : position;
 
+    // Perspective foreshortening: reduce note height toward the far end.
+    // Purely position-based (0-1 normalized), no window-size dependency.
+    float foreshorten = 1.0f;
+    if (depthForeshorten > 0.0f)
+    {
+        auto pp = PositionConstants::getPerspectiveParams();
+        float depth = juce::jlimit(0.0f, 1.0f, adjustedPosition);
+        float psCur = 1.0f + (pp.highwayDepth * (1.0f - depth) / pp.playerDistance) * pp.perspectiveStrength;
+        float psRef = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
+        float rawRatio = psCur / psRef;
+        foreshorten = 1.0f - (1.0f - rawRatio) * depthForeshorten;
+    }
+
     if (isPart(state, Part::GUITAR))
     {
         const auto& colCoords = PositionConstants::guitarGlyphCoords[
             (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1];
         auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
         float colWidth = edge.rightX - edge.leftX;
-        float colHeight = colWidth / imageAspect;
+        float colHeight = (colWidth / imageAspect) * foreshorten;
         glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }
     else
@@ -123,18 +136,18 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         const auto& colCoords = PositionConstants::drumGlyphCoords[drumIdx];
         auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
         float colWidth = edge.rightX - edge.leftX;
-        float colHeight = colWidth / imageAspect;
+        float colHeight = (colWidth / imageAspect) * foreshorten;
         glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }
 
     // Apply user gem scale (from Display popup, uniform)
-    float gemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;
-    if (std::abs(gemScale - 1.0f) > 0.001f)
+    float userGemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;
+    if (std::abs(userGemScale - 1.0f) > 0.001f)
     {
         float cx = glyphRect.getCentreX();
         float cy = glyphRect.getCentreY();
-        float newW = glyphRect.getWidth() * gemScale;
-        float newH = glyphRect.getHeight() * gemScale;
+        float newW = glyphRect.getWidth() * userGemScale;
+        float newH = glyphRect.getHeight() * userGemScale;
         glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
     }
 
@@ -144,63 +157,68 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float curvature = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
 
     // Debug scale factors (separate note vs bar)
-    float baseW = barNote ? barWidthScale : gemWidthScale;
-    float baseH = barNote ? barHeightScale : gemHeightScale;
+    const auto& baseScale = barNote ? barScale : gemScale;
+    float baseW = baseScale.width;
+    float baseH = baseScale.height;
 
-    // Per-gem-type dynamic scales (base image vs overlay, independently)
-    float baseScale = 1.0f;
-    float overlayDynScale = 1.0f;
-    bool hasOverlay = false;
-
+    // Per-note-type scale (applied uniformly to base + overlay)
+    float typeScale = 1.0f;
     if (!isDrums)
     {
-        // Guitar
         switch (gemWrapper.gem) {
-        case Gem::NOTE:        baseScale = gemNoteScale; break;
-        case Gem::HOPO_GHOST:  baseScale = gemHopoScale; break;
-        case Gem::TAP_ACCENT:  baseScale = gemHopoBaseScale; overlayDynScale = gemTapOverlayScale; hasOverlay = true; break;
+        case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+        case Gem::HOPO_GHOST:  typeScale = gemTypeScales.hopo; break;
+        case Gem::TAP_ACCENT:  typeScale = gemTypeScales.gTap; break;
         default: break;
         }
     }
     else
     {
-        // Drums
         switch (gemWrapper.gem) {
-        case Gem::NOTE:        baseScale = gemNoteScale; break;
-        case Gem::HOPO_GHOST:  baseScale = gemNoteBaseScale; overlayDynScale = gemGhostOverlayScale; hasOverlay = true; break;
-        case Gem::TAP_ACCENT:  baseScale = gemNoteBaseScale; overlayDynScale = gemAccentOverlayScale; hasOverlay = true; break;
-        case Gem::CYM:         baseScale = gemCymScale; break;
-        case Gem::CYM_GHOST:   baseScale = gemCymBaseScale; overlayDynScale = gemGhostOverlayScale; hasOverlay = true; break;
-        case Gem::CYM_ACCENT:  baseScale = gemCymBaseScale; overlayDynScale = gemAccentOverlayScale; hasOverlay = true; break;
+        case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+        case Gem::HOPO_GHOST:  typeScale = gemTypeScales.dGhost; break;
+        case Gem::TAP_ACCENT:  typeScale = gemTypeScales.dAccent; break;
+        case Gem::CYM:         typeScale = gemTypeScales.normal; break;
+        case Gem::CYM_GHOST:   typeScale = gemTypeScales.cGhost; break;
+        case Gem::CYM_ACCENT:  typeScale = gemTypeScales.cAccent; break;
         default: break;
         }
     }
 
-    float spMul = (gemWrapper.starPower && std::abs(gemSpScale - 1.0f) > 0.001f) ? gemSpScale : 1.0f;
-    float wScale = baseW * baseScale * spMul;
-    float hScale = baseH * baseScale * spMul;
-    float oWScale = baseW * overlayDynScale * spMul;
-    float oHScale = baseH * overlayDynScale * spMul;
+    float spScale = barNote ? gemTypeScales.spBar : gemTypeScales.spGem;
+    float spMul = (gemWrapper.starPower && std::abs(spScale - 1.0f) > 0.001f) ? spScale : 1.0f;
+    float wScale = baseW * typeScale * spMul;
+    float hScale = baseH * typeScale * spMul;
+    float oWScale = wScale;
+    float oHScale = hScale;
 
-    // Per-column Z offset (screen pixels at strikeline, scaled by perspective)
+    // Per-column adjustments from ColumnAdjust struct
     float zOff = barNote ? barZOffset : gemZOffset;
-    if (!barNote && isDrums) {
-        uint drumIdx = drumColumnIndex(gemColumn);
-        zOff += drumColZOffsets[drumIdx];
-    }
-
-    // Per-column X offset: interpolate between near (X1) and far (X2) based on position
     float xOff1 = 0.0f, xOff2 = 0.0f;
+    float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
     if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
-        xOff1 = guitarColXOffsets[gemColumn];
-        xOff2 = guitarColXOffsets2[gemColumn];
+        const auto& ca = guitarColAdjust[gemColumn];
+        xOff1 = ca.xNear; xOff2 = ca.xFar;
+        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
     } else if (isDrums) {
         uint drumIdx = drumColumnIndex(gemColumn);
-        xOff1 = drumColXOffsets[drumIdx];
-        xOff2 = drumColXOffsets2[drumIdx];
+        const auto& ca = drumColAdjust[drumIdx];
+        xOff1 = ca.xNear; xOff2 = ca.xFar;
+        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+        if (!barNote)
+            zOff += ca.z;
     }
 
-    // Scale Z offset by perspective
+    // Per-column scale: interpolate uniform scale, multiply with per-axis
+    float t = juce::jlimit(0.0f, 1.0f, position);
+    float colScale = colSNear + (colSFar - colSNear) * t;
+    wScale *= colScale * colW;
+    hScale *= colScale * colH;
+    oWScale *= colScale * colW;
+    oHScale *= colScale * colH;
+
+    // Scale Z and X offsets by perspective
+    float perspScale = 1.0f;
     {
         float sizeScaleRef = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
         const auto& colCoordsRef = isPart(state, Part::GUITAR)
@@ -210,15 +228,12 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         float strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
         float curWidth = glyphRect.getWidth();
         if (strikeWidth > 0.0f)
-        {
-            float perspScale = curWidth / strikeWidth;
-            zOff *= perspScale;
-        }
+            perspScale = curWidth / strikeWidth;
+        zOff *= perspScale;
     }
 
     // Interpolate X offset: position 0 = strikeline (X1), position ~1 = far end (X2)
-    float t = juce::jlimit(0.0f, 1.0f, position);
-    float xOff = xOff1 + (xOff2 - xOff1) * t;
+    float xOff = (xOff1 + (xOff2 - xOff1) * t) * perspScale;
 
     // Apply X offset to glyphRect
     if (std::abs(xOff) > 0.01f)

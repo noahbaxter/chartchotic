@@ -146,9 +146,8 @@ void ChartPreviewAudioProcessorEditor::initAssets()
 void ChartPreviewAudioProcessorEditor::rebuildFadedTrackImage()
 {
     bool isDrums = isPart(state, Part::DRUMS);
-    float wNear = isDrums ? sceneRenderer.fretboardWidthScaleNearDrums : sceneRenderer.fretboardWidthScaleNearGuitar;
-    float wMid  = isDrums ? sceneRenderer.fretboardWidthScaleMidDrums  : sceneRenderer.fretboardWidthScaleMidGuitar;
-    float wFar  = isDrums ? sceneRenderer.fretboardWidthScaleFarDrums  : sceneRenderer.fretboardWidthScaleFarGuitar;
+    const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
+    float wNear = fbw.near, wMid = fbw.mid, wFar = fbw.far;
 
     trackRenderer.rebuild(getWidth(), getHeight(),
                              sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,

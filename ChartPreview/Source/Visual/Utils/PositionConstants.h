@@ -73,6 +73,34 @@ namespace PositionConstants
     };
 
     //==============================================================================
+    // Per-instrument offset bundle (Z offsets at REFERENCE_HEIGHT + strike positions)
+    struct InstrumentOffsets
+    {
+        float gridZ;
+        float gemZ;
+        float barZ;
+        float hitGemZ;
+        float hitBarZ;
+        float strikePosGem;
+        float strikePosBar;
+    };
+
+    // Element width/height scale pair
+    struct ElementScale
+    {
+        float width  = 1.0f;
+        float height = 1.0f;
+    };
+
+    // Hit animation scale (uniform + per-axis, same pattern as OverlayAdjust)
+    struct HitScale
+    {
+        float scale  = 1.0f;   // Uniform multiplier (both axes)
+        float width  = 1.0f;   // Per-axis W
+        float height = 1.0f;   // Per-axis H
+    };
+
+    //==============================================================================
     // Size & Scale Factors
     constexpr float GEM_SIZE = 0.9f;                    // Regular gem/note scaling factor
     constexpr float BAR_SIZE = 0.95f;                   // Bar note (kick/open) scaling factor
@@ -106,14 +134,20 @@ namespace PositionConstants
     constexpr float SUSTAIN_CLIP = -0.015f;             // How far past strikeline before clamping
     constexpr float BAR_SUSTAIN_CLIP = -0.015f;
 
-    // Lane curve constants (fretboard-wide parabolic arcs)
-    constexpr float LANE_START_CURVE = -0.025f;         // Fretboard-wide parabola for start edge
-    constexpr float LANE_END_CURVE = -0.035f;           // Fretboard-wide parabola for end edge
-    constexpr float LANE_INNER_START_CURVE = 0.040f;    // Lane-local arc at start
-    constexpr float LANE_INNER_END_CURVE = -0.040f;     // Lane-local arc at end
+    // Lane shape config (tuneable bundle)
+    struct LaneShapeConfig
+    {
+        float startOffset    = -0.010f;  // Z position nudge at start (before note)
+        float endOffset      = -0.010f;  // Z position nudge at end (after note)
+        float innerStartArc  =  0.040f;  // Lane-local arc at start edge
+        float innerEndArc    = -0.040f;  // Lane-local arc at end edge
+        float outerStartArc  = -0.025f;  // Fretboard-wide parabola at start
+        float outerEndArc    = -0.035f;  // Fretboard-wide parabola at end
+    };
+    constexpr LaneShapeConfig LANE_SHAPE_DEFAULT = {};
+
+    // Legacy aliases for non-lane sustain code
     constexpr float LANE_SIDE_CURVE = 0.0f;             // Side edge curvature (disabled)
-    constexpr float LANE_START_OFFSET = -0.010f;        // Lane position nudge
-    constexpr float LANE_END_OFFSET = -0.010f;
 
     //==============================================================================
     // Overlay adjustment params (per overlay type)
@@ -137,11 +171,11 @@ namespace PositionConstants
     };
 
     constexpr OverlayAdjust OVERLAY_DEFAULTS[NUM_OVERLAY_TYPES] = {
-        { 0.0f, -0.04f, 1.0f, 1.0f, 0.78f },                   // GUITAR_TAP
-        { 0.0f, -0.04f, 1.0f, 1.0f, 0.72f },                   // DRUM_NOTE_GHOST
-        { 0.0f, 0.0f, 1.0f, 1.0f, 1.1232876712f * GEM_SIZE },  // DRUM_NOTE_ACCENT
-        { 0.0f, -0.04f, 1.0f, 1.0f, 0.72f },                   // DRUM_CYM_GHOST
-        { 0.0f, 0.0f, 1.0f, 1.0f, 1.1232876712f * GEM_SIZE },  // DRUM_CYM_ACCENT
+        { 0.0f, -0.03f, 1.0f, 1.0f, 1.0f },  // GUITAR_TAP
+        { 0.0f, -0.03f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_GHOST
+        { 0.0f, -0.10f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_ACCENT
+        {},                                     // DRUM_CYM_GHOST
+        {},                                     // DRUM_CYM_ACCENT
     };
 
     //==============================================================================
@@ -203,22 +237,24 @@ namespace PositionConstants
     constexpr float HIGHWAY_POS_START = -0.3f;
     constexpr float HIGHWAY_POS_END = 1.12f;
 
-    constexpr float FB_WIDTH_NEAR_GUITAR = 0.785f;
-    constexpr float FB_WIDTH_MID_GUITAR  = 0.820f;
-    constexpr float FB_WIDTH_FAR_GUITAR  = 0.855f;
-    constexpr float FB_WIDTH_NEAR_DRUMS  = 0.800f;
-    constexpr float FB_WIDTH_MID_DRUMS   = 0.820f;
-    constexpr float FB_WIDTH_FAR_DRUMS   = 0.840f;
+    struct FretboardWidths
+    {
+        float near = 0.0f;
+        float mid  = 0.0f;
+        float far  = 0.0f;
+    };
+    constexpr FretboardWidths FB_WIDTHS_GUITAR = {0.820f, 0.860f, 0.920f};
+    constexpr FretboardWidths FB_WIDTHS_DRUMS  = {0.800f, 0.820f, 0.840f};
 
     //==============================================================================
     // Bezier Lane Coordinate Tables (sustain/lane rendering, slightly different from glyph tables)
     constexpr NormalizedCoordinates guitarBezierLaneCoords[] = {
-        {0.182f, 0.358f, 0.73f, 0.234f, 0.632f, 0.280f},     // Open
-        {0.226f, 0.378f, 0.71f, 0.22f, 0.095f, 0.040f},      // Green
-        {0.324f, 0.418f, 0.71f, 0.22f, 0.116f, 0.054f},      // Red
-        {0.442f, 0.472f, 0.71f, 0.22f, 0.118f, 0.054f},      // Yellow
-        {0.558f, 0.526f, 0.71f, 0.22f, 0.118f, 0.056f},      // Blue
-        {0.678f, 0.580f, 0.71f, 0.22f, 0.096f, 0.040f}       // Orange
+        {0.186f, 0.350f, 0.73f, 0.234f, 0.626f, 0.300f},     // Open
+        {0.230f, 0.367f, 0.71f, 0.22f, 0.102f, 0.056f},      // Green
+        {0.332f, 0.424f, 0.71f, 0.22f, 0.112f, 0.052f},      // Red
+        {0.444f, 0.474f, 0.71f, 0.22f, 0.112f, 0.052f},      // Yellow
+        {0.556f, 0.524f, 0.71f, 0.22f, 0.112f, 0.052f},      // Blue
+        {0.670f, 0.576f, 0.71f, 0.22f, 0.102f, 0.056f}       // Orange
     };
     constexpr NormalizedCoordinates drumBezierLaneCoords[] = {
         {0.190f, 0.354f, 0.735f, 0.239f, 0.620f, 0.290f},    // Kick (1x and 2x)
@@ -235,74 +271,99 @@ namespace PositionConstants
     constexpr int NOTE_CACHE_DOWNSAMPLE = 2;       // Source resolution divisor (2 = 1/2 res)
 
     //==============================================================================
+    // Perspective depth foreshortening (normalized, no window-size dependency)
+    // Blend strength: 0 = no foreshortening, 1 = full perspective height correction
+    constexpr float NOTE_DEPTH_FORESHORTEN = 0.55f;
+
+    //==============================================================================
     // Per-instrument Z offsets (reference pixels at 720px height, positive = down)
     // Scaled by (height / REFERENCE_HEIGHT) at render time for resolution independence.
     constexpr float REFERENCE_HEIGHT = 720.0f;
 
-    constexpr float GRID_Z_GUITAR = 0.0f;
-    constexpr float GEM_Z_GUITAR = 9.0f;
-    constexpr float BAR_Z_GUITAR = 0.0f;
-    constexpr float HIT_GEM_Z_GUITAR = 14.0f;
-    constexpr float HIT_BAR_Z_GUITAR = 9.0f;
+    constexpr InstrumentOffsets GUITAR_OFFSETS = {
+        0.0f,       // gridZ
+        9.0f,       // gemZ
+        0.0f,       // barZ
+        14.0f,      // hitGemZ
+        9.0f,       // hitBarZ
+        0.0f,       // strikePosGem
+        0.0f        // strikePosBar
+    };
+    constexpr InstrumentOffsets DRUM_OFFSETS = {
+        0.0f,       // gridZ
+        4.0f,       // gemZ
+        0.0f,       // barZ
+        6.0f,       // hitGemZ
+        10.0f,      // hitBarZ
+        -0.020f,    // strikePosGem
+        -0.020f     // strikePosBar
+    };
 
-    constexpr float GRID_Z_DRUMS = 0.0f;
-    constexpr float GEM_Z_DRUMS = 4.0f;
-    constexpr float BAR_Z_DRUMS = 0.0f;
-    constexpr float HIT_GEM_Z_DRUMS = 6.0f;
-    constexpr float HIT_BAR_Z_DRUMS = 10.0f;
+    // Per-column adjustment bundle (offsets in pixels at REFERENCE_HEIGHT, scales are multipliers)
+    struct ColumnAdjust
+    {
+        float xNear  = 0.0f;  // X pixel offset at strikeline
+        float xFar   = 0.0f;  // X pixel offset at far end
+        float z      = 0.0f;  // Z pixel offset (vertical nudge)
+        float sNear  = 1.0f;  // Uniform scale at strikeline (interpolated)
+        float sFar   = 1.0f;  // Uniform scale at far end (interpolated)
+        float w      = 1.0f;  // Width multiplier
+        float h      = 1.0f;  // Height multiplier
+    };
 
-    // Per-column X offsets (pixels at strikeline, perspective-scaled)
-    constexpr float GUITAR_X_OFFSETS[6]    = {0.0f, 1.0f, -2.5f, 0.0f, 2.5f, -2.5f};
-    constexpr float GUITAR_X_OFFSETS_2[6] = {0.0f, 2.5f,  0.0f, 0.0f, 0.0f, -1.0f};
-    constexpr float DRUM_X_OFFSETS[5]     = {0.0f, 2.5f, -0.5f, 0.5f, -2.5f};
-    constexpr float DRUM_X_OFFSETS_2[5]   = {0.0f, 1.0f, -0.5f, 0.5f, -1.0f};
-
-    //==============================================================================
-    // Gem dynamic scales (per gem type, applied in NoteRenderer)
-    // Base scales — applied to the glyph image
-    constexpr float GEM_NOTE_SCALE = 1.0f;              // Regular notes (both instruments)
-    constexpr float GEM_HOPO_SCALE = 1.05f;             // Guitar HOPO (standalone, no overlay)
-    constexpr float GEM_HOPO_BASE_SCALE = 1.0f;         // Guitar HOPO base under tap overlay
-    constexpr float GEM_NOTE_BASE_SCALE = 1.0f;         // Drum note base under ghost/accent overlay
-    constexpr float GEM_CYM_SCALE = 1.0f;               // Drum cymbal (standalone, no overlay)
-    constexpr float GEM_CYM_BASE_SCALE = 1.0f;          // Drum cymbal base under ghost/accent overlay
-    // Overlay scales — applied to the overlay image only
-    constexpr float GEM_TAP_OVERLAY_SCALE = 0.90f;      // Guitar tap overlay
-    constexpr float GEM_GHOST_OVERLAY_SCALE = 1.0f;     // Drum ghost overlay
-    constexpr float GEM_ACCENT_OVERLAY_SCALE = 1.0f;    // Drum accent overlay
-    // Universal multiplier
-    constexpr float GEM_SP_SCALE = 1.0f;                // Star power gems
-
-    //==============================================================================
-    // Hit animation dynamic scales (per gem type, applied in AnimationRenderer)
-    constexpr float HIT_GHOST_SCALE = 0.7f;             // Drum ghost hit
-    constexpr float HIT_ACCENT_SCALE = 1.2f;            // Drum accent hit
-    constexpr float HIT_HOPO_SCALE = 0.9f;              // Guitar HOPO hit
-    constexpr float HIT_TAP_SCALE = 0.9f;               // Guitar tap hit
-    constexpr float HIT_SP_SCALE = 1.0f;                // Star power hit
-
-    //==============================================================================
-    // Gem width/height scales
-    constexpr float GEM_WIDTH_SCALE = 1.0f;
-    constexpr float GEM_HEIGHT_SCALE = 1.15f;
-    constexpr float BAR_WIDTH_SCALE = 1.0f;
-    constexpr float BAR_HEIGHT_SCALE = 1.0f;
+    constexpr ColumnAdjust GUITAR_COL_ADJUST[6] = {
+        {0, 0, 0, 1, 1, 1, 1},             // Open
+        {6, 13, 0, 1.05f, 1, 1, 1},        // Green
+        {1.5f, 5, 0, 1.1f, 1, 1, 1},       // Red
+        {0, 0, 0, 1.1f, 1, 1, 1},          // Yellow
+        {-1.5f, -5, 0, 1.1f, 1, 1, 1},     // Blue
+        {-6, -13, 0, 1.05f, 1, 1, 1}       // Orange
+    };
+    constexpr ColumnAdjust DRUM_COL_ADJUST[5] = {
+        {0, 0, 0, 0.99f, 1, 1, 1},         // Kick
+        {2.5f, 3, 0, 1, 1, 1, 1},          // Red
+        {-0.5f, -0.5f, 0, 1, 1, 1, 1},     // Yellow
+        {0.5f, 0.5f, 0, 1, 1, 1, 1},       // Blue
+        {-2.5f, -3, 0, 1, 1, 1, 1}         // Green
+    };
 
     //==============================================================================
-    // Hit animation scales
-    constexpr float HIT_GEM_SCALE = 1.5f;
-    constexpr float HIT_BAR_SCALE = 1.0f;
-    constexpr float HIT_GEM_WIDTH_SCALE = 1.0f;
-    constexpr float HIT_GEM_HEIGHT_SCALE = 1.20f;
-    constexpr float HIT_BAR_WIDTH_SCALE = 1.0f;
-    constexpr float HIT_BAR_HEIGHT_SCALE = 1.0f;
+    // Per-gem-type scales (applied uniformly to base + overlay in NoteRenderer)
+    struct GemTypeScales
+    {
+        float normal  = 1.0f;   // Regular notes + standalone cymbals
+        float hopo    = 1.05f;  // Guitar HOPO
+        float gTap    = 1.0f;   // Guitar tap
+        float dGhost  = 1.0f;   // Drum note ghost
+        float dAccent = 1.0f;   // Drum note accent
+        float cGhost  = 1.0f;   // Drum cymbal ghost
+        float cAccent = 1.0f;   // Drum cymbal accent
+        float spGem   = 1.0f;   // Star power gem multiplier
+        float spBar   = 1.0f;   // Star power bar multiplier (bars can't grow much)
+    };
 
     //==============================================================================
-    // Strike position offsets (normalized, shifts clip/trigger point)
-    constexpr float STRIKE_POS_GEM_GUITAR = 0.0f;
-    constexpr float STRIKE_POS_BAR_GUITAR = 0.0f;
-    constexpr float STRIKE_POS_GEM_DRUMS = -0.020f;
-    constexpr float STRIKE_POS_BAR_DRUMS = -0.020f;
+    // Per-hit-type scales + flare config (applied in AnimationRenderer)
+    struct HitTypeConfig
+    {
+        float ghost   = 0.7f;   // Drum ghost hit
+        float accent  = 1.2f;   // Drum accent hit
+        float hopo    = 0.9f;   // Guitar HOPO hit
+        float tap     = 0.9f;   // Guitar tap hit
+        float sp      = 1.0f;   // Star power hit
+        bool  spWhiteFlare   = true;   // Use white flare for SP hits
+        bool  tapPurpleFlare = true;   // Use purple flare for tap hits
+    };
+
+    //==============================================================================
+    // Gem/bar base scales (ElementScale: width, height)
+    constexpr ElementScale GEM_SCALE = {1.0f, 1.15f};
+    constexpr ElementScale BAR_SCALE = {1.0f, 1.0f};
+
+    //==============================================================================
+    // Hit animation scales (HitScale: uniform scale, width, height)
+    constexpr HitScale HIT_GEM_SCALE = {1.5f, 1.0f, 1.20f};
+    constexpr HitScale HIT_BAR_SCALE = {1.0f, 1.0f, 1.0f};
 
     //==============================================================================
     // Perspective Parameters (compile-time constant)

@@ -204,12 +204,12 @@ juce_add_binary_data(ChartPreviewData
         assets/generated/bars/bar_kick_2x.png
         assets/generated/bars/bar_open.png
         assets/generated/bars/bar_white.png
-        # Overlays (generated from PDFs + static)
+        # Overlays (generated from PDFs)
         assets/generated/overlays/overlay_note_ghost.png
         assets/generated/overlays/overlay_cym_ghost.png
         assets/generated/overlays/overlay_note_tap.png
-        assets/static/overlays/overlay_cym_accent.png
-        assets/static/overlays/overlay_note_accent.png
+        assets/generated/overlays/overlay_cym_accent.png
+        assets/generated/overlays/overlay_note_accent.png
         # Sustains (generated from PDFs)
         assets/generated/sustains/sustain_open.png
         assets/generated/sustains/sustain_open_white.png

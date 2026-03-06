@@ -47,20 +47,10 @@ public:
     float hitGemZOffset = 0.0f;
     float hitBarZOffset = 0.0f;
     float noteCurvature = 0.0f;
-    float hitGemScale = PositionConstants::HIT_GEM_SCALE;
-    float hitBarScale = PositionConstants::HIT_BAR_SCALE;
-    float hitGemWidthScale = PositionConstants::HIT_GEM_WIDTH_SCALE;
-    float hitGemHeightScale = PositionConstants::HIT_GEM_HEIGHT_SCALE;
-    float hitBarWidthScale = PositionConstants::HIT_BAR_WIDTH_SCALE;
-    float hitBarHeightScale = PositionConstants::HIT_BAR_HEIGHT_SCALE;
-    float ghostScale = PositionConstants::HIT_GHOST_SCALE;
-    float accentScale = PositionConstants::HIT_ACCENT_SCALE;
-    float hopoScale = PositionConstants::HIT_HOPO_SCALE;
-    float tapScale = PositionConstants::HIT_TAP_SCALE;
-    float spScale = PositionConstants::HIT_SP_SCALE;
-    bool spWhiteFlare = SP_WHITE_FLARE_DEFAULT;
-    bool tapPurpleFlare = TAP_PURPLE_FLARE_DEFAULT;
-    float drumColZOffsets[5] = {};
+    PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
+    PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
+    PositionConstants::HitTypeConfig hitTypeConfig;
+    float drumColZAdjust[5] = {};
 
     /**
      * Populate drawCallMap with animation render calls.

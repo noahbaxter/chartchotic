@@ -24,6 +24,8 @@ class SustainRenderer
 public:
     SustainRenderer(juce::ValueTree& state, AssetManager& assetManager);
 
+    PositionConstants::LaneShapeConfig laneShape;
+
     void populate(DrawCallMap& drawCallMap, const TimeBasedSustainWindow& sustainWindow,
                   double windowStartTime, double windowEndTime,
                   uint width, uint height, bool showLanes, bool showSustains,

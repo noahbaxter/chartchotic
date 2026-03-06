@@ -41,9 +41,10 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
 
     // Resolve instrument-specific bezier params
     bool isDrums = isPart(state, Part::DRUMS);
-    float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
-    float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
-    float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+    const auto& fbw = isDrums ? fbWidthsDrums : fbWidthsGuitar;
+    float wNear = fbw.near;
+    float wMid  = fbw.mid;
+    float wFar  = fbw.far;
 
     // Update sustain states for active animations (force-trigger if playing into active sustain)
     animationRenderer.updateSustainStates(sustainWindow, isPlaying);
@@ -62,41 +63,35 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     // Resolution scale: all pixel-based Z offsets are tuned at REFERENCE_HEIGHT
     float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
 
+    const auto& offsets = isDrums ? drumOffsets : guitarOffsets;
+
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
-    noteRenderer.gemWidthScale = gemWidthScale;
-    noteRenderer.gemHeightScale = gemHeightScale;
-    noteRenderer.barWidthScale = barWidthScale;
-    noteRenderer.barHeightScale = barHeightScale;
-    float strikePosGem = isDrums ? strikePosGemDrums : strikePosGemGuitar;
-    float strikePosBar = isDrums ? strikePosBarDrums : strikePosBarGuitar;
+    noteRenderer.gemScale = gemScale;
+    noteRenderer.barScale = barScale;
+    noteRenderer.depthForeshorten = depthForeshorten;
+    float strikePosGem = offsets.strikePosGem;
+    float strikePosBar = offsets.strikePosBar;
 
     noteRenderer.showGems = showGems;
     noteRenderer.showBars = showBars;
-    noteRenderer.gemZOffset = (isDrums ? gemZOffsetDrums : gemZOffsetGuitar) * resScale;
-    noteRenderer.barZOffset = (isDrums ? barZOffsetDrums : barZOffsetGuitar) * resScale;
+    noteRenderer.gemZOffset = offsets.gemZ * resScale;
+    noteRenderer.barZOffset = offsets.barZ * resScale;
     noteRenderer.strikePosGem = strikePosGem;
     noteRenderer.strikePosBar = strikePosBar;
-    noteRenderer.gemNoteScale = gemNoteScale;
-    noteRenderer.gemHopoScale = gemHopoScale;
-    noteRenderer.gemHopoBaseScale = gemHopoBaseScale;
-    noteRenderer.gemTapOverlayScale = gemTapOverlayScale;
-    noteRenderer.gemGhostOverlayScale = gemGhostOverlayScale;
-    noteRenderer.gemAccentOverlayScale = gemAccentOverlayScale;
-    noteRenderer.gemNoteBaseScale = gemNoteBaseScale;
-    noteRenderer.gemCymScale = gemCymScale;
-    noteRenderer.gemCymBaseScale = gemCymBaseScale;
-    noteRenderer.gemSpScale = gemSpScale;
+    noteRenderer.gemTypeScales = gemTypeScales;
     std::copy_n(overlayAdjusts, PositionConstants::NUM_OVERLAY_TYPES, noteRenderer.overlayAdjusts);
-    for (int i = 0; i < 5; i++)
-        noteRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
     for (int i = 0; i < 6; i++) {
-        noteRenderer.guitarColXOffsets[i] = guitarGemXOffsets[i] * resScale;
-        noteRenderer.guitarColXOffsets2[i] = guitarGemXOffsets2[i] * resScale;
+        const auto& ca = guitarColAdjust[i];
+        noteRenderer.guitarColAdjust[i] = {
+            ca.xNear * resScale, ca.xFar * resScale, ca.z * resScale,
+            ca.sNear, ca.sFar, ca.w, ca.h };
     }
     for (int i = 0; i < 5; i++) {
-        noteRenderer.drumColXOffsets[i] = drumGemXOffsets[i] * resScale;
-        noteRenderer.drumColXOffsets2[i] = drumGemXOffsets2[i] * resScale;
+        const auto& ca = drumColAdjust[i];
+        noteRenderer.drumColAdjust[i] = {
+            ca.xNear * resScale, ca.xFar * resScale, ca.z * resScale,
+            ca.sNear, ca.sFar, ca.w, ca.h };
     }
 
     {
@@ -109,6 +104,7 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.sustains_us, collectPhaseTiming);
+        sustainRenderer.laneShape = laneShape;
         sustainRenderer.populate(drawCallMap, sustainWindow, windowStartTime, windowEndTime,
                                  width, height, showLanes, showSustains,
                                  wNear, wMid, wFar, highwayPosEnd,
@@ -122,7 +118,7 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
             gridlineRenderer.populate(drawCallMap, gridlines, windowStartTime, windowEndTime,
                                       width, height, wNear, wMid, wFar, highwayPosEnd,
                                       gridlinePosOffset,
-                                      (isDrums ? gridZOffsetDrums : gridZOffsetGuitar) * resScale,
+                                      offsets.gridZ * resScale,
                                       farFadeEnd, farFadeLen, farFadeCurve);
     }
 
@@ -136,24 +132,14 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
             double strikeTimeOffset = strikePosGem * windowTimeSpan;
             if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow, strikeTimeOffset); }
 
-            animationRenderer.hitGemZOffset = (isDrums ? hitGemZOffsetDrums : hitGemZOffsetGuitar) * resScale;
-            animationRenderer.hitBarZOffset = (isDrums ? hitBarZOffsetDrums : hitBarZOffsetGuitar) * resScale;
+            animationRenderer.hitGemZOffset = offsets.hitGemZ * resScale;
+            animationRenderer.hitBarZOffset = offsets.hitBarZ * resScale;
             animationRenderer.noteCurvature = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
             animationRenderer.hitGemScale = hitGemScale;
             animationRenderer.hitBarScale = hitBarScale;
-            animationRenderer.hitGemWidthScale = hitGemWidthScale;
-            animationRenderer.hitGemHeightScale = hitGemHeightScale;
-            animationRenderer.hitBarWidthScale = hitBarWidthScale;
-            animationRenderer.hitBarHeightScale = hitBarHeightScale;
-            animationRenderer.ghostScale = hitGhostScale;
-            animationRenderer.accentScale = hitAccentScale;
-            animationRenderer.hopoScale = hitHopoScale;
-            animationRenderer.tapScale = hitTapScale;
-            animationRenderer.spScale = hitSpScale;
-            animationRenderer.spWhiteFlare = spWhiteFlare;
-            animationRenderer.tapPurpleFlare = tapPurpleFlare;
+            animationRenderer.hitTypeConfig = hitTypeConfig;
             for (int i = 0; i < 5; i++)
-                animationRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
+                animationRenderer.drumColZAdjust[i] = drumColAdjust[i].z * resScale;
 
             animationRenderer.renderToDrawCallMap(drawCallMap, width, height, wNear, wMid, wFar, highwayPosEnd,
                                                 strikePosGem);

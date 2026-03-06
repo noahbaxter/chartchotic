@@ -47,94 +47,43 @@ class SceneRenderer
         PhaseTiming lastPhaseTiming;
 
         // Tunable fretboard boundary scales (mutable for debug UI, defaults from PositionConstants)
-        float fretboardWidthScaleNearGuitar = PositionConstants::FB_WIDTH_NEAR_GUITAR;
-        float fretboardWidthScaleMidGuitar  = PositionConstants::FB_WIDTH_MID_GUITAR;
-        float fretboardWidthScaleFarGuitar  = PositionConstants::FB_WIDTH_FAR_GUITAR;
-        float fretboardWidthScaleNearDrums  = PositionConstants::FB_WIDTH_NEAR_DRUMS;
-        float fretboardWidthScaleMidDrums   = PositionConstants::FB_WIDTH_MID_DRUMS;
-        float fretboardWidthScaleFarDrums   = PositionConstants::FB_WIDTH_FAR_DRUMS;
+        PositionConstants::FretboardWidths fbWidthsGuitar = PositionConstants::FB_WIDTHS_GUITAR;
+        PositionConstants::FretboardWidths fbWidthsDrums  = PositionConstants::FB_WIDTHS_DRUMS;
         float highwayPosEnd = PositionConstants::HIGHWAY_POS_END;
 
         // Note curvature and scaling (runtime-adjustable for debug UI)
         float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
         float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
-        float gemWidthScale = PositionConstants::GEM_WIDTH_SCALE;
-        float gemHeightScale = PositionConstants::GEM_HEIGHT_SCALE;
-        float barWidthScale = PositionConstants::BAR_WIDTH_SCALE;
-        float barHeightScale = PositionConstants::BAR_HEIGHT_SCALE;
-        float hitGemScale = PositionConstants::HIT_GEM_SCALE;
-        float hitBarScale = PositionConstants::HIT_BAR_SCALE;
-        float hitGemWidthScale = PositionConstants::HIT_GEM_WIDTH_SCALE;
-        float hitGemHeightScale = PositionConstants::HIT_GEM_HEIGHT_SCALE;
-        float hitBarWidthScale = PositionConstants::HIT_BAR_WIDTH_SCALE;
-        float hitBarHeightScale = PositionConstants::HIT_BAR_HEIGHT_SCALE;
-        // Hit animation dynamic scales
-        float hitGhostScale = PositionConstants::HIT_GHOST_SCALE;
-        float hitAccentScale = PositionConstants::HIT_ACCENT_SCALE;
-        float hitHopoScale = PositionConstants::HIT_HOPO_SCALE;
-        float hitTapScale = PositionConstants::HIT_TAP_SCALE;
-        float hitSpScale = PositionConstants::HIT_SP_SCALE;
-        bool spWhiteFlare = SP_WHITE_FLARE_DEFAULT;
-        bool tapPurpleFlare = TAP_PURPLE_FLARE_DEFAULT;
-
-        // Gem dynamic scales
-        float gemNoteScale = PositionConstants::GEM_NOTE_SCALE;
-        float gemHopoScale = PositionConstants::GEM_HOPO_SCALE;
-        float gemHopoBaseScale = PositionConstants::GEM_HOPO_BASE_SCALE;
-        float gemTapOverlayScale = PositionConstants::GEM_TAP_OVERLAY_SCALE;
-        float gemGhostOverlayScale = PositionConstants::GEM_GHOST_OVERLAY_SCALE;
-        float gemAccentOverlayScale = PositionConstants::GEM_ACCENT_OVERLAY_SCALE;
-        float gemNoteBaseScale = PositionConstants::GEM_NOTE_BASE_SCALE;
-        float gemCymScale = PositionConstants::GEM_CYM_SCALE;
-        float gemCymBaseScale = PositionConstants::GEM_CYM_BASE_SCALE;
-        float gemSpScale = PositionConstants::GEM_SP_SCALE;
+        PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
+        PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
+        float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
+        PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
+        PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
+        PositionConstants::HitTypeConfig hitTypeConfig;
+        PositionConstants::GemTypeScales gemTypeScales;
 
         // Overlay adjustments
         PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
 
-        // Per-instrument Z offsets (guitar)
-        float gridZOffsetGuitar = PositionConstants::GRID_Z_GUITAR;
-        float gemZOffsetGuitar = PositionConstants::GEM_Z_GUITAR;
-        float barZOffsetGuitar = PositionConstants::BAR_Z_GUITAR;
-        float hitGemZOffsetGuitar = PositionConstants::HIT_GEM_Z_GUITAR;
-        float hitBarZOffsetGuitar = PositionConstants::HIT_BAR_Z_GUITAR;
+        // Per-instrument offsets (Z positions + strike positions)
+        PositionConstants::InstrumentOffsets guitarOffsets = PositionConstants::GUITAR_OFFSETS;
+        PositionConstants::InstrumentOffsets drumOffsets = PositionConstants::DRUM_OFFSETS;
 
-        // Per-instrument Z offsets (drums)
-        float gridZOffsetDrums = PositionConstants::GRID_Z_DRUMS;
-        float gemZOffsetDrums = PositionConstants::GEM_Z_DRUMS;
-        float barZOffsetDrums = PositionConstants::BAR_Z_DRUMS;
-        float hitGemZOffsetDrums = PositionConstants::HIT_GEM_Z_DRUMS;
-        float hitBarZOffsetDrums = PositionConstants::HIT_BAR_Z_DRUMS;
-
-        // Per-column Z offsets (drums only)
-        float drumColZOffsets[5] = {};
-
-        // Per-column X offsets (near=strikeline, far=top of highway)
-        float guitarGemXOffsets[6] = {
-            PositionConstants::GUITAR_X_OFFSETS[0], PositionConstants::GUITAR_X_OFFSETS[1],
-            PositionConstants::GUITAR_X_OFFSETS[2], PositionConstants::GUITAR_X_OFFSETS[3],
-            PositionConstants::GUITAR_X_OFFSETS[4], PositionConstants::GUITAR_X_OFFSETS[5]};
-        float guitarGemXOffsets2[6] = {
-            PositionConstants::GUITAR_X_OFFSETS_2[0], PositionConstants::GUITAR_X_OFFSETS_2[1],
-            PositionConstants::GUITAR_X_OFFSETS_2[2], PositionConstants::GUITAR_X_OFFSETS_2[3],
-            PositionConstants::GUITAR_X_OFFSETS_2[4], PositionConstants::GUITAR_X_OFFSETS_2[5]};
-        float drumGemXOffsets[5] = {
-            PositionConstants::DRUM_X_OFFSETS[0], PositionConstants::DRUM_X_OFFSETS[1],
-            PositionConstants::DRUM_X_OFFSETS[2], PositionConstants::DRUM_X_OFFSETS[3],
-            PositionConstants::DRUM_X_OFFSETS[4]};
-        float drumGemXOffsets2[5] = {
-            PositionConstants::DRUM_X_OFFSETS_2[0], PositionConstants::DRUM_X_OFFSETS_2[1],
-            PositionConstants::DRUM_X_OFFSETS_2[2], PositionConstants::DRUM_X_OFFSETS_2[3],
-            PositionConstants::DRUM_X_OFFSETS_2[4]};
-
-        // Strike position offset (normalized, shifts clip/trigger/render point)
-        float strikePosGemGuitar = PositionConstants::STRIKE_POS_GEM_GUITAR;
-        float strikePosBarGuitar = PositionConstants::STRIKE_POS_BAR_GUITAR;
-        float strikePosGemDrums = PositionConstants::STRIKE_POS_GEM_DRUMS;
-        float strikePosBarDrums = PositionConstants::STRIKE_POS_BAR_DRUMS;
+        // Per-column adjustments (X near/far + Z offsets)
+        PositionConstants::ColumnAdjust guitarColAdjust[6] = {
+            PositionConstants::GUITAR_COL_ADJUST[0], PositionConstants::GUITAR_COL_ADJUST[1],
+            PositionConstants::GUITAR_COL_ADJUST[2], PositionConstants::GUITAR_COL_ADJUST[3],
+            PositionConstants::GUITAR_COL_ADJUST[4], PositionConstants::GUITAR_COL_ADJUST[5]};
+        PositionConstants::ColumnAdjust drumColAdjust[5] = {
+            PositionConstants::DRUM_COL_ADJUST[0], PositionConstants::DRUM_COL_ADJUST[1],
+            PositionConstants::DRUM_COL_ADJUST[2], PositionConstants::DRUM_COL_ADJUST[3],
+            PositionConstants::DRUM_COL_ADJUST[4]};
 
         // Gridline position nudge (normalized position space, exposed for debug UI)
         float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
+
+        // Lane shape config (tuneable)
+        PositionConstants::LaneShapeConfig laneShape;
 
 
         // Far-end fade: farFadeEnd is user-controlled ("highway length")
@@ -179,9 +128,8 @@ class SceneRenderer
                                   float sizeScale, float fretboardScale = 1.0f)
         {
             bool isDrums = isPart(state, Part::DRUMS);
-            float wNear = isDrums ? fretboardWidthScaleNearDrums : fretboardWidthScaleNearGuitar;
-            float wMid  = isDrums ? fretboardWidthScaleMidDrums  : fretboardWidthScaleMidGuitar;
-            float wFar  = isDrums ? fretboardWidthScaleFarDrums  : fretboardWidthScaleFarGuitar;
+            const auto& fbw = isDrums ? fbWidthsDrums : fbWidthsGuitar;
+            float wNear = fbw.near, wMid = fbw.mid, wFar = fbw.far;
             return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                    wNear, wMid, wFar,
                                                    PositionConstants::HIGHWAY_POS_START, highwayPosEnd,
