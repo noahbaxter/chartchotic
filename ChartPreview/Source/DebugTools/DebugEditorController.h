@@ -58,8 +58,10 @@ public:
     juce::TextEditor& getConsole() { return consoleOutput; }
     juce::TextButton& getClearButton() { return clearLogsButton; }
 
-    // Profiler timing target for texture phase
+    // Profiler timing targets
     double textureRender_us = 0.0;
+    double frameDelta_us = 0.0;
+    double lockWait_us = 0.0;
     bool collectPhaseTiming() const;
 
 private:
@@ -73,6 +75,10 @@ private:
     static constexpr int PROFILER_RING_SIZE = 60;
     double profilerRing[PROFILER_RING_SIZE] = {};
     int profilerRingIndex = 0;
+    double frameDeltaRing[PROFILER_RING_SIZE] = {};
+    int frameDeltaRingIndex = 0;
+    double lockWaitRing[PROFILER_RING_SIZE] = {};
+    int lockWaitRingIndex = 0;
 
     // Console
     juce::TextEditor consoleOutput;

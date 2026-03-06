@@ -114,6 +114,13 @@ void ChartPreviewAudioProcessorEditor::onFrame()
     }
 
 #ifdef DEBUG
+    {
+        double now = juce::Time::getHighResolutionTicks()
+            / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        if (lastRepaintTimestamp > 0.0)
+            debugController.frameDelta_us = (now - lastRepaintTimestamp) * 1000000.0;
+        lastRepaintTimestamp = now;
+    }
     debugController.onFrame(lastKnownPosition, lastPlayingState);
 #endif
 
@@ -414,8 +421,15 @@ void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
 
     // Generate PPQ-based windows from MidiInterpreter
-    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
-    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    TrackWindow ppqTrackWindow;
+    SustainWindow ppqSustainWindow;
+    {
+#ifdef DEBUG
+        ScopedPhaseMeasure lm(debugController.lockWait_us, sceneRenderer.collectPhaseTiming);
+#endif
+        ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+        ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    }
 
     // Create a lambda that uses REAPER's timeline conversion (handles ALL tempo changes)
     auto& reaperProvider = audioProcessor.getReaperMidiProvider();
@@ -507,8 +521,15 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
 
     // Generate PPQ-based windows from MidiInterpreter
-    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
-    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    TrackWindow ppqTrackWindow;
+    SustainWindow ppqSustainWindow;
+    {
+#ifdef DEBUG
+        ScopedPhaseMeasure lm(debugController.lockWait_us, sceneRenderer.collectPhaseTiming);
+#endif
+        ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+        ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    }
 
     // Simple constant BPM conversion for non-REAPER mode
     auto ppqToTime = [currentBPM](double ppq) { return ppq * (60.0 / currentBPM); };

@@ -117,21 +117,29 @@ void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRe
     profilerRing[profilerRingIndex] = t.total_us;
     profilerRingIndex = (profilerRingIndex + 1) % PROFILER_RING_SIZE;
 
-    double sum = 0.0;
-    int count = 0;
-    for (int i = 0; i < PROFILER_RING_SIZE; ++i)
-    {
-        if (profilerRing[i] > 0.0)
-        {
-            sum += profilerRing[i];
-            ++count;
-        }
-    }
-    double avgTotal = count > 0 ? sum / count : 0.0;
-    double fps = avgTotal > 0.0 ? 1000000.0 / avgTotal : 0.0;
+    frameDeltaRing[frameDeltaRingIndex] = frameDelta_us;
+    frameDeltaRingIndex = (frameDeltaRingIndex + 1) % PROFILER_RING_SIZE;
+
+    lockWaitRing[lockWaitRingIndex] = lockWait_us;
+    lockWaitRingIndex = (lockWaitRingIndex + 1) % PROFILER_RING_SIZE;
+
+    auto ringAvg = [](const double* ring, int size) {
+        double sum = 0.0;
+        int count = 0;
+        for (int i = 0; i < size; ++i)
+            if (ring[i] > 0.0) { sum += ring[i]; ++count; }
+        return count > 0 ? sum / count : 0.0;
+    };
+
+    double avgTotal = ringAvg(profilerRing, PROFILER_RING_SIZE);
+    double avgFrameDelta = ringAvg(frameDeltaRing, PROFILER_RING_SIZE);
+    double avgLockWait = ringAvg(lockWaitRing, PROFILER_RING_SIZE);
+    double fps = avgFrameDelta > 0.0 ? 1000000.0 / avgFrameDelta : 0.0;
 
     juce::String text;
     text << "FPS: " << juce::String(fps, 1) << "\n"
+         << "Delta:   " << juce::String((int)avgFrameDelta) << " us\n"
+         << "Lock:    " << juce::String((int)avgLockWait) << " us\n"
          << "Notes:   " << juce::String((int)t.notes_us) << " us\n"
          << "Sustain: " << juce::String((int)t.sustains_us) << " us\n"
          << "Grid:    " << juce::String((int)t.gridlines_us) << " us\n"
@@ -155,9 +163,9 @@ void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRe
 
     g.setFont(juce::Font(12.0f));
     g.setColour(juce::Colours::black.withAlpha(0.6f));
-    g.fillRect(4, 40, 140, 224);
+    g.fillRect(4, 40, 140, 252);
     g.setColour(juce::Colours::white);
-    g.drawFittedText(text, 8, 42, 132, 220, juce::Justification::topLeft, 16);
+    g.drawFittedText(text, 8, 42, 132, 248, juce::Justification::topLeft, 18);
 }
 
 void DebugEditorController::paintStandalone(juce::Graphics& g,

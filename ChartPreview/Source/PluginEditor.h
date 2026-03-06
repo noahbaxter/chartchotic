@@ -204,6 +204,7 @@ private:
 
 #ifdef DEBUG
     DebugEditorController debugController;
+    double lastRepaintTimestamp = 0.0;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
