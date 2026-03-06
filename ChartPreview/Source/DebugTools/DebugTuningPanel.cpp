@@ -100,17 +100,10 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         fireChanged();
     };
 
-    setupScrollLabel(gemGhostScaleLabel);
-    gemGhostScaleLabel.onScroll = [this](int delta) {
-        gemGhostScale = juce::jlimit(0.30f, 1.50f, gemGhostScale + delta * 0.01f);
-        gemGhostScaleLabel.setText("Ghost: " + juce::String(gemGhostScale, 2), juce::dontSendNotification);
-        fireChanged();
-    };
-
-    setupScrollLabel(gemAccentScaleLabel);
-    gemAccentScaleLabel.onScroll = [this](int delta) {
-        gemAccentScale = juce::jlimit(0.50f, 2.00f, gemAccentScale + delta * 0.01f);
-        gemAccentScaleLabel.setText("Accent: " + juce::String(gemAccentScale, 2), juce::dontSendNotification);
+    setupScrollLabel(gemNoteScaleLabel);
+    gemNoteScaleLabel.onScroll = [this](int delta) {
+        gemNoteScale = juce::jlimit(0.30f, 2.00f, gemNoteScale + delta * 0.01f);
+        gemNoteScaleLabel.setText("Note: " + juce::String(gemNoteScale, 2), juce::dontSendNotification);
         fireChanged();
     };
 
@@ -121,10 +114,52 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         fireChanged();
     };
 
-    setupScrollLabel(gemTapScaleLabel);
-    gemTapScaleLabel.onScroll = [this](int delta) {
-        gemTapScale = juce::jlimit(0.30f, 1.50f, gemTapScale + delta * 0.01f);
-        gemTapScaleLabel.setText("Tap: " + juce::String(gemTapScale, 2), juce::dontSendNotification);
+    setupScrollLabel(gemHopoBaseScaleLabel);
+    gemHopoBaseScaleLabel.onScroll = [this](int delta) {
+        gemHopoBaseScale = juce::jlimit(0.30f, 2.00f, gemHopoBaseScale + delta * 0.01f);
+        gemHopoBaseScaleLabel.setText("HOPO Base: " + juce::String(gemHopoBaseScale, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(gemTapOverlayScaleLabel);
+    gemTapOverlayScaleLabel.onScroll = [this](int delta) {
+        gemTapOverlayScale = juce::jlimit(0.30f, 2.00f, gemTapOverlayScale + delta * 0.01f);
+        gemTapOverlayScaleLabel.setText("Tap Ovr: " + juce::String(gemTapOverlayScale, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(gemGhostOverlayScaleLabel);
+    gemGhostOverlayScaleLabel.onScroll = [this](int delta) {
+        gemGhostOverlayScale = juce::jlimit(0.30f, 2.00f, gemGhostOverlayScale + delta * 0.01f);
+        gemGhostOverlayScaleLabel.setText("Ghost Ovr: " + juce::String(gemGhostOverlayScale, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(gemAccentOverlayScaleLabel);
+    gemAccentOverlayScaleLabel.onScroll = [this](int delta) {
+        gemAccentOverlayScale = juce::jlimit(0.30f, 2.00f, gemAccentOverlayScale + delta * 0.01f);
+        gemAccentOverlayScaleLabel.setText("Accent Ovr: " + juce::String(gemAccentOverlayScale, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(gemNoteBaseScaleLabel);
+    gemNoteBaseScaleLabel.onScroll = [this](int delta) {
+        gemNoteBaseScale = juce::jlimit(0.30f, 2.00f, gemNoteBaseScale + delta * 0.01f);
+        gemNoteBaseScaleLabel.setText("Note Base: " + juce::String(gemNoteBaseScale, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(gemCymScaleLabel);
+    gemCymScaleLabel.onScroll = [this](int delta) {
+        gemCymScale = juce::jlimit(0.30f, 2.00f, gemCymScale + delta * 0.01f);
+        gemCymScaleLabel.setText("Cym: " + juce::String(gemCymScale, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(gemCymBaseScaleLabel);
+    gemCymBaseScaleLabel.onScroll = [this](int delta) {
+        gemCymBaseScale = juce::jlimit(0.30f, 2.00f, gemCymBaseScale + delta * 0.01f);
+        gemCymBaseScaleLabel.setText("Cym Base: " + juce::String(gemCymBaseScale, 2), juce::dontSendNotification);
         fireChanged();
     };
 
@@ -421,10 +456,15 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&gemHLabel);
     tuningButton.addPanelChild(&barWLabel);
     tuningButton.addPanelChild(&barHLabel);
-    tuningButton.addPanelChild(&gemGhostScaleLabel);
-    tuningButton.addPanelChild(&gemAccentScaleLabel);
+    tuningButton.addPanelChild(&gemNoteScaleLabel);
     tuningButton.addPanelChild(&gemHopoScaleLabel);
-    tuningButton.addPanelChild(&gemTapScaleLabel);
+    tuningButton.addPanelChild(&gemHopoBaseScaleLabel);
+    tuningButton.addPanelChild(&gemTapOverlayScaleLabel);
+    tuningButton.addPanelChild(&gemGhostOverlayScaleLabel);
+    tuningButton.addPanelChild(&gemAccentOverlayScaleLabel);
+    tuningButton.addPanelChild(&gemNoteBaseScaleLabel);
+    tuningButton.addPanelChild(&gemCymScaleLabel);
+    tuningButton.addPanelChild(&gemCymBaseScaleLabel);
     tuningButton.addPanelChild(&gemSpScaleLabel);
 
     tuningButton.addPanelChild(&hitScaleHeader);
@@ -522,10 +562,15 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
     sr.hitSpScale = hitSpScale;
     sr.spWhiteFlare = spWhiteFlare;
     sr.tapPurpleFlare = tapPurpleFlare;
-    sr.gemGhostScale = gemGhostScale;
-    sr.gemAccentScale = gemAccentScale;
+    sr.gemNoteScale = gemNoteScale;
     sr.gemHopoScale = gemHopoScale;
-    sr.gemTapScale = gemTapScale;
+    sr.gemHopoBaseScale = gemHopoBaseScale;
+    sr.gemTapOverlayScale = gemTapOverlayScale;
+    sr.gemGhostOverlayScale = gemGhostOverlayScale;
+    sr.gemAccentOverlayScale = gemAccentOverlayScale;
+    sr.gemNoteBaseScale = gemNoteBaseScale;
+    sr.gemCymScale = gemCymScale;
+    sr.gemCymBaseScale = gemCymBaseScale;
     sr.gemSpScale = gemSpScale;
 
     sr.gridZOffsetGuitar = gGridZ;
@@ -640,10 +685,15 @@ void DebugTuningPanel::refreshLabels()
     hitSpScaleLabel.setText("SP: " + juce::String(hitSpScale, 2), juce::dontSendNotification);
     spWhiteFlareLabel.setText(juce::String("SP White: ") + (spWhiteFlare ? "ON" : "OFF"), juce::dontSendNotification);
     tapPurpleFlareLabel.setText(juce::String("Tap Purple:") + (tapPurpleFlare ? "ON" : "OFF"), juce::dontSendNotification);
-    gemGhostScaleLabel.setText("Ghost: " + juce::String(gemGhostScale, 2), juce::dontSendNotification);
-    gemAccentScaleLabel.setText("Accent: " + juce::String(gemAccentScale, 2), juce::dontSendNotification);
+    gemNoteScaleLabel.setText("Note: " + juce::String(gemNoteScale, 2), juce::dontSendNotification);
     gemHopoScaleLabel.setText("HOPO: " + juce::String(gemHopoScale, 2), juce::dontSendNotification);
-    gemTapScaleLabel.setText("Tap: " + juce::String(gemTapScale, 2), juce::dontSendNotification);
+    gemHopoBaseScaleLabel.setText("HOPO Base: " + juce::String(gemHopoBaseScale, 2), juce::dontSendNotification);
+    gemTapOverlayScaleLabel.setText("Tap Ovr: " + juce::String(gemTapOverlayScale, 2), juce::dontSendNotification);
+    gemGhostOverlayScaleLabel.setText("Ghost Ovr: " + juce::String(gemGhostOverlayScale, 2), juce::dontSendNotification);
+    gemAccentOverlayScaleLabel.setText("Accent Ovr: " + juce::String(gemAccentOverlayScale, 2), juce::dontSendNotification);
+    gemNoteBaseScaleLabel.setText("Note Base: " + juce::String(gemNoteBaseScale, 2), juce::dontSendNotification);
+    gemCymScaleLabel.setText("Cym: " + juce::String(gemCymScale, 2), juce::dontSendNotification);
+    gemCymBaseScaleLabel.setText("Cym Base: " + juce::String(gemCymBaseScale, 2), juce::dontSendNotification);
     gemSpScaleLabel.setText("SP: " + juce::String(gemSpScale, 2), juce::dontSendNotification);
 
     gGridZLabel.setText("Grid: " + juce::String(gGridZ, 1), juce::dontSendNotification);
@@ -760,10 +810,15 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     layoutRow(gemHLabel, gemScaleHeader.expanded);
     layoutRow(barWLabel, gemScaleHeader.expanded);
     layoutRow(barHLabel, gemScaleHeader.expanded);
-    layoutRow(gemGhostScaleLabel, gemScaleHeader.expanded);
-    layoutRow(gemAccentScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemNoteScaleLabel, gemScaleHeader.expanded);
     layoutRow(gemHopoScaleLabel, gemScaleHeader.expanded);
-    layoutRow(gemTapScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemHopoBaseScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemTapOverlayScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemGhostOverlayScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemAccentOverlayScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemNoteBaseScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemCymScaleLabel, gemScaleHeader.expanded);
+    layoutRow(gemCymBaseScaleLabel, gemScaleHeader.expanded);
     layoutRow(gemSpScaleLabel, gemScaleHeader.expanded);
     y += headerGap;
 

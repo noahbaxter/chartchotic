@@ -234,10 +234,18 @@ namespace PositionConstants
 
     //==============================================================================
     // Gem dynamic scales (per gem type, applied in NoteRenderer)
-    constexpr float GEM_GHOST_SCALE = 1.0f;             // Drum ghost gems
-    constexpr float GEM_ACCENT_SCALE = 1.0f;            // Drum accent gems
-    constexpr float GEM_HOPO_SCALE = 1.05f;             // Guitar HOPO gems
-    constexpr float GEM_TAP_SCALE = 0.90f;              // Guitar tap gems (overlay is wider than HOPO art)
+    // Base scales — applied to the glyph image
+    constexpr float GEM_NOTE_SCALE = 1.0f;              // Regular notes (both instruments)
+    constexpr float GEM_HOPO_SCALE = 1.05f;             // Guitar HOPO (standalone, no overlay)
+    constexpr float GEM_HOPO_BASE_SCALE = 1.0f;         // Guitar HOPO base under tap overlay
+    constexpr float GEM_NOTE_BASE_SCALE = 1.0f;         // Drum note base under ghost/accent overlay
+    constexpr float GEM_CYM_SCALE = 1.0f;               // Drum cymbal (standalone, no overlay)
+    constexpr float GEM_CYM_BASE_SCALE = 1.0f;          // Drum cymbal base under ghost/accent overlay
+    // Overlay scales — applied to the overlay image only
+    constexpr float GEM_TAP_OVERLAY_SCALE = 0.90f;      // Guitar tap overlay
+    constexpr float GEM_GHOST_OVERLAY_SCALE = 1.0f;     // Drum ghost overlay
+    constexpr float GEM_ACCENT_OVERLAY_SCALE = 1.0f;    // Drum accent overlay
+    // Universal multiplier
     constexpr float GEM_SP_SCALE = 1.0f;                // Star power gems
 
     //==============================================================================

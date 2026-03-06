@@ -78,10 +78,15 @@ class SceneRenderer
         bool tapPurpleFlare = TAP_PURPLE_FLARE_DEFAULT;
 
         // Gem dynamic scales
-        float gemGhostScale = PositionConstants::GEM_GHOST_SCALE;
-        float gemAccentScale = PositionConstants::GEM_ACCENT_SCALE;
+        float gemNoteScale = PositionConstants::GEM_NOTE_SCALE;
         float gemHopoScale = PositionConstants::GEM_HOPO_SCALE;
-        float gemTapScale = PositionConstants::GEM_TAP_SCALE;
+        float gemHopoBaseScale = PositionConstants::GEM_HOPO_BASE_SCALE;
+        float gemTapOverlayScale = PositionConstants::GEM_TAP_OVERLAY_SCALE;
+        float gemGhostOverlayScale = PositionConstants::GEM_GHOST_OVERLAY_SCALE;
+        float gemAccentOverlayScale = PositionConstants::GEM_ACCENT_OVERLAY_SCALE;
+        float gemNoteBaseScale = PositionConstants::GEM_NOTE_BASE_SCALE;
+        float gemCymScale = PositionConstants::GEM_CYM_SCALE;
+        float gemCymBaseScale = PositionConstants::GEM_CYM_BASE_SCALE;
         float gemSpScale = PositionConstants::GEM_SP_SCALE;
 
         // Per-instrument Z offsets (guitar)

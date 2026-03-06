@@ -143,23 +143,43 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float curvature = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
 
     // Debug scale factors (separate note vs bar)
-    float wScale = barNote ? barWidthScale : gemWidthScale;
-    float hScale = barNote ? barHeightScale : gemHeightScale;
+    float baseW = barNote ? barWidthScale : gemWidthScale;
+    float baseH = barNote ? barHeightScale : gemHeightScale;
 
-    // Per-gem-type dynamic scale
-    float gemDynScale = 1.0f;
-    if (gemWrapper.gem == Gem::HOPO_GHOST)
-        gemDynScale = !isDrums ? gemHopoScale : gemGhostScale;
-    else if (gemWrapper.gem == Gem::CYM_GHOST)
-        gemDynScale = gemGhostScale;
-    else if (gemWrapper.gem == Gem::TAP_ACCENT)
-        gemDynScale = !isDrums ? gemTapScale : gemAccentScale;
-    else if (gemWrapper.gem == Gem::CYM_ACCENT)
-        gemDynScale = gemAccentScale;
-    if (gemWrapper.starPower && std::abs(gemSpScale - 1.0f) > 0.001f)
-        gemDynScale *= gemSpScale;
-    wScale *= gemDynScale;
-    hScale *= gemDynScale;
+    // Per-gem-type dynamic scales (base image vs overlay, independently)
+    float baseScale = 1.0f;
+    float overlayDynScale = 1.0f;
+    bool hasOverlay = false;
+
+    if (!isDrums)
+    {
+        // Guitar
+        switch (gemWrapper.gem) {
+        case Gem::NOTE:        baseScale = gemNoteScale; break;
+        case Gem::HOPO_GHOST:  baseScale = gemHopoScale; break;
+        case Gem::TAP_ACCENT:  baseScale = gemHopoBaseScale; overlayDynScale = gemTapOverlayScale; hasOverlay = true; break;
+        default: break;
+        }
+    }
+    else
+    {
+        // Drums
+        switch (gemWrapper.gem) {
+        case Gem::NOTE:        baseScale = gemNoteScale; break;
+        case Gem::HOPO_GHOST:  baseScale = gemNoteBaseScale; overlayDynScale = gemGhostOverlayScale; hasOverlay = true; break;
+        case Gem::TAP_ACCENT:  baseScale = gemNoteBaseScale; overlayDynScale = gemAccentOverlayScale; hasOverlay = true; break;
+        case Gem::CYM:         baseScale = gemCymScale; break;
+        case Gem::CYM_GHOST:   baseScale = gemCymBaseScale; overlayDynScale = gemGhostOverlayScale; hasOverlay = true; break;
+        case Gem::CYM_ACCENT:  baseScale = gemCymBaseScale; overlayDynScale = gemAccentOverlayScale; hasOverlay = true; break;
+        default: break;
+        }
+    }
+
+    float spMul = (gemWrapper.starPower && std::abs(gemSpScale - 1.0f) > 0.001f) ? gemSpScale : 1.0f;
+    float wScale = baseW * baseScale * spMul;
+    float hScale = baseH * baseScale * spMul;
+    float oWScale = baseW * overlayDynScale * spMul;
+    float oHScale = baseH * overlayDynScale * spMul;
 
     // Per-column Z offset (screen pixels at strikeline, scaled by perspective)
     float zOff = barNote ? barZOffset : gemZOffset;
@@ -260,7 +280,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     juce::Image* overlayImage = assetManager.getOverlayImage(gemWrapper.gem, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS);
     if (overlayImage != nullptr)
     {
-        bool isDrumAccent = !isDrums && gemWrapper.gem == Gem::TAP_ACCENT;
+        bool isDrumAccent = isDrums && (gemWrapper.gem == Gem::TAP_ACCENT || gemWrapper.gem == Gem::CYM_ACCENT);
         juce::Rectangle<float> overlayRect = getOverlayGlyphRect(glyphRect, isDrumAccent);
 
         if (curvature != 0.0f)
@@ -276,7 +296,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
                             + arcOffset;
             auto curvedOverlayRect = juce::Rectangle<float>(overlayRect.getX(), curvedY,
                                                              overlayRect.getWidth(), curvedH);
-            curvedOverlayRect = scaleRect(curvedOverlayRect, wScale, hScale, zOff);
+            curvedOverlayRect = scaleRect(curvedOverlayRect, oWScale, oHScale, zOff);
 
             (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([curvedOverlayPtr, opacity, curvedOverlayRect](juce::Graphics& g) {
                 g.setOpacity(opacity);
@@ -285,7 +305,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         }
         else
         {
-            auto drawRect = scaleRect(overlayRect, wScale, hScale, zOff);
+            auto drawRect = scaleRect(overlayRect, oWScale, oHScale, zOff);
 
             (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([=](juce::Graphics& g) {
                 g.setOpacity(opacity);
