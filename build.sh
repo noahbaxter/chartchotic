@@ -13,6 +13,7 @@
 #   ./build.sh --standalone     Build Standalone app (skips VST3+AU unless specified)
 #
 # Debug builds check the DEV update channel, Release builds check RELEASE channel.
+# Uses Ninja generator + native arch only for fast incremental builds.
 
 set -e
 
@@ -80,25 +81,37 @@ if [ "$BUILD_STANDALONE" = true ]; then
     killall -9 "Chart Preview" 2>/dev/null || true
 fi
 
-# Configure CMake (Xcode generator for macOS)
-echo ""
-echo "Configuring CMake..."
-cmake -B "$BUILD_DIR" -G Xcode \
-    -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
-    -DBUILD_CHANNEL="$BUILD_CHANNEL" \
-    -S "$SCRIPT_DIR"
+# Ninja is single-config: build type is set at configure time, so each config
+# gets its own build directory. Reconfigure only when the cache is missing or
+# the build type changed.
+NINJA_BUILD_DIR="$BUILD_DIR/$BUILD_CONFIG"
+NEEDS_CONFIGURE=false
+if [ ! -f "$NINJA_BUILD_DIR/CMakeCache.txt" ]; then
+    NEEDS_CONFIGURE=true
+elif ! grep -q "CMAKE_BUILD_TYPE:STRING=$BUILD_CONFIG" "$NINJA_BUILD_DIR/CMakeCache.txt" 2>/dev/null; then
+    NEEDS_CONFIGURE=true
+fi
+
+if [ "$NEEDS_CONFIGURE" = true ]; then
+    echo ""
+    echo "Configuring CMake (Ninja, $BUILD_CONFIG)..."
+    cmake -B "$NINJA_BUILD_DIR" -G Ninja \
+        -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
+        -DCMAKE_OSX_ARCHITECTURES="arm64" \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
+        -DBUILD_CHANNEL="$BUILD_CHANNEL" \
+        -S "$SCRIPT_DIR"
+fi
 
 # Ensure user data directories exist
 mkdir -p "$HOME/Library/Application Support/Chart Preview/highways"
 
-# Build targets
-ARTIFACT_DIR="$BUILD_DIR/ChartPreview_artefacts/$BUILD_CONFIG"
+ARTIFACT_DIR="$NINJA_BUILD_DIR/ChartPreview_artefacts/$BUILD_CONFIG"
 
 if [ "$BUILD_VST3" = true ]; then
     echo ""
     echo "Building VST3..."
-    cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target ChartPreview_VST3 -- -quiet
+    cmake --build "$NINJA_BUILD_DIR" --target ChartPreview_VST3
 
     VST3_PATH="$ARTIFACT_DIR/VST3/Chart Preview.vst3"
     if [ -d "$VST3_PATH" ]; then
@@ -115,7 +128,7 @@ fi
 if [ "$BUILD_AU" = true ]; then
     echo ""
     echo "Building AU..."
-    cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target ChartPreview_AU -- -quiet
+    cmake --build "$NINJA_BUILD_DIR" --target ChartPreview_AU
 
     AU_PATH="$ARTIFACT_DIR/AU/Chart Preview.component"
     if [ -d "$AU_PATH" ]; then
@@ -132,7 +145,7 @@ fi
 if [ "$BUILD_STANDALONE" = true ]; then
     echo ""
     echo "Building Standalone..."
-    cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target ChartPreview_Standalone -- -quiet
+    cmake --build "$NINJA_BUILD_DIR" --target ChartPreview_Standalone
 
     APP_PATH="$ARTIFACT_DIR/Standalone/Chart Preview.app"
     if [ -d "$APP_PATH" ]; then
