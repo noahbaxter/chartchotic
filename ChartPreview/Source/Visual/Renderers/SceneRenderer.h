@@ -42,6 +42,8 @@ class SceneRenderer
         bool showSustains = true;
         bool showLanes = true;
         bool showGridlines = true;
+        bool showTrack = true;
+        bool showStrikeline = true;
 
         bool collectPhaseTiming = false;
         PhaseTiming lastPhaseTiming;

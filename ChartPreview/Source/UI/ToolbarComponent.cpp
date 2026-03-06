@@ -150,6 +150,14 @@ void ToolbarComponent::initChartPanel()
         if (onHitIndicatorsChanged) onHitIndicatorsChanged(hitIndicatorsToggle.getToggleState());
     };
 
+    trackToggle.onClick = [this]() {
+        if (onTrackChanged) onTrackChanged(trackToggle.getToggleState());
+    };
+
+    strikelineToggle.onClick = [this]() {
+        if (onStrikelineChanged) onStrikelineChanged(strikelineToggle.getToggleState());
+    };
+
     // Register all children
     chartButton.addPanelChild(&modifiersHeader);
     chartButton.addPanelChild(&starPowerToggle);
@@ -165,6 +173,8 @@ void ToolbarComponent::initChartPanel()
     chartButton.addPanelChild(&lanesToggle);
     chartButton.addPanelChild(&gridlinesToggle);
     chartButton.addPanelChild(&hitIndicatorsToggle);
+    chartButton.addPanelChild(&trackToggle);
+    chartButton.addPanelChild(&strikelineToggle);
     chartButton.setPanelSize(175, 300);
     chartButton.onLayoutPanel = [this](juce::Component* panel) { layoutChartPanel(panel); };
     addAndMakeVisible(chartButton);
@@ -422,6 +432,8 @@ void ToolbarComponent::loadState()
     starPowerToggle.setToggleState(!state.hasProperty("starPower") || (bool)state["starPower"]);
     gridlinesToggle.setToggleState(!state.hasProperty("showGridlines") || (bool)state["showGridlines"]);
     hitIndicatorsToggle.setToggleState(!state.hasProperty("hitIndicators") || (bool)state["hitIndicators"]);
+    trackToggle.setToggleState(!state.hasProperty("showTrack") || (bool)state["showTrack"]);
+    strikelineToggle.setToggleState(!state.hasProperty("showStrikeline") || (bool)state["showStrikeline"]);
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     // Background
@@ -588,6 +600,10 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 
     gridlinesToggle.setBounds(margin, y, pillW, pillH);
     hitIndicatorsToggle.setBounds(margin + col2, y, pillW, pillH);
+    y += pillH + gap;
+
+    trackToggle.setBounds(margin, y, pillW, pillH);
+    strikelineToggle.setBounds(margin + col2, y, pillW, pillH);
     y += pillH;
 
     panel->setSize(panel->getWidth(), y + margin);

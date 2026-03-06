@@ -32,7 +32,8 @@ public:
 
         if (on)
         {
-            g.setColour(juce::Colour(Theme::coral));
+            g.setColour(hovering ? juce::Colour(Theme::coral).brighter(0.15f)
+                                 : juce::Colour(Theme::coral));
             g.fillRoundedRectangle(bounds, cornerSize);
             g.setColour(juce::Colours::white);
         }

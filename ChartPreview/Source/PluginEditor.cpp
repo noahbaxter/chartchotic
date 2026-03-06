@@ -238,6 +238,18 @@ void ChartPreviewAudioProcessorEditor::initToolbarCallbacks()
         audioProcessor.refreshMidiDisplay();
     };
 
+    toolbar.onTrackChanged = [this](bool on) {
+        state.setProperty("showTrack", on ? 1 : 0, nullptr);
+        sceneRenderer.showTrack = on;
+        repaint();
+    };
+
+    toolbar.onStrikelineChanged = [this](bool on) {
+        state.setProperty("showStrikeline", on ? 1 : 0, nullptr);
+        sceneRenderer.showStrikeline = on;
+        repaint();
+    };
+
     toolbar.onNoteSpeedChanged = [this](int speed) {
         state.setProperty("noteSpeed", speed, nullptr);
         updateDisplaySizeFromSpeedSlider();
@@ -663,6 +675,8 @@ void ChartPreviewAudioProcessorEditor::loadState()
     sceneRenderer.showSustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
     sceneRenderer.showLanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
     sceneRenderer.showGridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
+    sceneRenderer.showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
+    sceneRenderer.showStrikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
 
     // Restore highway length
     if (state.hasProperty("highwayLength"))

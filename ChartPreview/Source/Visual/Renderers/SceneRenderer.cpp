@@ -149,9 +149,17 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     // Inject registered image overlays into drawCallMap
     for (auto& kv : overlays)
     {
+        auto order = kv.first;
         auto* img = kv.second;
-        if (img && img->isValid())
-            drawCallMap[static_cast<int>(kv.first)][0].push_back([img](juce::Graphics& g) { g.setOpacity(1.0f); g.drawImageAt(*img, 0, 0); });
+        if (!img || !img->isValid()) continue;
+
+        // Skip track/strikeline overlays when toggled off
+        if (!showTrack && (order == DrawOrder::TRACK_SIDEBARS || order == DrawOrder::TRACK_LANE_LINES || order == DrawOrder::TRACK_CONNECTORS))
+            continue;
+        if (!showStrikeline && order == DrawOrder::TRACK_STRIKELINE)
+            continue;
+
+        drawCallMap[static_cast<int>(order)][0].push_back([img](juce::Graphics& g) { g.setOpacity(1.0f); g.drawImageAt(*img, 0, 0); });
     }
 
     // Draw layer by layer, then column by column within each layer
