@@ -207,11 +207,10 @@ private:
         auto* topLevel = getTopLevelComponent();
         if (topLevel == nullptr) return;
 
-        auto btnBottomRight = topLevel->getLocalPoint(this, juce::Point<int>(getWidth(), getHeight() + panelAnchorYOffset));
-        int panelX = btnBottomRight.x - panel->getWidth();
-        int panelY = btnBottomRight.y + 6;
+        auto btnBottom = topLevel->getLocalPoint(this, juce::Point<int>(0, getHeight() + panelAnchorYOffset));
+        int panelX = topLevel->getWidth() - panel->getWidth();
+        int panelY = btnBottom.y + 6;
 
-        panelX = juce::jmax(0, juce::jmin(panelX, topLevel->getWidth() - panel->getWidth()));
         panelY = juce::jmin(panelY, topLevel->getHeight() - panel->getHeight());
 
         panel->setTopLeftPosition(panelX, panelY);
