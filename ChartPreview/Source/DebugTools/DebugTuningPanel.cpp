@@ -280,8 +280,83 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         };
     }
 
+    // --- Guitar Lanes section ---
+    setupSectionHeader(guitarLanesHeader, "Guitar Lanes");
+    std::copy_n(PositionConstants::guitarBezierLaneCoords, GUITAR_LANES, guitarLaneCoords);
+
+    for (int i = 0; i < GUITAR_LANES; i++)
+    {
+        juce::String name(guitarLaneNames[i]);
+
+        setupScrollLabel(gLaneXLabels[i]);
+        gLaneXLabels[i].onScroll = [this, i, name](int delta) {
+            guitarLaneCoords[i].normX1 = juce::jlimit(0.0f, 1.0f, guitarLaneCoords[i].normX1 + delta * 0.001f);
+            gLaneXLabels[i].setText(name + " X1:" + juce::String(guitarLaneCoords[i].normX1, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+
+        setupScrollLabel(gLaneX2Labels[i]);
+        gLaneX2Labels[i].onScroll = [this, i, name](int delta) {
+            guitarLaneCoords[i].normX2 = juce::jlimit(0.0f, 1.0f, guitarLaneCoords[i].normX2 + delta * 0.001f);
+            gLaneX2Labels[i].setText(name + " X2:" + juce::String(guitarLaneCoords[i].normX2, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+
+        setupScrollLabel(gLaneWLabels[i]);
+        gLaneWLabels[i].onScroll = [this, i, name](int delta) {
+            guitarLaneCoords[i].normWidth1 = juce::jlimit(0.0f, 1.0f, guitarLaneCoords[i].normWidth1 + delta * 0.001f);
+            gLaneWLabels[i].setText(name + " W1:" + juce::String(guitarLaneCoords[i].normWidth1, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+
+        setupScrollLabel(gLaneW2Labels[i]);
+        gLaneW2Labels[i].onScroll = [this, i, name](int delta) {
+            guitarLaneCoords[i].normWidth2 = juce::jlimit(0.0f, 1.0f, guitarLaneCoords[i].normWidth2 + delta * 0.001f);
+            gLaneW2Labels[i].setText(name + " W2:" + juce::String(guitarLaneCoords[i].normWidth2, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+    }
+
+    // --- Drum Lanes section ---
+    setupSectionHeader(drumLanesHeader, "Drum Lanes");
+    std::copy_n(PositionConstants::drumBezierLaneCoords, DRUM_LANES, drumLaneCoords);
+
+    for (int i = 0; i < DRUM_LANES; i++)
+    {
+        juce::String name(drumLaneNames[i]);
+
+        setupScrollLabel(dLaneXLabels[i]);
+        dLaneXLabels[i].onScroll = [this, i, name](int delta) {
+            drumLaneCoords[i].normX1 = juce::jlimit(0.0f, 1.0f, drumLaneCoords[i].normX1 + delta * 0.001f);
+            dLaneXLabels[i].setText(name + " X1:" + juce::String(drumLaneCoords[i].normX1, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+
+        setupScrollLabel(dLaneX2Labels[i]);
+        dLaneX2Labels[i].onScroll = [this, i, name](int delta) {
+            drumLaneCoords[i].normX2 = juce::jlimit(0.0f, 1.0f, drumLaneCoords[i].normX2 + delta * 0.001f);
+            dLaneX2Labels[i].setText(name + " X2:" + juce::String(drumLaneCoords[i].normX2, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+
+        setupScrollLabel(dLaneWLabels[i]);
+        dLaneWLabels[i].onScroll = [this, i, name](int delta) {
+            drumLaneCoords[i].normWidth1 = juce::jlimit(0.0f, 1.0f, drumLaneCoords[i].normWidth1 + delta * 0.001f);
+            dLaneWLabels[i].setText(name + " W1:" + juce::String(drumLaneCoords[i].normWidth1, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+
+        setupScrollLabel(dLaneW2Labels[i]);
+        dLaneW2Labels[i].onScroll = [this, i, name](int delta) {
+            drumLaneCoords[i].normWidth2 = juce::jlimit(0.0f, 1.0f, drumLaneCoords[i].normWidth2 + delta * 0.001f);
+            dLaneW2Labels[i].setText(name + " W2:" + juce::String(drumLaneCoords[i].normWidth2, 3), juce::dontSendNotification);
+            fireLaneChanged();
+        };
+    }
+
     refreshLabels();
     refreshLayerLabels();
+    refreshLaneLabels();
 
     // Register panel children — layers + tiling first
     tuningButton.addPanelChild(&layersHeader);
@@ -347,6 +422,24 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     for (int i = 0; i < 5; i++)
         tuningButton.addPanelChild(&drumColLabels[i]);
 
+    tuningButton.addPanelChild(&guitarLanesHeader);
+    for (int i = 0; i < GUITAR_LANES; i++)
+    {
+        tuningButton.addPanelChild(&gLaneXLabels[i]);
+        tuningButton.addPanelChild(&gLaneX2Labels[i]);
+        tuningButton.addPanelChild(&gLaneWLabels[i]);
+        tuningButton.addPanelChild(&gLaneW2Labels[i]);
+    }
+
+    tuningButton.addPanelChild(&drumLanesHeader);
+    for (int i = 0; i < DRUM_LANES; i++)
+    {
+        tuningButton.addPanelChild(&dLaneXLabels[i]);
+        tuningButton.addPanelChild(&dLaneX2Labels[i]);
+        tuningButton.addPanelChild(&dLaneWLabels[i]);
+        tuningButton.addPanelChild(&dLaneW2Labels[i]);
+    }
+
     tuningButton.setPanelSize(170, 200);
     tuningButton.onLayoutPanel = [this](juce::Component* panel) { layoutPanel(panel); };
 }
@@ -400,6 +493,9 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
     sr.strikePosBarDrums = dStrikePosBar;
 
     std::copy(std::begin(drumZ), std::end(drumZ), sr.drumColZOffsets);
+
+    std::copy_n(guitarLaneCoords, GUITAR_LANES, sr.guitarLaneCoordsLocal);
+    std::copy_n(drumLaneCoords, DRUM_LANES, sr.drumLaneCoordsLocal);
 }
 
 void DebugTuningPanel::initDefaults(const TrackRenderer& trackRenderer)
@@ -434,6 +530,31 @@ void DebugTuningPanel::refreshLayerLabels()
     }
     tileStepLabel.setText("Step: " + juce::String(tileStepValue, 3), juce::dontSendNotification);
     tileScaleStepLabel.setText("Scale: " + juce::String(tileScaleStepValue, 3), juce::dontSendNotification);
+}
+
+void DebugTuningPanel::refreshLaneLabels()
+{
+    for (int i = 0; i < GUITAR_LANES; i++)
+    {
+        juce::String name(guitarLaneNames[i]);
+        gLaneXLabels[i].setText(name + " X1:" + juce::String(guitarLaneCoords[i].normX1, 3), juce::dontSendNotification);
+        gLaneX2Labels[i].setText(name + " X2:" + juce::String(guitarLaneCoords[i].normX2, 3), juce::dontSendNotification);
+        gLaneWLabels[i].setText(name + " W1:" + juce::String(guitarLaneCoords[i].normWidth1, 3), juce::dontSendNotification);
+        gLaneW2Labels[i].setText(name + " W2:" + juce::String(guitarLaneCoords[i].normWidth2, 3), juce::dontSendNotification);
+    }
+    for (int i = 0; i < DRUM_LANES; i++)
+    {
+        juce::String name(drumLaneNames[i]);
+        dLaneXLabels[i].setText(name + " X1:" + juce::String(drumLaneCoords[i].normX1, 3), juce::dontSendNotification);
+        dLaneX2Labels[i].setText(name + " X2:" + juce::String(drumLaneCoords[i].normX2, 3), juce::dontSendNotification);
+        dLaneWLabels[i].setText(name + " W1:" + juce::String(drumLaneCoords[i].normWidth1, 3), juce::dontSendNotification);
+        dLaneW2Labels[i].setText(name + " W2:" + juce::String(drumLaneCoords[i].normWidth2, 3), juce::dontSendNotification);
+    }
+}
+
+void DebugTuningPanel::fireLaneChanged()
+{
+    if (onLaneCoordsChanged) onLaneCoordsChanged();
 }
 
 void DebugTuningPanel::fireChanged()
@@ -623,6 +744,32 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     layoutRow(dStrikePosBarLabel, drumHeader.expanded);
     for (int i = 0; i < 5; i++)
         layoutRow(drumColLabels[i], drumHeader.expanded);
+    y += headerGap;
+
+    // Guitar Lanes
+    guitarLanesHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    for (int i = 0; i < GUITAR_LANES; i++)
+    {
+        layoutRow(gLaneXLabels[i], guitarLanesHeader.expanded);
+        layoutRow(gLaneX2Labels[i], guitarLanesHeader.expanded);
+        layoutRow(gLaneWLabels[i], guitarLanesHeader.expanded);
+        layoutRow(gLaneW2Labels[i], guitarLanesHeader.expanded);
+        if (guitarLanesHeader.expanded) y += headerGap;
+    }
+    y += headerGap;
+
+    // Drum Lanes
+    drumLanesHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    for (int i = 0; i < DRUM_LANES; i++)
+    {
+        layoutRow(dLaneXLabels[i], drumLanesHeader.expanded);
+        layoutRow(dLaneX2Labels[i], drumLanesHeader.expanded);
+        layoutRow(dLaneWLabels[i], drumLanesHeader.expanded);
+        layoutRow(dLaneW2Labels[i], drumLanesHeader.expanded);
+        if (drumLanesHeader.expanded) y += headerGap;
+    }
 
     panel->setSize(panel->getWidth(), y + margin);
 }

@@ -55,13 +55,13 @@ public:
 
     enum Layer { SIDEBARS = 0, LANE_LINES, STRIKELINE, CONNECTORS, NUM_LAYERS };
     LayerTransform layersGuitar[NUM_LAYERS] = {
-        {0.750f, 0.0f,     0.0f},      // SIDEBARS
+        {0.740f, 0.0f,     0.0f},      // SIDEBARS
         {0.450f, 0.0f,     0.0f},      // LANE_LINES
         {0.615f, 0.0f, -0.1825f},      // STRIKELINE
         {0.650f, 0.0f, -0.1960f}       // CONNECTORS
     };
     LayerTransform layersDrums[NUM_LAYERS] = {
-        {0.745f, 0.0f,     0.0f},      // SIDEBARS
+        {0.740f, 0.0f,     0.0f},      // SIDEBARS
         {0.350f, 0.0f,     0.0f},      // LANE_LINES
         {0.585f, 0.0f, -0.1815f},      // STRIKELINE
         {0.660f, 0.0f, -0.1600f}       // CONNECTORS

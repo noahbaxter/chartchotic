@@ -83,6 +83,14 @@ public:
     // Per-column Z offsets (drums only)
     float drumZ[5] = {};
 
+    // Per-lane coordinates (mutable copies of BezierLaneCoords)
+    static constexpr int GUITAR_LANES = 6;
+    static constexpr int DRUM_LANES = 5;
+    PositionConstants::NormalizedCoordinates guitarLaneCoords[GUITAR_LANES];
+    PositionConstants::NormalizedCoordinates drumLaneCoords[DRUM_LANES];
+
+    std::function<void()> onLaneCoordsChanged;
+
 private:
     juce::ValueTree& state;
     PopupMenuButton tuningButton{"Tuning"};
@@ -96,6 +104,21 @@ private:
             int delta = (wheel.deltaY > 0) ? 1 : -1;
             if (onScroll) onScroll(delta);
         }
+        void mouseDown(const juce::MouseEvent& e) override { lastDragY = e.y; }
+        void mouseDrag(const juce::MouseEvent& e) override
+        {
+            int diff = lastDragY - e.y;
+            int steps = diff / dragPixelsPerStep;
+            if (steps != 0 && onScroll)
+            {
+                for (int i = 0; i < std::abs(steps); i++)
+                    onScroll(steps > 0 ? 1 : -1);
+                lastDragY -= steps * dragPixelsPerStep;
+            }
+        }
+    private:
+        int lastDragY = 0;
+        static constexpr int dragPixelsPerStep = 3;
     };
 
     // --- Layers section (moved from DebugToolbarPanel) ---
@@ -150,6 +173,25 @@ private:
     ScrollableLabel dGridZLabel, dGemZLabel, dBarZLabel, dHitGemZLabel, dHitBarZLabel;
     ScrollableLabel dStrikePosGemLabel, dStrikePosBarLabel;
     ScrollableLabel drumColLabels[5];
+
+    // --- Guitar Lanes section ---
+    SectionHeader guitarLanesHeader;
+    static constexpr const char* guitarLaneNames[GUITAR_LANES] = {"Open", "Grn", "Red", "Yel", "Blu", "Org"};
+    ScrollableLabel gLaneXLabels[GUITAR_LANES];
+    ScrollableLabel gLaneX2Labels[GUITAR_LANES];
+    ScrollableLabel gLaneWLabels[GUITAR_LANES];
+    ScrollableLabel gLaneW2Labels[GUITAR_LANES];
+
+    // --- Drum Lanes section ---
+    SectionHeader drumLanesHeader;
+    static constexpr const char* drumLaneNames[DRUM_LANES] = {"Kick", "Red", "Yel", "Blu", "Grn"};
+    ScrollableLabel dLaneXLabels[DRUM_LANES];
+    ScrollableLabel dLaneX2Labels[DRUM_LANES];
+    ScrollableLabel dLaneWLabels[DRUM_LANES];
+    ScrollableLabel dLaneW2Labels[DRUM_LANES];
+
+    void refreshLaneLabels();
+    void fireLaneChanged();
 
     void setupSectionHeader(SectionHeader& header, const juce::String& text);
     void setupScrollLabel(ScrollableLabel& label);
