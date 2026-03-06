@@ -27,8 +27,6 @@ public:
     juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
     juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
-    juce::Image* getSustainImage(uint gemColumn, bool starPowerActive);
-
     juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);
 
     // Bar/Open notes
@@ -80,15 +78,9 @@ public:
     juce::Image* getOverlayNoteGhostImage() { return &overlayNoteGhostImage; }
     juce::Image* getOverlayNoteTapImage() { return &overlayNoteTapImage; }
 
-    // Sustain graphics
-    juce::Image* getSustainBlueImage() { return &sustainBlueImage; }
-    juce::Image* getSustainGreenImage() { return &sustainGreenImage; }
+    // Sustain graphics (open only — colored sustains drawn flat by SustainRenderer)
     juce::Image* getSustainOpenWhiteImage() { return &sustainOpenWhiteImage; }
     juce::Image* getSustainOpenImage() { return &sustainOpenImage; }
-    juce::Image* getSustainOrangeImage() { return &sustainOrangeImage; }
-    juce::Image* getSustainRedImage() { return &sustainRedImage; }
-    juce::Image* getSustainWhiteImage() { return &sustainWhiteImage; }
-    juce::Image* getSustainYellowImage() { return &sustainYellowImage; }
 
     // Hit animation graphics
     juce::Image* getHitAnimationFrame(int frameNumber) {
@@ -170,15 +162,9 @@ private:
     juce::Image overlayNoteGhostImage;
     juce::Image overlayNoteTapImage;
 
-    // Sustain graphics
-    juce::Image sustainBlueImage;
-    juce::Image sustainGreenImage;
+    // Sustain graphics (open only)
     juce::Image sustainOpenWhiteImage;
     juce::Image sustainOpenImage;
-    juce::Image sustainOrangeImage;
-    juce::Image sustainRedImage;
-    juce::Image sustainWhiteImage;
-    juce::Image sustainYellowImage;
 
     // Hit animation graphics
     juce::Image hitAnimationFrames[5];   // hit_1.png through hit_5.png

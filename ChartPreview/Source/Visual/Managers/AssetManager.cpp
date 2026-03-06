@@ -61,14 +61,8 @@ void AssetManager::initAssets()
     overlayNoteGhostImage = juce::ImageCache::getFromMemory(BinaryData::overlay_note_ghost_png, BinaryData::overlay_note_ghost_pngSize);
     overlayNoteTapImage = juce::ImageCache::getFromMemory(BinaryData::overlay_note_tap_png, BinaryData::overlay_note_tap_pngSize);
 
-    sustainBlueImage = juce::ImageCache::getFromMemory(BinaryData::sustain_blue_png, BinaryData::sustain_blue_pngSize);
-    sustainGreenImage = juce::ImageCache::getFromMemory(BinaryData::sustain_green_png, BinaryData::sustain_green_pngSize);
     sustainOpenWhiteImage = juce::ImageCache::getFromMemory(BinaryData::sustain_open_white_png, BinaryData::sustain_open_white_pngSize);
     sustainOpenImage = juce::ImageCache::getFromMemory(BinaryData::sustain_open_png, BinaryData::sustain_open_pngSize);
-    sustainOrangeImage = juce::ImageCache::getFromMemory(BinaryData::sustain_orange_png, BinaryData::sustain_orange_pngSize);
-    sustainRedImage = juce::ImageCache::getFromMemory(BinaryData::sustain_red_png, BinaryData::sustain_red_pngSize);
-    sustainWhiteImage = juce::ImageCache::getFromMemory(BinaryData::sustain_white_png, BinaryData::sustain_white_pngSize);
-    sustainYellowImage = juce::ImageCache::getFromMemory(BinaryData::sustain_yellow_png, BinaryData::sustain_yellow_pngSize);
 
     // Hit animation frames
     hitAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_1_png, BinaryData::hit_flash_1_pngSize);
@@ -319,37 +313,6 @@ juce::Image* AssetManager::getOverlayImage(Gem gem, Part part)
         case Gem::CYM_GHOST: return getOverlayCymGhostImage();
         case Gem::CYM_ACCENT: return getOverlayCymAccentImage();
         default: break;
-        }
-    }
-
-    return nullptr;
-}
-
-juce::Image* AssetManager::getSustainImage(uint gemColumn, bool starPowerActive)
-{
-    // Note: sustain color is determined by lane, not by gem type
-    // For star power sustains, return white; otherwise return the lane color
-    if (starPowerActive)
-    {
-        if (gemColumn == 0)
-        {
-            return getSustainOpenWhiteImage();
-        }
-        else
-        {
-            return getSustainWhiteImage();
-        }
-    }
-    else
-    {
-        switch (gemColumn)
-        {
-        case 0: return getSustainOpenImage();
-        case 1: return getSustainGreenImage();
-        case 2: return getSustainRedImage();
-        case 3: return getSustainYellowImage();
-        case 4: return getSustainBlueImage();
-        case 5: return getSustainOrangeImage();
         }
     }
 

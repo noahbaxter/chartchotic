@@ -172,15 +172,15 @@ target_sources(ChartPreview
 
 # Binary data (images + SVG)
 # Generated assets come from assets/generated/<category>/ (via convert_assets.sh)
-# Raster-only assets (no PDF source) come from assets/raster/
+# Static assets (no PDF source) come from assets/static/
 # MIDI test files come from assets/midi/
 juce_add_binary_data(ChartPreviewData
     NAMESPACE BinaryData
     SOURCES
         # UI / branding
-        assets/raster/background.png
-        assets/raster/background_red.jpg
-        assets/raster/logo-reaper.svg
+        assets/static/backgrounds/background.png
+        assets/static/backgrounds/background_red.jpg
+        assets/static/logo-reaper.svg
         # Notes (generated from PDFs)
         assets/generated/notes/note_blue.png
         assets/generated/notes/note_green.png
@@ -204,22 +204,16 @@ juce_add_binary_data(ChartPreviewData
         assets/generated/bars/bar_kick_2x.png
         assets/generated/bars/bar_open.png
         assets/generated/bars/bar_white.png
-        # Overlays (generated from PDFs + raster-only)
+        # Overlays (generated from PDFs + static)
         assets/generated/overlays/overlay_note_ghost.png
         assets/generated/overlays/overlay_cym_ghost.png
         assets/generated/overlays/overlay_note_tap.png
-        assets/raster/overlay_cym_accent.png
-        assets/raster/overlay_cym_ghost_80scale.png
-        assets/raster/overlay_note_accent.png
-        # Sustains (generated from PDFs + raster-only)
+        assets/static/overlays/overlay_cym_accent.png
+        assets/static/overlays/overlay_cym_ghost_80scale.png
+        assets/static/overlays/overlay_note_accent.png
+        # Sustains (generated from PDFs)
         assets/generated/sustains/sustain_open.png
         assets/generated/sustains/sustain_open_white.png
-        assets/raster/sustain_blue.png
-        assets/raster/sustain_green.png
-        assets/raster/sustain_orange.png
-        assets/raster/sustain_red.png
-        assets/raster/sustain_white.png
-        assets/raster/sustain_yellow.png
         # Markers (generated from PDFs)
         assets/generated/markers/marker_beat.png
         assets/generated/markers/marker_half_beat.png
@@ -228,9 +222,6 @@ juce_add_binary_data(ChartPreviewData
         assets/generated/lanes/lane_end.png
         assets/generated/lanes/lane_mid.png
         assets/generated/lanes/lane_start.png
-        # Track backgrounds (raster-only)
-        assets/raster/track_drum.png
-        assets/raster/track_guitar.png
         # Track layers (generated from PDFs)
         assets/generated/ui/sidebars.png
         assets/generated/ui/lane_lines_guitar.png
@@ -252,22 +243,22 @@ juce_add_binary_data(ChartPreviewData
         assets/generated/hits/hit_flash_3.png
         assets/generated/hits/hit_flash_4.png
         assets/generated/hits/hit_flash_5.png
-        # Hit animations — kick frames (raster-only)
-        assets/raster/hit_kick_1.png
-        assets/raster/hit_kick_2.png
-        assets/raster/hit_kick_3.png
-        assets/raster/hit_kick_4.png
-        assets/raster/hit_kick_5.png
-        assets/raster/hit_kick_6.png
-        assets/raster/hit_kick_7.png
-        # Hit animations — open frames (raster-only)
-        assets/raster/hit_open_1.png
-        assets/raster/hit_open_2.png
-        assets/raster/hit_open_3.png
-        assets/raster/hit_open_4.png
-        assets/raster/hit_open_5.png
-        assets/raster/hit_open_6.png
-        assets/raster/hit_open_7.png
+        # Hit animations — kick frames (static)
+        assets/static/hits/hit_kick_1.png
+        assets/static/hits/hit_kick_2.png
+        assets/static/hits/hit_kick_3.png
+        assets/static/hits/hit_kick_4.png
+        assets/static/hits/hit_kick_5.png
+        assets/static/hits/hit_kick_6.png
+        assets/static/hits/hit_kick_7.png
+        # Hit animations — open frames (static)
+        assets/static/hits/hit_open_1.png
+        assets/static/hits/hit_open_2.png
+        assets/static/hits/hit_open_3.png
+        assets/static/hits/hit_open_4.png
+        assets/static/hits/hit_open_5.png
+        assets/static/hits/hit_open_6.png
+        assets/static/hits/hit_open_7.png
         # MIDI test files loaded from disk at runtime (see CHARTPREVIEW_MIDI_ASSET_DIR)
 )
 
