@@ -63,7 +63,7 @@ public:
     float gemSpScale = PositionConstants::GEM_SP_SCALE;
 
     // Per-instrument Z offsets (guitar)
-    float gGridZ = 0.0f;
+    float gGridZ = PositionConstants::GRID_Z_GUITAR;
     float gGemZ = PositionConstants::GEM_Z_GUITAR;
     float gBarZ = PositionConstants::BAR_Z_GUITAR;
     float gHitGemZ = PositionConstants::HIT_GEM_Z_GUITAR;
@@ -72,7 +72,7 @@ public:
     float gStrikePosBar = PositionConstants::STRIKE_POS_BAR_GUITAR;
 
     // Per-instrument Z offsets (drums)
-    float dGridZ = 0.0f;
+    float dGridZ = PositionConstants::GRID_Z_DRUMS;
     float dGemZ = PositionConstants::GEM_Z_DRUMS;
     float dBarZ = PositionConstants::BAR_Z_DRUMS;
     float dHitGemZ = PositionConstants::HIT_GEM_Z_DRUMS;
@@ -82,6 +82,16 @@ public:
 
     // Per-column Z offsets (drums only)
     float drumZ[5] = {};
+
+    // Per-column X offsets (pixels at strikeline)
+    float guitarXOff[6] = {
+        PositionConstants::GUITAR_X_OFFSETS[0], PositionConstants::GUITAR_X_OFFSETS[1],
+        PositionConstants::GUITAR_X_OFFSETS[2], PositionConstants::GUITAR_X_OFFSETS[3],
+        PositionConstants::GUITAR_X_OFFSETS[4], PositionConstants::GUITAR_X_OFFSETS[5]};
+    float drumXOff[5] = {
+        PositionConstants::DRUM_X_OFFSETS[0], PositionConstants::DRUM_X_OFFSETS[1],
+        PositionConstants::DRUM_X_OFFSETS[2], PositionConstants::DRUM_X_OFFSETS[3],
+        PositionConstants::DRUM_X_OFFSETS[4]};
 
     // Per-lane coordinates (mutable copies of BezierLaneCoords)
     static constexpr int GUITAR_LANES = 6;
@@ -173,6 +183,15 @@ private:
     ScrollableLabel dGridZLabel, dGemZLabel, dBarZLabel, dHitGemZLabel, dHitBarZLabel;
     ScrollableLabel dStrikePosGemLabel, dStrikePosBarLabel;
     ScrollableLabel drumColLabels[5];
+
+    // --- Note X Offsets section ---
+    SectionHeader guitarXOffHeader;
+    static constexpr const char* guitarXOffNames[6] = {"Open", "Grn", "Red", "Yel", "Blu", "Org"};
+    ScrollableLabel guitarXOffLabels[6];
+
+    SectionHeader drumXOffHeader;
+    static constexpr const char* drumXOffNames[5] = {"Kick", "Red", "Yel", "Blu", "Grn"};
+    ScrollableLabel drumXOffLabels[5];
 
     // --- Guitar Lanes section ---
     SectionHeader guitarLanesHeader;

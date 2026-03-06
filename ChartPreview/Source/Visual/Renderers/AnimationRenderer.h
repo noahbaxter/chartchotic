@@ -44,13 +44,13 @@ public:
     void updateSustainStates(const TimeBasedSustainWindow& sustainWindow, bool isPlaying);
 
     // Tuning params — set by SceneRenderer before calling renderToDrawCallMap
-    float hitNoteZOffset = 0.0f;
+    float hitGemZOffset = 0.0f;
     float hitBarZOffset = 0.0f;
     float noteCurvature = 0.0f;
-    float hitNoteScale = PositionConstants::HIT_GEM_SCALE;
+    float hitGemScale = PositionConstants::HIT_GEM_SCALE;
     float hitBarScale = PositionConstants::HIT_BAR_SCALE;
-    float hitNoteWidthScale = PositionConstants::HIT_GEM_WIDTH_SCALE;
-    float hitNoteHeightScale = PositionConstants::HIT_GEM_HEIGHT_SCALE;
+    float hitGemWidthScale = PositionConstants::HIT_GEM_WIDTH_SCALE;
+    float hitGemHeightScale = PositionConstants::HIT_GEM_HEIGHT_SCALE;
     float hitBarWidthScale = PositionConstants::HIT_BAR_WIDTH_SCALE;
     float hitBarHeightScale = PositionConstants::HIT_BAR_HEIGHT_SCALE;
     float ghostScale = PositionConstants::HIT_GHOST_SCALE;

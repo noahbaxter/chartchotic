@@ -31,8 +31,8 @@ public:
     bool showBars = true;
     float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
     float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
-    float noteWidthScale = PositionConstants::GEM_WIDTH_SCALE;
-    float noteHeightScale = PositionConstants::GEM_HEIGHT_SCALE;
+    float gemWidthScale = PositionConstants::GEM_WIDTH_SCALE;
+    float gemHeightScale = PositionConstants::GEM_HEIGHT_SCALE;
     float barWidthScale = PositionConstants::BAR_WIDTH_SCALE;
     float barHeightScale = PositionConstants::BAR_HEIGHT_SCALE;
     float gemGhostScale = PositionConstants::GEM_GHOST_SCALE;
@@ -41,9 +41,11 @@ public:
     float gemTapScale = PositionConstants::GEM_TAP_SCALE;
     float gemSpScale = PositionConstants::GEM_SP_SCALE;
     float drumColZOffsets[5] = {};
-    float noteZOffset = 0.0f;
+    float guitarColXOffsets[6] = {};
+    float drumColXOffsets[5] = {};
+    float gemZOffset = 0.0f;
     float barZOffset = 0.0f;
-    float strikePosNote = 0.0f;
+    float strikePosGem = 0.0f;
     float strikePosBar = 0.0f;
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,

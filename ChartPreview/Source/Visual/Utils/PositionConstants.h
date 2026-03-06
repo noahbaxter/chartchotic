@@ -214,15 +214,21 @@ namespace PositionConstants
     // Scaled by (height / REFERENCE_HEIGHT) at render time for resolution independence.
     constexpr float REFERENCE_HEIGHT = 720.0f;
 
+    constexpr float GRID_Z_GUITAR = 0.0f;
     constexpr float GEM_Z_GUITAR = 9.0f;
     constexpr float BAR_Z_GUITAR = 0.0f;
     constexpr float HIT_GEM_Z_GUITAR = 14.0f;
     constexpr float HIT_BAR_Z_GUITAR = 9.0f;
 
+    constexpr float GRID_Z_DRUMS = 0.0f;
     constexpr float GEM_Z_DRUMS = 4.0f;
     constexpr float BAR_Z_DRUMS = 0.0f;
     constexpr float HIT_GEM_Z_DRUMS = 6.0f;
     constexpr float HIT_BAR_Z_DRUMS = 10.0f;
+
+    // Per-column X offsets (pixels at strikeline, perspective-scaled)
+    constexpr float GUITAR_X_OFFSETS[6] = {0.0f, 2.0f, -1.5f, 0.0f, 1.5f, -2.0f};
+    constexpr float DRUM_X_OFFSETS[5]   = {0.0f, 1.0f, -1.5f, 1.5f, -1.0f};
 
     //==============================================================================
     // Gem dynamic scales (per gem type, applied in NoteRenderer)

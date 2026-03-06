@@ -61,18 +61,18 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
 
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
-    noteRenderer.noteWidthScale = gemWidthScale;
-    noteRenderer.noteHeightScale = gemHeightScale;
+    noteRenderer.gemWidthScale = gemWidthScale;
+    noteRenderer.gemHeightScale = gemHeightScale;
     noteRenderer.barWidthScale = barWidthScale;
     noteRenderer.barHeightScale = barHeightScale;
-    float strikePosNote = isDrums ? strikePosNoteDrums : strikePosNoteGuitar;
+    float strikePosGem = isDrums ? strikePosGemDrums : strikePosGemGuitar;
     float strikePosBar = isDrums ? strikePosBarDrums : strikePosBarGuitar;
 
     noteRenderer.showGems = showGems;
     noteRenderer.showBars = showBars;
-    noteRenderer.noteZOffset = (isDrums ? noteZOffsetDrums : noteZOffsetGuitar) * resScale;
+    noteRenderer.gemZOffset = (isDrums ? gemZOffsetDrums : gemZOffsetGuitar) * resScale;
     noteRenderer.barZOffset = (isDrums ? barZOffsetDrums : barZOffsetGuitar) * resScale;
-    noteRenderer.strikePosNote = strikePosNote;
+    noteRenderer.strikePosGem = strikePosGem;
     noteRenderer.strikePosBar = strikePosBar;
     noteRenderer.gemGhostScale = gemGhostScale;
     noteRenderer.gemAccentScale = gemAccentScale;
@@ -81,6 +81,10 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     noteRenderer.gemSpScale = gemSpScale;
     for (int i = 0; i < 5; i++)
         noteRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
+    for (int i = 0; i < 6; i++)
+        noteRenderer.guitarColXOffsets[i] = guitarGemXOffsets[i] * resScale;
+    for (int i = 0; i < 5; i++)
+        noteRenderer.drumColXOffsets[i] = drumGemXOffsets[i] * resScale;
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
@@ -116,16 +120,16 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
         if (hitIndicatorsEnabled)
         {
             double windowTimeSpan = windowEndTime - windowStartTime;
-            double strikeTimeOffset = strikePosNote * windowTimeSpan;
+            double strikeTimeOffset = strikePosGem * windowTimeSpan;
             if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow, strikeTimeOffset); }
 
-            animationRenderer.hitNoteZOffset = (isDrums ? hitNoteZOffsetDrums : hitNoteZOffsetGuitar) * resScale;
+            animationRenderer.hitGemZOffset = (isDrums ? hitGemZOffsetDrums : hitGemZOffsetGuitar) * resScale;
             animationRenderer.hitBarZOffset = (isDrums ? hitBarZOffsetDrums : hitBarZOffsetGuitar) * resScale;
             animationRenderer.noteCurvature = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
-            animationRenderer.hitNoteScale = hitNoteScale;
+            animationRenderer.hitGemScale = hitGemScale;
             animationRenderer.hitBarScale = hitBarScale;
-            animationRenderer.hitNoteWidthScale = hitNoteWidthScale;
-            animationRenderer.hitNoteHeightScale = hitNoteHeightScale;
+            animationRenderer.hitGemWidthScale = hitGemWidthScale;
+            animationRenderer.hitGemHeightScale = hitGemHeightScale;
             animationRenderer.hitBarWidthScale = hitBarWidthScale;
             animationRenderer.hitBarHeightScale = hitBarHeightScale;
             animationRenderer.ghostScale = hitGhostScale;
@@ -139,7 +143,7 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
                 animationRenderer.drumColZOffsets[i] = drumColZOffsets[i] * resScale;
 
             animationRenderer.renderToDrawCallMap(drawCallMap, width, height, wNear, wMid, wFar, highwayPosEnd,
-                                                strikePosNote);
+                                                strikePosGem);
         }
     }
 

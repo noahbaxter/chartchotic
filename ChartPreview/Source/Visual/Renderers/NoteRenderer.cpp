@@ -39,9 +39,9 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
     bool hitAnimationsOn = state.getProperty("hitIndicators");
 
     // When hit animations are on, notes clip at the strike position.
-    // strikePosNote/strikePosBar shift the clip point (negative = past strikeline = lower on screen).
+    // strikePosGem/strikePosBar shift the clip point (negative = past strikeline = lower on screen).
     // When off, notes flow past the strikeline to the bottom of the highway.
-    double noteClipTime = hitAnimationsOn ? (strikePosNote * windowTimeSpan) : (HIGHWAY_POS_START * windowTimeSpan);
+    double noteClipTime = hitAnimationsOn ? (strikePosGem * windowTimeSpan) : (HIGHWAY_POS_START * windowTimeSpan);
     double barClipTime = hitAnimationsOn ? (strikePosBar * windowTimeSpan) : (HIGHWAY_POS_START * windowTimeSpan);
     // Use the more permissive clip for frame-level skip; per-gem clip happens in drawGem
     double frameClipTime = std::min(noteClipTime, barClipTime);
@@ -143,8 +143,8 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float curvature = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
 
     // Debug scale factors (separate note vs bar)
-    float wScale = barNote ? barWidthScale : noteWidthScale;
-    float hScale = barNote ? barHeightScale : noteHeightScale;
+    float wScale = barNote ? barWidthScale : gemWidthScale;
+    float hScale = barNote ? barHeightScale : gemHeightScale;
 
     // Per-gem-type dynamic scale
     float gemDynScale = 1.0f;
@@ -162,13 +162,20 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     hScale *= gemDynScale;
 
     // Per-column Z offset (screen pixels at strikeline, scaled by perspective)
-    float zOff = barNote ? barZOffset : noteZOffset;
+    float zOff = barNote ? barZOffset : gemZOffset;
     if (!barNote && isDrums) {
         uint drumIdx = drumColumnIndex(gemColumn);
         zOff += drumColZOffsets[drumIdx];
     }
 
-    // Scale Z offset by perspective: compute width at strikeline (pos=0) as reference
+    // Per-column X offset (perspective-scaled)
+    float xOff = 0.0f;
+    if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT)
+        xOff = guitarColXOffsets[gemColumn];
+    else if (isDrums)
+        xOff = drumColXOffsets[drumColumnIndex(gemColumn)];
+
+    // Scale Z/X offsets by perspective: compute width at strikeline (pos=0) as reference
     {
         float sizeScaleRef = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
         const auto& colCoordsRef = isPart(state, Part::GUITAR)
@@ -178,8 +185,16 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         float strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
         float curWidth = glyphRect.getWidth();
         if (strikeWidth > 0.0f)
-            zOff *= (curWidth / strikeWidth);
+        {
+            float perspScale = curWidth / strikeWidth;
+            zOff *= perspScale;
+            xOff *= perspScale;
+        }
     }
+
+    // Apply X offset to glyphRect
+    if (std::abs(xOff) > 0.01f)
+        glyphRect.translate(xOff, 0.0f);
 
     // Compute global arc Y offset so adjacent notes form a continuous parabola.
     float arcOffset = 0.0f;

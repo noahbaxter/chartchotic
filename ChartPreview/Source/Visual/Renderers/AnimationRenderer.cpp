@@ -255,8 +255,8 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
 
-    // Z offset: bar uses hitBarZOffset, notes use hitNoteZOffset + per-column offset
-    float zOff = barNote ? hitBarZOffset : hitNoteZOffset;
+    // Z offset: bar uses hitBarZOffset, gems use hitGemZOffset + per-column offset
+    float zOff = barNote ? hitBarZOffset : hitGemZOffset;
     if (!barNote && isDrums) {
         uint drumIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
         zOff += drumColZOffsets[drumIdx];
@@ -293,9 +293,9 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     if (anim.starPower && std::abs(spScale - 1.0f) > 0.001f)
         dynScale *= spScale;
 
-    float hitScale = barNote ? hitBarScale : hitNoteScale;
-    float hitWScale = barNote ? hitBarWidthScale : hitNoteWidthScale;
-    float hitHScale = barNote ? hitBarHeightScale : hitNoteHeightScale;
+    float hitScale = barNote ? hitBarScale : hitGemScale;
+    float hitWScale = barNote ? hitBarWidthScale : hitGemWidthScale;
+    float hitHScale = barNote ? hitBarHeightScale : hitGemHeightScale;
     hitRect = hitRect.withSizeKeepingCentre(
         hitRect.getWidth() * hitScale * hitWScale * dynScale * offset.widthScale,
         hitRect.getHeight() * hitScale * hitHScale * dynScale * offset.heightScale

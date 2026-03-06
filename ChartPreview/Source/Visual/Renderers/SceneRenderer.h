@@ -62,10 +62,10 @@ class SceneRenderer
         float gemHeightScale = PositionConstants::GEM_HEIGHT_SCALE;
         float barWidthScale = PositionConstants::BAR_WIDTH_SCALE;
         float barHeightScale = PositionConstants::BAR_HEIGHT_SCALE;
-        float hitNoteScale = PositionConstants::HIT_GEM_SCALE;
+        float hitGemScale = PositionConstants::HIT_GEM_SCALE;
         float hitBarScale = PositionConstants::HIT_BAR_SCALE;
-        float hitNoteWidthScale = PositionConstants::HIT_GEM_WIDTH_SCALE;
-        float hitNoteHeightScale = PositionConstants::HIT_GEM_HEIGHT_SCALE;
+        float hitGemWidthScale = PositionConstants::HIT_GEM_WIDTH_SCALE;
+        float hitGemHeightScale = PositionConstants::HIT_GEM_HEIGHT_SCALE;
         float hitBarWidthScale = PositionConstants::HIT_BAR_WIDTH_SCALE;
         float hitBarHeightScale = PositionConstants::HIT_BAR_HEIGHT_SCALE;
         // Hit animation dynamic scales
@@ -83,26 +83,38 @@ class SceneRenderer
         float gemHopoScale = PositionConstants::GEM_HOPO_SCALE;
         float gemTapScale = PositionConstants::GEM_TAP_SCALE;
         float gemSpScale = PositionConstants::GEM_SP_SCALE;
-        float drumColZOffsets[5] = {};
 
         // Per-instrument Z offsets (guitar)
-        float noteZOffsetGuitar = PositionConstants::GEM_Z_GUITAR;
+        float gridZOffsetGuitar = PositionConstants::GRID_Z_GUITAR;
+        float gemZOffsetGuitar = PositionConstants::GEM_Z_GUITAR;
         float barZOffsetGuitar = PositionConstants::BAR_Z_GUITAR;
-        float gridZOffsetGuitar = 0.0f;
-        float hitNoteZOffsetGuitar = PositionConstants::HIT_GEM_Z_GUITAR;
+        float hitGemZOffsetGuitar = PositionConstants::HIT_GEM_Z_GUITAR;
         float hitBarZOffsetGuitar = PositionConstants::HIT_BAR_Z_GUITAR;
 
         // Per-instrument Z offsets (drums)
-        float noteZOffsetDrums = PositionConstants::GEM_Z_DRUMS;
+        float gridZOffsetDrums = PositionConstants::GRID_Z_DRUMS;
+        float gemZOffsetDrums = PositionConstants::GEM_Z_DRUMS;
         float barZOffsetDrums = PositionConstants::BAR_Z_DRUMS;
-        float gridZOffsetDrums = 0.0f;
-        float hitNoteZOffsetDrums = PositionConstants::HIT_GEM_Z_DRUMS;
+        float hitGemZOffsetDrums = PositionConstants::HIT_GEM_Z_DRUMS;
         float hitBarZOffsetDrums = PositionConstants::HIT_BAR_Z_DRUMS;
 
+        // Per-column Z offsets (drums only)
+        float drumColZOffsets[5] = {};
+
+        // Per-column X offsets (perspective-scaled)
+        float guitarGemXOffsets[6] = {
+            PositionConstants::GUITAR_X_OFFSETS[0], PositionConstants::GUITAR_X_OFFSETS[1],
+            PositionConstants::GUITAR_X_OFFSETS[2], PositionConstants::GUITAR_X_OFFSETS[3],
+            PositionConstants::GUITAR_X_OFFSETS[4], PositionConstants::GUITAR_X_OFFSETS[5]};
+        float drumGemXOffsets[5] = {
+            PositionConstants::DRUM_X_OFFSETS[0], PositionConstants::DRUM_X_OFFSETS[1],
+            PositionConstants::DRUM_X_OFFSETS[2], PositionConstants::DRUM_X_OFFSETS[3],
+            PositionConstants::DRUM_X_OFFSETS[4]};
+
         // Strike position offset (normalized, shifts clip/trigger/render point)
-        float strikePosNoteGuitar = PositionConstants::STRIKE_POS_GEM_GUITAR;
+        float strikePosGemGuitar = PositionConstants::STRIKE_POS_GEM_GUITAR;
         float strikePosBarGuitar = PositionConstants::STRIKE_POS_BAR_GUITAR;
-        float strikePosNoteDrums = PositionConstants::STRIKE_POS_GEM_DRUMS;
+        float strikePosGemDrums = PositionConstants::STRIKE_POS_GEM_DRUMS;
         float strikePosBarDrums = PositionConstants::STRIKE_POS_BAR_DRUMS;
 
         // Gridline position nudge (normalized position space, exposed for debug UI)

@@ -280,6 +280,34 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         };
     }
 
+    // --- Guitar Note X Offsets section ---
+    setupSectionHeader(guitarXOffHeader, "Note X Offset");
+
+    for (int i = 0; i < 6; i++)
+    {
+        juce::String name(guitarXOffNames[i]);
+        setupScrollLabel(guitarXOffLabels[i]);
+        guitarXOffLabels[i].onScroll = [this, i, name](int delta) {
+            guitarXOff[i] = juce::jlimit(-30.0f, 30.0f, guitarXOff[i] + delta * 0.5f);
+            guitarXOffLabels[i].setText(name + ": " + juce::String(guitarXOff[i], 1), juce::dontSendNotification);
+            fireChanged();
+        };
+    }
+
+    // --- Drum Note X Offsets section ---
+    setupSectionHeader(drumXOffHeader, "Drum X Offset");
+
+    for (int i = 0; i < 5; i++)
+    {
+        juce::String name(drumXOffNames[i]);
+        setupScrollLabel(drumXOffLabels[i]);
+        drumXOffLabels[i].onScroll = [this, i, name](int delta) {
+            drumXOff[i] = juce::jlimit(-30.0f, 30.0f, drumXOff[i] + delta * 0.5f);
+            drumXOffLabels[i].setText(name + ": " + juce::String(drumXOff[i], 1), juce::dontSendNotification);
+            fireChanged();
+        };
+    }
+
     // --- Guitar Lanes section ---
     setupSectionHeader(guitarLanesHeader, "Guitar Lanes");
     std::copy_n(PositionConstants::guitarBezierLaneCoords, GUITAR_LANES, guitarLaneCoords);
@@ -422,6 +450,14 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     for (int i = 0; i < 5; i++)
         tuningButton.addPanelChild(&drumColLabels[i]);
 
+    tuningButton.addPanelChild(&guitarXOffHeader);
+    for (int i = 0; i < 6; i++)
+        tuningButton.addPanelChild(&guitarXOffLabels[i]);
+
+    tuningButton.addPanelChild(&drumXOffHeader);
+    for (int i = 0; i < 5; i++)
+        tuningButton.addPanelChild(&drumXOffLabels[i]);
+
     tuningButton.addPanelChild(&guitarLanesHeader);
     for (int i = 0; i < GUITAR_LANES; i++)
     {
@@ -457,10 +493,10 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
     sr.gemHeightScale = gemH;
     sr.barWidthScale = barW;
     sr.barHeightScale = barH;
-    sr.hitNoteScale = hitGemScale;
+    sr.hitGemScale = hitGemScale;
     sr.hitBarScale = hitBarScale;
-    sr.hitNoteWidthScale = hitGemW;
-    sr.hitNoteHeightScale = hitGemH;
+    sr.hitGemWidthScale = hitGemW;
+    sr.hitGemHeightScale = hitGemH;
     sr.hitBarWidthScale = hitBarW;
     sr.hitBarHeightScale = hitBarH;
     sr.hitGhostScale = hitGhostScale;
@@ -477,22 +513,24 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
     sr.gemSpScale = gemSpScale;
 
     sr.gridZOffsetGuitar = gGridZ;
-    sr.noteZOffsetGuitar = gGemZ;
+    sr.gemZOffsetGuitar = gGemZ;
     sr.barZOffsetGuitar = gBarZ;
-    sr.hitNoteZOffsetGuitar = gHitGemZ;
+    sr.hitGemZOffsetGuitar = gHitGemZ;
     sr.hitBarZOffsetGuitar = gHitBarZ;
-    sr.strikePosNoteGuitar = gStrikePosGem;
+    sr.strikePosGemGuitar = gStrikePosGem;
     sr.strikePosBarGuitar = gStrikePosBar;
 
     sr.gridZOffsetDrums = dGridZ;
-    sr.noteZOffsetDrums = dGemZ;
+    sr.gemZOffsetDrums = dGemZ;
     sr.barZOffsetDrums = dBarZ;
-    sr.hitNoteZOffsetDrums = dHitGemZ;
+    sr.hitGemZOffsetDrums = dHitGemZ;
     sr.hitBarZOffsetDrums = dHitBarZ;
-    sr.strikePosNoteDrums = dStrikePosGem;
+    sr.strikePosGemDrums = dStrikePosGem;
     sr.strikePosBarDrums = dStrikePosBar;
 
     std::copy(std::begin(drumZ), std::end(drumZ), sr.drumColZOffsets);
+    std::copy(std::begin(guitarXOff), std::end(guitarXOff), sr.guitarGemXOffsets);
+    std::copy(std::begin(drumXOff), std::end(drumXOff), sr.drumGemXOffsets);
 
     std::copy_n(guitarLaneCoords, GUITAR_LANES, sr.guitarLaneCoordsLocal);
     std::copy_n(drumLaneCoords, DRUM_LANES, sr.drumLaneCoordsLocal);
@@ -609,6 +647,11 @@ void DebugTuningPanel::refreshLabels()
     const char* drumColNames[] = {"Red", "Yellow", "Blue", "Green", "Kick"};
     for (int i = 0; i < 5; i++)
         drumColLabels[i].setText(juce::String(drumColNames[i]) + ": " + juce::String(drumZ[i], 1), juce::dontSendNotification);
+
+    for (int i = 0; i < 6; i++)
+        guitarXOffLabels[i].setText(juce::String(guitarXOffNames[i]) + ": " + juce::String(guitarXOff[i], 1), juce::dontSendNotification);
+    for (int i = 0; i < 5; i++)
+        drumXOffLabels[i].setText(juce::String(drumXOffNames[i]) + ": " + juce::String(drumXOff[i], 1), juce::dontSendNotification);
 }
 
 void DebugTuningPanel::setupSectionHeader(SectionHeader& header, const juce::String& text)
@@ -744,6 +787,20 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     layoutRow(dStrikePosBarLabel, drumHeader.expanded);
     for (int i = 0; i < 5; i++)
         layoutRow(drumColLabels[i], drumHeader.expanded);
+    y += headerGap;
+
+    // Guitar Note X Offsets
+    guitarXOffHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    for (int i = 0; i < 6; i++)
+        layoutRow(guitarXOffLabels[i], guitarXOffHeader.expanded);
+    y += headerGap;
+
+    // Drum Note X Offsets
+    drumXOffHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    for (int i = 0; i < 5; i++)
+        layoutRow(drumXOffLabels[i], drumXOffHeader.expanded);
     y += headerGap;
 
     // Guitar Lanes
