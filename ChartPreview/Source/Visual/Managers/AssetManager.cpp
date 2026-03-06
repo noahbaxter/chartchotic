@@ -384,6 +384,7 @@ juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPow
             juce::Colours::blue,
             juce::Colours::green
         };
-        return drumColors[std::min(gemColumn, 4u)];
+        uint idx = std::min(drumColumnIndex(gemColumn), 4u);
+        return drumColors[idx];
     }
 }

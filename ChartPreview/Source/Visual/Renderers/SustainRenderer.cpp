@@ -112,17 +112,18 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
+    bool isKickCol = isDrumKick(sustain.gemColumn);
     switch (sustain.sustainType) {
         case SustainType::LANE:
             opacity = LANE_OPACITY;
-            sustainWidth = (sustain.gemColumn == 0) ? LANE_OPEN_WIDTH : LANE_WIDTH;
+            sustainWidth = isKickCol ? LANE_OPEN_WIDTH : LANE_WIDTH;
             sustainDrawOrder = DrawOrder::LANE;
             break;
         case SustainType::SUSTAIN:
         default:
             opacity = SUSTAIN_OPACITY;
-            sustainWidth = (sustain.gemColumn == 0) ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
-            sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
+            sustainWidth = isKickCol ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
+            sustainDrawOrder = isKickCol ? DrawOrder::BAR : DrawOrder::SUSTAIN;
             break;
     }
 
@@ -140,8 +141,8 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
     NormalizedCoordinates colCoords;
     float laneScale;
     if (isDrums) {
-        bool isKick = (gemColumn == 0 || gemColumn == 6);
-        colCoords = isKick ? laneCoordsDrums[0] : laneCoordsDrums[gemColumn];
+        bool isKick = isDrumKick(gemColumn);
+        colCoords = laneCoordsDrums[drumColumnIndex(gemColumn)];
         laneScale = isKick ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
     } else {
         colCoords = laneCoordsGuitar[gemColumn];

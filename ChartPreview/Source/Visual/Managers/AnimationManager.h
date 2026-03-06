@@ -89,7 +89,7 @@ public:
     }
 
     void triggerHit(int gemColumn, bool isDrums = false, bool is2xKick = false, Gem gem = Gem::NOTE, bool sp = false) {
-        bool isBar = (gemColumn == 0) || (isDrums && gemColumn == 6);
+        bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
         int animSlot = isBar ? 0 : gemColumn;
 
         if (animSlot >= 0 && animSlot < animations.size()) {

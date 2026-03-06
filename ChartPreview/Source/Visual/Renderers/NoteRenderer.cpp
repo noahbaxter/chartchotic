@@ -118,7 +118,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     }
     else
     {
-        uint drumIdx = (gemColumn == 6) ? 0 : ((gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1);
+        uint drumIdx = drumColumnIndex(gemColumn);
         const auto& colCoords = PositionConstants::drumGlyphCoords[drumIdx];
         auto edge = getColumnEdge(adjustedPosition, colCoords, sizeScale, PositionConstants::FRETBOARD_SCALE);
         float colWidth = edge.rightX - edge.leftX;
@@ -164,7 +164,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     // Per-column Z offset (screen pixels at strikeline, scaled by perspective)
     float zOff = barNote ? barZOffset : noteZOffset;
     if (!barNote && isDrums) {
-        uint drumIdx = (gemColumn == 6) ? 0 : ((gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1);
+        uint drumIdx = drumColumnIndex(gemColumn);
         zOff += drumColZOffsets[drumIdx];
     }
 
@@ -173,7 +173,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         float sizeScaleRef = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
         const auto& colCoordsRef = isPart(state, Part::GUITAR)
             ? PositionConstants::guitarGlyphCoords[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
-            : PositionConstants::drumGlyphCoords[(gemColumn == 6) ? 0 : ((gemColumn < DRUM_LANE_COUNT) ? gemColumn : 1)];
+            : PositionConstants::drumGlyphCoords[drumColumnIndex(gemColumn)];
         auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, sizeScaleRef, PositionConstants::FRETBOARD_SCALE);
         float strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
         float curWidth = glyphRect.getWidth();
@@ -188,7 +188,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         float dist = getColumnDistFromCenter(gemColumn, isDrums);
         const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
         const auto& colC = isDrums
-            ? drumGlyphCoords[(gemColumn == 6) ? 0 : ((gemColumn < (int)DRUM_LANE_COUNT) ? gemColumn : 1)]
+            ? drumGlyphCoords[drumColumnIndex(gemColumn)]
             : guitarGlyphCoords[(gemColumn < (int)GUITAR_LANE_COUNT) ? gemColumn : 1];
         float fbWidthPx = glyphRect.getWidth() * (fbCoords.normWidth1 / colC.normWidth1);
         arcOffset = fbWidthPx * curvature * (1.0f - dist * dist);

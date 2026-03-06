@@ -38,12 +38,22 @@ inline bool isPart(juce::ValueTree &state, Part part)
     return (int)state.getProperty("part") == (int)part;
 }
 
+inline bool isDrumKick(uint gemColumn)
+{
+    return gemColumn == 0 || gemColumn == 6;
+}
+
+inline uint drumColumnIndex(uint gemColumn)
+{
+    return (gemColumn == 6) ? 0 : gemColumn;
+}
+
 inline bool isBarNote(uint gemColumn, Part part)
 {
     if (part == Part::GUITAR)
         return gemColumn == 0;
     else
-        return gemColumn == 0 || gemColumn == 6;
+        return isDrumKick(gemColumn);
 }
 
 //==============================================================================
