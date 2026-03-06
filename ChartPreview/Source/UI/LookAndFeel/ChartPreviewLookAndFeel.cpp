@@ -260,26 +260,32 @@ void ChartPreviewLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butt
                                                      bool shouldDrawButtonAsHighlighted,
                                                      bool shouldDrawButtonAsDown)
 {
-    auto bounds = button.getLocalBounds().toFloat();
+    auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     bool toggled = button.getToggleState();
 
-    if (toggled)
+    // Suppress hover highlight on toolbar buttons when another panel is click-locked
+    bool suppressHover = ToolbarPanelGroup::isMember(&button)
+        && ToolbarPanelGroup::locked
+        && ToolbarPanelGroup::hasActive()
+        && !ToolbarPanelGroup::isOwner(&button);
+    bool highlighted = (shouldDrawButtonAsHighlighted || toggled) && !suppressHover;
+
+    if (highlighted)
     {
-        // Active/open state — coral fill
+        // Hover or open — coral fill + full border
         g.setColour(juce::Colour(Theme::coral).withAlpha(0.25f));
-        g.fillRoundedRectangle(bounds.reduced(0.5f), Theme::cornerRadius);
+        g.fillRoundedRectangle(bounds, Theme::cornerRadius);
 
         g.setColour(juce::Colour(Theme::coral));
-        g.drawRoundedRectangle(bounds.reduced(0.5f), Theme::cornerRadius, 1.0f);
+        g.drawRoundedRectangle(bounds, Theme::cornerRadius, 1.0f);
     }
     else
     {
         g.setColour(backgroundColour);
-        g.fillRoundedRectangle(bounds.reduced(0.5f), Theme::cornerRadius);
+        g.fillRoundedRectangle(bounds, Theme::cornerRadius);
 
-        float borderAlpha = shouldDrawButtonAsHighlighted ? 1.0f : 0.6f;
-        g.setColour(juce::Colour(Theme::coral).withAlpha(borderAlpha));
-        g.drawRoundedRectangle(bounds.reduced(0.5f), Theme::cornerRadius, 1.0f);
+        g.setColour(juce::Colour(Theme::coral).withAlpha(0.6f));
+        g.drawRoundedRectangle(bounds, Theme::cornerRadius, 1.0f);
     }
 }
 

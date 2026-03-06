@@ -10,6 +10,36 @@ struct ToolbarPanelGroup
     static inline std::function<void()> activeDismiss;
     static inline bool locked = false;
 
+    // Toolbar member registry — only these components participate in hover/lock behavior
+    static constexpr int maxMembers = 8;
+    static inline void* members[maxMembers] = {};
+    static inline int memberCount = 0;
+
+    static void registerMember(void* m)
+    {
+        if (memberCount < maxMembers)
+            members[memberCount++] = m;
+    }
+
+    static void unregisterMember(void* m)
+    {
+        for (int i = 0; i < memberCount; ++i)
+        {
+            if (members[i] == m)
+            {
+                members[i] = members[--memberCount];
+                return;
+            }
+        }
+    }
+
+    static bool isMember(void* m)
+    {
+        for (int i = 0; i < memberCount; ++i)
+            if (members[i] == m) return true;
+        return false;
+    }
+
     static bool hasActive() { return activeOwner != nullptr; }
     static bool isOwner(void* o) { return activeOwner == o; }
 

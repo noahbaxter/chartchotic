@@ -38,10 +38,14 @@ class PopupMenuButton : public juce::TextButton,
                         private juce::ComponentListener
 {
 public:
-    PopupMenuButton(const juce::String& buttonText) : juce::TextButton(buttonText) {}
+    PopupMenuButton(const juce::String& buttonText) : juce::TextButton(buttonText)
+    {
+        ToolbarPanelGroup::registerMember(this);
+    }
 
     ~PopupMenuButton() override
     {
+        ToolbarPanelGroup::unregisterMember(this);
         dismissPanel();
     }
 
@@ -104,11 +108,25 @@ public:
 
     std::function<void(juce::Component* panel)> onLayoutPanel;
 
-    void clicked() override { showPanel(); }
+    void clicked() override
+    {
+        if (panel != nullptr)
+        {
+            if (ToolbarPanelGroup::locked && ToolbarPanelGroup::isOwner(this))
+                dismissPanel();
+            else
+                upgradeToClickLock();
+        }
+        else
+        {
+            openPanel(true);
+        }
+    }
 
     // Hover: transfer from another active panel
-    void mouseEnter(const juce::MouseEvent&) override
+    void mouseEnter(const juce::MouseEvent& e) override
     {
+        juce::TextButton::mouseEnter(e);
         hoverTimer.stopTimer();
         if (panel != nullptr) return;
 
@@ -120,13 +138,27 @@ public:
     }
 
     // Hover: start dismiss timer when mouse leaves button (unless locked)
-    void mouseExit(const juce::MouseEvent&) override
+    void mouseExit(const juce::MouseEvent& e) override
     {
+        juce::TextButton::mouseExit(e);
         if (panel != nullptr && !ToolbarPanelGroup::locked)
             startHoverTimer();
     }
 
 private:
+    void upgradeToClickLock()
+    {
+        hoverTimer.stopTimer();
+        ToolbarPanelGroup::locked = true;
+
+        panel->onOutsideMouseDown = [this](const juce::MouseEvent& e) {
+            if (e.eventComponent == this) return;
+            dismissPanel();
+        };
+        if (auto* topLevel = getTopLevelComponent())
+            topLevel->addMouseListener(panel.get(), true);
+    }
+
     void openPanel(bool locked)
     {
         if (panel != nullptr) return;
@@ -165,7 +197,7 @@ private:
         if (!locked)
             startHoverTimer();
 
-        setToggleState(locked, juce::dontSendNotification);
+        setToggleState(true, juce::dontSendNotification);
         repaint();
     }
 

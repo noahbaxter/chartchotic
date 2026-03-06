@@ -18,9 +18,16 @@ class CircleIconSelector : public juce::Component,
                            private juce::ComponentListener
 {
 public:
-    CircleIconSelector() {}
+    CircleIconSelector()
+    {
+        ToolbarPanelGroup::registerMember(this);
+    }
 
-    ~CircleIconSelector() override { dismissPanel(); }
+    ~CircleIconSelector() override
+    {
+        ToolbarPanelGroup::unregisterMember(this);
+        dismissPanel();
+    }
 
     void setItems(std::vector<CircleItem> newItems)
     {
@@ -43,7 +50,7 @@ public:
 
     void dismissPanel()
     {
-        dismissTimer.stopTimer();
+        hoverTimer.stopTimer();
         clickLocked = false;
         ToolbarPanelGroup::deactivate(this);
         if (panel != nullptr)
@@ -68,12 +75,20 @@ public:
             bounds.getCentreX() - d / 2.0f,
             bounds.getCentreY() - d / 2.0f, d, d);
         paintCircle(g, circle, items[(size_t)selectedIndex], true, false);
+
+        if (mouseHovered || panel != nullptr)
+        {
+            g.setColour(juce::Colour(Theme::coral));
+            g.drawEllipse(circle.reduced(0.5f), 1.5f);
+        }
     }
 
     // Hover: open on enter. If another panel is active, steal via ToolbarPanelGroup.
     void mouseEnter(const juce::MouseEvent&) override
     {
-        dismissTimer.stopTimer();
+        mouseHovered = true;
+        repaint();
+        hoverTimer.stopTimer();
         if (panel != nullptr) return;
 
         if (ToolbarPanelGroup::hasActive() && !ToolbarPanelGroup::isOwner(this))
@@ -90,8 +105,10 @@ public:
     // Hover mode: start dismiss timer on exit (unless click-locked)
     void mouseExit(const juce::MouseEvent&) override
     {
+        mouseHovered = false;
+        repaint();
         if (!clickLocked)
-            startDismissTimer();
+            startHoverTimer();
     }
 
     // Scroll: cycle through items with wrapping (only over the main circle icon)
@@ -156,6 +173,7 @@ private:
     int selectedIndex = 0;
     int panelHoverIndex = -1;
     bool clickLocked = false;
+    bool mouseHovered = false;
 
     //==========================================================================
     class ExpandedPanel : public juce::Component
@@ -202,7 +220,7 @@ private:
         void mouseEnter(const juce::MouseEvent& e) override
         {
             if (e.eventComponent != this) return;
-            owner.dismissTimer.stopTimer();
+            owner.hoverTimer.stopTimer();
         }
 
         void mouseExit(const juce::MouseEvent& e) override
@@ -211,7 +229,7 @@ private:
             owner.panelHoverIndex = -1;
             repaint();
             if (!owner.clickLocked)
-                owner.startDismissTimer();
+                owner.startHoverTimer();
         }
 
         // mouseDown on anything outside panel+owner → dismiss immediately
@@ -346,21 +364,25 @@ private:
             repositionPanel();
     }
 
-    struct DismissTimer : public juce::Timer
+    struct HoverTimer : public juce::Timer
     {
         CircleIconSelector* owner = nullptr;
         void timerCallback() override
         {
+            if (!owner || !owner->panel) { stopTimer(); return; }
+            if (owner->clickLocked) { stopTimer(); return; }
+            if (owner->isMouseOver(false) || owner->panel->isMouseOver(true))
+                return;
             stopTimer();
-            if (owner) owner->dismissPanel();
+            owner->dismissPanel();
         }
     };
 
-    DismissTimer dismissTimer;
+    HoverTimer hoverTimer;
 
-    void startDismissTimer()
+    void startHoverTimer()
     {
-        dismissTimer.owner = this;
-        dismissTimer.startTimer(120);
+        hoverTimer.owner = this;
+        hoverTimer.startTimer(120);
     }
 };
