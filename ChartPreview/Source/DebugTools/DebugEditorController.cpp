@@ -149,8 +149,7 @@ void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRe
          << "Total:   " << juce::String((int)t.total_us) << " us";
 
     auto layerUs = [&](DrawOrder d) -> int {
-        auto it = t.layer_us.find(d);
-        return it != t.layer_us.end() ? (int)it->second : 0;
+        return (int)t.layer_us[static_cast<int>(d)];
     };
 
     text << "\n---\n"

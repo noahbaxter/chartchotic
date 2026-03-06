@@ -48,7 +48,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
             if (markerImage != nullptr)
             {
                 float fadeOpacity = calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
-                drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics& g) {
+                drawCallMap[static_cast<int>(DrawOrder::GRID)][0].push_back([=](juce::Graphics& g) {
                     this->drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity, gridZOffset);
                 });
             }

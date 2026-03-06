@@ -127,7 +127,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
             break;
     }
 
-    (*currentDrawCallMap)[sustainDrawOrder][sustain.gemColumn].push_back([=](juce::Graphics& g) {
+    (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][sustain.gemColumn].push_back([=](juce::Graphics& g) {
         this->drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
 }

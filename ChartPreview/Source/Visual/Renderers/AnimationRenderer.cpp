@@ -149,7 +149,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
-            drawCallMap[DrawOrder::BAR_ANIMATION][column].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
+            drawCallMap[static_cast<int>(DrawOrder::BAR_ANIMATION)][column].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
                 this->renderKickAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos);
             });
         }
@@ -161,7 +161,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
-            drawCallMap[DrawOrder::NOTE_ANIMATION][anim.lane].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
+            drawCallMap[static_cast<int>(DrawOrder::NOTE_ANIMATION)][anim.lane].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
                 this->renderFretAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos);
             });
         }

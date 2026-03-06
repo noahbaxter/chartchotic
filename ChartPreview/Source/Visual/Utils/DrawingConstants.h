@@ -14,6 +14,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 #include <map>
 #include <vector>
 #include <functional>
@@ -83,4 +84,8 @@ enum class DrawOrder
     NOTE_ANIMATION,
 };
 
-using DrawCallMap = std::map<DrawOrder, std::map<uint, std::vector<std::function<void(juce::Graphics&)>>>>;
+static constexpr int DRAW_ORDER_COUNT = 14;
+static constexpr int MAX_DRAW_COLUMNS = 8;
+using DrawCallBucket = std::vector<std::function<void(juce::Graphics&)>>;
+using DrawCallGrid = std::array<std::array<DrawCallBucket, MAX_DRAW_COLUMNS>, DRAW_ORDER_COUNT>;
+using DrawCallMap = DrawCallGrid;

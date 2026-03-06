@@ -12,9 +12,10 @@
 
 #pragma once
 
+#include <algorithm>
 #include <chrono>
-#include <map>
 #include "../../Utils/Utils.h"
+#include "DrawingConstants.h"
 
 struct PhaseTiming
 {
@@ -24,7 +25,7 @@ struct PhaseTiming
     double animation_us = 0.0;
     double execute_us = 0.0;
     double total_us = 0.0;
-    std::map<DrawOrder, double> layer_us;
+    double layer_us[DRAW_ORDER_COUNT] = {};
 };
 
 class ScopedPhaseMeasure

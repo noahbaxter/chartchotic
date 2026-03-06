@@ -54,7 +54,9 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     }
 
     // Repopulate drawCallMap
-    drawCallMap.clear();
+    for (auto& row : drawCallMap)
+        for (auto& bucket : row)
+            bucket.clear();
 
     // Resolution scale: all pixel-based Z offsets are tuned at REFERENCE_HEIGHT
     float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
@@ -152,22 +154,23 @@ void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWi
     {
         auto* img = kv.second;
         if (img && img->isValid())
-            drawCallMap[kv.first][0].push_back([img](juce::Graphics& g) { g.setOpacity(1.0f); g.drawImageAt(*img, 0, 0); });
+            drawCallMap[static_cast<int>(kv.first)][0].push_back([img](juce::Graphics& g) { g.setOpacity(1.0f); g.drawImageAt(*img, 0, 0); });
     }
 
     // Draw layer by layer, then column by column within each layer
     {
         ScopedPhaseMeasure m(lastPhaseTiming.execute_us, collectPhaseTiming);
         if (collectPhaseTiming)
-            lastPhaseTiming.layer_us.clear();
+            std::fill(std::begin(lastPhaseTiming.layer_us), std::end(lastPhaseTiming.layer_us), 0.0);
 
-        for (const auto& drawOrder : drawCallMap)
+        for (int d = 0; d < DRAW_ORDER_COUNT; d++)
         {
-            ScopedPhaseMeasure lm(lastPhaseTiming.layer_us[drawOrder.first], collectPhaseTiming);
-            for (const auto& column : drawOrder.second)
+            ScopedPhaseMeasure lm(lastPhaseTiming.layer_us[d], collectPhaseTiming);
+            for (int c = 0; c < MAX_DRAW_COLUMNS; c++)
             {
+                auto& bucket = drawCallMap[d][c];
                 // Draw each layer from back to front
-                for (auto it = column.second.rbegin(); it != column.second.rend(); ++it)
+                for (auto it = bucket.rbegin(); it != bucket.rend(); ++it)
                 {
                     (*it)(g);
                 }

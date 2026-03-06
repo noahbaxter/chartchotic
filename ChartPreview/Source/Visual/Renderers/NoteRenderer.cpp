@@ -223,10 +223,10 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     if (curvature != 0.0f)
     {
         const auto& entry = getCurvedImage(glyphImage, gemColumn, isDrums);
-        juce::Image curvedImg = entry.image;
+        const juce::Image* curvedImgPtr = &entry.image;
         float contentYOff = entry.yOffsetFraction;
 
-        float cachedAspect = (float)curvedImg.getWidth() / (float)curvedImg.getHeight();
+        float cachedAspect = (float)curvedImgPtr->getWidth() / (float)curvedImgPtr->getHeight();
         float curvedH = glyphRect.getWidth() / cachedAspect;
         float curvedY = glyphRect.getCentreY() - curvedH * 0.5f
                         + contentYOff * glyphRect.getHeight()
@@ -235,16 +235,16 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
                                                   glyphRect.getWidth(), curvedH);
         curvedRect = scaleRect(curvedRect, wScale, hScale, zOff);
 
-        (*currentDrawCallMap)[layer][gemColumn].push_back([=](juce::Graphics& g) {
+        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back([curvedImgPtr, opacity, curvedRect](juce::Graphics& g) {
             g.setOpacity(opacity);
-            g.drawImage(curvedImg, curvedRect);
+            g.drawImage(*curvedImgPtr, curvedRect);
         });
     }
     else
     {
         auto drawRect = scaleRect(glyphRect, wScale, hScale, zOff);
 
-        (*currentDrawCallMap)[layer][gemColumn].push_back([=](juce::Graphics& g) {
+        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back([=](juce::Graphics& g) {
             g.setOpacity(opacity);
             g.drawImage(*glyphImage, drawRect);
         });
@@ -259,10 +259,10 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         if (curvature != 0.0f)
         {
             const auto& entry = getCurvedImage(overlayImage, gemColumn, isDrums);
-            juce::Image curvedOverlay = entry.image;
+            const juce::Image* curvedOverlayPtr = &entry.image;
             float contentYOff = entry.yOffsetFraction;
 
-            float cachedAspect = (float)curvedOverlay.getWidth() / (float)curvedOverlay.getHeight();
+            float cachedAspect = (float)curvedOverlayPtr->getWidth() / (float)curvedOverlayPtr->getHeight();
             float curvedH = overlayRect.getWidth() / cachedAspect;
             float curvedY = overlayRect.getCentreY() - curvedH * 0.5f
                             + contentYOff * overlayRect.getHeight()
@@ -271,16 +271,16 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
                                                              overlayRect.getWidth(), curvedH);
             curvedOverlayRect = scaleRect(curvedOverlayRect, wScale, hScale, zOff);
 
-            (*currentDrawCallMap)[DrawOrder::OVERLAY][gemColumn].push_back([=](juce::Graphics& g) {
+            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([curvedOverlayPtr, opacity, curvedOverlayRect](juce::Graphics& g) {
                 g.setOpacity(opacity);
-                g.drawImage(curvedOverlay, curvedOverlayRect);
+                g.drawImage(*curvedOverlayPtr, curvedOverlayRect);
             });
         }
         else
         {
             auto drawRect = scaleRect(overlayRect, wScale, hScale, zOff);
 
-            (*currentDrawCallMap)[DrawOrder::OVERLAY][gemColumn].push_back([=](juce::Graphics& g) {
+            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([=](juce::Graphics& g) {
                 g.setOpacity(opacity);
                 g.drawImage(*overlayImage, drawRect);
             });
