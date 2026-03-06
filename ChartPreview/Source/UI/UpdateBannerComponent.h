@@ -15,14 +15,15 @@ public:
         addAndMakeVisible(badge);
     }
 
-    void setUpdateInfo(const juce::String& version, const juce::String& url)
+    void setUpdateInfo(const juce::String& version, const juce::String& url, bool autoPrompt = true)
     {
         updateVersion = version;
         downloadUrl = url;
         badge.setVisible(true);
         badge.setTooltip("Update " + version + " available");
         startTimerHz(30);
-        showPrompt();
+        if (autoPrompt)
+            showPrompt();
     }
 
     bool hasUpdate() const { return updateVersion.isNotEmpty(); }

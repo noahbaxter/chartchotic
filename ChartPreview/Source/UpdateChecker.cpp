@@ -91,7 +91,16 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
     juce::String remoteVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
     juce::String localVersion(CHART_PREVIEW_VERSION);
 
-    if (isNewerVersion(remoteVersion, localVersion))
+    bool shouldUpdate;
+#ifdef DEBUG
+    // Debug: show banner if version differs at all
+    shouldUpdate = (remoteVersion != localVersion);
+#else
+    // Release: only show if remote is strictly newer
+    shouldUpdate = isNewerVersion(remoteVersion, localVersion);
+#endif
+
+    if (shouldUpdate)
     {
         info.available = true;
         info.version = tagName;
@@ -132,6 +141,15 @@ UpdateChecker::UpdateInfo UpdateChecker::checkDevChannel()
     auto remoteFullVersion = title.substring(openParen + 1, closeParen);
     juce::String localVersion(CHART_PREVIEW_VERSION);
 
+#ifdef DEBUG
+    // Debug: show banner if version string differs at all
+    if (remoteFullVersion != localVersion)
+    {
+        info.available = true;
+        info.version = remoteFullVersion;
+        info.downloadUrl = json.getProperty("html_url", "").toString();
+    }
+#else
     // Split into base semver and dev suffix: "0.9.5-dev.20260226123456.abc1234"
     auto remoteBase = remoteFullVersion.upToFirstOccurrenceOf("-", false, false);
     auto localBase = localVersion.upToFirstOccurrenceOf("-", false, false);
@@ -165,6 +183,7 @@ UpdateChecker::UpdateInfo UpdateChecker::checkDevChannel()
         info.version = remoteFullVersion;
         info.downloadUrl = json.getProperty("html_url", "").toString();
     }
+#endif
 
     return info;
 }

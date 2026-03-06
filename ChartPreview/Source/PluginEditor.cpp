@@ -373,12 +373,6 @@ void ChartPreviewAudioProcessorEditor::initBottomBar()
         }
     };
     updateChecker.checkForUpdates();
-
-#ifdef DEBUG
-    // Always show update banner in debug builds for testing
-    updateBanner.setUpdateInfo("99.0.0", "https://github.com/noahbaxter/chart-preview/releases");
-    resized();
-#endif
 }
 
 //==============================================================================
