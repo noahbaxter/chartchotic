@@ -22,6 +22,10 @@ public:
     AssetManager();
     ~AssetManager();
 
+    // Pre-scale all drawable assets to match the current viewport width.
+    // Call on window resize. Skips work if width hasn't changed.
+    void rescaleForWidth(int viewportWidth);
+
     // Image picker methods
     juce::Image* getGuitarGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
     juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
@@ -113,6 +117,18 @@ public:
 
 private:
     void initAssets();
+
+    // Downscale helper: returns src unchanged if already smaller than targetWidth
+    static juce::Image downscale(const juce::Image& src, int targetWidth);
+
+    // Full-resolution originals (kept for re-scaling on window resize)
+    struct ScalableAsset
+    {
+        juce::Image* target;   // pointer to the active (scaled) member
+        juce::Image fullRes;   // original full-res copy
+    };
+    std::vector<ScalableAsset> scalableAssets;
+    int lastScaledWidth = 0;
 
     // Bar/Open notes
     juce::Image barKickImage;

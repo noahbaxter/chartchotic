@@ -37,6 +37,13 @@ class SceneRenderer
 
         void paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
+        // Pre-scale assets for the current viewport size. Call on window resize.
+        void rescaleAssets(int viewportWidth)
+        {
+            assetManager.rescaleForWidth(viewportWidth);
+            noteRenderer.clearCurvedCache();
+        }
+
         bool showGems = true;
         bool showBars = true;
         bool showSustains = true;

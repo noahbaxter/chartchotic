@@ -43,6 +43,8 @@ public:
     float strikePosGem = 0.0f;
     float strikePosBar = 0.0f;
 
+    void clearCurvedCache() { curvedCache.clear(); }
+
     void populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,
                   double windowStartTime, double windowEndTime,
                   uint width, uint height,

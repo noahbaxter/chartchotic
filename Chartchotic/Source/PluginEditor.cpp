@@ -160,6 +160,8 @@ void ChartchoticAudioProcessorEditor::rebuildFadedTrackImage()
     const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
     float wNear = fbw.near, wMid = fbw.mid, wFar = fbw.far;
 
+    sceneRenderer.rescaleAssets(getWidth());
+
     trackRenderer.rebuild(getWidth(), getHeight(),
                              sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
                              wNear, wMid, wFar, sceneRenderer.highwayPosEnd);

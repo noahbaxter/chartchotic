@@ -115,6 +115,80 @@ void AssetManager::initAssets()
     openAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_open_5_png, BinaryData::hit_open_5_pngSize);
     openAnimationFrames[5] = juce::ImageCache::getFromMemory(BinaryData::hit_open_6_png, BinaryData::hit_open_6_pngSize);
     openAnimationFrames[6] = juce::ImageCache::getFromMemory(BinaryData::hit_open_7_png, BinaryData::hit_open_7_pngSize);
+
+    // Register all per-frame drawable assets for viewport-aware pre-scaling.
+    // Full-res originals are copied now; rescaleForWidth() overwrites the active members.
+    scalableAssets = {
+        // Notes
+        {&noteBlueImage, noteBlueImage}, {&noteGreenImage, noteGreenImage},
+        {&noteOrangeImage, noteOrangeImage}, {&noteRedImage, noteRedImage},
+        {&noteWhiteImage, noteWhiteImage}, {&noteYellowImage, noteYellowImage},
+        // Cymbals
+        {&cymBlueImage, cymBlueImage}, {&cymGreenImage, cymGreenImage},
+        {&cymRedImage, cymRedImage}, {&cymWhiteImage, cymWhiteImage},
+        {&cymYellowImage, cymYellowImage},
+        // HOPOs
+        {&hopoBlueImage, hopoBlueImage}, {&hopoGreenImage, hopoGreenImage},
+        {&hopoOrangeImage, hopoOrangeImage}, {&hopoRedImage, hopoRedImage},
+        {&hopoWhiteImage, hopoWhiteImage}, {&hopoYellowImage, hopoYellowImage},
+        // Bars
+        {&barKickImage, barKickImage}, {&barKick2xImage, barKick2xImage},
+        {&barOpenImage, barOpenImage}, {&barWhiteImage, barWhiteImage},
+        // Overlays
+        {&overlayCymAccentImage, overlayCymAccentImage}, {&overlayCymGhostImage, overlayCymGhostImage},
+        {&overlayNoteAccentImage, overlayNoteAccentImage}, {&overlayNoteGhostImage, overlayNoteGhostImage},
+        {&overlayNoteTapImage, overlayNoteTapImage},
+        // Hit flash frames
+        {&hitAnimationFrames[0], hitAnimationFrames[0]}, {&hitAnimationFrames[1], hitAnimationFrames[1]},
+        {&hitAnimationFrames[2], hitAnimationFrames[2]}, {&hitAnimationFrames[3], hitAnimationFrames[3]},
+        {&hitAnimationFrames[4], hitAnimationFrames[4]},
+        // Hit flare images
+        {&hitFlareImages[0], hitFlareImages[0]}, {&hitFlareImages[1], hitFlareImages[1]},
+        {&hitFlareImages[2], hitFlareImages[2]}, {&hitFlareImages[3], hitFlareImages[3]},
+        {&hitFlareImages[4], hitFlareImages[4]}, {&hitFlareImages[5], hitFlareImages[5]},
+        {&hitFlarePurpleImage, hitFlarePurpleImage},
+        // Kick animation frames
+        {&kickAnimationFrames[0], kickAnimationFrames[0]}, {&kickAnimationFrames[1], kickAnimationFrames[1]},
+        {&kickAnimationFrames[2], kickAnimationFrames[2]}, {&kickAnimationFrames[3], kickAnimationFrames[3]},
+        {&kickAnimationFrames[4], kickAnimationFrames[4]}, {&kickAnimationFrames[5], kickAnimationFrames[5]},
+        {&kickAnimationFrames[6], kickAnimationFrames[6]},
+        // Open animation frames
+        {&openAnimationFrames[0], openAnimationFrames[0]}, {&openAnimationFrames[1], openAnimationFrames[1]},
+        {&openAnimationFrames[2], openAnimationFrames[2]}, {&openAnimationFrames[3], openAnimationFrames[3]},
+        {&openAnimationFrames[4], openAnimationFrames[4]}, {&openAnimationFrames[5], openAnimationFrames[5]},
+        {&openAnimationFrames[6], openAnimationFrames[6]},
+        // Gridline markers
+        {&markerBeatImage, markerBeatImage}, {&markerHalfBeatImage, markerHalfBeatImage},
+        {&markerMeasureImage, markerMeasureImage},
+    };
+}
+
+juce::Image AssetManager::downscale(const juce::Image& src, int targetWidth)
+{
+    if (!src.isValid() || targetWidth <= 0 || targetWidth >= src.getWidth())
+        return src;
+
+    float ratio = (float)targetWidth / (float)src.getWidth();
+    int targetHeight = std::max(1, (int)(src.getHeight() * ratio));
+
+    juce::Image scaled(juce::Image::ARGB, targetWidth, targetHeight, true);
+    juce::Graphics g(scaled);
+    g.drawImage(src, juce::Rectangle<float>(0, 0, (float)targetWidth, (float)targetHeight));
+    return scaled;
+}
+
+void AssetManager::rescaleForWidth(int viewportWidth)
+{
+    // Target: half the viewport width — generous headroom for strikeline-sized notes
+    int targetWidth = std::max(200, viewportWidth / 2);
+
+    if (targetWidth == lastScaledWidth)
+        return;
+
+    for (auto& asset : scalableAssets)
+        *asset.target = downscale(asset.fullRes, targetWidth);
+
+    lastScaledWidth = targetWidth;
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
@@ -328,11 +402,11 @@ juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPow
     if (part == Part::GUITAR)
     {
         juce::Colour guitarColors[] = {
-            juce::Colours::purple,  
-            juce::Colours::green,   
-            juce::Colours::red,     
-            juce::Colours::yellow,  
-            juce::Colours::blue,    
+            juce::Colours::purple,
+            juce::Colours::green,
+            juce::Colours::red,
+            juce::Colours::yellow,
+            juce::Colours::blue,
             juce::Colours::orange
         };
         return guitarColors[std::min(gemColumn, 5u)];
