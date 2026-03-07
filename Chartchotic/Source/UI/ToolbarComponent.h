@@ -143,17 +143,17 @@ private:
 
     PanelSectionHeader visualHeader{"Visual"};
     PanelSectionHeader highwayHeader{"Highway"};
-    ValueStepper highwayLengthStepper{"Length"};
+    ValueStepper highwayLengthStepper{"Length", "%"};
     ValueStepper backgroundStepper{"Background"};
     ValueStepper highwayTextureStepper{"Texture"};
     juce::Label textureScaleLabel;
     juce::Label textureOpacityLabel;
-    ValueStepper textureScaleStepper{"Scale"};
-    ValueStepper textureOpacityStepper{"Opacity"};
-    ValueStepper gemScaleStepper{"Gem Size"};
+    ValueStepper textureScaleStepper{"Scale", "%"};
+    ValueStepper textureOpacityStepper{"Opacity", "%"};
+    ValueStepper gemScaleStepper{"Gem Size", "%"};
 
     PanelSectionHeader syncHeader{"Sync"};
-    ValueStepper syncOffsetStepper{"Calibration"};
+    ValueStepper syncOffsetStepper{"Calibration", " ms"};
     int syncOffsetMs = CALIBRATION_DEFAULT;
     int syncOffsetMin = CALIBRATION_MIN_MS;
     int syncOffsetMax = CALIBRATION_MAX_MS;

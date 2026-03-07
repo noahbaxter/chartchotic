@@ -6,16 +6,24 @@
 // Labeled value selector: Label  [< value >]
 // Supports mouse wheel and click on arrows to step through values.
 // The label portion takes ~42% width, value area takes the rest.
+// Double-click the value to type an exact number (when onValueEdited is set).
 class ValueStepper : public juce::Component
 {
 public:
-    ValueStepper(const juce::String& labelText) : name(labelText) {}
+    ValueStepper(const juce::String& labelText, const juce::String& unitSuffix = {})
+        : name(labelText), unit(unitSuffix) {}
 
     void setDisplayValue(const juce::String& val) { displayValue = val; repaint(); }
+    void setDisplayValue(int val) { setDisplayValue(juce::String(val) + unit); }
+    void setDisplayValue(float val) { setDisplayValue(juce::String(val) + unit); }
     const juce::String& getDisplayValue() const { return displayValue; }
 
     std::function<void(int delta)> onStep;
     std::function<void()> onFolderClick;
+
+    // Set this to enable double-click-to-type. Called with the raw text the user typed.
+    // The parent is responsible for parsing, clamping, and calling setDisplayValue().
+    std::function<void(const juce::String&)> onValueEdited;
 
     void setFolderIconVisible(bool show) { folderIconVisible = show; repaint(); }
     void setValueClickable(bool clickable) { valueClickOpensFolder = clickable; repaint(); }
@@ -72,6 +80,10 @@ public:
                              : juce::Colour(Theme::textDim).withAlpha(0.3f));
         g.drawRoundedRectangle(valueRect, Theme::pillCorner, 1.0f);
 
+        // Don't draw arrows/value text while editing
+        if (editor != nullptr)
+            return;
+
         // Arrows
         g.setColour(juce::Colour(Theme::coral).withAlpha(hovering ? 1.0f : 0.7f));
         g.setFont(juce::Font(Theme::arrowFontSize));
@@ -92,6 +104,7 @@ public:
 
     void mouseUp(const juce::MouseEvent& e) override
     {
+        if (editor != nullptr) return;
         if (!getLocalBounds().contains(e.getPosition())) return;
         float h = (float)getHeight();
         int folderW = folderIconVisible ? (int)(h * 0.85f) : 0;
@@ -122,8 +135,25 @@ public:
         }
     }
 
+    void mouseDoubleClick(const juce::MouseEvent& e) override
+    {
+        if (!onValueEdited) return;
+        if (editor != nullptr) return;
+
+        int nameW = (int)(getWidth() * labelRatio);
+        int pillLeft = labelOnRight ? 0 : nameW;
+        int pillRight = labelOnRight ? (getWidth() - nameW) : getWidth();
+
+        // Only trigger on the value area (between arrows)
+        if (e.x < pillLeft + Theme::arrowZone || e.x > pillRight - Theme::arrowZone)
+            return;
+
+        showEditor();
+    }
+
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& wheel) override
     {
+        if (editor != nullptr) return;
         int delta = (wheel.deltaY > 0) ? 1 : -1;
         if (onStep) onStep(delta);
     }
@@ -166,12 +196,99 @@ public:
 private:
     juce::String name;
     juce::String displayValue;
+    juce::String unit;
     juce::String tooltip;
     float labelRatio = 0.42f;
     bool labelOnRight = false;
     bool folderIconVisible = false;
     bool folderHoverZone = false;
     bool valueClickOpensFolder = false;
+
+    // TextEditor subclass that uses Desktop global mouse listener to detect
+    // clicks outside and give away focus. This is the JUCE-recommended pattern —
+    // giveAwayKeyboardFocus() triggers onFocusLost without modifying any listener
+    // list during iteration, avoiding the crash that happens with component-level
+    // mouse listeners that destroy themselves in their own callback.
+    struct ClickDismissTextEditor : public juce::TextEditor
+    {
+        void focusGained(FocusChangeType cause) override
+        {
+            juce::Desktop::getInstance().addGlobalMouseListener(this);
+            juce::TextEditor::focusGained(cause);
+        }
+
+        void focusLost(FocusChangeType cause) override
+        {
+            juce::Desktop::getInstance().removeGlobalMouseListener(this);
+            juce::TextEditor::focusLost(cause);
+        }
+
+        void mouseDown(const juce::MouseEvent& e) override
+        {
+            if (getScreenBounds().contains(e.getScreenPosition()))
+                juce::TextEditor::mouseDown(e);
+            else
+                giveAwayKeyboardFocus();
+        }
+    };
+
+    std::unique_ptr<ClickDismissTextEditor> editor;
+
+    void showEditor()
+    {
+        auto bounds = getLocalBounds();
+        int nameW = (int)(bounds.getWidth() * labelRatio);
+        auto valueRect = (labelOnRight ? bounds.withRight(bounds.getWidth() - nameW)
+                                       : bounds.withLeft(nameW)).reduced(1);
+
+        editor = std::make_unique<ClickDismissTextEditor>();
+        editor->setBounds(valueRect);
+        editor->setFont(Theme::controlFont);
+        editor->setJustification(juce::Justification::centred);
+        editor->setColour(juce::TextEditor::backgroundColourId, juce::Colour(Theme::darkBg));
+        editor->setColour(juce::TextEditor::textColourId, juce::Colour(Theme::textWhite));
+        editor->setColour(juce::TextEditor::outlineColourId, juce::Colour(Theme::coral));
+        editor->setColour(juce::TextEditor::focusedOutlineColourId, juce::Colour(Theme::coral));
+        editor->setColour(juce::CaretComponent::caretColourId, juce::Colour(Theme::textWhite));
+
+        // Strip unit suffix for easier editing (e.g. "100%" -> "100", "-50 ms" -> "-50")
+        juce::String editText = displayValue.trimEnd();
+        if (unit.isNotEmpty() && editText.endsWith(unit.trimEnd()))
+            editText = editText.dropLastCharacters(unit.trimEnd().length()).trim();
+        editor->setText(editText, false);
+        editor->selectAll();
+
+        editor->onReturnKey = [this]() { commitEdit(); };
+        editor->onEscapeKey = [this]() { dismissEdit(); };
+        editor->onFocusLost = [this]() { commitEdit(); };
+
+        addAndMakeVisible(editor.get());
+        editor->grabKeyboardFocus();
+        repaint();
+    }
+
+    void commitEdit()
+    {
+        if (!editor) return;
+        auto text = editor->getText().trim();
+        // Hide immediately but defer destruction — destroying during JUCE's
+        // mouse/focus dispatch causes use-after-free in mouseEnter routing.
+        editor->setVisible(false);
+        auto editorToDelete = std::move(editor);
+        juce::MessageManager::callAsync([e = std::move(editorToDelete)]() mutable { e.reset(); });
+        if (onValueEdited && text.isNotEmpty())
+            onValueEdited(text);
+        repaint();
+    }
+
+    void dismissEdit()
+    {
+        if (!editor) return;
+        editor->setVisible(false);
+        auto editorToDelete = std::move(editor);
+        juce::MessageManager::callAsync([e = std::move(editorToDelete)]() mutable { e.reset(); });
+        repaint();
+    }
 
     struct TooltipLabel : public juce::Component
     {

@@ -61,12 +61,17 @@ void ToolbarComponent::initTopBar()
     addAndMakeVisible(difficultySelector);
 
     // Note Speed stepper (no label — tooltip on hover)
-    noteSpeedStepper.setDisplayValue(juce::String(noteSpeed));
+    noteSpeedStepper.setDisplayValue(noteSpeed);
     noteSpeedStepper.setLabelRatio(0.0f);
     noteSpeedStepper.setTooltip("Note Speed");
     noteSpeedStepper.onStep = [this](int delta) {
         noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + delta);
-        noteSpeedStepper.setDisplayValue(juce::String(noteSpeed));
+        noteSpeedStepper.setDisplayValue(noteSpeed);
+        if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
+    };
+    noteSpeedStepper.onValueEdited = [this](const juce::String& text) {
+        noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, text.getIntValue());
+        noteSpeedStepper.setDisplayValue(noteSpeed);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     addAndMakeVisible(noteSpeedStepper);
@@ -203,11 +208,16 @@ void ToolbarComponent::initSettingsPanel()
         if (onBackgroundChanged) onBackgroundChanged(backgroundNames[backgroundIndex]);
     };
 
-    gemScaleStepper.setDisplayValue(juce::String(gemScalePct) + "%");
+    gemScaleStepper.setDisplayValue(gemScalePct);
     gemScaleStepper.onStep = [this](int delta) {
         int snapped = (int)std::round(gemScalePct / (double)GEM_SCALE_STEP_PCT) * GEM_SCALE_STEP_PCT;
         gemScalePct = juce::jlimit(GEM_SCALE_MIN_PCT, GEM_SCALE_MAX_PCT, snapped + delta * GEM_SCALE_STEP_PCT);
-        gemScaleStepper.setDisplayValue(juce::String(gemScalePct) + "%");
+        gemScaleStepper.setDisplayValue(gemScalePct);
+        if (onGemScaleChanged) onGemScaleChanged(gemScalePct / 100.0f);
+    };
+    gemScaleStepper.onValueEdited = [this](const juce::String& text) {
+        gemScalePct = juce::jlimit(GEM_SCALE_MIN_PCT, GEM_SCALE_MAX_PCT, text.getIntValue());
+        gemScaleStepper.setDisplayValue(gemScalePct);
         if (onGemScaleChanged) onGemScaleChanged(gemScalePct / 100.0f);
     };
 
@@ -241,31 +251,46 @@ void ToolbarComponent::initSettingsPanel()
     textureOpacityLabel.setJustificationType(juce::Justification::centred);
 
     textureScaleStepper.setLabelRatio(0.0f);
-    textureScaleStepper.setDisplayValue(juce::String(texScalePct) + "%");
+    textureScaleStepper.setDisplayValue(texScalePct);
     textureScaleStepper.onStep = [this](int delta) {
         int snapped = (int)std::round(texScalePct / (double)TEX_SCALE_STEP_PCT) * TEX_SCALE_STEP_PCT;
         texScalePct = juce::jlimit(TEX_SCALE_MIN_PCT, TEX_SCALE_MAX_PCT, snapped + delta * TEX_SCALE_STEP_PCT);
-        textureScaleStepper.setDisplayValue(juce::String(texScalePct) + "%");
+        textureScaleStepper.setDisplayValue(texScalePct);
+        if (onTextureScaleChanged) onTextureScaleChanged(texScalePct / 100.0f);
+    };
+    textureScaleStepper.onValueEdited = [this](const juce::String& text) {
+        texScalePct = juce::jlimit(TEX_SCALE_MIN_PCT, TEX_SCALE_MAX_PCT, text.getIntValue());
+        textureScaleStepper.setDisplayValue(texScalePct);
         if (onTextureScaleChanged) onTextureScaleChanged(texScalePct / 100.0f);
     };
 
     textureOpacityStepper.setLabelRatio(0.0f);
-    textureOpacityStepper.setDisplayValue(juce::String(textureOpacityPct) + "%");
+    textureOpacityStepper.setDisplayValue(textureOpacityPct);
     textureOpacityStepper.onStep = [this](int delta) {
         int snapped = (int)std::round(textureOpacityPct / (double)TEX_OPACITY_STEP) * TEX_OPACITY_STEP;
         textureOpacityPct = juce::jlimit(TEX_OPACITY_MIN, TEX_OPACITY_MAX, snapped + delta * TEX_OPACITY_STEP);
-        textureOpacityStepper.setDisplayValue(juce::String(textureOpacityPct) + "%");
+        textureOpacityStepper.setDisplayValue(textureOpacityPct);
+        if (onTextureOpacityChanged) onTextureOpacityChanged(textureOpacityPct / 100.0f);
+    };
+    textureOpacityStepper.onValueEdited = [this](const juce::String& text) {
+        textureOpacityPct = juce::jlimit(TEX_OPACITY_MIN, TEX_OPACITY_MAX, text.getIntValue());
+        textureOpacityStepper.setDisplayValue(textureOpacityPct);
         if (onTextureOpacityChanged) onTextureOpacityChanged(textureOpacityPct / 100.0f);
     };
 
     // --- Playback ---
 
-    highwayLengthStepper.setDisplayValue(juce::String(highwayLengthPct) + "%");
+    highwayLengthStepper.setDisplayValue(highwayLengthPct);
     highwayLengthStepper.onStep = [this](int delta) {
         int snapped = (int)std::round(highwayLengthPct / (double)HWY_LENGTH_STEP_PCT) * HWY_LENGTH_STEP_PCT;
         highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT,
             snapped + delta * HWY_LENGTH_STEP_PCT);
-        highwayLengthStepper.setDisplayValue(juce::String(highwayLengthPct) + "%");
+        highwayLengthStepper.setDisplayValue(highwayLengthPct);
+        if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
+    };
+    highwayLengthStepper.onValueEdited = [this](const juce::String& text) {
+        highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT, text.getIntValue());
+        highwayLengthStepper.setDisplayValue(highwayLengthPct);
         if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
     };
 
@@ -292,11 +317,17 @@ void ToolbarComponent::initSettingsPanel()
         if (onLatencyChanged) onLatencyChanged(latencyIndex + 1);
     };
 
-    syncOffsetStepper.setDisplayValue(juce::String(syncOffsetMs) + " ms");
+    syncOffsetStepper.setDisplayValue(syncOffsetMs);
     syncOffsetStepper.onStep = [this](int delta) {
         int snapped = (int)std::round(syncOffsetMs / (double)CALIBRATION_STEP_MS) * CALIBRATION_STEP_MS;
         syncOffsetMs = juce::jlimit(syncOffsetMin, syncOffsetMax, snapped + delta * CALIBRATION_STEP_MS);
-        syncOffsetStepper.setDisplayValue(juce::String(syncOffsetMs) + " ms");
+        syncOffsetStepper.setDisplayValue(syncOffsetMs);
+        state.setProperty("latencyOffsetMs", syncOffsetMs, nullptr);
+        if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
+    };
+    syncOffsetStepper.onValueEdited = [this](const juce::String& text) {
+        syncOffsetMs = juce::jlimit(syncOffsetMin, syncOffsetMax, text.getIntValue());
+        syncOffsetStepper.setDisplayValue(syncOffsetMs);
         state.setProperty("latencyOffsetMs", syncOffsetMs, nullptr);
         if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
     };
@@ -412,7 +443,7 @@ void ToolbarComponent::loadState()
 
     // Note speed
     noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
-    noteSpeedStepper.setDisplayValue(juce::String(noteSpeed));
+    noteSpeedStepper.setDisplayValue(noteSpeed);
 
     // Drum type → cymbals toggle (Pro = 2 = on)
     int drumType = (int)state["drumType"];
@@ -476,19 +507,19 @@ void ToolbarComponent::loadState()
 
     // Sync offset
     syncOffsetMs = juce::jlimit(syncOffsetMin, syncOffsetMax, (int)state["latencyOffsetMs"]);
-    syncOffsetStepper.setDisplayValue(juce::String(syncOffsetMs) + " ms");
+    syncOffsetStepper.setDisplayValue(syncOffsetMs);
 
     // Gem scale
     float savedGemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : GEM_SCALE_DEFAULT_PCT / 100.0f;
     gemScalePct = juce::jlimit(GEM_SCALE_MIN_PCT, GEM_SCALE_MAX_PCT, juce::roundToInt(savedGemScale * 100.0f));
-    gemScaleStepper.setDisplayValue(juce::String(gemScalePct) + "%");
+    gemScaleStepper.setDisplayValue(gemScalePct);
 
     // Highway length
     if (state.hasProperty("highwayLength"))
     {
         int savedPct = juce::roundToInt((float)state["highwayLength"] * 100.0f);
         highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT, savedPct);
-        highwayLengthStepper.setDisplayValue(juce::String(highwayLengthPct) + "%");
+        highwayLengthStepper.setDisplayValue(highwayLengthPct);
     }
 
     // Texture scale
@@ -496,14 +527,14 @@ void ToolbarComponent::loadState()
     {
         int savedPct = juce::roundToInt((float)state["textureScale"] * 100.0f);
         texScalePct = juce::jlimit(TEX_SCALE_MIN_PCT, TEX_SCALE_MAX_PCT, savedPct);
-        textureScaleStepper.setDisplayValue(juce::String(texScalePct) + "%");
+        textureScaleStepper.setDisplayValue(texScalePct);
     }
 
     // Texture opacity
     if (state.hasProperty("textureOpacity"))
     {
         textureOpacityPct = juce::jlimit(TEX_OPACITY_MIN, TEX_OPACITY_MAX, juce::roundToInt((float)state["textureOpacity"] * 100.0f));
-        textureOpacityStepper.setDisplayValue(juce::String(textureOpacityPct) + "%");
+        textureOpacityStepper.setDisplayValue(textureOpacityPct);
     }
 
     // Highway texture
@@ -701,7 +732,7 @@ void ToolbarComponent::setLatencyOffsetRange(int minMs, int maxMs)
     syncOffsetMin = minMs;
     syncOffsetMax = maxMs;
     syncOffsetMs = juce::jlimit(minMs, maxMs, syncOffsetMs);
-    syncOffsetStepper.setDisplayValue(juce::String(syncOffsetMs) + " ms");
+    syncOffsetStepper.setDisplayValue(syncOffsetMs);
 }
 
 #ifdef DEBUG
