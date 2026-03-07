@@ -138,7 +138,7 @@ private:
 
     // Texture controls (read by DebugEditorController)
     float textureScaleValue = 1.0f;
-    float textureOpacityValue = 0.45f;
+    float textureOpacityValue = TEXTURE_OPACITY_DEFAULT;
     ScrollableLabel textureScaleLabel;
     ScrollableLabel textureOpacityLabel;
     // Gridline position offset

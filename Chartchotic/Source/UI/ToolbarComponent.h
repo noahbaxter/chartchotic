@@ -166,7 +166,7 @@ private:
     int noteSpeed = 7;                    // TODO_RELEASE_DEFAULT
     int backgroundIndex = 0;              // TODO_RELEASE_DEFAULT
     int highwayTextureIndex = 0;          // TODO_RELEASE_DEFAULT
-    int textureOpacityPct = 50;           // TODO_RELEASE_DEFAULT
+    int textureOpacityPct = TEXTURE_OPACITY_PCT_DEFAULT;
     int gemScaleIndex = gemScaleDefault;  // TODO_RELEASE_DEFAULT
     int highwayLengthPct = hwLenDefaultPct; // TODO_RELEASE_DEFAULT
 

@@ -42,7 +42,7 @@ public:
     void clearTexture();
 
     float textureScale = 1.0f;    // >1 = more tiles (squished), <1 = fewer (stretched)
-    float textureOpacity = 0.45f; // Overlay opacity (0..1)
+    float textureOpacity = TEXTURE_OPACITY_DEFAULT;
     float tileStep = 0.80f;       // Vertical step between tiles (< 1.0 = overlap for baked fade)
     float tileScaleStep = 0.50f;   // Scale multiplier per tile (each tile = previous * this)
 
