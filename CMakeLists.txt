@@ -171,6 +171,7 @@ target_sources(Chartchotic
         Chartchotic/Source/UI/Theme.h
         Chartchotic/Source/UI/ToolbarPanelGroup.h
         Chartchotic/Source/UI/SectionHeader.h
+        Chartchotic/Source/UI/ControlConstants.h
         Chartchotic/Source/UI/ToolbarComponent.cpp
         Chartchotic/Source/UI/ToolbarComponent.h
         # Utils

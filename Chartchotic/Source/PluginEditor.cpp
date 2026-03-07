@@ -204,69 +204,69 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     };
 
     toolbar.onGemsChanged = [this](bool on) {
-        state.setProperty("showGems", on ? 1 : 0, nullptr);
+        state.setProperty("showGems", on, nullptr);
         sceneRenderer.showGems = on;
         repaint();
     };
 
     toolbar.onBarsChanged = [this](bool on) {
-        state.setProperty("showBars", on ? 1 : 0, nullptr);
+        state.setProperty("showBars", on, nullptr);
         sceneRenderer.showBars = on;
         repaint();
     };
 
     toolbar.onSustainsChanged = [this](bool on) {
-        state.setProperty("showSustains", on ? 1 : 0, nullptr);
+        state.setProperty("showSustains", on, nullptr);
         sceneRenderer.showSustains = on;
         repaint();
     };
 
     toolbar.onLanesChanged = [this](bool on) {
-        state.setProperty("showLanes", on ? 1 : 0, nullptr);
+        state.setProperty("showLanes", on, nullptr);
         sceneRenderer.showLanes = on;
         repaint();
     };
 
     toolbar.onGridlinesChanged = [this](bool on) {
-        state.setProperty("showGridlines", on ? 1 : 0, nullptr);
+        state.setProperty("showGridlines", on, nullptr);
         sceneRenderer.showGridlines = on;
         repaint();
     };
 
     toolbar.onHitIndicatorsChanged = [this](bool on) {
-        state.setProperty("hitIndicators", on ? 1 : 0, nullptr);
+        state.setProperty("hitIndicators", on, nullptr);
         audioProcessor.refreshMidiDisplay();
     };
 
     toolbar.onStarPowerChanged = [this](bool on) {
-        state.setProperty("starPower", on ? 1 : 0, nullptr);
+        state.setProperty("starPower", on, nullptr);
         audioProcessor.refreshMidiDisplay();
     };
 
     toolbar.onKick2xChanged = [this](bool on) {
-        state.setProperty("kick2x", on ? 1 : 0, nullptr);
+        state.setProperty("kick2x", on, nullptr);
         audioProcessor.refreshMidiDisplay();
     };
 
     toolbar.onDynamicsChanged = [this](bool on) {
-        state.setProperty("dynamics", on ? 1 : 0, nullptr);
+        state.setProperty("dynamics", on, nullptr);
         audioProcessor.refreshMidiDisplay();
     };
 
     toolbar.onTrackChanged = [this](bool on) {
-        state.setProperty("showTrack", on ? 1 : 0, nullptr);
+        state.setProperty("showTrack", on, nullptr);
         sceneRenderer.showTrack = on;
         repaint();
     };
 
     toolbar.onStrikelineChanged = [this](bool on) {
-        state.setProperty("showStrikeline", on ? 1 : 0, nullptr);
+        state.setProperty("showStrikeline", on, nullptr);
         sceneRenderer.showStrikeline = on;
         repaint();
     };
 
     toolbar.onHighwayChanged = [this](bool on) {
-        state.setProperty("showHighway", on ? 1 : 0, nullptr);
+        state.setProperty("showHighway", on, nullptr);
         showHighway = on;
         repaint();
     };
@@ -667,7 +667,7 @@ void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
     // Convert note speed to highway time: 7.87 is the default highway length in world units,
     // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
-    int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : 7;
+    int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
     displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
 
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.

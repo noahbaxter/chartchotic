@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "PPQ.h"
+#include "../UI/ControlConstants.h"
 
 // Windows compatibility - uint is not defined by default on Windows
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
@@ -12,23 +13,6 @@
 // CONSTANTS
 
 constexpr uint LANE_COUNT = 7;  // Number of playable lanes (0-6)
-
-//==============================================================================
-// MENUS
-
-enum class Part { GUITAR = 1, DRUMS, REAL_DRUMS };
-// enum class GuitarType { LEAD = 1, RHYTHM, BASS };
-enum class DrumType { NORMAL = 1, PRO };
-enum class SkillLevel { EASY = 1, MEDIUM, HARD, EXPERT };
-enum class ViewToggle { STAR_POWER = 1, KICK_2X, DYNAMICS };
-enum class HopoMode { OFF = 1, SIXTEENTH, DOT_SIXTEENTH, CLASSIC_170, EIGHTH };
-
-const juce::StringArray partLabels = {"Guitar", "Drums"};
-// const juce::StringArray guitarTypeLabels = {"Lead", "Rhythm", "Bass"};
-const juce::StringArray drumTypeLabels = {"Normal", "Pro"};
-const juce::StringArray skillLevelLabels = {"Easy", "Medium", "Hard", "Expert"};
-const juce::StringArray viewToggleLabels = {"Star Power", "Kick 2x", "Dynamics"};
-const juce::StringArray hopoModeLabels = {"Off", "16th", "Dot 16th", "170 Tick", "8th"};
 
 //==============================================================================
 // State helpers

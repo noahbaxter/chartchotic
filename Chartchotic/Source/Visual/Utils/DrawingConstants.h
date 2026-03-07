@@ -39,7 +39,6 @@ constexpr float HALF_BEAT_OPACITY = 0.15f;   // Gridline opacity for half-beat l
 
 // Highway texture
 constexpr float TEXTURE_OPACITY_DEFAULT = 1.0f;  // Default highway texture opacity
-constexpr int   TEXTURE_OPACITY_PCT_DEFAULT = 100;
 
 // Hit animation rendering
 constexpr float HIT_FLASH_OPACITY = 0.8f;    // Hit flash frame opacity at strikeline

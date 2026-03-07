@@ -54,21 +54,29 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("part", (int)Part::DRUMS, nullptr);
 #endif
     state.setProperty("drumType", (int)DrumType::PRO, nullptr);
-    state.setProperty("framerate", 3, nullptr); // 60 FPS
-    state.setProperty("latency", 2, nullptr);   // 500 ms
-    state.setProperty("latencyOffsetMs", 0, nullptr); // Manual latency adjustment (-2000 to +2000ms)
-    state.setProperty("autoHopo", 2, nullptr); // Auto HOPO on, default threshold
-    state.setProperty("hitIndicators", 1, nullptr);
-    state.setProperty("starPower", 1, nullptr);
-    state.setProperty("kick2x", 1, nullptr);
-    state.setProperty("dynamics", 1, nullptr);
-    state.setProperty("noteSpeed", 7, nullptr);
-    state.setProperty("gemScale", 1.0f, nullptr);
-    state.setProperty("showGems", 1, nullptr);
-    state.setProperty("showBars", 1, nullptr);
-    state.setProperty("showSustains", 1, nullptr);
-    state.setProperty("showLanes", 1, nullptr);
-    state.setProperty("showGridlines", 1, nullptr);
+    state.setProperty("framerate", FRAMERATE_DEFAULT, nullptr);
+    state.setProperty("latency", LATENCY_DEFAULT, nullptr);
+    state.setProperty("latencyOffsetMs", CALIBRATION_DEFAULT, nullptr);
+    state.setProperty("autoHopo", DEFAULT_AUTO_HOPO, nullptr);
+    state.setProperty("hopoThreshold", HOPO_THRESHOLD_DEFAULT, nullptr);
+    state.setProperty("hitIndicators", DEFAULT_SHOW_HIT_INDICATORS, nullptr);
+    state.setProperty("starPower", DEFAULT_SHOW_STAR_POWER, nullptr);
+    state.setProperty("kick2x", DEFAULT_KICK_2X, nullptr);
+    state.setProperty("dynamics", DEFAULT_DYNAMICS, nullptr);
+    state.setProperty("noteSpeed", NOTE_SPEED_DEFAULT, nullptr);
+    state.setProperty("gemScale", GEM_SCALE_DEFAULT_PCT / 100.0f, nullptr);
+    state.setProperty("showGems", DEFAULT_SHOW_GEMS, nullptr);
+    state.setProperty("showBars", DEFAULT_SHOW_BARS, nullptr);
+    state.setProperty("showSustains", DEFAULT_SHOW_SUSTAINS, nullptr);
+    state.setProperty("showLanes", DEFAULT_SHOW_LANES, nullptr);
+    state.setProperty("showGridlines", DEFAULT_SHOW_GRIDLINES, nullptr);
+    state.setProperty("showTrack", DEFAULT_SHOW_TRACK, nullptr);
+    state.setProperty("showStrikeline", DEFAULT_SHOW_STRIKELINE, nullptr);
+    state.setProperty("showHighway", DEFAULT_SHOW_HIGHWAY, nullptr);
+    state.setProperty("showFps", DEFAULT_SHOW_FPS, nullptr);
+    state.setProperty("highwayLength", HWY_LENGTH_DEFAULT_PCT / 100.0f, nullptr);
+    state.setProperty("textureScale", TEX_SCALE_DEFAULT_PCT / 100.0f, nullptr);
+    state.setProperty("textureOpacity", TEX_OPACITY_DEFAULT / 100.0f, nullptr);
     state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
 }
 

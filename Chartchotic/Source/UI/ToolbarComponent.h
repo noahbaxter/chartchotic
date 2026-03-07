@@ -11,6 +11,7 @@
 #include "Controls/PopupMenuButton.h"
 #include "../Utils/Utils.h"
 #include "../Visual/Utils/DrawingConstants.h"
+#include "ControlConstants.h"
 #ifdef DEBUG
 #include "../DebugTools/DebugToolbarPanel.h"
 #include "../DebugTools/DebugTuningPanel.h"
@@ -117,7 +118,7 @@ private:
     // Guitar modifiers
     PillToggle autoHopoToggle{"Auto HOPO"};
     ValueStepper hopoThresholdStepper{"Threshold"};
-    int hopoThresholdIndex = 2; // 0-based into hopoThresholdLabels (default: "170 Tick")
+    int hopoThresholdIndex = HOPO_THRESHOLD_DEFAULT;
 
     // Drum modifiers
     PillToggle dynamicsToggle{"Dynamics"};
@@ -152,37 +153,27 @@ private:
 
     PanelSectionHeader syncHeader{"Sync"};
     ValueStepper syncOffsetStepper{"Calibration"};
-    int syncOffsetMs = 0;
-    int syncOffsetMin = 0;
-    int syncOffsetMax = 2000;
+    int syncOffsetMs = CALIBRATION_DEFAULT;
+    int syncOffsetMin = CALIBRATION_MIN_MS;
+    int syncOffsetMax = CALIBRATION_MAX_MS;
     ValueStepper latencyStepper{"Latency"};
-    int latencyIndex = 0;
+    int latencyIndex = LATENCY_DEFAULT - 1; // state is 1-based
     SegmentedButtons framerateButtons;
     CheckboxToggle showFpsToggle{"Show FPS"};
 
     //==============================================================================
     // Value data
-    int noteSpeed = 7;
+    int noteSpeed = NOTE_SPEED_DEFAULT;
     int backgroundIndex = 0;
     int highwayTextureIndex = 0;
-    int textureOpacityPct = TEXTURE_OPACITY_PCT_DEFAULT;
-    int gemScaleIndex = gemScaleDefault;
-    int highwayLengthPct = hwLenDefaultPct;
+    int textureOpacityPct = TEX_OPACITY_DEFAULT;
+    int gemScalePct = GEM_SCALE_DEFAULT_PCT;
+    int highwayLengthPct = HWY_LENGTH_DEFAULT_PCT;
 
     juce::StringArray backgroundNames;
     juce::StringArray highwayTextureNames;
 
-    static constexpr int texScaleValues[] = { 25, 50, 75, 100, 125, 150, 200, 300, 400 };
-    static constexpr int texScaleDefault = 3;
-    int texScaleIndex = texScaleDefault;
-
-    static constexpr float gemScaleValues[] = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f };
-    static constexpr int gemScaleDefault = 5;
-
-    static constexpr int hwLenMinPct = (int)(FAR_FADE_MIN * 100);
-    static constexpr int hwLenMaxPct = (int)(FAR_FADE_MAX * 100);
-    static constexpr int hwLenStepPct = 10;
-    static constexpr int hwLenDefaultPct = (int)(FAR_FADE_DEFAULT * 100);
+    int texScalePct = TEX_SCALE_DEFAULT_PCT;
 
     //==============================================================================
     // Popup buttons
