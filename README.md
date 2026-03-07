@@ -86,4 +86,6 @@ Want to support development? [Donate here](https://www.paypal.com/donate/?busine
 
 Chartchotic is open source under the MIT license. Art assets are provided for build purposes only.
 
-**Credits:** Huge thanks to Inventor211 for the custom art assets!
+**Art credits:**
+- [Inventor211](https://www.youtube.com/@inventor211) — Chart assets
+- [kanaizo](https://youtube.com/@kanaizo) — Bundled highway textures

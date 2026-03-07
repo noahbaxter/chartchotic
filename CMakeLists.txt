@@ -199,6 +199,21 @@ juce_add_binary_data(ChartchoticData
         assets/static/icons/icon_guitar.png
         assets/static/icons/icon_drums.png
         assets/static/logo-reaper.svg
+        # Default highway textures
+        assets/static/highways/kanaizo_amber.png
+        assets/static/highways/kanaizo_darkwood.png
+        assets/static/highways/kanaizo_gothic.png
+        assets/static/highways/kanaizo_ornate.png
+        assets/static/highways/kanaizo_BlueCaustic.png
+        assets/static/highways/kanaizo_FretWood.png
+        assets/static/highways/kanaizo_BlueMagentaHex.png
+
+
+        assets/static/highways/kanaizo_IcyMetal.png
+        assets/static/highways/kanaizo_BrightRadiated.png
+        assets/static/highways/kanaizo_ModernHueistic.png
+        assets/static/highways/kanaizo_RedCaustic.png
+        assets/static/highways/kanaizo_ScratchedRegular.png
         # Notes (generated from PDFs)
         assets/generated/notes/note_blue.png
         assets/generated/notes/note_green.png

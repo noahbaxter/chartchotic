@@ -688,13 +688,9 @@ void ChartchoticAudioProcessorEditor::loadState()
         loadBackground(savedBg);
     }
 
-    // Default to random highway texture if no saved preference (before toolbar reads state)
-    if (!state.hasProperty("highwayTexture") && highwayTextureNames.size() > 0)
-    {
-        auto rng = juce::Random();
-        int idx = rng.nextInt(highwayTextureNames.size());
-        state.setProperty("highwayTexture", highwayTextureNames[idx], nullptr);
-    }
+    // Default to gothic if no saved preference (first launch only)
+    if (!state.hasProperty("highwayTexture") && highwayTextureNames.contains("kanaizo_gothic"))
+        state.setProperty("highwayTexture", "kanaizo_gothic", nullptr);
 
     toolbar.loadState();
 
@@ -827,6 +823,29 @@ void ChartchoticAudioProcessorEditor::scanHighwayTextures()
 
     if (!highwayTextureDirectory.isDirectory())
         highwayTextureDirectory.createDirectory();
+
+    // Install bundled default textures if missing
+    struct BundledTexture { const char* filename; const char* data; int size; };
+    const BundledTexture bundled[] = {
+        { "kanaizo_amber.png",             BinaryData::kanaizo_amber_png,             BinaryData::kanaizo_amber_pngSize },
+        { "kanaizo_darkwood.png",          BinaryData::kanaizo_darkwood_png,          BinaryData::kanaizo_darkwood_pngSize },
+        { "kanaizo_gothic.png",            BinaryData::kanaizo_gothic_png,            BinaryData::kanaizo_gothic_pngSize },
+        { "kanaizo_ornate.png",            BinaryData::kanaizo_ornate_png,            BinaryData::kanaizo_ornate_pngSize },
+        { "kanaizo_BlueCaustic.png",       BinaryData::kanaizo_BlueCaustic_png,       BinaryData::kanaizo_BlueCaustic_pngSize },
+        { "kanaizo_BlueMagentaHex.png",    BinaryData::kanaizo_BlueMagentaHex_png,    BinaryData::kanaizo_BlueMagentaHex_pngSize },
+        { "kanaizo_FretWood.png",          BinaryData::kanaizo_FretWood_png,          BinaryData::kanaizo_FretWood_pngSize },
+        { "kanaizo_IcyMetal.png",          BinaryData::kanaizo_IcyMetal_png,          BinaryData::kanaizo_IcyMetal_pngSize },
+        { "kanaizo_BrightRadiated.png",    BinaryData::kanaizo_BrightRadiated_png,    BinaryData::kanaizo_BrightRadiated_pngSize },
+        { "kanaizo_ModernHueistic.png",    BinaryData::kanaizo_ModernHueistic_png,    BinaryData::kanaizo_ModernHueistic_pngSize },
+        { "kanaizo_RedCaustic.png",        BinaryData::kanaizo_RedCaustic_png,        BinaryData::kanaizo_RedCaustic_pngSize },
+        { "kanaizo_ScratchedRegular.png",  BinaryData::kanaizo_ScratchedRegular_png,  BinaryData::kanaizo_ScratchedRegular_pngSize },
+    };
+    for (auto& t : bundled)
+    {
+        auto file = highwayTextureDirectory.getChildFile(t.filename);
+        if (!file.existsAsFile())
+            file.replaceWithData(t.data, t.size);
+    }
 
     auto files = highwayTextureDirectory.findChildFiles(juce::File::findFiles, false, "*.png");
     files.sort();
