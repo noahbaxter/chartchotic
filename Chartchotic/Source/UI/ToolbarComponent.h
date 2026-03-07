@@ -161,14 +161,13 @@ private:
     CheckboxToggle showFpsToggle{"Show FPS"};
 
     //==============================================================================
-    // Value data — TODO_RELEASE_DEFAULT: audit all defaults before tagging release
-
-    int noteSpeed = 7;                    // TODO_RELEASE_DEFAULT
-    int backgroundIndex = 0;              // TODO_RELEASE_DEFAULT
-    int highwayTextureIndex = 0;          // TODO_RELEASE_DEFAULT
+    // Value data
+    int noteSpeed = 7;
+    int backgroundIndex = 0;
+    int highwayTextureIndex = 0;
     int textureOpacityPct = TEXTURE_OPACITY_PCT_DEFAULT;
-    int gemScaleIndex = gemScaleDefault;  // TODO_RELEASE_DEFAULT
-    int highwayLengthPct = hwLenDefaultPct; // TODO_RELEASE_DEFAULT
+    int gemScaleIndex = gemScaleDefault;
+    int highwayLengthPct = hwLenDefaultPct;
 
     juce::StringArray backgroundNames;
     juce::StringArray highwayTextureNames;
