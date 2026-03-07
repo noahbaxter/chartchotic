@@ -54,6 +54,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
     initAssets();
     initToolbarCallbacks();
+    toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
     initBottomBar();
 
     addAndMakeVisible(toolbar);
@@ -90,7 +91,6 @@ void ChartchoticAudioProcessorEditor::onFrame()
 
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
     toolbar.setReaperMode(isReaperMode);
-    toolbar.setLatencyOffsetRange(isReaperMode ? -2000 : 0, 2000);
     toolbar.updateVisibility();
 
     // Track position changes for render logic
@@ -456,9 +456,7 @@ void ChartchoticAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     // Capture playhead once to avoid TOCTOU null dereference
     auto* playHead = audioProcessor.getPlayHead();
 
-    // Apply latency offset to shift display position
-    // Positive offset = MORE delay (notes appear higher/further from strikeline)
-    // Negative offset = LESS delay (notes appear lower/closer to strikeline)
+    // Apply latency offset (ms added to playhead time)
     int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
     if (playHead)
     {
@@ -543,9 +541,8 @@ void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     // Capture playhead once to avoid TOCTOU null dereference
     auto* playHead = audioProcessor.getPlayHead();
 
-    // Apply latency offset to shift display position (positive only for standard mode)
-    // Positive offset = MORE delay (notes appear higher/further from strikeline)
-    int latencyOffsetMs = std::max(0, (int)state.getProperty("latencyOffsetMs"));
+    // Apply latency offset (ms added to playhead time)
+    int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
     if (playHead)
     {
         auto positionInfo = playHead->getPosition();
