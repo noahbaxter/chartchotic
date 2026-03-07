@@ -57,7 +57,7 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("framerate", 3, nullptr); // 60 FPS
     state.setProperty("latency", 2, nullptr);   // 500 ms
     state.setProperty("latencyOffsetMs", 0, nullptr); // Manual latency adjustment (-2000 to +2000ms)
-    state.setProperty("autoHopo", (int)HopoMode::OFF, nullptr);
+    state.setProperty("autoHopo", 2, nullptr); // Auto HOPO on, default threshold
     state.setProperty("hitIndicators", 1, nullptr);
     state.setProperty("starPower", 1, nullptr);
     state.setProperty("kick2x", 1, nullptr);
