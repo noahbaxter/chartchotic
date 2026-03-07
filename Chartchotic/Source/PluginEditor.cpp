@@ -37,7 +37,11 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     setConstrainer(&constrainer);
     setResizable(true, true);
 
-    setSize(defaultWidth, defaultHeight);
+    // Restore saved window size (aspect ratio is fixed, so width is enough)
+    int savedWidth = state.hasProperty("editorWidth") ? (int)state["editorWidth"] : defaultWidth;
+    savedWidth = juce::jlimit(minWidth, 4096, savedWidth);
+    int savedHeight = juce::roundToInt(savedWidth / aspectRatio);
+    setSize(savedWidth, savedHeight);
 
     setWantsKeyboardFocus(true);
 
@@ -616,6 +620,8 @@ void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 
 void ChartchoticAudioProcessorEditor::resized()
 {
+    state.setProperty("editorWidth", getWidth(), nullptr);
+
     const int margin = 10;
 
     // Toolbar at top — scales with editor height
