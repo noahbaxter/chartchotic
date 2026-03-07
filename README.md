@@ -1,10 +1,12 @@
-# Chartchotic
-Chartchotic is a vst plugin designed for Reaper that visualizes midi notes as they'd appear in rhythm games like Clone Hero and YARG. Just throw the plugin on any track with midi notes and happy charting on **Windows**, **MacOS**, and **Linux**!
+<p align="center">
+  <img src="./logo.png" alt="Chartchotic" width="700">
+</p>
 
-This plugin relies on the reaper-sdk for tight DAW integration allowing zero latency timeline scrubbing and a host of advanced midi features, BUT it can also work in any DAW with a reduced feature set if you prefer by relying on midi lookahead (which adds latency).
+Chartchotic is a VST3/AU plugin that visualizes MIDI notes as they'd appear in rhythm games like Clone Hero and YARG. Works in any DAW - just throw it on a MIDI track and start charting on **Windows**, **macOS**, and **Linux**.
 
+For the best experience, use REAPER - direct timeline integration gives you zero-latency scrubbing and advanced MIDI features. Other DAWs work great too via MIDI lookahead.
 
-![Preview Image](preview.jpg)
+![Preview Image](preview.png)
 
 ---
 
@@ -22,7 +24,7 @@ This plugin relies on the reaper-sdk for tight DAW integration allowing zero lat
 - Lanes for rolls and swells
 
 ### ✨ **General Features**
-- Smooth rendering up to 120FPS
+- Smooth rendering synced to your display refresh rate
 - Hit animations with visual feedback
 - Adjustable playback speed
 - Resizable, responsive interface
@@ -59,18 +61,18 @@ After installing, restart your DAW to autoscan for the plugin.
 4. Adjust playback speed to your liking
 5. Play and chart!
 
-**Pro tip:** Use REAPER for the best experience — direct timeline access with zero latency.
+**Pro tip:** Use REAPER for the best experience - direct timeline access with zero latency.
 
 ---
 
 ## Why Chartchotic?
 
-- **Open source** — Fully built from the groundup as an MIT license
-- **Cross-platform** — Works on Windows, macOS, and Linux
-- **Accurate** — Properly renders all chart types and note modifiers
-- **Fast** — Smooth high FPS rendering, optimized for real-time preview
-- **Modern** — Built for current DAWs with 64bit VST3/AU support
-- **REAPER integration** — Scrub and preview with zero latency
+- **Open source** - Built from the ground up, MIT licensed
+- **Cross-platform** - Works on Windows, macOS, and Linux
+- **Accurate** - Properly renders all chart types and note modifiers
+- **Fast** - Smooth high FPS rendering, optimized for real-time preview
+- **Modern** - Built for current DAWs with 64bit VST3/AU support
+- **REAPER integration** - Scrub and preview with zero latency
 
 ---
 
@@ -87,5 +89,5 @@ Want to support development? [Donate here](https://www.paypal.com/donate/?busine
 Chartchotic is open source under the MIT license. Art assets are provided for build purposes only.
 
 **Art credits:**
-- [Inventor211](https://www.youtube.com/@inventor211) — Chart assets
-- [kanaizo](https://youtube.com/@kanaizo) — Bundled highway textures
+- [Inventor211](https://www.youtube.com/@inventor211) - Chart assets
+- [kanaizo](https://youtube.com/@kanaizo) - Bundled highway textures
