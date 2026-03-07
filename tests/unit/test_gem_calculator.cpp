@@ -84,7 +84,8 @@ TEST_CASE("Guitar gem type - chords always strum", "[gem_calculator][guitar][cho
 {
     TestFixture f;
     // Enable auto-HOPO so we can verify chords override it
-    f.state.setProperty("autoHopo", (int)HopoMode::SIXTEENTH, nullptr);
+    f.state.setProperty("autoHopo", true, nullptr);
+    f.state.setProperty("hopoThreshold", 0, nullptr); // 1/16
 
     SECTION("two notes at same PPQ, no modifiers → both NOTE")
     {
@@ -169,9 +170,9 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
 {
     TestFixture f;
 
-    SECTION("HopoMode::OFF → never auto-HOPO")
+    SECTION("auto-HOPO off → never auto-HOPO")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::OFF, nullptr);
+        f.state.setProperty("autoHopo", false, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.5));
         f.addNote((uint)Guitar::EXPERT_RED, PPQ(1.1), PPQ(1.6));
 
@@ -180,9 +181,10 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
         REQUIRE(result == Gem::NOTE);
     }
 
-    SECTION("SIXTEENTH mode, different column within threshold → HOPO_GHOST")
+    SECTION("1/16 threshold, different column within threshold → HOPO_GHOST")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::SIXTEENTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 0, nullptr);
         // Place notes within 1/16th note distance
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.2));
         PPQ sixteenthApart = PPQ(1.0) + MIDI_HOPO_SIXTEENTH - PPQ(0.01);
@@ -195,7 +197,8 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
 
     SECTION("same column → NOTE (same color can't auto-HOPO)")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::SIXTEENTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 0, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.2));
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.15), PPQ(1.5));
 
@@ -206,7 +209,8 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
 
     SECTION("previous note was chord → current note NOT auto-HOPO")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::SIXTEENTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 0, nullptr);
         // Chord at PPQ 1.0
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.5));
         f.addNote((uint)Guitar::EXPERT_RED, PPQ(1.0), PPQ(1.5));
@@ -220,7 +224,8 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
 
     SECTION("note just beyond threshold → NOTE")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::SIXTEENTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 0, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.5));
         // Place beyond threshold + buffer
         PPQ beyondThreshold = PPQ(1.0) + MIDI_HOPO_SIXTEENTH + MIDI_HOPO_THRESHOLD_BUFFER + PPQ(0.02);
@@ -233,7 +238,8 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
 
     SECTION("no previous note in search window → NOTE")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::SIXTEENTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 0, nullptr);
         // Only one note, no previous
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(5.0), PPQ(5.5));
 
@@ -242,9 +248,10 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
         REQUIRE(result == Gem::NOTE);
     }
 
-    SECTION("DOT_SIXTEENTH mode, within threshold → HOPO_GHOST")
+    SECTION("Dot 1/16 threshold, within threshold → HOPO_GHOST")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::DOT_SIXTEENTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 1, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.2));
         PPQ withinThreshold = PPQ(1.0) + MIDI_HOPO_SIXTEENTH_DOT - PPQ(0.01);
         f.addNote((uint)Guitar::EXPERT_RED, withinThreshold, withinThreshold + PPQ(0.5));
@@ -254,9 +261,10 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
         REQUIRE(result == Gem::HOPO_GHOST);
     }
 
-    SECTION("DOT_SIXTEENTH mode, beyond threshold → NOTE")
+    SECTION("Dot 1/16 threshold, beyond threshold → NOTE")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::DOT_SIXTEENTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 1, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.5));
         PPQ beyondThreshold = PPQ(1.0) + MIDI_HOPO_SIXTEENTH_DOT + MIDI_HOPO_THRESHOLD_BUFFER + PPQ(0.02);
         f.addNote((uint)Guitar::EXPERT_RED, beyondThreshold, beyondThreshold + PPQ(0.5));
@@ -266,9 +274,10 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
         REQUIRE(result == Gem::NOTE);
     }
 
-    SECTION("CLASSIC_170 mode, within threshold → HOPO_GHOST")
+    SECTION("170 Tick threshold, within threshold → HOPO_GHOST")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::CLASSIC_170, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 2, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.2));
         PPQ withinThreshold = PPQ(1.0) + MIDI_HOPO_CLASSIC_170 - PPQ(0.01);
         f.addNote((uint)Guitar::EXPERT_RED, withinThreshold, withinThreshold + PPQ(0.5));
@@ -278,9 +287,10 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
         REQUIRE(result == Gem::HOPO_GHOST);
     }
 
-    SECTION("CLASSIC_170 mode, beyond threshold → NOTE")
+    SECTION("170 Tick threshold, beyond threshold → NOTE")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::CLASSIC_170, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 2, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.5));
         PPQ beyondThreshold = PPQ(1.0) + MIDI_HOPO_CLASSIC_170 + MIDI_HOPO_THRESHOLD_BUFFER + PPQ(0.02);
         f.addNote((uint)Guitar::EXPERT_RED, beyondThreshold, beyondThreshold + PPQ(0.5));
@@ -290,9 +300,10 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
         REQUIRE(result == Gem::NOTE);
     }
 
-    SECTION("EIGHTH mode, within threshold → HOPO_GHOST")
+    SECTION("1/8 threshold, within threshold → HOPO_GHOST")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::EIGHTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 3, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.2));
         PPQ withinThreshold = PPQ(1.0) + MIDI_HOPO_EIGHTH - PPQ(0.01);
         f.addNote((uint)Guitar::EXPERT_RED, withinThreshold, withinThreshold + PPQ(0.5));
@@ -302,9 +313,10 @@ TEST_CASE("Guitar gem type - auto-HOPO", "[gem_calculator][guitar][auto_hopo]")
         REQUIRE(result == Gem::HOPO_GHOST);
     }
 
-    SECTION("EIGHTH mode, beyond threshold → NOTE")
+    SECTION("1/8 threshold, beyond threshold → NOTE")
     {
-        f.state.setProperty("autoHopo", (int)HopoMode::EIGHTH, nullptr);
+        f.state.setProperty("autoHopo", true, nullptr);
+        f.state.setProperty("hopoThreshold", 3, nullptr);
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.5));
         PPQ beyondThreshold = PPQ(1.0) + MIDI_HOPO_EIGHTH + MIDI_HOPO_THRESHOLD_BUFFER + PPQ(0.02);
         f.addNote((uint)Guitar::EXPERT_RED, beyondThreshold, beyondThreshold + PPQ(0.5));

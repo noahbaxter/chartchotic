@@ -87,14 +87,7 @@ void ToolbarComponent::initChartPanel()
     autoHopoToggle.setToggleState(DEFAULT_AUTO_HOPO);
     autoHopoToggle.onClick = [this]() {
         bool on = autoHopoToggle.getToggleState();
-        if (on)
-        {
-            if (onAutoHopoChanged) onAutoHopoChanged(hopoThresholdIndex + 2); // +2: skip "Off", 1-based
-        }
-        else
-        {
-            if (onAutoHopoChanged) onAutoHopoChanged(1); // 1 = Off
-        }
+        if (onAutoHopoChanged) onAutoHopoChanged(on);
         // Relayout to show/hide threshold
         if (chartButton.isPanelVisible())
             chartButton.relayoutPanel();
@@ -107,7 +100,7 @@ void ToolbarComponent::initChartPanel()
         int count = hopoThresholdLabels.size();
         hopoThresholdIndex = juce::jlimit(0, count - 1, hopoThresholdIndex + delta);
         hopoThresholdStepper.setDisplayValue(hopoThresholdLabels[hopoThresholdIndex]);
-        if (onAutoHopoChanged) onAutoHopoChanged(hopoThresholdIndex + 2);
+        if (onHopoThresholdChanged) onHopoThresholdChanged(hopoThresholdIndex);
     };
 
     // Drum modifiers
@@ -425,24 +418,15 @@ void ToolbarComponent::loadState()
     int drumType = (int)state["drumType"];
     cymbalsToggle.setToggleState(drumType == 2);
 
-    // Auto HOPO (1-based: 1=Off, 2=16th, 3=Dot16th, 4=170Tick, 5=8th)
+    // Auto HOPO
     {
-        int autoHopo = (int)state["autoHopo"];
-        if (autoHopo == 1)
+        bool hopoOn = state.hasProperty("autoHopo") ? (bool)state["autoHopo"] : DEFAULT_AUTO_HOPO;
+        autoHopoToggle.setToggleState(hopoOn);
+
+        if (state.hasProperty("hopoThreshold"))
         {
-            autoHopoToggle.setToggleState(false);
-        }
-        else if (autoHopo >= 2 && autoHopo <= 5)
-        {
-            autoHopoToggle.setToggleState(true);
-            hopoThresholdIndex = autoHopo - 2;
+            hopoThresholdIndex = juce::jlimit(0, hopoThresholdLabels.size() - 1, (int)state["hopoThreshold"]);
             hopoThresholdStepper.setDisplayValue(hopoThresholdLabels[hopoThresholdIndex]);
-        }
-        else
-        {
-            // No saved value — default: on, 170 Tick
-            autoHopoToggle.setToggleState(true);
-            state.setProperty("autoHopo", hopoThresholdIndex + 2, nullptr);
         }
     }
 

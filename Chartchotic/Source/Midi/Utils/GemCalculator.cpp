@@ -153,27 +153,21 @@ bool GemCalculator::shouldBeAutoHOPO(uint pitch, PPQ position, juce::ValueTree& 
                                      juce::CriticalSection& noteStateMapLock)
 {
     // Check if Auto HOPOs are enabled
-    HopoMode hopoMode = (HopoMode)((int)state.getProperty("autoHopo", 1)); // Default Off
-    if (hopoMode == HopoMode::OFF) return false;
+    bool autoHopoOn = (bool)state.getProperty("autoHopo", false);
+    if (!autoHopoOn) return false;
+
+    // Threshold index: 0=1/16, 1=Dot 1/16, 2=170 Tick, 3=1/8
+    int thresholdIndex = (int)state.getProperty("hopoThreshold", 2);
 
     // Maximum distance from previous note to qualify as auto HOPO
     PPQ threshold = PPQ(0.0);
-    switch (hopoMode)
+    switch (thresholdIndex)
     {
-        case HopoMode::SIXTEENTH:
-            threshold = MIDI_HOPO_SIXTEENTH;
-            break;
-        case HopoMode::DOT_SIXTEENTH:
-            threshold = MIDI_HOPO_SIXTEENTH_DOT;
-            break;
-        case HopoMode::CLASSIC_170:
-            threshold = MIDI_HOPO_CLASSIC_170;
-            break;
-        case HopoMode::EIGHTH:
-            threshold = MIDI_HOPO_EIGHTH;
-            break;
-        default:
-            return false;
+        case 0: threshold = MIDI_HOPO_SIXTEENTH;     break;
+        case 1: threshold = MIDI_HOPO_SIXTEENTH_DOT; break;
+        case 2: threshold = MIDI_HOPO_CLASSIC_170;   break;
+        case 3: threshold = MIDI_HOPO_EIGHTH;        break;
+        default: return false;
     }
 
     threshold += MIDI_HOPO_THRESHOLD_BUFFER; // Small buffer to account for rounding errors

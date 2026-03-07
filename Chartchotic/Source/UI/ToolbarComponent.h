@@ -43,7 +43,8 @@ public:
     std::function<void(int skillId)> onSkillChanged;
     std::function<void(int partId)> onPartChanged;
     std::function<void(int drumTypeId)> onDrumTypeChanged;
-    std::function<void(int autoHopoId)> onAutoHopoChanged;
+    std::function<void(bool enabled)> onAutoHopoChanged;
+    std::function<void(int thresholdIndex)> onHopoThresholdChanged;
     std::function<void(bool)> onGemsChanged;
     std::function<void(bool)> onBarsChanged;
     std::function<void(bool)> onSustainsChanged;

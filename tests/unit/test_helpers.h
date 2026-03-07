@@ -18,7 +18,8 @@ struct TestFixture
         state.setProperty("skillLevel", (int)SkillLevel::EXPERT, nullptr);
         state.setProperty("part", (int)Part::GUITAR, nullptr);
         state.setProperty("drumType", (int)DrumType::NORMAL, nullptr);
-        state.setProperty("autoHopo", (int)HopoMode::OFF, nullptr);
+        state.setProperty("autoHopo", false, nullptr);
+        state.setProperty("hopoThreshold", 2, nullptr);
         state.setProperty("starPower", 1, nullptr);
         state.setProperty("kick2x", 1, nullptr);
         state.setProperty("dynamics", 1, nullptr);

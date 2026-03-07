@@ -198,8 +198,12 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         audioProcessor.refreshMidiDisplay();
     };
 
-    toolbar.onAutoHopoChanged = [this](int id) {
-        state.setProperty("autoHopo", id, nullptr);
+    toolbar.onAutoHopoChanged = [this](bool enabled) {
+        state.setProperty("autoHopo", enabled, nullptr);
+        audioProcessor.refreshMidiDisplay();
+    };
+    toolbar.onHopoThresholdChanged = [this](int thresholdIndex) {
+        state.setProperty("hopoThreshold", thresholdIndex, nullptr);
         audioProcessor.refreshMidiDisplay();
     };
 

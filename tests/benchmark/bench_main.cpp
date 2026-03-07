@@ -454,7 +454,8 @@ int main(int argc, char* argv[])
     state.setProperty("part", (int)Part::GUITAR, nullptr);
     state.setProperty("skillLevel", (int)SkillLevel::EXPERT, nullptr);
     state.setProperty("drumType", (int)DrumType::NORMAL, nullptr);
-    state.setProperty("autoHopo", (int)HopoMode::OFF, nullptr);
+    state.setProperty("autoHopo", false, nullptr);
+    state.setProperty("hopoThreshold", 2, nullptr);
     state.setProperty("starPower", 0, nullptr);
     state.setProperty("hitIndicators", 0, nullptr);
     state.setProperty("dynamics", 1, nullptr);
