@@ -158,18 +158,9 @@ void ChartchoticLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butto
     auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     bool toggled = button.getToggleState();
 
-    if (toggled)
+    if (toggled || shouldDrawButtonAsHighlighted)
     {
-        // Open — coral fill + bright border
-        g.setColour(juce::Colour(Theme::coral).withAlpha(0.25f));
-        g.fillRoundedRectangle(bounds, Theme::cornerRadius);
-
-        g.setColour(juce::Colour(Theme::coral));
-        g.drawRoundedRectangle(bounds, Theme::cornerRadius, 1.0f);
-    }
-    else if (shouldDrawButtonAsHighlighted)
-    {
-        // Hover — coral fill + bright border
+        // Open or hover — coral fill + bright border
         g.setColour(juce::Colour(Theme::coral).withAlpha(0.25f));
         g.fillRoundedRectangle(bounds, Theme::cornerRadius);
 
