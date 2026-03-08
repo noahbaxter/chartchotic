@@ -72,6 +72,7 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("showLanes", DEFAULT_SHOW_LANES, nullptr);
     state.setProperty("showGridlines", DEFAULT_SHOW_GRIDLINES, nullptr);
     state.setProperty("showTrack", DEFAULT_SHOW_TRACK, nullptr);
+    state.setProperty("showLaneSeparators", DEFAULT_SHOW_LANE_SEPARATORS, nullptr);
     state.setProperty("showStrikeline", DEFAULT_SHOW_STRIKELINE, nullptr);
     state.setProperty("showHighway", DEFAULT_SHOW_HIGHWAY, nullptr);
     state.setProperty("showFps", DEFAULT_SHOW_FPS, nullptr);

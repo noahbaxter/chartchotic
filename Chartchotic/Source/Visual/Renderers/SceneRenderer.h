@@ -50,6 +50,7 @@ class SceneRenderer
         bool showLanes = true;
         bool showGridlines = true;
         bool showTrack = true;
+        bool showLaneSeparators = true;
         bool showStrikeline = true;
 
         bool collectPhaseTiming = false;

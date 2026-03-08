@@ -68,6 +68,7 @@ constexpr bool DEFAULT_SHOW_HIT_INDICATORS = true;
 constexpr bool DEFAULT_SHOW_STAR_POWER  = true;
 constexpr bool DEFAULT_SHOW_TRACK       = true;
 constexpr bool DEFAULT_SHOW_STRIKELINE  = true;
+constexpr bool DEFAULT_SHOW_LANE_SEPARATORS = true;
 constexpr bool DEFAULT_SHOW_HIGHWAY     = true;
 constexpr bool DEFAULT_SHOW_FPS         = false;
 constexpr bool DEFAULT_AUTO_HOPO        = true;

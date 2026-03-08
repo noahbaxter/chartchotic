@@ -53,6 +53,7 @@ public:
     std::function<void(bool)> onGridlinesChanged;
     std::function<void(bool)> onHitIndicatorsChanged;
     std::function<void(bool)> onTrackChanged;
+    std::function<void(bool)> onLaneSeparatorsChanged;
     std::function<void(bool)> onStrikelineChanged;
     std::function<void(bool)> onHighwayChanged;
     std::function<void(bool)> onStarPowerChanged;
@@ -113,7 +114,7 @@ private:
     ValueStepper noteSpeedStepper{"Speed"};
 
     //==============================================================================
-    // Chart panel — Modifiers (contextual per instrument)
+    // View panel — Modifiers (contextual per instrument)
 
     PanelSectionHeader modifiersHeader{"Modifiers"};
     PillToggle starPowerToggle{"Star Power"};
@@ -128,22 +129,26 @@ private:
     PillToggle kick2xToggle{"Kick 2x"};
     PillToggle cymbalsToggle{"Cymbals"};
 
-    // Chart panel — Elements
-    PanelSectionHeader elementsHeader{"Elements"};
+    // View panel — Chart elements
+    PanelSectionHeader chartHeader{"Chart"};
     PillToggle gemsToggle{"Gems"};
     PillToggle barsToggle{"Bars"};
     PillToggle sustainsToggle{"Sustains"};
     PillToggle lanesToggle{"Lanes"};
     PillToggle gridlinesToggle{"Gridlines"};
     PillToggle hitIndicatorsToggle{"Hits"};
+
+    // View panel — Scene elements
+    PanelSectionHeader sceneHeader{"Scene"};
     PillToggle trackToggle{"Track"};
+    PillToggle laneSeparatorsToggle{"Rails"};
     PillToggle strikelineToggle{"Strike"};
     PillToggle highwayToggle{"Hwy"};
 
     //==============================================================================
-    // Settings panel (gear icon) — Style, Playback, Sync
+    // Settings panel (gear icon) — Display, Highway, Sync
 
-    PanelSectionHeader visualHeader{"Visual"};
+    PanelSectionHeader displayHeader{"Display"};
     PanelSectionHeader highwayHeader{"Highway"};
     ValueStepper highwayLengthStepper{"Length", "%"};
     ValueStepper backgroundStepper{"Background"};
@@ -189,7 +194,7 @@ private:
     //==============================================================================
     // Popup buttons
 
-    PopupMenuButton chartButton{"Chart"};
+    PopupMenuButton chartButton{"View"};
     PopupMenuButton settingsButton{juce::CharPointer_UTF8("\xe2\x9a\x99")}; // ⚙
 
     //==============================================================================

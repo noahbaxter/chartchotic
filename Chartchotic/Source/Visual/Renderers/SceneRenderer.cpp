@@ -154,7 +154,9 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         if (!img || !img->isValid()) continue;
 
         // Skip track/strikeline overlays when toggled off
-        if (!showTrack && (order == DrawOrder::TRACK_SIDEBARS || order == DrawOrder::TRACK_LANE_LINES || order == DrawOrder::TRACK_CONNECTORS))
+        if (!showTrack && (order == DrawOrder::TRACK_SIDEBARS || order == DrawOrder::TRACK_CONNECTORS))
+            continue;
+        if (!showLaneSeparators && order == DrawOrder::TRACK_LANE_LINES)
             continue;
         if (!showStrikeline && order == DrawOrder::TRACK_STRIKELINE)
             continue;

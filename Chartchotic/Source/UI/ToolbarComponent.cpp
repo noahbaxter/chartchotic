@@ -128,7 +128,7 @@ void ToolbarComponent::initChartPanel()
         if (onDrumTypeChanged) onDrumTypeChanged(cymbalsToggle.getToggleState() ? 2 : 1);
     };
 
-    // --- Elements ---
+    // --- Chart + Scene ---
 
     gemsToggle.onClick = [this]() {
         if (onGemsChanged) onGemsChanged(gemsToggle.getToggleState());
@@ -158,6 +158,10 @@ void ToolbarComponent::initChartPanel()
         if (onTrackChanged) onTrackChanged(trackToggle.getToggleState());
     };
 
+    laneSeparatorsToggle.onClick = [this]() {
+        if (onLaneSeparatorsChanged) onLaneSeparatorsChanged(laneSeparatorsToggle.getToggleState());
+    };
+
     strikelineToggle.onClick = [this]() {
         if (onStrikelineChanged) onStrikelineChanged(strikelineToggle.getToggleState());
     };
@@ -174,17 +178,19 @@ void ToolbarComponent::initChartPanel()
     chartButton.addPanelChild(&dynamicsToggle);
     chartButton.addPanelChild(&kick2xToggle);
     chartButton.addPanelChild(&cymbalsToggle);
-    chartButton.addPanelChild(&elementsHeader);
+    chartButton.addPanelChild(&chartHeader);
     chartButton.addPanelChild(&gemsToggle);
     chartButton.addPanelChild(&barsToggle);
     chartButton.addPanelChild(&sustainsToggle);
     chartButton.addPanelChild(&lanesToggle);
     chartButton.addPanelChild(&gridlinesToggle);
     chartButton.addPanelChild(&hitIndicatorsToggle);
+    chartButton.addPanelChild(&sceneHeader);
     chartButton.addPanelChild(&trackToggle);
+    chartButton.addPanelChild(&laneSeparatorsToggle);
     chartButton.addPanelChild(&strikelineToggle);
     chartButton.addPanelChild(&highwayToggle);
-    chartButton.setPanelSize(175, 300);
+    chartButton.setPanelSize(175, 340);
     chartButton.onLayoutPanel = [this](juce::Component* panel) { layoutChartPanel(panel); };
     chartButton.setMenuGroup(&squareMenuGroup);
     squareMenuGroup.add(&chartButton, [this]() { chartButton.dismissPanel(); });
@@ -354,7 +360,7 @@ void ToolbarComponent::initSettingsPanel()
     };
 
     // Register all children
-    settingsButton.addPanelChild(&visualHeader);
+    settingsButton.addPanelChild(&displayHeader);
     settingsButton.addPanelChild(&framerateButtons);
     settingsButton.addPanelChild(&showFpsToggle);
     settingsButton.addPanelChild(&highwayHeader);
@@ -494,6 +500,7 @@ void ToolbarComponent::loadState()
     gridlinesToggle.setToggleState(!state.hasProperty("showGridlines") || (bool)state["showGridlines"]);
     hitIndicatorsToggle.setToggleState(!state.hasProperty("hitIndicators") || (bool)state["hitIndicators"]);
     trackToggle.setToggleState(!state.hasProperty("showTrack") || (bool)state["showTrack"]);
+    laneSeparatorsToggle.setToggleState(!state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"]);
     strikelineToggle.setToggleState(!state.hasProperty("showStrikeline") || (bool)state["showStrikeline"]);
     highwayToggle.setToggleState(!state.hasProperty("showHighway") || (bool)state["showHighway"]);
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
@@ -657,8 +664,8 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 
     y += sectionGap - gap;
 
-    // --- Elements (3x3 grid, smaller pills) ---
-    elementsHeader.setBounds(margin, y, w, headerH);
+    // --- Chart (note/chart primitives) ---
+    chartHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
     int elemH = juce::roundToInt(22.0f * s);
@@ -674,11 +681,19 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
     lanesToggle.setBounds(margin, y, elemW, elemH);
     gridlinesToggle.setBounds(margin + col3, y, elemW, elemH);
     hitIndicatorsToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
-    y += elemH + elemGap;
+    y += elemH + sectionGap;
 
-    trackToggle.setBounds(margin, y, elemW, elemH);
-    strikelineToggle.setBounds(margin + col3, y, elemW, elemH);
-    highwayToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
+    // --- Scene (static environment) ---
+    sceneHeader.setBounds(margin, y, w, headerH);
+    y += headerH + gap;
+
+    int col4 = w / 4;
+    int elemW4 = col4 - juce::roundToInt(2.0f * s);
+
+    trackToggle.setBounds(margin, y, elemW4, elemH);
+    laneSeparatorsToggle.setBounds(margin + col4, y, elemW4, elemH);
+    strikelineToggle.setBounds(margin + col4 * 2, y, elemW4, elemH);
+    highwayToggle.setBounds(margin + col4 * 3, y, elemW4, elemH);
     y += elemH;
 
     panel->setSize(panel->getWidth(), y + margin);
@@ -695,8 +710,8 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
-    // --- Visual ---
-    visualHeader.setBounds(margin, y, w, headerH);
+    // --- Display ---
+    displayHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
     framerateButtons.setBounds(margin, y, w, stepperH);

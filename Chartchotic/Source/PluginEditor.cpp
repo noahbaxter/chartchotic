@@ -263,6 +263,12 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         repaint();
     };
 
+    toolbar.onLaneSeparatorsChanged = [this](bool on) {
+        state.setProperty("showLaneSeparators", on, nullptr);
+        sceneRenderer.showLaneSeparators = on;
+        repaint();
+    };
+
     toolbar.onStrikelineChanged = [this](bool on) {
         state.setProperty("showStrikeline", on, nullptr);
         sceneRenderer.showStrikeline = on;
@@ -715,6 +721,7 @@ void ChartchoticAudioProcessorEditor::loadState()
     sceneRenderer.showLanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
     sceneRenderer.showGridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
     sceneRenderer.showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
+    sceneRenderer.showLaneSeparators = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
     sceneRenderer.showStrikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
     showHighway = !state.hasProperty("showHighway") || (bool)state["showHighway"];
 
