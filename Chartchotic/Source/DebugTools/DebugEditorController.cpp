@@ -183,6 +183,7 @@ void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRe
 }
 
 void DebugEditorController::paintStandalone(juce::Graphics& g,
+                                             int viewportWidth, int viewportHeight,
                                              SceneRenderer& sceneRenderer,
                                              MidiInterpreter& midiInterpreter,
                                              double displaySizeInPPQ,
@@ -210,7 +211,8 @@ void DebugEditorController::paintStandalone(juce::Graphics& g,
     TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
         tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
 
-    sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap,
+    sceneRenderer.paint(g, viewportWidth, viewportHeight,
+                        timeTrackWindow, timeSustainWindow, timeGridlineMap,
                         0.0, displayWindowTimeSeconds, playbackController.isPlaying());
 }
 

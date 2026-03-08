@@ -36,6 +36,7 @@ public:
 
     // Paint path for standalone debug mode
     void paintStandalone(juce::Graphics& g,
+                         int viewportWidth, int viewportHeight,
                          SceneRenderer& sceneRenderer,
                          MidiInterpreter& midiInterpreter,
                          double displaySizeInPPQ,

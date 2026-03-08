@@ -513,7 +513,7 @@ void ChartchoticAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
+    sceneRenderer.paint(g, getWidth(), getHeight(), timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
@@ -524,7 +524,7 @@ void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 #ifdef DEBUG
     if (debugController.isStandalone() && debugController.isNotesActive())
     {
-        debugController.paintStandalone(g, sceneRenderer, midiInterpreter,
+        debugController.paintStandalone(g, getWidth(), getHeight(), sceneRenderer, midiInterpreter,
                                          displaySizeInPPQ.toDouble(), displayWindowTimeSeconds);
         return;
     }
@@ -616,7 +616,7 @@ void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    sceneRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
+    sceneRenderer.paint(g, getWidth(), getHeight(), timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartchoticAudioProcessorEditor::resized()

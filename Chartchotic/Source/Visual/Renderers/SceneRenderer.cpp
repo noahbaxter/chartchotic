@@ -30,14 +30,14 @@ SceneRenderer::~SceneRenderer()
 {
 }
 
-void SceneRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying)
+void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying)
 {
     ScopedPhaseMeasure totalMeasure(lastPhaseTiming.total_us, collectPhaseTiming);
 
-    // Set the drawing area dimensions from the graphics context
-    auto clipBounds = g.getClipBounds();
-    width = clipBounds.getWidth();
-    height = clipBounds.getHeight();
+    // Use the full viewport size, not clip bounds — partial repaints must not
+    // change the perspective math or the scene will render incorrectly.
+    width = viewportWidth;
+    height = viewportHeight;
 
     // Resolve instrument-specific bezier params
     bool isDrums = isPart(state, Part::DRUMS);
