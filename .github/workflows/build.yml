@@ -54,6 +54,13 @@ jobs:
     - name: Build
       run: cmake --build build --config Release --parallel
 
+    - name: Validate with pluginval
+      shell: cmd
+      run: |
+        curl -L -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+        7z x pluginval.zip -opluginval
+        pluginval\pluginval.exe --strictness-level 5 --verbose "build\Chartchotic_artefacts\Release\VST3\Chartchotic.vst3"
+
     - name: Package Windows artifact
       shell: cmd
       run: |
