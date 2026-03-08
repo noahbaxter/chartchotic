@@ -45,46 +45,48 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset)
     else
         offscreen.clear({0, 0, w, h});
 
-    juce::Image::BitmapData dst(offscreen, juce::Image::BitmapData::writeOnly);
-    juce::Image::BitmapData src(prebaked.mipAtlas, juce::Image::BitmapData::readOnly);
-
-    for (int y = prebaked.yMin; y <= prebaked.yMax; y++)
     {
-        auto& sl = prebaked.scanlines[y];
-        if (sl.alpha <= 0.0f || sl.rightX <= sl.leftX) continue;
+        juce::Image::BitmapData dst(offscreen, juce::Image::BitmapData::writeOnly);
+        juce::Image::BitmapData src(prebaked.mipAtlas, juce::Image::BitmapData::readOnly);
 
-        int span = sl.rightX - sl.leftX;
-
-        // Pick finest mip level that covers the span (never downsample > 2:1)
-        int mipIdx = 0;
-        for (int m = 1; m < (int)prebaked.mips.size(); m++)
+        for (int y = prebaked.yMin; y <= prebaked.yMax; y++)
         {
-            if (prebaked.mips[m].width >= span)
-                mipIdx = m;
-            else
-                break;
+            auto& sl = prebaked.scanlines[y];
+            if (sl.alpha <= 0.0f || sl.rightX <= sl.leftX) continue;
+
+            int span = sl.rightX - sl.leftX;
+
+            // Pick finest mip level that covers the span (never downsample > 2:1)
+            int mipIdx = 0;
+            for (int m = 1; m < (int)prebaked.mips.size(); m++)
+            {
+                if (prebaked.mips[m].width >= span)
+                    mipIdx = m;
+                else
+                    break;
+            }
+            auto& mip = prebaked.mips[mipIdx];
+
+            float texV = std::fmod((sl.texV + scrollOffset) * textureScale, 1.0f);
+            if (texV < 0.0f) texV += 1.0f;
+
+            int srcRow = mip.rowOffset + (int)(texV * tileH) % tileH;
+            uint8_t alphaScale = (uint8_t)(sl.alpha * 255.0f);
+
+            auto* srcLine = (juce::PixelARGB*)src.getLinePointer(srcRow);
+            auto* dstLine = (juce::PixelARGB*)dst.getLinePointer(y);
+
+            float invSpan = 1.0f / (float)span;
+
+            for (int x = sl.leftX; x <= sl.rightX; x++)
+            {
+                int srcX = (int)((float)(x - sl.leftX) * invSpan * (float)(mip.width - 1));
+                juce::PixelARGB px = srcLine[srcX];
+                px.multiplyAlpha(alphaScale);
+                dstLine[x] = px;
+            }
         }
-        auto& mip = prebaked.mips[mipIdx];
-
-        float texV = std::fmod((sl.texV + scrollOffset) * textureScale, 1.0f);
-        if (texV < 0.0f) texV += 1.0f;
-
-        int srcRow = mip.rowOffset + (int)(texV * tileH) % tileH;
-        uint8_t alphaScale = (uint8_t)(sl.alpha * 255.0f);
-
-        auto* srcLine = (juce::PixelARGB*)src.getLinePointer(srcRow);
-        auto* dstLine = (juce::PixelARGB*)dst.getLinePointer(y);
-
-        float invSpan = 1.0f / (float)span;
-
-        for (int x = sl.leftX; x <= sl.rightX; x++)
-        {
-            int srcX = (int)((float)(x - sl.leftX) * invSpan * (float)(mip.width - 1));
-            juce::PixelARGB px = srcLine[srcX];
-            px.multiplyAlpha(alphaScale);
-            dstLine[x] = px;
-        }
-    }
+    } // BitmapData destroyed here — flushes CPU writes to GPU on Windows
 
     // Composite — scanline bounds already define the fretboard shape, no clip path needed
     g.setOpacity(textureOpacity);
