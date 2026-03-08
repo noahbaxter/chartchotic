@@ -169,7 +169,7 @@ target_sources(Chartchotic
         # UI - Core
         Chartchotic/Source/UI/ChartchoticLogo.h
         Chartchotic/Source/UI/Theme.h
-        Chartchotic/Source/UI/ToolbarPanelGroup.h
+        Chartchotic/Source/UI/MenuGroup.h
         Chartchotic/Source/UI/SectionHeader.h
         Chartchotic/Source/UI/ControlConstants.h
         Chartchotic/Source/UI/ToolbarComponent.cpp

@@ -25,6 +25,12 @@ ToolbarComponent::~ToolbarComponent()
 
 void ToolbarComponent::initTopBar()
 {
+    // Menu groups — circle selectors and square buttons each get mutual exclusion
+    circleMenuGroup.add(&instrumentSelector, [this]() { instrumentSelector.dismissPanel(); });
+    circleMenuGroup.add(&difficultySelector, [this]() { difficultySelector.dismissPanel(); });
+    instrumentSelector.setMenuGroup(&circleMenuGroup);
+    difficultySelector.setMenuGroup(&circleMenuGroup);
+
     // Logo
     addAndMakeVisible(logo);
 
@@ -180,6 +186,8 @@ void ToolbarComponent::initChartPanel()
     chartButton.addPanelChild(&highwayToggle);
     chartButton.setPanelSize(175, 300);
     chartButton.onLayoutPanel = [this](juce::Component* panel) { layoutChartPanel(panel); };
+    chartButton.setMenuGroup(&squareMenuGroup);
+    squareMenuGroup.add(&chartButton, [this]() { chartButton.dismissPanel(); });
     addAndMakeVisible(chartButton);
 }
 
@@ -350,6 +358,8 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&latencyStepper);
     settingsButton.setPanelSize(240, 330);
     settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
+    settingsButton.setMenuGroup(&squareMenuGroup);
+    squareMenuGroup.add(&settingsButton, [this]() { settingsButton.dismissPanel(); });
     addAndMakeVisible(settingsButton);
 
 #ifdef DEBUG

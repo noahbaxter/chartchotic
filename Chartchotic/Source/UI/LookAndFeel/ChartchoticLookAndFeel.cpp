@@ -158,16 +158,18 @@ void ChartchoticLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butto
     auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     bool toggled = button.getToggleState();
 
-    // Suppress hover highlight on toolbar buttons when another panel is click-locked
-    bool suppressHover = ToolbarPanelGroup::isMember(&button)
-        && ToolbarPanelGroup::locked
-        && ToolbarPanelGroup::hasActive()
-        && !ToolbarPanelGroup::isOwner(&button);
-    bool highlighted = (shouldDrawButtonAsHighlighted || toggled) && !suppressHover;
-
-    if (highlighted)
+    if (toggled)
     {
-        // Hover or open — coral fill + full border
+        // Open — coral fill + bright border
+        g.setColour(juce::Colour(Theme::coral).withAlpha(0.25f));
+        g.fillRoundedRectangle(bounds, Theme::cornerRadius);
+
+        g.setColour(juce::Colour(Theme::coral));
+        g.drawRoundedRectangle(bounds, Theme::cornerRadius, 1.0f);
+    }
+    else if (shouldDrawButtonAsHighlighted)
+    {
+        // Hover — coral fill + bright border
         g.setColour(juce::Colour(Theme::coral).withAlpha(0.25f));
         g.fillRoundedRectangle(bounds, Theme::cornerRadius);
 
@@ -176,6 +178,7 @@ void ChartchoticLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butto
     }
     else
     {
+        // Default — dim border, no fill
         g.setColour(backgroundColour);
         g.fillRoundedRectangle(bounds, Theme::cornerRadius);
 

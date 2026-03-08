@@ -2,7 +2,7 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
-#include "../ToolbarPanelGroup.h"
+#include "../MenuGroup.h"
 
 struct CircleItem
 {
@@ -12,23 +12,21 @@ struct CircleItem
     juce::String tooltip;  // longer name shown in expanded panel ("Easy", "Guitar", etc.)
 };
 
-// Circle icon selector with two interaction modes:
-// - Hover: opens on mouseEnter, closes on mouseExit (with short delay)
-// - Click: opens on click, stays open until click on item/circle/outside
+// Circle icon selector — hover to open, move away to close.
+// Click an item in the expanded panel to select it. Scroll to cycle.
+// Assign to a MenuGroup for mutual exclusion with other circle selectors.
 class CircleIconSelector : public juce::Component,
                            private juce::ComponentListener
 {
 public:
-    CircleIconSelector()
-    {
-        ToolbarPanelGroup::registerMember(this);
-    }
+    CircleIconSelector() {}
 
     ~CircleIconSelector() override
     {
-        ToolbarPanelGroup::unregisterMember(this);
         dismissPanel();
     }
+
+    void setMenuGroup(MenuGroup* group) { menuGroup = group; }
 
     void setItems(std::vector<CircleItem> newItems)
     {
@@ -52,15 +50,12 @@ public:
     void dismissPanel()
     {
         hoverTimer.stopTimer();
-        clickLocked = false;
-        ToolbarPanelGroup::deactivate(this);
+        if (menuGroup != nullptr)
+            menuGroup->deactivate(this);
         if (panel != nullptr)
         {
             if (auto* topLevel = getTopLevelComponent())
-            {
                 topLevel->removeComponentListener(this);
-                topLevel->removeMouseListener(panel.get());
-            }
             panel.reset();
         }
     }
@@ -84,32 +79,20 @@ public:
         }
     }
 
-    // Hover: open on enter. If another panel is active, steal via ToolbarPanelGroup.
     void mouseEnter(const juce::MouseEvent&) override
     {
         mouseHovered = true;
         repaint();
         hoverTimer.stopTimer();
-        if (panel != nullptr) return;
-
-        if (ToolbarPanelGroup::hasActive() && !ToolbarPanelGroup::isOwner(this))
-        {
-            bool wasLocked = ToolbarPanelGroup::locked;
-            showPanel(wasLocked);
-        }
-        else if (!ToolbarPanelGroup::hasActive())
-        {
-            showPanel(false);
-        }
+        if (panel == nullptr)
+            showPanel();
     }
 
-    // Hover mode: start dismiss timer on exit (unless click-locked)
     void mouseExit(const juce::MouseEvent&) override
     {
         mouseHovered = false;
         repaint();
-        if (!clickLocked)
-            startHoverTimer();
+        startHoverTimer();
     }
 
     // Scroll: cycle through items without wrapping (only over the main circle icon)
@@ -121,34 +104,12 @@ public:
         setSelectedIndex(newIndex, juce::sendNotification);
     }
 
-    // Click mode: lock panel open, or toggle if already open
-    void mouseUp(const juce::MouseEvent&) override
-    {
-        if (panel != nullptr)
-        {
-            if (clickLocked)
-                dismissPanel();
-            else
-            {
-                // Upgrade hover to click-lock
-                clickLocked = true;
-                ToolbarPanelGroup::locked = true;
-                if (auto* topLevel = getTopLevelComponent())
-                    topLevel->addMouseListener(panel.get(), true);
-            }
-        }
-        else
-        {
-            showPanel(true);
-        }
-    }
-
-    void showPanel(bool locked)
+    void showPanel()
     {
         if (panel != nullptr) return;
 
-        clickLocked = locked;
-        ToolbarPanelGroup::activate(this, [this]() { dismissPanel(); }, locked);
+        if (menuGroup != nullptr)
+            menuGroup->activate(this);
 
         auto* topLevel = getTopLevelComponent();
         if (topLevel == nullptr) return;
@@ -163,17 +124,16 @@ public:
         panel->setSize(panelW, panelH);
 
         topLevel->addAndMakeVisible(panel.get());
-        if (locked)
-            topLevel->addMouseListener(panel.get(), true);
         repositionPanel();
         topLevel->addComponentListener(this);
     }
 
 private:
+    MenuGroup* menuGroup = nullptr;
+
     std::vector<CircleItem> items;
     int selectedIndex = 0;
     int panelHoverIndex = -1;
-    bool clickLocked = false;
     bool mouseHovered = false;
 
     //==========================================================================
@@ -229,39 +189,21 @@ private:
             if (e.eventComponent != this) return;
             owner.panelHoverIndex = -1;
             repaint();
-            if (!owner.clickLocked)
-                owner.startHoverTimer();
-        }
-
-        // mouseDown on anything outside panel+owner → dismiss immediately
-        void mouseDown(const juce::MouseEvent& e) override
-        {
-            if (e.eventComponent == this || e.eventComponent == &owner)
-                return;
-            if (owner.clickLocked)
-                owner.dismissPanel();
+            owner.startHoverTimer();
         }
 
         void mouseUp(const juce::MouseEvent& e) override
         {
-            // Click on a panel item — select and close
-            if (e.eventComponent == this)
+            if (e.eventComponent != this) return;
+            int idx = hitTestItem(e.y);
+            if (idx >= 0 && idx < (int)owner.items.size() && idx != owner.selectedIndex)
             {
-                int idx = hitTestItem(e.y);
-                if (idx >= 0 && idx < (int)owner.items.size() && idx != owner.selectedIndex)
-                {
-                    owner.selectedIndex = idx;
-                    owner.repaint();
-                    if (owner.onSelectionChanged)
-                        owner.onSelectionChanged(owner.selectedIndex);
-                }
-                owner.dismissPanel();
-                return;
+                owner.selectedIndex = idx;
+                owner.repaint();
+                if (owner.onSelectionChanged)
+                    owner.onSelectionChanged(owner.selectedIndex);
             }
-
-            // Click on the owner circle — let owner's mouseUp handle it
-            if (e.eventComponent == &owner)
-                return;
+            owner.dismissPanel();
         }
 
     private:
@@ -371,7 +313,6 @@ private:
         void timerCallback() override
         {
             if (!owner || !owner->panel) { stopTimer(); return; }
-            if (owner->clickLocked) { stopTimer(); return; }
             if (owner->isMouseOver(false) || owner->panel->isMouseOver(true))
                 return;
             stopTimer();

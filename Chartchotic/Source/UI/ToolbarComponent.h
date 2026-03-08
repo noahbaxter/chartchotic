@@ -9,6 +9,7 @@
 #include "Controls/SegmentedButtons.h"
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
+#include "MenuGroup.h"
 #include "../Utils/Utils.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
@@ -175,6 +176,12 @@ private:
     juce::StringArray highwayTextureNames;
 
     int texScalePct = TEX_SCALE_DEFAULT_PCT;
+
+    //==============================================================================
+    // Menu groups (must outlive their members)
+
+    MenuGroup circleMenuGroup;
+    MenuGroup squareMenuGroup;
 
     //==============================================================================
     // Popup buttons

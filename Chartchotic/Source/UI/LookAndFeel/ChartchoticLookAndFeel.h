@@ -2,7 +2,6 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
-#include "../ToolbarPanelGroup.h"
 
 class ChartchoticLookAndFeel : public juce::LookAndFeel_V4
 {
