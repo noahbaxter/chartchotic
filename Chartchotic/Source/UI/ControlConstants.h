@@ -18,6 +18,12 @@ constexpr int GEM_SCALE_MAX_PCT     = 200;
 constexpr int GEM_SCALE_STEP_PCT    = 5;
 constexpr int GEM_SCALE_DEFAULT_PCT = 100;
 
+// Bar Scale (continuous %) — kicks, opens, etc.
+constexpr int BAR_SCALE_MIN_PCT     = 20;
+constexpr int BAR_SCALE_MAX_PCT     = 200;
+constexpr int BAR_SCALE_STEP_PCT    = 5;
+constexpr int BAR_SCALE_DEFAULT_PCT = 100;
+
 // Texture Scale (continuous %)
 constexpr int TEX_SCALE_MIN_PCT     = 25;
 constexpr int TEX_SCALE_MAX_PCT     = 400;

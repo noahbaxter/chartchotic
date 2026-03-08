@@ -67,6 +67,7 @@ public:
     std::function<void(float scale)> onTextureScaleChanged;
     std::function<void(float opacity)> onTextureOpacityChanged;
     std::function<void(float scale)> onGemScaleChanged;
+    std::function<void(float scale)> onBarScaleChanged;
     std::function<void(float length)> onHighwayLengthChanged;
     std::function<void(bool)> onShowFpsChanged;
     std::function<void()> onOpenBackgroundFolder;
@@ -152,6 +153,7 @@ private:
     ValueStepper textureScaleStepper{"Scale", "%"};
     ValueStepper textureOpacityStepper{"Opacity", "%"};
     ValueStepper gemScaleStepper{"Gem Size", "%"};
+    ValueStepper barScaleStepper{"Bar Size", "%"};
 
     PanelSectionHeader syncHeader{"Sync"};
     ValueStepper syncOffsetStepper{"Calibration", " ms"};
@@ -170,6 +172,7 @@ private:
     int highwayTextureIndex = 0;
     int textureOpacityPct = TEX_OPACITY_DEFAULT;
     int gemScalePct = GEM_SCALE_DEFAULT_PCT;
+    int barScalePct = BAR_SCALE_DEFAULT_PCT;
     int highwayLengthPct = HWY_LENGTH_DEFAULT_PCT;
 
     juce::StringArray backgroundNames;

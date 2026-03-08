@@ -65,6 +65,7 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("dynamics", DEFAULT_DYNAMICS, nullptr);
     state.setProperty("noteSpeed", NOTE_SPEED_DEFAULT, nullptr);
     state.setProperty("gemScale", GEM_SCALE_DEFAULT_PCT / 100.0f, nullptr);
+    state.setProperty("barScale", BAR_SCALE_DEFAULT_PCT / 100.0f, nullptr);
     state.setProperty("showGems", DEFAULT_SHOW_GEMS, nullptr);
     state.setProperty("showBars", DEFAULT_SHOW_BARS, nullptr);
     state.setProperty("showSustains", DEFAULT_SHOW_SUSTAINS, nullptr);

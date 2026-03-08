@@ -229,6 +229,19 @@ void ToolbarComponent::initSettingsPanel()
         if (onGemScaleChanged) onGemScaleChanged(gemScalePct / 100.0f);
     };
 
+    barScaleStepper.setDisplayValue(barScalePct);
+    barScaleStepper.onStep = [this](int delta) {
+        int snapped = (int)std::round(barScalePct / (double)BAR_SCALE_STEP_PCT) * BAR_SCALE_STEP_PCT;
+        barScalePct = juce::jlimit(BAR_SCALE_MIN_PCT, BAR_SCALE_MAX_PCT, snapped + delta * BAR_SCALE_STEP_PCT);
+        barScaleStepper.setDisplayValue(barScalePct);
+        if (onBarScaleChanged) onBarScaleChanged(barScalePct / 100.0f);
+    };
+    barScaleStepper.onValueEdited = [this](const juce::String& text) {
+        barScalePct = juce::jlimit(BAR_SCALE_MIN_PCT, BAR_SCALE_MAX_PCT, text.getIntValue());
+        barScaleStepper.setDisplayValue(barScalePct);
+        if (onBarScaleChanged) onBarScaleChanged(barScalePct / 100.0f);
+    };
+
     highwayTextureStepper.setDisplayValue("n/a");
     highwayTextureStepper.setFolderIconVisible(true);
     highwayTextureStepper.setValueClickable(true);
@@ -353,10 +366,11 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&textureOpacityStepper);
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
+    settingsButton.addPanelChild(&barScaleStepper);
     settingsButton.addPanelChild(&syncHeader);
     settingsButton.addPanelChild(&syncOffsetStepper);
     settingsButton.addPanelChild(&latencyStepper);
-    settingsButton.setPanelSize(240, 330);
+    settingsButton.setPanelSize(240, 356);
     settingsButton.onLayoutPanel = [this](juce::Component* panel) { layoutSettingsPanel(panel); };
     settingsButton.setMenuGroup(&squareMenuGroup);
     squareMenuGroup.add(&settingsButton, [this]() { settingsButton.dismissPanel(); });
@@ -524,6 +538,11 @@ void ToolbarComponent::loadState()
     gemScalePct = juce::jlimit(GEM_SCALE_MIN_PCT, GEM_SCALE_MAX_PCT, juce::roundToInt(savedGemScale * 100.0f));
     gemScaleStepper.setDisplayValue(gemScalePct);
 
+    // Bar scale
+    float savedBarScale = state.hasProperty("barScale") ? (float)state["barScale"] : BAR_SCALE_DEFAULT_PCT / 100.0f;
+    barScalePct = juce::jlimit(BAR_SCALE_MIN_PCT, BAR_SCALE_MAX_PCT, juce::roundToInt(savedBarScale * 100.0f));
+    barScaleStepper.setDisplayValue(barScalePct);
+
     // Highway length
     if (state.hasProperty("highwayLength"))
     {
@@ -690,6 +709,9 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     y += stepperH + gap;
 
     gemScaleStepper.setBounds(margin, y, w, stepperH);
+    y += stepperH + gap;
+
+    barScaleStepper.setBounds(margin, y, w, stepperH);
     y += stepperH + sectionGap;
 
     // --- Highway ---

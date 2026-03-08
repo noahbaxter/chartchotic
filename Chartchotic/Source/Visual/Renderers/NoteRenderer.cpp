@@ -140,14 +140,16 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         glyphRect = juce::Rectangle<float>(edge.leftX, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }
 
-    // Apply user gem scale (from Display popup, uniform)
-    float userGemScale = state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f;
-    if (std::abs(userGemScale - 1.0f) > 0.001f)
+    // Apply user gem/bar scale (from Settings popup)
+    float userScale = barNote
+        ? (state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f)
+        : (state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f);
+    if (std::abs(userScale - 1.0f) > 0.001f)
     {
         float cx = glyphRect.getCentreX();
         float cy = glyphRect.getCentreY();
-        float newW = glyphRect.getWidth() * userGemScale;
-        float newH = glyphRect.getHeight() * userGemScale;
+        float newW = glyphRect.getWidth() * userScale;
+        float newH = glyphRect.getHeight() * userScale;
         glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
     }
 

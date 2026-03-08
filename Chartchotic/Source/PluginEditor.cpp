@@ -325,6 +325,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         repaint();
     };
 
+    toolbar.onBarScaleChanged = [this](float scale) {
+        state.setProperty("barScale", scale, nullptr);
+        repaint();
+    };
+
     toolbar.onHighwayLengthChanged = [this](float length) {
         state.setProperty("highwayLength", length, nullptr);
         sceneRenderer.farFadeEnd = length;
