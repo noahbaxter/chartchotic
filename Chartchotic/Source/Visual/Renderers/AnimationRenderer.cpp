@@ -110,7 +110,7 @@ void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustai
             // (e.g., when seeking into middle of sustain), trigger it now
             if (isPlaying && sustain.gemColumn < animations.size() && !animations[sustain.gemColumn].isActive())
             {
-                triggerAnimationForColumn(sustain.gemColumn);
+                triggerAnimationForColumn(sustain.gemColumn, Gem::NOTE, sustain.gemType.starPower);
             }
         }
     }
