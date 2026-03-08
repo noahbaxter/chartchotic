@@ -180,7 +180,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
         case Gem::HOPO_GHOST:  typeScale = gemTypeScales.dGhost; break;
         case Gem::TAP_ACCENT:  typeScale = gemTypeScales.dAccent; break;
-        case Gem::CYM:         typeScale = gemTypeScales.normal; break;
+        case Gem::CYM:         typeScale = gemTypeScales.cymbal; break;
         case Gem::CYM_GHOST:   typeScale = gemTypeScales.cGhost; break;
         case Gem::CYM_ACCENT:  typeScale = gemTypeScales.cAccent; break;
         default: break;

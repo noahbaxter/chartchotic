@@ -171,9 +171,9 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
 
     // Gem type scales (list, backed by gemTypeScales struct)
     {
-        static constexpr const char* names[GEM_TYPE_COUNT] = {"Normal", "HOPO", "GTap", "DGho", "DAcc", "CGho", "CAcc", "SPGem", "SPBar"};
+        static constexpr const char* names[GEM_TYPE_COUNT] = {"Normal", "Cymbal", "HOPO", "GTap", "DGho", "DAcc", "CGho", "CAcc", "SPGem", "SPBar"};
         float* ptrs[GEM_TYPE_COUNT] = {
-            &gemTypeScales.normal, &gemTypeScales.hopo, &gemTypeScales.gTap,
+            &gemTypeScales.normal, &gemTypeScales.cymbal, &gemTypeScales.hopo, &gemTypeScales.gTap,
             &gemTypeScales.dGhost, &gemTypeScales.dAccent, &gemTypeScales.cGhost,
             &gemTypeScales.cAccent, &gemTypeScales.spGem, &gemTypeScales.spBar
         };
@@ -911,9 +911,9 @@ void DebugTuningPanel::refreshLabels()
     }
 
     {
-        static constexpr const char* names[GEM_TYPE_COUNT] = {"Normal", "HOPO", "GTap", "DGho", "DAcc", "CGho", "CAcc", "SPGem", "SPBar"};
+        static constexpr const char* names[GEM_TYPE_COUNT] = {"Normal", "Cymbal", "HOPO", "GTap", "DGho", "DAcc", "CGho", "CAcc", "SPGem", "SPBar"};
         const float vals[GEM_TYPE_COUNT] = {
-            gemTypeScales.normal, gemTypeScales.hopo, gemTypeScales.gTap,
+            gemTypeScales.normal, gemTypeScales.cymbal, gemTypeScales.hopo, gemTypeScales.gTap,
             gemTypeScales.dGhost, gemTypeScales.dAccent, gemTypeScales.cGhost,
             gemTypeScales.cAccent, gemTypeScales.spGem, gemTypeScales.spBar
         };

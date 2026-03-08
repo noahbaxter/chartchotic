@@ -176,7 +176,7 @@ private:
     ScrollableLabel baseScaleParams[BASE_SCALE_ROWS][BASE_SCALE_COLS];
 
     // --- Gem type scale labels (backed by gemTypeScales struct) ---
-    static constexpr int GEM_TYPE_COUNT = 9;
+    static constexpr int GEM_TYPE_COUNT = 10;
     ScrollableLabel gemTypeScaleLabels[GEM_TYPE_COUNT];
 
     // --- Hit Scale table (2 rows × 3 cols: S, W, H) ---

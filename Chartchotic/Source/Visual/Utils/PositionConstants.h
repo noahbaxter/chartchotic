@@ -331,7 +331,8 @@ namespace PositionConstants
     // Per-gem-type scales (applied uniformly to base + overlay in NoteRenderer)
     struct GemTypeScales
     {
-        float normal  = 1.0f;   // Regular notes + standalone cymbals
+        float normal  = 1.0f;   // Regular notes
+        float cymbal  = 0.95f;  // Standalone cymbals (slightly smaller to avoid lane edge)
         float hopo    = 1.05f;  // Guitar HOPO
         float gTap    = 1.0f;   // Guitar tap
         float dGhost  = 1.0f;   // Drum note ghost
