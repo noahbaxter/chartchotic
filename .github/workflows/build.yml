@@ -307,6 +307,13 @@ jobs:
     - name: Run unit tests
       run: tests/unit/build/unit_tests_artefacts/Release/unit_tests --reporter console
 
+    - name: Validate with pluginval
+      run: |
+        curl -L -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
+        unzip pluginval.zip
+        chmod +x pluginval
+        ./pluginval --validate-in-process --strictness-level 5 --skip-gui-tests --validate "build/Chartchotic_artefacts/Release/VST3/Chartchotic.vst3"
+
     - name: Verify Linux plugin bundles
       run: |
         echo "=== Checking VST3 bundle ==="
@@ -316,6 +323,16 @@ jobs:
           ls -la "$VST3_PATH/Contents/x86_64-linux/"
         else
           echo "[ERROR] VST3 not found"
+          exit 1
+        fi
+
+        echo "=== Checking LV2 bundle ==="
+        LV2_PATH="build/Chartchotic_artefacts/Release/LV2/Chartchotic.lv2"
+        if [ -d "$LV2_PATH" ]; then
+          echo "[OK] LV2 bundle exists"
+          ls -la "$LV2_PATH/"
+        else
+          echo "[ERROR] LV2 not found"
           exit 1
         fi
 
@@ -333,5 +350,6 @@ jobs:
         name: Chartchotic-Linux
         path: |
           build/Chartchotic_artefacts/Release/VST3/Chartchotic.vst3
+          build/Chartchotic_artefacts/Release/LV2/Chartchotic.lv2
           build/Chartchotic_artefacts/Release/Standalone/Chartchotic
         retention-days: 7

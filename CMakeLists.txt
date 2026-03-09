@@ -48,7 +48,7 @@ juce_add_plugin(Chartchotic
     BUNDLE_ID "com.dichoticstudios.chartchotic"
     PLUGIN_MANUFACTURER_CODE Dich
     PLUGIN_CODE ChPv
-    FORMATS VST3 AU Standalone
+    FORMATS VST3 AU LV2 Standalone
     PRODUCT_NAME "Chartchotic"
     PLUGIN_DESC "A tool for visualizing midi as guitar/drum game charts"
 
@@ -61,6 +61,7 @@ juce_add_plugin(Chartchotic
     NEEDS_CURL TRUE
 
     VST3_CATEGORIES Tools
+    LV2URI https://dichoticstudios.com/plugins/chartchotic
 )
 
 juce_generate_juce_header(Chartchotic)
@@ -307,6 +308,7 @@ target_compile_definitions(Chartchotic
         JUCE_STRICT_REFCOUNTEDPOINTER=1
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=1
     PRIVATE
         CHARTCHOTIC_BUILD_CHANNEL="${BUILD_CHANNEL}"
         CHARTCHOTIC_VERSION_STRING="${VERSION_STRING}"
