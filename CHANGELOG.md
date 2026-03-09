@@ -1,18 +1,45 @@
 # Changelog
 
-## 0.9.6
+## 1.0.0
+This is the official 1.0 release of Chartchotic. This ground-up overhaul consists of a rewritten rendering engine, brand new UI, and comprehensive improvements to every visual asset.
 
-- Rework speed slider to integer note speed (2–20), matching YARG/CH conventions
-- CI: unit tests run on Linux build
-- Fix playhead null dereference in standalone mode
-- Fix compiler warnings in AssetManager gem/overlay switches
-- CMake migration from Projucer
-- CI/CD pipeline: automated dev + release builds on all platforms
-- macOS code signing + notarization, .pkg installer
-- Windows installer (Inno Setup)
-- In-plugin update checker (dev + release channels)
-- VERSION file as single source of truth for versioning
-- Consolidated local build into single `build.sh`
+### Rendering
+- New chart rendering engine runs significantly leaner with smoother frametimes, capped at 15/30/60fps or your native display refresh rate
+- Improved 3D perspective with curved fretboard placements for notes and other glyphs
+
+### Assets
+- All assets have been rerendered at a higher resolution from vector sources
+- New ghost note, tap note, and accent overlays for drums and guitar
+- New SP white variants for all assets and hit indicators
+
+### Highway
+- Highways have textures now — use one of the bundled textures (courtesy of kanaizo), or add your own
+- Adjustable highway length up to 300% longer than standard
+
+### Notes & Animations
+- Adjustable sizes for note gems and kick/open bars
+- Hit animations follow the highway curvature now
+- Star Power kicks and opens flash white on hit
+
+### UI
+- Renamed from Chart Preview to Chartchotic with a new logo
+- Major UI overhaul — redesigned toolbar, cleaner layout, consistent scaling
+- Revamped chart toggles — organized controls for hiding/showing modifiers, chart elements, and scene layers
+- Double-click most number values to type directly
+- Calibration now supports negative latency up to -200ms
+- Note speed reworked to integers 2–20, matching CH/YARG conventions
+- Update notifications when a new version has launched
+
+### Infrastructure
+- CMake build system with automated CI/CD on all platforms
+- macOS code signing and notarization with .pkg installer (no more Gatekeeper warnings)
+- Windows installer via Inno Setup
+- Pluginval validation on Windows builds
+
+### Bug Fixes
+- Fixed Star Power animation color when starting playback mid-sustain
+- Fixed modifier notes rendering invisible over orange lane
+- Fixed playhead crash in standalone mode
 
 ## 0.9.5
 

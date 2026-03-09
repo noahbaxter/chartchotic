@@ -1,61 +1,20 @@
 # Backlog
 
-Organized by version milestone. Work from the top.
+Work from the top.
 
 ---
 
-## 0.10.0 — Rendering Engine Rewrite (done, releasing from dev)
+## Up Next
 
-- Bezier perspective system (replaced exponential positioning)
-- Sub-renderer architecture (NoteRenderer, SustainRenderer, GridlineRenderer, AnimationRenderer, TrackRenderer)
-- High-res asset pipeline + private submodule (Ghostscript PDF-to-PNG)
-- Highway textures (scrolling overlay) + highway length control
-- Composited track layers (sidebars, lane lines, strikeline, connectors)
-- VBlank-synced rendering (replaced Timer)
-- Toolbar extraction + render toggles + gem scale
-- DrawCallMap flat array optimization (eliminated per-frame heap churn)
-- Profiler fix (real FPS, lock wait, frame delta)
-- Frame throttle grid alignment
-- Note/lane X1/X2 position tuning (perspective-correct offsets)
-- Hit animation improvements (time-based, curvature-aware, dynamic scales)
-- Debug standalone with MIDI playback + tuning panel
-- CMake build system + CI/CD pipelines
-- Integer note speed (2-20, default 7)
-- Toolbar moved to top (fixed taskbar clipping)
-
----
-
-## 1.0.0 — Polish & Ship
-
-Small scope. UI cleanup and verification before tagging stable.
-
-1. **Toolbar visual polish** — Cleaner layout, better spacing, responsive scaling.
-2. **Settings persistence audit** — Verify all options save/restore correctly.
-3. **Window sizing persistence** — Save/restore on REAPER restart.
-4. **Final user testing pass** — Verify note speed feel, latency offset UX.
-5. **Pre-release defaults audit** — Set highway texture to "None", verify all stepper/toggle defaults match intended release values. (grep for `TODO_RELEASE_DEFAULT` markers)
-6. ~~**Toolbar interaction model polish**~~ — Done: member registry, scoped hover suppression, polling timers, click-lock upgrade.
-7. ~~**Use SegmentedButtons for fixed-choice controls**~~ — Done: HOPO, Framerate, Latency converted from ValueStepper to SegmentedButtons.
-
----
-
-## CI/CD & Infrastructure
-
-5. **R2 CDN upload** for distribution
-
----
-
-## Up Next (post-1.0)
-
-Features that make the plugin better. Pull into active work after 1.0.
-
+- **Ratio-agnostic window resizing** — Proper resize support. Fixes "too much space below strikeline" tuning and REAPER fullscreen restore white gap / ~98% size bug.
 - **Update banner: show changelog** — `releaseNotes` already fetched from GitHub release body (release channel). Need: display in overlay card (taller/scrollable), strip markdown to plaintext, also fetch for dev channel.
-6. **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
-7. **Solo sections** — Blue highway background during solo passages.
-8. **Time sig changes display** — Symbols on left side, scroll with highway.
-9. **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
-10. **Better mouse scrolling** — shift=faster, ctrl=precise.
-11. **Latency offset UI cleanup**
+- **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
+- **Solo sections** — Blue highway background during solo passages.
+- **Time sig changes display** — Symbols on left side, scroll with highway.
+- **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
+- **Better mouse scrolling** — shift=faster, ctrl=precise.
+- **Save as default settings** — Persist user-preferred defaults to disk so new plugin instances start with custom settings instead of hardcoded defaults.
+- **Info display** — BPM, time sig, measure, beat position.
 
 ---
 
@@ -63,9 +22,9 @@ Features that make the plugin better. Pull into active work after 1.0.
 
 Do between features or when touching related code.
 
-12. **NoteStateStore wrapper** — `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
-13. **Audio-thread hygiene** — Remove std::function, preallocated vectors. DrawCallMap done, remaining allocations TBD.
-14. **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.
+- **NoteStateStore wrapper** — `noteStateMapArray` + `noteStateMapLock` passed as separate params to ~15 functions. Wrap into single class that enforces locking via API. Eliminates race condition footgun.
+- **Audio-thread hygiene** — Remove std::function, preallocated vectors. DrawCallMap done, remaining allocations TBD.
+- **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.
 
 ---
 
@@ -74,13 +33,10 @@ Do between features or when touching related code.
 Unordered. Pull into Up Next when the time comes.
 
 **Chart Features:**
-- Info display: BPM, time sig, measure, beat position
-- Better menu system + advanced settings
-- Instrument autodetection (by track name — depends on EVENTS parsing from #6)
+- Instrument autodetection (by track name — depends on EVENTS parsing)
 - Note color customization (CH color profile templates)
 - GH style gems toggle
 - Star Power rendering (partially working, architectural approach unclear — finish or remove)
-- **SP sustain mid-join bug** — Starting playback mid-way through an SP sustain shows colored hit image instead of white SP image
 
 **Real Drums:**
 - Flam note types, HH open/closed/foot gems
@@ -121,4 +77,4 @@ Blocked or no clear path forward.
 ## Notes
 
 - **Moonscraper overlap**: Community consensus is Chartchotic is for preview, not charting.
-- **Key dependency chain**: EVENTS parsing (#6) -> section detection -> autodetection -> Real Drums MIDI refactor -> generic gem system
+- **Key dependency chain**: EVENTS parsing -> section detection -> autodetection -> Real Drums MIDI refactor -> generic gem system
