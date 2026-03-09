@@ -187,6 +187,14 @@ void TrackRenderer::rebuild(int width, int height,
 {
     if (width <= 0 || height <= 0) return;
 
+    // Skip if nothing changed
+    if (width == cached.width && height == cached.height &&
+        wNear == cached.wNear && wMid == cached.wMid && wFar == cached.wFar &&
+        posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
+        farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
+        isPart(state, Part::DRUMS) == cached.isDrums)
+        return;
+
     bool isDrums = isPart(state, Part::DRUMS);
 
     // Bake dark fill base
