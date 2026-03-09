@@ -29,7 +29,8 @@
 /**
 */
 class ChartchoticAudioProcessorEditor  :
-    public juce::AudioProcessorEditor
+    public juce::AudioProcessorEditor,
+    private juce::Timer
 {
 public:
     ChartchoticAudioProcessorEditor (ChartchoticAudioProcessor&, juce::ValueTree &state);
@@ -38,6 +39,7 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
+    void timerCallback() override;
 
     // Resizable constraints
     juce::ComponentBoundsConstrainer* getConstrainer();
@@ -104,9 +106,15 @@ private:
     // UI Elements
     static constexpr int defaultWidth = 800;
     static constexpr int defaultHeight = 600;
-    static constexpr double aspectRatio = (double)defaultWidth / defaultHeight;
     static constexpr int minWidth = 400;
-    static constexpr int minHeight = 300;
+    static constexpr int minHeight = 200;
+    static constexpr int resizeDebounceMs = 150;
+    static constexpr double sceneAspectRatio = 4.0 / 3.0;
+
+    // Virtual scene dimensions (maintain internal 4:3 ratio)
+    int sceneWidth = defaultWidth;
+    int sceneHeight = defaultHeight;
+    int sceneOffsetY = 0;
 
     // Background Assets
     juce::Image backgroundImageDefault;

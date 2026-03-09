@@ -25,10 +25,10 @@ class TrackRenderer
 public:
     TrackRenderer(juce::ValueTree& state);
 
-    void paint(juce::Graphics& g);
+    void paint(juce::Graphics& g, int viewportWidth, int viewportHeight);
 
     /** Paint the scrolling highway texture overlay. Call between track and scene rendering. */
-    void paintTexture(juce::Graphics& g, float scrollOffset);
+    void paintTexture(juce::Graphics& g, float scrollOffset, int targetWidth, int targetHeight);
 
     /** Rebuild the cached faded track image. Call on resize, instrument change, or highway length change. */
     void rebuild(int width, int height,

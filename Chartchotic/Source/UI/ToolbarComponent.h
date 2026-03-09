@@ -21,7 +21,7 @@
 class ToolbarComponent : public juce::Component
 {
 public:
-    static constexpr float toolbarRatio = 0.09f;   // fraction of editor height (single strip)
+    static constexpr float toolbarRatio = 0.0675f;  // fraction of editor width (single strip)
     static constexpr int referenceHeight = 36;     // design reference for the strip portion
     static constexpr float stripFraction = 1.0f;   // strip is the full toolbar height
     static constexpr float logoFontRatio = 0.90f;  // logo font size as fraction of strip height

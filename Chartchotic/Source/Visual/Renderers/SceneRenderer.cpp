@@ -161,7 +161,14 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         if (!showStrikeline && order == DrawOrder::TRACK_STRIKELINE)
             continue;
 
-        drawCallMap[static_cast<int>(order)][0].push_back([img](juce::Graphics& g) { g.setOpacity(1.0f); g.drawImageAt(*img, 0, 0); });
+        int vw = width, vh = height;
+        drawCallMap[static_cast<int>(order)][0].push_back([img, vw, vh](juce::Graphics& g) {
+            g.setOpacity(1.0f);
+            if (img->getWidth() == vw && img->getHeight() == vh)
+                g.drawImageAt(*img, 0, 0);
+            else
+                g.drawImage(*img, 0, 0, vw, vh, 0, 0, img->getWidth(), img->getHeight());
+        });
     }
 
     // Draw layer by layer, then column by column within each layer

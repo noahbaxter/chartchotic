@@ -24,13 +24,19 @@ TrackRenderer::TrackRenderer(juce::ValueTree& state)
     kickSmashersImage = juce::ImageCache::getFromMemory(BinaryData::kick_smashers_png, BinaryData::kick_smashers_pngSize);
 }
 
-void TrackRenderer::paint(juce::Graphics& g)
+void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeight)
 {
-    if (fadedTrackImage.isValid())
+    if (!fadedTrackImage.isValid()) return;
+
+    // Stretch if baked size doesn't match (during resize, before rebuild settles)
+    if (fadedTrackImage.getWidth() == viewportWidth && fadedTrackImage.getHeight() == viewportHeight)
         g.drawImageAt(fadedTrackImage, 0, 0);
+    else
+        g.drawImage(fadedTrackImage, 0, 0, viewportWidth, viewportHeight,
+                    0, 0, fadedTrackImage.getWidth(), fadedTrackImage.getHeight());
 }
 
-void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset)
+void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targetW, int targetH)
 {
     if (!textureEnabled || !prebaked.valid)
         return;
@@ -88,9 +94,13 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset)
         }
     } // BitmapData destroyed here — flushes CPU writes to GPU on Windows
 
-    // Composite — scanline bounds already define the fretboard shape, no clip path needed
+    // Composite — stretch if baked size doesn't match virtual scene (during resize)
     g.setOpacity(textureOpacity);
-    g.drawImageAt(offscreen, 0, 0);
+    if (offscreen.getWidth() == targetW && offscreen.getHeight() == targetH)
+        g.drawImageAt(offscreen, 0, 0);
+    else
+        g.drawImage(offscreen, 0, 0, targetW, targetH,
+                    0, 0, offscreen.getWidth(), offscreen.getHeight());
 }
 
 void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDrums,

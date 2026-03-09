@@ -33,14 +33,14 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
     // Set up resize constraints
     constrainer.setMinimumSize(minWidth, minHeight);
-    constrainer.setFixedAspectRatio(aspectRatio);
     setConstrainer(&constrainer);
     setResizable(true, true);
 
-    // Restore saved window size (aspect ratio is fixed, so width is enough)
+    // Restore saved window size
     int savedWidth = state.hasProperty("editorWidth") ? (int)state["editorWidth"] : defaultWidth;
+    int savedHeight = state.hasProperty("editorHeight") ? (int)state["editorHeight"] : defaultHeight;
     savedWidth = juce::jlimit(minWidth, 4096, savedWidth);
-    int savedHeight = juce::roundToInt(savedWidth / aspectRatio);
+    savedHeight = juce::jlimit(minHeight, 4096, savedHeight);
     setSize(savedWidth, savedHeight);
 
     setWantsKeyboardFocus(true);
@@ -67,6 +67,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
 ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
 {
+    stopTimer();
     setLookAndFeel(nullptr);
 }
 
@@ -164,9 +165,9 @@ void ChartchoticAudioProcessorEditor::rebuildFadedTrackImage()
     const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
     float wNear = fbw.near, wMid = fbw.mid, wFar = fbw.far;
 
-    sceneRenderer.rescaleAssets(getWidth());
+    sceneRenderer.rescaleAssets(sceneWidth);
 
-    trackRenderer.rebuild(getWidth(), getHeight(),
+    trackRenderer.rebuild(sceneWidth, sceneHeight,
                              sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
                              wNear, wMid, wFar, sceneRenderer.highwayPosEnd);
 
@@ -429,14 +430,18 @@ void ChartchoticAudioProcessorEditor::paint (juce::Graphics& g)
         }
     }
 
+    // Translate into virtual scene coordinate space (4:3 internal ratio, anchored to bottom)
+    g.saveState();
+    g.addTransform(juce::AffineTransform::translation(0.0f, (float)sceneOffsetY));
+
     // Draw highway (faded track background + scrolling texture)
     if (showHighway)
     {
-        trackRenderer.paint(g);
+        trackRenderer.paint(g, sceneWidth, sceneHeight);
 #ifdef DEBUG
         ScopedPhaseMeasure m(debugController.textureRender_us, sceneRenderer.collectPhaseTiming);
 #endif
-        trackRenderer.paintTexture(g, computeScrollOffset());
+        trackRenderer.paintTexture(g, computeScrollOffset(), sceneWidth, sceneHeight);
     }
 
     // Draw the highway - delegate to mode-specific rendering
@@ -449,6 +454,8 @@ void ChartchoticAudioProcessorEditor::paint (juce::Graphics& g)
     {
         paintStandardMode(g);
     }
+
+    g.restoreState();
 
     if (showFps)
         drawFpsOverlay(g);
@@ -524,7 +531,7 @@ void ChartchoticAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    sceneRenderer.paint(g, getWidth(), getHeight(), timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
+    sceneRenderer.paint(g, sceneWidth, sceneHeight, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
@@ -535,7 +542,7 @@ void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
 #ifdef DEBUG
     if (debugController.isStandalone() && debugController.isNotesActive())
     {
-        debugController.paintStandalone(g, getWidth(), getHeight(), sceneRenderer, midiInterpreter,
+        debugController.paintStandalone(g, sceneWidth, sceneHeight, sceneRenderer, midiInterpreter,
                                          displaySizeInPPQ.toDouble(), displayWindowTimeSeconds);
         return;
     }
@@ -627,17 +634,23 @@ void ChartchoticAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    sceneRenderer.paint(g, getWidth(), getHeight(), timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
+    sceneRenderer.paint(g, sceneWidth, sceneHeight, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartchoticAudioProcessorEditor::resized()
 {
     state.setProperty("editorWidth", getWidth(), nullptr);
+    state.setProperty("editorHeight", getHeight(), nullptr);
+
+    // Virtual scene dimensions — maintain 4:3 internally, anchor strikeline to bottom
+    sceneWidth = getWidth();
+    sceneHeight = juce::roundToInt(sceneWidth / sceneAspectRatio);
+    sceneOffsetY = getHeight() - sceneHeight;
 
     const int margin = 10;
 
-    // Toolbar at top — scales with editor height
-    int tbHeight = juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio);
+    // Toolbar at top — scales with editor width
+    int tbHeight = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
     // Version label + update badge (bottom-left) — same scale as toolbar
@@ -672,6 +685,13 @@ void ChartchoticAudioProcessorEditor::resized()
     debugController.getConsole().setBounds(margin, stripH + 28, getWidth() - (2 * margin), getHeight() - stripH - 38);
     #endif
 
+    // Debounce the expensive rebuild — only fire after resizing settles
+    startTimer(resizeDebounceMs);
+}
+
+void ChartchoticAudioProcessorEditor::timerCallback()
+{
+    stopTimer();
     rebuildFadedTrackImage();
 }
 
