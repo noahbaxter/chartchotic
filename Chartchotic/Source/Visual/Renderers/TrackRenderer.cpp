@@ -167,6 +167,7 @@ void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, con
 
                 g.drawImage(src, {tileX, tileY, tileW, tileH});
                 tileBottom -= tileH * tileStep;
+                if (tileH < 1.0f) break;
                 scale *= tileScaleStep;
             }
         }
