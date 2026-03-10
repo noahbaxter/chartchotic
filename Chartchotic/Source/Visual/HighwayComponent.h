@@ -62,7 +62,7 @@ public:
     void setGemScale(float)             { repaint(); }
     void setBarScale(float)             { repaint(); }
 
-    void onInstrumentChanged()          { rebuildTrack(); }
+    void onInstrumentChanged()          { rebuildTrack(); repaint(); }
 
     // Accessors for debug wiring
     SceneRenderer& getSceneRenderer()   { return sceneRenderer; }
@@ -76,8 +76,12 @@ public:
     int renderWidth = 0, renderHeight = 0;
     std::function<void()> onOverflowChanged;
 
+    /** Defer an expensive rebuild (e.g. window resize).
+        Starts the debounce timer; paint() uses old track images until rebuild fires. */
+    void deferRebuild() { startTimer(rebuildDebounceMs); repaint(); }
+
 private:
-    static constexpr int resizeDebounceMs = 50;
+    static constexpr int rebuildDebounceMs = 500;
 
     juce::ValueTree& state;
     AssetManager& assetManager;
@@ -92,6 +96,9 @@ private:
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;
 
 #ifdef DEBUG
+public:
+    bool showDebugColour = false;
+private:
     juce::Colour debugColour;
 #endif
 };

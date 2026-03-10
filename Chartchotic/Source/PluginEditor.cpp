@@ -297,6 +297,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         showFps = on;
     };
 
+    toolbar.onShowBackgroundChanged = [this](bool on) {
+        showBackground = on;
+        repaint();
+    };
+
     toolbar.onLatencyChanged = [this](int id) {
         state.setProperty("latency", id, nullptr);
         applyLatencySetting(id);
@@ -398,7 +403,10 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
 //==============================================================================
 void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    g.drawImage(backgroundImageCurrent, getLocalBounds().toFloat());
+    g.fillAll(juce::Colours::black);
+
+    if (showBackground)
+        g.drawImage(backgroundImageCurrent, getLocalBounds().toFloat());
 
     if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
     {
@@ -682,6 +690,9 @@ void ChartchoticAudioProcessorEditor::loadState()
             state.setProperty("background", "background_red", nullptr);
         state.removeProperty("redBackground", nullptr);
     }
+
+    // Background visibility (default off)
+    showBackground = state.hasProperty("showBackground") && (bool)state["showBackground"];
 
     // Load saved background image
     {

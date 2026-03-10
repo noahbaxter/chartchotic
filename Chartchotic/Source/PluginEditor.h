@@ -114,6 +114,7 @@ private:
     int sceneOffsetY = 0;
 
     // Background Assets
+    bool showBackground = false;
     juce::Image backgroundImageDefault;
     juce::Image backgroundImageCurrent;
     std::unique_ptr<juce::Drawable> reaperLogo;

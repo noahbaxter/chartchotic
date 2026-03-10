@@ -119,6 +119,11 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (onPolyShadeChanged) onPolyShadeChanged();
     };
 
+    debugColourToggle.setButtonText("BG Colour");
+    debugColourToggle.onClick = [this]() {
+        if (onDebugColourChanged) onDebugColourChanged(debugColourToggle.getToggleState());
+    };
+
     setupScrollLabel(gridPosLabel);
     gridPosLabel.onScroll = [this](int delta) {
         gridlinePosOffset = juce::jlimit(-0.10f, 0.10f, gridlinePosOffset + delta * 0.002f);
@@ -610,6 +615,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&textureScaleLabel);
     tuningButton.addPanelChild(&textureOpacityLabel);
     tuningButton.addPanelChild(&polyShadeToggle);
+    tuningButton.addPanelChild(&debugColourToggle);
     tuningButton.addPanelChild(&gridPosLabel);
 
     tuningButton.addPanelChild(&curvatureHeader);
@@ -1089,6 +1095,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         layoutRow(textureScaleLabel, true);
         layoutRow(textureOpacityLabel, true);
         layoutRow(polyShadeToggle, true);
+        layoutRow(debugColourToggle, true);
         layoutRow(gridPosLabel, true);
     }
     else
@@ -1099,6 +1106,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         textureScaleLabel.setVisible(false);
         textureOpacityLabel.setVisible(false);
         polyShadeToggle.setVisible(false);
+        debugColourToggle.setVisible(false);
         gridPosLabel.setVisible(false);
     }
     y += headerGap;

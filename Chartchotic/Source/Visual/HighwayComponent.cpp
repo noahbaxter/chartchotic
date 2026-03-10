@@ -24,12 +24,12 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
 void HighwayComponent::paint(juce::Graphics& g)
 {
 #ifdef DEBUG
-    if (debugColour != juce::Colour()) g.fillAll(debugColour);
+    if (showDebugColour && debugColour != juce::Colour()) g.fillAll(debugColour);
 #endif
 
     // During resize debounce, render at baked dimensions and scale to fit.
-    // This keeps notes and track consistent (perspective math is non-affine,
-    // so re-rendering at new dims with old baked assets would mismatch).
+    // During highway-length debounce (same dimensions), fill+fade is fresh
+    // but layer overlays and texture use stale baked images.
     bool debouncing = isTimerRunning() && bakedRenderW > 0 && bakedRenderH > 0;
 
     int w        = debouncing ? bakedRenderW  : renderWidth;
@@ -64,7 +64,7 @@ void HighwayComponent::paint(juce::Graphics& g)
 
 void HighwayComponent::resized()
 {
-    startTimer(resizeDebounceMs);
+    startTimer(rebuildDebounceMs);
 }
 
 void HighwayComponent::timerCallback()

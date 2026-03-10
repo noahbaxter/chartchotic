@@ -71,6 +71,7 @@ public:
     std::function<void(float scale)> onBarScaleChanged;
     std::function<void(float length)> onHighwayLengthChanged;
     std::function<void(bool)> onShowFpsChanged;
+    std::function<void(bool)> onShowBackgroundChanged;
     std::function<void()> onOpenBackgroundFolder;
     std::function<void()> onOpenTextureFolder;
 
@@ -175,6 +176,7 @@ private:
     int latencyIndex = LATENCY_DEFAULT - 1; // state is 1-based
     SegmentedButtons framerateButtons;
     CheckboxToggle showFpsToggle{"Show FPS"};
+    CheckboxToggle showBackgroundToggle{"Background"};
 
     //==============================================================================
     // Value data

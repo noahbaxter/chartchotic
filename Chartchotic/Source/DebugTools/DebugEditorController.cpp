@@ -101,6 +101,10 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         highway.rebuildTrack();
     };
 
+    tune.onDebugColourChanged = [&highway](bool on) {
+        highway.showDebugColour = on;
+    };
+
     tune.onPerspectiveChanged = [&highway]() {
         highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();

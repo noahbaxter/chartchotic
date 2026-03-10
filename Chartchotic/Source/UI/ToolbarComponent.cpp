@@ -309,9 +309,11 @@ void ToolbarComponent::initSettingsPanel()
 
     highwayLengthStepper.setDisplayValue(highwayLengthPct);
     highwayLengthStepper.onStep = [this](int delta) {
-        int snapped = (int)std::round(highwayLengthPct / (double)HWY_LENGTH_STEP_PCT) * HWY_LENGTH_STEP_PCT;
+        // Adaptive step: fine at low values, coarser at high
+        int step = highwayLengthPct < 150 ? 5 : (highwayLengthPct < 300 ? 10 : 25);
+        int snapped = (int)std::round(highwayLengthPct / (double)step) * step;
         highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT,
-            snapped + delta * HWY_LENGTH_STEP_PCT);
+            snapped + delta * step);
         highwayLengthStepper.setDisplayValue(highwayLengthPct);
         if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
     };
@@ -325,6 +327,13 @@ void ToolbarComponent::initSettingsPanel()
     framerateButtons.setSelectedIndex(FRAMERATE_DEFAULT - 1);
     framerateButtons.onSelectionChanged = [this](int index) {
         if (onFramerateChanged) onFramerateChanged(index + 1);
+    };
+
+    showBackgroundToggle.setToggleState(state.hasProperty("showBackground") && (bool)state["showBackground"]);
+    showBackgroundToggle.onClick = [this]() {
+        bool on = showBackgroundToggle.getToggleState();
+        state.setProperty("showBackground", on, nullptr);
+        if (onShowBackgroundChanged) onShowBackgroundChanged(on);
     };
 
     showFpsToggle.setToggleState(DEFAULT_SHOW_FPS);
@@ -363,6 +372,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&displayHeader);
     settingsButton.addPanelChild(&framerateButtons);
     settingsButton.addPanelChild(&showFpsToggle);
+    settingsButton.addPanelChild(&showBackgroundToggle);
     settingsButton.addPanelChild(&highwayHeader);
     settingsButton.addPanelChild(&highwayLengthStepper);
     settingsButton.addPanelChild(&highwayTextureStepper);
@@ -718,6 +728,9 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     y += stepperH + gap;
 
     showFpsToggle.setBounds(margin, y, w, stepperH);
+    y += stepperH + gap;
+
+    showBackgroundToggle.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
     backgroundStepper.setBounds(margin, y, w, stepperH);

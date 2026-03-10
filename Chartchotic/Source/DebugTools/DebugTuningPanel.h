@@ -38,6 +38,7 @@ public:
     std::function<void(float)> onTextureScaleChanged;
     std::function<void(float)> onTextureOpacityChanged;
     std::function<void()> onPolyShadeChanged;
+    std::function<void(bool)> onDebugColourChanged;
 
     // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
@@ -152,8 +153,9 @@ private:
     float textureOpacityValue = TEXTURE_OPACITY_DEFAULT;
     ScrollableLabel textureScaleLabel;
     ScrollableLabel textureOpacityLabel;
-    // Polygon debug shade toggle
+    // Debug visualization toggles
     juce::ToggleButton polyShadeToggle;
+    juce::ToggleButton debugColourToggle;
 
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
