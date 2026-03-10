@@ -190,12 +190,12 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
     {
         uint colIdx = 0; // Both guitar open and drum kick use index 0
         const auto& colCoords = isDrums
-            ? PositionConstants::drumGlyphCoords[colIdx]
-            : PositionConstants::guitarGlyphCoords[colIdx];
+            ? laneCoordsDrums[colIdx]
+            : laneCoordsGuitar[colIdx];
 
         auto edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
                                    wNear, wMid, wFar, posEnd, PositionConstants::FRETBOARD_SCALE);
-        auto perspParams = PositionConstants::getPerspectiveParams();
+        auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
         float colWidth = edge.rightX - edge.leftX;
         float colHeight = colWidth / perspParams.barNoteHeightRatio;
         juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
@@ -249,13 +249,13 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         colIdx = (anim.lane < PositionConstants::GUITAR_LANE_COUNT) ? anim.lane : 1;
     }
     const auto& colCoords = isDrums
-        ? PositionConstants::drumGlyphCoords[colIdx]
-        : PositionConstants::guitarGlyphCoords[colIdx];
+        ? laneCoordsDrums[colIdx]
+        : laneCoordsGuitar[colIdx];
 
     float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
     auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
                                wNear, wMid, wFar, posEnd, PositionConstants::FRETBOARD_SCALE);
-    auto perspParams = PositionConstants::getPerspectiveParams();
+    auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
 

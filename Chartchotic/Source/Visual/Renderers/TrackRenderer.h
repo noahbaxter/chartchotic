@@ -30,10 +30,14 @@ public:
     /** Paint the scrolling highway texture overlay. Call between track and scene rendering. */
     void paintTexture(juce::Graphics& g, float scrollOffset, int targetWidth, int targetHeight);
 
-    /** Rebuild the cached faded track image. Call on resize, instrument change, or highway length change. */
-    void rebuild(int width, int height,
+    /** Rebuild the cached faded track image. Call on resize, instrument change, or highway length change.
+        overflow = extra pixels above the viewport (for extended VP Y). Bitmaps are (width, height+overflow). */
+    void rebuild(int width, int height, int overflow,
                  float farFadeEnd, float farFadeLen, float farFadeCurve,
                  float wNear, float wMid, float wFar, float posEnd);
+
+    /** Invalidate cached state so the next rebuild() is not skipped. */
+    void invalidate() { cached.width = -1; }
 
     /** Set the source texture for highway overlay. */
     void setTexture(const juce::Image& texture);
@@ -55,28 +59,35 @@ public:
 
     enum Layer { SIDEBARS = 0, LANE_LINES, STRIKELINE, CONNECTORS, NUM_LAYERS };
     LayerTransform layersGuitar[NUM_LAYERS] = {
-        {0.770f, 0.0f,     0.0f},      // SIDEBARS
-        {0.450f, 0.0f,     0.0f},      // LANE_LINES
-        {0.615f, 0.0f, -0.1825f},      // STRIKELINE
-        {0.665f, 0.0f, -0.1960f}       // CONNECTORS
+        {0.940f, 0.0f,     0.0f},      // SIDEBARS
+        {0.550f, 0.0f,     0.0f},      // LANE_LINES
+        {0.750f, 0.0f, -0.1825f},      // STRIKELINE
+        {0.810f, 0.0f, -0.1960f}       // CONNECTORS
     };
     LayerTransform layersDrums[NUM_LAYERS] = {
-        {0.740f, 0.0f,     0.0f},      // SIDEBARS
-        {0.350f, 0.0f,     0.0f},      // LANE_LINES
-        {0.585f, 0.0f, -0.1815f},      // STRIKELINE
-        {0.660f, 0.0f, -0.1600f}       // CONNECTORS
+        {0.925f, 0.0f,     0.0f},      // SIDEBARS
+        {0.440f, 0.0f,     0.0f},      // LANE_LINES
+        {0.730f, 0.0f, -0.1815f},      // STRIKELINE
+        {0.825f, 0.0f, -0.1600f}       // CONNECTORS
     };
+
+    /** Set lane coords for perspective-projected lane line rendering. */
+    void setLaneCoords(const PositionConstants::NormalizedCoordinates* coords, int count)
+    {
+        laneCoords_ = coords;
+        laneCount_ = count;
+    }
 
     /** Get a pre-baked layer image (with far-fade applied). Valid after rebuild(). */
     const juce::Image& getLayerImage(Layer layer) const { return layerImages[layer]; }
 
 private:
+    const PositionConstants::NormalizedCoordinates* laneCoords_ = nullptr;
+    int laneCount_ = 0;
     juce::ValueTree& state;
 
     // Layer source images
     juce::Image sidebarsImage;
-    juce::Image laneLinesGuitarImage;
-    juce::Image laneLinesDrumsImage;
     juce::Image strikelineGuitarImage;
     juce::Image strikelineDrumsImage;
     juce::Image strikelineConnectorsImage;
@@ -94,10 +105,12 @@ private:
     struct CachedGeometry {
         std::vector<std::pair<PositionConstants::LaneCorners, float>> edges;
         int stripCount = 0;
-        int width = 0, height = 0;
+        int width = 0, height = 0;   // viewport dimensions
+        int overflow = 0;            // extra pixels above viewport
         bool isDrums = false;
         float wNear = 0, wMid = 0, wFar = 0;
         float posEnd = 0, fadeEnd = 0, fadeLen = 0, fadeCurve = 0;
+        int totalHeight() const { return height + overflow; }
     } cached;
 
     // Pre-baked scanline data for fast per-frame texture rendering
@@ -121,11 +134,16 @@ private:
 
     void rebuildPrebake();
     void compositeLayers(juce::Image& target, int w, int h, bool isDrums,
-                         float wNear, float wMid, float wFar, float posEnd);
+                         float wNear, float wMid, float wFar, float posEnd,
+                         float farFadeEnd);
     void bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
-                        int w, int h, bool isDrums, bool tiled,
+                        int w, int h, int overflow, bool isDrums, bool tiled,
                         float farFadeEnd, float farFadeLen, float farFadeCurve,
                         float wNear, float wMid, float wFar, float posEnd);
+
+    void bakeLaneLinesPerspective(int w, int h, int overflow, bool isDrums,
+                                   float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                   float wNear, float wMid, float wFar, float posEnd);
 
     static constexpr int PIXELS_PER_STRIP = 1;
     static constexpr int MIN_STRIPS = 40;

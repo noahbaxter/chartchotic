@@ -43,6 +43,8 @@ public:
     void updateSustainStates(const TimeBasedSustainWindow& sustainWindow, bool isPlaying);
 
     // Tuning params — set by SceneRenderer before calling renderToDrawCallMap
+    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
+    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
     float hitGemZOffset = 0.0f;
     float hitBarZOffset = 0.0f;
     float noteCurvature = 0.0f;

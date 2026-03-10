@@ -16,8 +16,6 @@ TrackRenderer::TrackRenderer(juce::ValueTree& state)
 {
     // Load layer images from BinaryData
     sidebarsImage = juce::ImageCache::getFromMemory(BinaryData::sidebars_png, BinaryData::sidebars_pngSize);
-    laneLinesGuitarImage = juce::ImageCache::getFromMemory(BinaryData::lane_lines_guitar_png, BinaryData::lane_lines_guitar_pngSize);
-    laneLinesDrumsImage = juce::ImageCache::getFromMemory(BinaryData::lane_lines_drums_png, BinaryData::lane_lines_drums_pngSize);
     strikelineGuitarImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_guitar_png, BinaryData::strikeline_guitar_pngSize);
     strikelineDrumsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_drums_png, BinaryData::strikeline_drums_pngSize);
     strikelineConnectorsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_connectors_png, BinaryData::strikeline_connectors_pngSize);
@@ -38,11 +36,14 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
 
 void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targetW, int targetH)
 {
+#ifdef DEBUG
+    if (PositionMath::debugPolyShade) return;
+#endif
     if (!textureEnabled || !prebaked.valid)
         return;
 
     int w = cached.width;
-    int h = cached.height;
+    int h = cached.totalHeight();
     int tileH = prebaked.tileHeight;
 
     // Ensure offscreen buffer
@@ -104,42 +105,32 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
 }
 
 void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDrums,
-                                     float wNear, float wMid, float wFar, float posEnd)
+                                     float wNear, float wMid, float wFar, float posEnd,
+                                     float farFadeEnd)
 {
     juce::Graphics g(target);
 
-    // Fill fretboard polygon with dark background
+    // Fill fretboard polygon from cached edges (shared with texture scanline LUT)
     juce::Path fretboardPath;
-    float effectiveEnd = std::max(posEnd, cached.fadeEnd);
+    int n = cached.stripCount;
 
-    constexpr int NUM_POLY_POINTS = 60;
-    float posRange = effectiveEnd - HIGHWAY_POS_START;
-
-    struct EdgePoint { float leftX, rightX, centerY; };
-    std::array<EdgePoint, NUM_POLY_POINTS + 1> polyEdges;
-
-    for (int i = 0; i <= NUM_POLY_POINTS; i++)
-    {
-        float pos = HIGHWAY_POS_START + posRange * (float)i / (float)NUM_POLY_POINTS;
-        auto edge = PositionMath::getFretboardEdge(isDrums, pos, w, h,
-                                                    wNear, wMid, wFar,
-                                                    HIGHWAY_POS_START, posEnd);
-        polyEdges[i] = {edge.leftX, edge.rightX, edge.centerY};
-    }
-
-    fretboardPath.startNewSubPath(polyEdges[0].rightX, polyEdges[0].centerY);
-    for (int i = 1; i <= NUM_POLY_POINTS; i++)
-        fretboardPath.lineTo(polyEdges[i].rightX, polyEdges[i].centerY);
-    for (int i = NUM_POLY_POINTS; i >= 0; i--)
-        fretboardPath.lineTo(polyEdges[i].leftX, polyEdges[i].centerY);
+    fretboardPath.startNewSubPath(cached.edges[0].first.rightX, cached.edges[0].first.centerY);
+    for (int i = 1; i <= n; i++)
+        fretboardPath.lineTo(cached.edges[i].first.rightX, cached.edges[i].first.centerY);
+    for (int i = n; i >= 0; i--)
+        fretboardPath.lineTo(cached.edges[i].first.leftX, cached.edges[i].first.centerY);
     fretboardPath.closeSubPath();
 
+#ifdef DEBUG
+    g.setColour(PositionMath::debugPolyShade ? juce::Colour(0xFFFF0000) : juce::Colour(0xFF111111));
+#else
     g.setColour(juce::Colour(0xFF111111));
+#endif
     g.fillPath(fretboardPath);
 }
 
 void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
-                                    int w, int h, bool isDrums, bool tiled,
+                                    int w, int h, int overflow, bool isDrums, bool tiled,
                                     float farFadeEnd, float farFadeLen, float farFadeCurve,
                                     float wNear, float wMid, float wFar, float posEnd)
 {
@@ -149,10 +140,11 @@ void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, con
     {
         juce::Graphics g(out);
         float imgAspect = (float)src.getWidth() / (float)src.getHeight();
+        int origH = h - overflow;   // yOffset is tuned relative to viewport height
         float drawW = (float)w * t.scale;
         float drawH = drawW / imgAspect;
         float drawX = ((float)w - drawW) * 0.5f + t.xOffset * (float)w;
-        float drawY = (float)h - drawH + t.yOffset * (float)h;
+        float drawY = (float)h - drawH + t.yOffset * (float)origH;
 
         if (tiled)
         {
@@ -177,18 +169,18 @@ void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, con
         }
     }
 
-    applyFarFade(out, w, h, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+    applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
                  wNear, wMid, wFar, posEnd);
 }
 
-void TrackRenderer::rebuild(int width, int height,
+void TrackRenderer::rebuild(int width, int height, int overflow,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
                                float wNear, float wMid, float wFar, float posEnd)
 {
     if (width <= 0 || height <= 0) return;
 
     // Skip if nothing changed
-    if (width == cached.width && height == cached.height &&
+    if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         wNear == cached.wNear && wMid == cached.wMid && wFar == cached.wFar &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
@@ -196,66 +188,123 @@ void TrackRenderer::rebuild(int width, int height,
         return;
 
     bool isDrums = isPart(state, Part::DRUMS);
+    int totalH = height + overflow;
 
-    // Bake dark fill base
-    fadedTrackImage = juce::Image(juce::Image::ARGB, width, height, true);
-    compositeLayers(fadedTrackImage, width, height, isDrums, wNear, wMid, wFar, posEnd);
-    applyFarFade(fadedTrackImage, width, height, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+    // Rebuild cached edge geometry (shared by polygon fill and texture scanline LUT)
+    // Perspective math uses original viewport height; overflow offsets Y into the taller bitmap.
+    float effectiveEnd = std::max(posEnd, farFadeEnd);
+    float posRange = effectiveEnd - HIGHWAY_POS_START;
+
+    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height,
+                                                    wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
+    auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height,
+                                                   wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
+    int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
+    cached.stripCount = std::clamp(pixelHeight / PIXELS_PER_STRIP, MIN_STRIPS, MAX_STRIPS);
+
+    cached.edges.resize(cached.stripCount + 1);
+    for (int i = 0; i <= cached.stripCount; i++)
+    {
+        float pos = HIGHWAY_POS_START + posRange * (float)i / (float)cached.stripCount;
+        auto edge = PositionMath::getFretboardEdge(isDrums, pos, width, height,
+                                                    wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
+        edge.centerY += (float)overflow;  // offset into taller bitmap
+        cached.edges[i] = { edge, pos };
+    }
+
+    cached.width = width;
+    cached.height = height;
+    cached.overflow = overflow;
+    cached.isDrums = isDrums;
+    cached.wNear = wNear;
+    cached.wMid = wMid;
+    cached.wFar = wFar;
+    cached.posEnd = posEnd;
+    cached.fadeEnd = farFadeEnd;
+    cached.fadeLen = farFadeLen;
+    cached.fadeCurve = farFadeCurve;
+
+    // Bake dark fill base (uses cached edges for polygon — already offset by overflow)
+    fadedTrackImage = juce::Image(juce::Image::ARGB, width, totalH, true);
+    compositeLayers(fadedTrackImage, width, totalH, isDrums, wNear, wMid, wFar, posEnd, farFadeEnd);
+#ifdef DEBUG
+    if (!PositionMath::debugPolyShade)
+#endif
+    applyFarFade(fadedTrackImage, width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
                  wNear, wMid, wFar, posEnd);
 
     // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
     auto* layers = isDrums ? layersDrums : layersGuitar;
     bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
-                   width, height, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
-    bakeLayerImage(layerImages[LANE_LINES], isDrums ? laneLinesDrumsImage : laneLinesGuitarImage, layers[LANE_LINES],
-                   width, height, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+    bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
+                              farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
     bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
-                   width, height, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
     bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
-                   width, height, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
-
-    // Rebuild cached geometry for texture scanline LUT
-    float effectiveEnd = std::max(posEnd, farFadeEnd);
-
-    if (width != cached.width || height != cached.height ||
-        isDrums != cached.isDrums ||
-        wNear != cached.wNear || wMid != cached.wMid || wFar != cached.wFar ||
-        posEnd != cached.posEnd || farFadeEnd != cached.fadeEnd ||
-        farFadeLen != cached.fadeLen || farFadeCurve != cached.fadeCurve)
-    {
-        float posRange = effectiveEnd - HIGHWAY_POS_START;
-
-        auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height,
-                                                        wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
-        auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height,
-                                                       wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
-        int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
-        cached.stripCount = std::clamp(pixelHeight / PIXELS_PER_STRIP, MIN_STRIPS, MAX_STRIPS);
-
-        cached.edges.resize(cached.stripCount + 1);
-        for (int i = 0; i <= cached.stripCount; i++)
-        {
-            float pos = HIGHWAY_POS_START + posRange * (float)i / (float)cached.stripCount;
-            cached.edges[i] = {
-                PositionMath::getFretboardEdge(isDrums, pos, width, height,
-                                               wNear, wMid, wFar, HIGHWAY_POS_START, posEnd),
-                pos
-            };
-        }
-
-        cached.width = width;
-        cached.height = height;
-        cached.isDrums = isDrums;
-        cached.wNear = wNear;
-        cached.wMid = wMid;
-        cached.wFar = wFar;
-        cached.posEnd = posEnd;
-        cached.fadeEnd = farFadeEnd;
-        cached.fadeLen = farFadeLen;
-        cached.fadeCurve = farFadeCurve;
-    }
+                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
 
     rebuildPrebake();
+}
+
+void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool isDrums,
+                                               float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                               float wNear, float wMid, float wFar, float posEnd)
+{
+    auto& out = layerImages[LANE_LINES];
+
+    if (!laneCoords_ || laneCount_ < 2) {
+        out = {};
+        return;
+    }
+
+    out = juce::Image(juce::Image::ARGB, w, h, true);
+
+    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+
+    // Compute boundary fractions between adjacent inner lanes (skip bar lane 0)
+    std::vector<float> boundaryFracs;
+    for (int i = 1; i < laneCount_ - 1; i++)
+    {
+        float rightNorm = laneCoords_[i].normX1 + laneCoords_[i].normWidth1;
+        float leftNorm = laneCoords_[i + 1].normX1;
+        float midNorm = (rightNorm + leftNorm) * 0.5f;
+        boundaryFracs.push_back((midNorm - fbCoords.normX1) / fbCoords.normWidth1);
+    }
+
+    if (boundaryFracs.empty()) { out = {}; return; }
+
+    {
+        juce::Graphics g(out);
+        g.setColour(juce::Colour(0x40FFFFFF));
+
+        for (float frac : boundaryFracs)
+        {
+            juce::Path path;
+            bool started = false;
+
+            for (int i = 0; i <= cached.stripCount; i++)
+            {
+                auto& [edge, pos] = cached.edges[i];
+                float edgeCenter = (edge.leftX + edge.rightX) * 0.5f;
+                float edgeWidth = (edge.rightX - edge.leftX) * FRETBOARD_SCALE;
+                float scaledLeft = edgeCenter - edgeWidth * 0.5f;
+                float x = scaledLeft + frac * edgeWidth;
+
+                if (!started) {
+                    path.startNewSubPath(x, edge.centerY);
+                    started = true;
+                } else {
+                    path.lineTo(x, edge.centerY);
+                }
+            }
+
+            g.strokePath(path, juce::PathStrokeType(1.5f));
+        }
+    }
+
+    applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                 wNear, wMid, wFar, posEnd);
 }
 
 void TrackRenderer::rebuildPrebake()
@@ -267,10 +316,11 @@ void TrackRenderer::rebuildPrebake()
     }
 
     int w = cached.width;
-    int h = cached.height;
+    int h = cached.totalHeight();   // use total (viewport + overflow) for scanline buffer
     int texH = sourceTexture.getHeight();
 
     // 1. Build per-scanline LUT by interpolating between cached edge pairs
+    // Edges are already offset by overflow, so scanlines cover the full bitmap.
     prebaked.scanlines.assign(h, {0.0f, 0.0f, 0, 0});
     prebaked.yMin = h;
     prebaked.yMax = 0;

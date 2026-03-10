@@ -27,59 +27,37 @@ void HighwayComponent::paint(juce::Graphics& g)
     if (debugColour != juce::Colour()) g.fillAll(debugColour);
 #endif
 
-    // Draw converging track polygon in the overflow region (component coordinates, pre-translation)
-    if (topOverflow > 0 && showHighway)
+    // During resize debounce, render at baked dimensions and scale to fit.
+    // This keeps notes and track consistent (perspective math is non-affine,
+    // so re-rendering at new dims with old baked assets would mismatch).
+    bool debouncing = isTimerRunning() && bakedRenderW > 0 && bakedRenderH > 0;
+
+    int w        = debouncing ? bakedRenderW  : renderWidth;
+    int h        = debouncing ? bakedRenderH  : renderHeight;
+    int overflow = debouncing ? bakedOverflow  : topOverflow;
+    int totalH   = h + overflow;
+
+    if (debouncing)
     {
-        bool isDrums = isPart(state, Part::DRUMS);
-        const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
-
-        // Get the track edge at the top of the original viewport (position that maps to y≈0)
-        // and at the far end (vanishing point). Sample a few positions for a smooth polygon.
-        constexpr int NUM_POINTS = 8;
-        float posEnd = sceneRenderer.highwayPosEnd;
-        float farEnd = sceneRenderer.farFadeEnd;
-
-        juce::Path overflowPoly;
-        bool pathStarted = false;
-
-        // Right edges going up (toward vanishing point)
-        for (int i = 0; i <= NUM_POINTS; i++)
-        {
-            float pos = posEnd + (farEnd - posEnd) * (float)i / (float)NUM_POINTS;
-            auto edge = PositionMath::getFretboardEdge(isDrums, pos, renderWidth, renderHeight,
-                                                        fbw.near, fbw.mid, fbw.far,
-                                                        PositionConstants::HIGHWAY_POS_START, posEnd);
-            float cy = edge.centerY + (float)topOverflow; // convert to component coords
-            if (!pathStarted) { overflowPoly.startNewSubPath(edge.rightX, cy); pathStarted = true; }
-            else overflowPoly.lineTo(edge.rightX, cy);
-        }
-        // Left edges coming back down
-        for (int i = NUM_POINTS; i >= 0; i--)
-        {
-            float pos = posEnd + (farEnd - posEnd) * (float)i / (float)NUM_POINTS;
-            auto edge = PositionMath::getFretboardEdge(isDrums, pos, renderWidth, renderHeight,
-                                                        fbw.near, fbw.mid, fbw.far,
-                                                        PositionConstants::HIGHWAY_POS_START, posEnd);
-            float cy = edge.centerY + (float)topOverflow;
-            overflowPoly.lineTo(edge.leftX, cy);
-        }
-        overflowPoly.closeSubPath();
-
-        g.setColour(juce::Colour(0xFF111111));
-        g.fillPath(overflowPoly);
+        float sx = (float)getWidth()  / (float)bakedRenderW;
+        float sy = (float)getHeight() / (float)(bakedRenderH + bakedOverflow);
+        g.addTransform(juce::AffineTransform::scale(sx, sy));
     }
 
-    // Translate so renderers see their original coordinate space
-    if (topOverflow > 0)
-        g.addTransform(juce::AffineTransform::translation(0.0f, (float)topOverflow));
-
+    // Track fill, layers, and texture are baked at totalH (viewport + overflow).
+    // Draw them in component coordinates (no translation needed).
     if (showHighway)
     {
-        trackRenderer.paint(g, renderWidth, renderHeight);
-        trackRenderer.paintTexture(g, frameData.scrollOffset, renderWidth, renderHeight);
+        trackRenderer.paint(g, w, totalH);
+        trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH);
     }
 
-    sceneRenderer.paint(g, renderWidth, renderHeight,
+    // Translate so scene renderer (notes, gridlines, etc.) sees viewport coordinates.
+    // Overlay images are drawn at (0, -overlayYOffset) to extend into the overflow area.
+    if (overflow > 0)
+        g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
+
+    sceneRenderer.paint(g, w, h,
                         frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 }
@@ -118,12 +96,22 @@ void HighwayComponent::rebuildTrack()
     int h = renderHeight;
     if (w <= 0 || h <= 0) return;
 
+    // Recompute overflow in case perspective params changed
+    int prevOverflow = topOverflow;
+    updateOverflow();
+
     bool isDrums = isPart(state, Part::DRUMS);
     const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
 
     sceneRenderer.rescaleAssets(w);
+    sceneRenderer.overlayYOffset = topOverflow;
 
-    trackRenderer.rebuild(w, h,
+    // Pass lane coords to TrackRenderer for perspective-projected lane lines
+    trackRenderer.setLaneCoords(
+        isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
+        isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
+
+    trackRenderer.rebuild(w, h, topOverflow,
                           sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
                           fbw.near, fbw.mid, fbw.far, sceneRenderer.highwayPosEnd);
 
@@ -131,4 +119,10 @@ void HighwayComponent::rebuildTrack()
     sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
     sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
     sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+
+    bakedRenderW = w;
+    bakedRenderH = h;
+    bakedOverflow = topOverflow;
+
+    if (topOverflow != prevOverflow && onOverflowChanged) onOverflowChanged();
 }

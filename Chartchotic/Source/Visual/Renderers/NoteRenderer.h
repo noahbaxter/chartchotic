@@ -38,6 +38,8 @@ public:
     PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
     PositionConstants::ColumnAdjust guitarColAdjust[6] = {};
     PositionConstants::ColumnAdjust drumColAdjust[5] = {};
+    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
+    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
     float gemZOffset = 0.0f;
     float barZOffset = 0.0f;
     float strikePosGem = 0.0f;
@@ -100,5 +102,5 @@ private:
     float lastCachedCurvatureDrums = PositionConstants::NOTE_CURVATURE;
 
     const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
-    static float getColumnDistFromCenter(int column, bool isDrums);
+    float getColumnDistFromCenter(int column, bool isDrums);
 };

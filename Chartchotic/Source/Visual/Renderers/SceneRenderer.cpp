@@ -83,15 +83,17 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     for (int i = 0; i < 6; i++) {
         const auto& ca = guitarColAdjust[i];
         noteRenderer.guitarColAdjust[i] = {
-            ca.xNear * resScale, ca.xFar * resScale, ca.z * resScale,
+            ca.z * resScale,
             ca.sNear, ca.sFar, ca.w, ca.h };
     }
     for (int i = 0; i < 5; i++) {
         const auto& ca = drumColAdjust[i];
         noteRenderer.drumColAdjust[i] = {
-            ca.xNear * resScale, ca.xFar * resScale, ca.z * resScale,
+            ca.z * resScale,
             ca.sNear, ca.sFar, ca.w, ca.h };
     }
+    noteRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
+    noteRenderer.laneCoordsDrums = drumLaneCoordsLocal;
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
@@ -131,6 +133,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             double strikeTimeOffset = strikePosGem * windowTimeSpan;
             if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow, strikeTimeOffset); }
 
+            animationRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
+            animationRenderer.laneCoordsDrums = drumLaneCoordsLocal;
             animationRenderer.hitGemZOffset = offsets.hitGemZ * resScale;
             animationRenderer.hitBarZOffset = offsets.hitBarZ * resScale;
             animationRenderer.noteCurvature = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
@@ -161,12 +165,13 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             continue;
 
         int vw = width, vh = height;
-        drawCallMap[static_cast<int>(order)][0].push_back([img, vw, vh](juce::Graphics& g) {
+        int ov = overlayYOffset;
+        drawCallMap[static_cast<int>(order)][0].push_back([img, vw, vh, ov](juce::Graphics& g) {
             g.setOpacity(1.0f);
-            if (img->getWidth() == vw && img->getHeight() == vh)
+            if (ov == 0 && img->getWidth() == vw && img->getHeight() == vh)
                 g.drawImageAt(*img, 0, 0);
             else
-                g.drawImage(*img, 0, 0, vw, vh, 0, 0, img->getWidth(), img->getHeight());
+                g.drawImageAt(*img, 0, -ov);
         });
     }
 

@@ -67,6 +67,9 @@ namespace PositionConstants
         float playerDistance;
         float perspectiveStrength;
         float exponentialCurve;
+        float vanishingPointDepth;   // Depth at which progress=0 (normalizes perspective across full highway)
+        float vanishingPointY;       // Y offset for vanishing point (added to normY2; negative = higher on screen)
+        float nearWidth;             // Near-end width multiplier (controls bottom spread / edge angle)
         float xOffsetMultiplier;
         float barNoteHeightRatio;
         float regularNoteHeightRatio;
@@ -102,10 +105,11 @@ namespace PositionConstants
 
     //==============================================================================
     // Size & Scale Factors
-    constexpr float GEM_SIZE = 0.9f;                    // Regular gem/note scaling factor
-    constexpr float BAR_SIZE = 0.95f;                   // Bar note (kick/open) scaling factor
+    constexpr float GEM_SIZE = 1.089f;                   // Regular gem/note scaling factor (0.99 × 1.10)
+    constexpr float BAR_SIZE = 1.026f;                  // Bar note (kick/open) scaling factor
     constexpr float GRIDLINE_WIDTH_SCALE = 1.12f;       // Gridline width relative to fretboard
     constexpr float GRIDLINE_POS_OFFSET = -0.020f;      // Nudge gridlines forward in position space
+    constexpr float BAR_FRETBOARD_FIT = 1.15f;           // Bar note base scale to fill fretboard polygon
     constexpr float BAR_NOTE_POS_OFFSET = -0.020f;      // Nudge bar notes forward in position space
     constexpr float SUSTAIN_WIDTH = 0.15f;              // Sustain width multiplier
     constexpr float SUSTAIN_OPEN_WIDTH = 0.7f;          // Open sustain width multiplier (narrower)
@@ -184,27 +188,6 @@ namespace PositionConstants
     constexpr size_t DRUM_LANE_COUNT = 5;               // Kick + 4 pads
 
     //==============================================================================
-    // Coordinate lookup tables (column 0 is always open/kick, columns 1-5 are pads)
-    // { normX1, normX2, normY1, normY2, normWidth1, normWidth2 }
-
-    constexpr NormalizedCoordinates guitarGlyphCoords[] = {
-        {0.16f, 0.34f, 0.745f, 0.234f, 0.68f, 0.32f},     // Open note
-        {0.2035f, 0.354f, 0.73f, 0.22f, 0.125f, 0.065f},   // Col 1 - Green
-        {0.3205f, 0.4115f, 0.73f, 0.22f, 0.125f, 0.065f},  // Col 2 - Red
-        {0.4375f, 0.4675f, 0.73f, 0.22f, 0.125f, 0.065f},  // Col 3 - Yellow
-        {0.5545f, 0.5235f, 0.73f, 0.22f, 0.125f, 0.065f},  // Col 4 - Blue
-        {0.6715f, 0.581f, 0.73f, 0.22f, 0.125f, 0.065f}    // Col 5 - Orange
-    };
-
-    constexpr NormalizedCoordinates drumGlyphCoords[] = {
-        {0.16f, 0.34f, 0.75f, 0.239f, 0.68f, 0.32f},      // Kick
-        {0.2165f, 0.3648f, 0.72f, 0.22f, 0.147f, 0.0714f}, // Col 1 - Red
-        {0.358f, 0.4318f, 0.72f, 0.22f, 0.147f, 0.0714f},  // Col 2 - Yellow
-        {0.495f, 0.4968f, 0.72f, 0.22f, 0.147f, 0.0714f},  // Col 3 - Blue
-        {0.6365f, 0.5638f, 0.72f, 0.22f, 0.147f, 0.0714f}  // Col 4 - Green
-    };
-
-    //==============================================================================
     // Animation Positioning & Scaling Factors
 
     constexpr CoordinateOffset GUITAR_ANIMATION_OFFSETS[] = {
@@ -243,25 +226,25 @@ namespace PositionConstants
         float mid  = 0.0f;
         float far  = 0.0f;
     };
-    constexpr FretboardWidths FB_WIDTHS_GUITAR = {0.820f, 0.860f, 0.920f};
-    constexpr FretboardWidths FB_WIDTHS_DRUMS  = {0.800f, 0.820f, 0.840f};
+    constexpr FretboardWidths FB_WIDTHS_GUITAR = {1.000f, 1.000f, 1.000f};
+    constexpr FretboardWidths FB_WIDTHS_DRUMS  = {1.000f, 1.000f, 1.000f};
 
     //==============================================================================
     // Bezier Lane Coordinate Tables (sustain/lane rendering, slightly different from glyph tables)
     constexpr NormalizedCoordinates guitarBezierLaneCoords[] = {
-        {0.186f, 0.350f, 0.73f, 0.234f, 0.626f, 0.300f},     // Open
-        {0.230f, 0.367f, 0.71f, 0.22f, 0.102f, 0.056f},      // Green
-        {0.332f, 0.424f, 0.71f, 0.22f, 0.112f, 0.052f},      // Red
-        {0.444f, 0.474f, 0.71f, 0.22f, 0.112f, 0.052f},      // Yellow
-        {0.556f, 0.524f, 0.71f, 0.22f, 0.112f, 0.052f},      // Blue
-        {0.670f, 0.576f, 0.71f, 0.22f, 0.102f, 0.056f}       // Orange
+        {0.208f, 0.350f, 0.73f, 0.234f, 0.582f, 0.300f},     // Open
+        {0.234f, 0.367f, 0.71f, 0.22f, 0.096f, 0.056f},      // Green
+        {0.341f, 0.424f, 0.71f, 0.22f, 0.099f, 0.052f},      // Red
+        {0.451f, 0.474f, 0.71f, 0.22f, 0.099f, 0.052f},      // Yellow
+        {0.560f, 0.524f, 0.71f, 0.22f, 0.100f, 0.052f},      // Blue
+        {0.670f, 0.576f, 0.71f, 0.22f, 0.096f, 0.056f}       // Orange
     };
     constexpr NormalizedCoordinates drumBezierLaneCoords[] = {
-        {0.190f, 0.354f, 0.735f, 0.239f, 0.620f, 0.290f},    // Kick (1x and 2x)
-        {0.232f, 0.376f, 0.70f, 0.22f, 0.132f, 0.060f},      // Red
-        {0.366f, 0.436f, 0.70f, 0.22f, 0.134f, 0.064f},      // Yellow
-        {0.500f, 0.500f, 0.70f, 0.22f, 0.134f, 0.066f},      // Blue
-        {0.636f, 0.564f, 0.70f, 0.22f, 0.132f, 0.060f}       // Green
+        {0.212f, 0.354f, 0.735f, 0.239f, 0.574f, 0.290f},    // Kick (1x and 2x)
+        {0.232f, 0.376f, 0.70f, 0.22f, 0.130f, 0.060f},      // Red
+        {0.374f, 0.436f, 0.70f, 0.22f, 0.121f, 0.064f},      // Yellow
+        {0.507f, 0.500f, 0.70f, 0.22f, 0.119f, 0.066f},      // Blue
+        {0.638f, 0.564f, 0.70f, 0.22f, 0.122f, 0.060f}       // Green
     };
 
     //==============================================================================
@@ -295,15 +278,13 @@ namespace PositionConstants
         0.0f,       // barZ
         6.0f,       // hitGemZ
         10.0f,      // hitBarZ
-        -0.020f,    // strikePosGem
-        -0.020f     // strikePosBar
+        0.0f,       // strikePosGem
+        0.0f        // strikePosBar
     };
 
     // Per-column adjustment bundle (offsets in pixels at REFERENCE_HEIGHT, scales are multipliers)
     struct ColumnAdjust
     {
-        float xNear  = 0.0f;  // X pixel offset at strikeline
-        float xFar   = 0.0f;  // X pixel offset at far end
         float z      = 0.0f;  // Z pixel offset (vertical nudge)
         float sNear  = 1.0f;  // Uniform scale at strikeline (interpolated)
         float sFar   = 1.0f;  // Uniform scale at far end (interpolated)
@@ -312,19 +293,19 @@ namespace PositionConstants
     };
 
     constexpr ColumnAdjust GUITAR_COL_ADJUST[6] = {
-        {0, 0, 0, 1, 1, 1, 1},             // Open
-        {6, 13, 0, 1.05f, 1, 1, 1},        // Green
-        {1.5f, 5, 0, 1.1f, 1, 1, 1},       // Red
-        {0, 0, 0, 1.1f, 1, 1, 1},          // Yellow
-        {-1.5f, -5, 0, 1.1f, 1, 1, 1},     // Blue
-        {-6, -13, 0, 1.05f, 1, 1, 1}       // Orange
+        {0, 1, 1, 1, 1},                // Open
+        {0, 1.05f, 1, 1, 1},            // Green
+        {0, 1.1f, 1, 1, 1},             // Red
+        {0, 1.1f, 1, 1, 1},             // Yellow
+        {0, 1.1f, 1, 1, 1},             // Blue
+        {0, 1.05f, 1, 1, 1}             // Orange
     };
     constexpr ColumnAdjust DRUM_COL_ADJUST[5] = {
-        {0, 0, 0, 0.99f, 1, 1, 1},         // Kick
-        {2.5f, 3, 0, 1, 1, 1, 1},          // Red
-        {-0.5f, -0.5f, 0, 1, 1, 1, 1},     // Yellow
-        {0.5f, 0.5f, 0, 1, 1, 1, 1},       // Blue
-        {-2.5f, -3, 0, 1, 1, 1, 1}         // Green
+        {0, 0.99f, 1, 1, 1},            // Kick
+        {0, 1, 1, 1, 1},                // Red
+        {0, 1, 1, 1, 1},                // Yellow
+        {0, 1, 1, 1, 1},                // Blue
+        {0, 1, 1, 1, 1}                 // Green
     };
 
     //==============================================================================
@@ -367,18 +348,49 @@ namespace PositionConstants
     constexpr HitScale HIT_BAR_SCALE = {1.0f, 1.0f, 1.0f};
 
     //==============================================================================
-    // Perspective Parameters (compile-time constant)
-    constexpr inline PerspectiveParams getPerspectiveParams()
+    // Perspective Parameters (per-instrument, compile-time constants)
+    constexpr inline PerspectiveParams getGuitarPerspectiveParams()
     {
         return {
             100.0f,   // highwayDepth
             50.0f,    // playerDistance
             0.7f,     // perspectiveStrength
-            0.5f,     // exponentialCurve
+            0.65f,    // exponentialCurve
+            1.0f,     // vanishingPointDepth (depth where progress=0; higher = gentler perspective)
+            -0.23f,   // vanishingPointY (offset added to normY2; negative = VP higher on screen)
+            1.07f,    // nearWidth (near-end width multiplier; <1 = narrower bottom, steeper angle)
             0.5f,     // xOffsetMultiplier
             16.0f,    // barNoteHeightRatio
             2.0f      // regularNoteHeightRatio
         };
+    }
+
+    constexpr inline PerspectiveParams getDrumPerspectiveParams()
+    {
+        return {
+            100.0f,   // highwayDepth
+            50.0f,    // playerDistance
+            0.7f,     // perspectiveStrength
+            0.65f,    // exponentialCurve
+            1.0f,     // vanishingPointDepth
+            -0.215f,  // vanishingPointY (drums: slightly less negative than guitar)
+            1.07f,    // nearWidth
+            0.5f,     // xOffsetMultiplier
+            16.0f,    // barNoteHeightRatio
+            2.0f      // regularNoteHeightRatio
+        };
+    }
+
+    // Convenience: select by instrument
+    constexpr inline PerspectiveParams getPerspectiveParams(bool isDrums)
+    {
+        return isDrums ? getDrumPerspectiveParams() : getGuitarPerspectiveParams();
+    }
+
+    // Legacy: returns guitar params (used by code that doesn't have isDrums context)
+    constexpr inline PerspectiveParams getPerspectiveParams()
+    {
+        return getGuitarPerspectiveParams();
     }
 
 }

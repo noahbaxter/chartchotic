@@ -16,22 +16,24 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/DrawingConstants.h"
 
-/** Apply per-row far-end alpha fade to an already-composed image in-place. */
-inline void applyFarFade(juce::Image& image, int w, int h,
+/** Apply per-row far-end alpha fade to an already-composed image in-place.
+    overflow = extra pixels above the viewport baked into the image (0 for viewport-only). */
+inline void applyFarFade(juce::Image& image, int w, int h, int overflow,
                           bool isDrums, float fadeEnd, float fadeLen, float fadeCurve,
                           float wNear, float wMid, float wFar, float posEnd)
 {
     if (w <= 0 || h <= 0) return;
 
+    int origH = h - overflow;  // perspective math uses viewport height
     float fadeStart = fadeEnd - fadeLen;
 
-    auto edgeAtFadeStart = PositionMath::getFretboardEdge(isDrums, fadeStart, w, h, wNear, wMid, wFar,
+    auto edgeAtFadeStart = PositionMath::getFretboardEdge(isDrums, fadeStart, w, origH, wNear, wMid, wFar,
         PositionConstants::HIGHWAY_POS_START, posEnd);
-    auto edgeAtFadeEnd = PositionMath::getFretboardEdge(isDrums, fadeEnd, w, h, wNear, wMid, wFar,
+    auto edgeAtFadeEnd = PositionMath::getFretboardEdge(isDrums, fadeEnd, w, origH, wNear, wMid, wFar,
         PositionConstants::HIGHWAY_POS_START, posEnd);
 
-    int fadeStartRow = juce::jlimit(0, h - 1, (int)edgeAtFadeStart.centerY);
-    int fadeEndRow   = juce::jlimit(0, h - 1, (int)edgeAtFadeEnd.centerY);
+    int fadeStartRow = juce::jlimit(0, h - 1, (int)edgeAtFadeStart.centerY + overflow);
+    int fadeEndRow   = juce::jlimit(0, h - 1, (int)edgeAtFadeEnd.centerY + overflow);
 
     if (fadeEndRow > fadeStartRow) std::swap(fadeEndRow, fadeStartRow);
 

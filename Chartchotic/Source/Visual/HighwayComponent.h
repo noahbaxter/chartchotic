@@ -54,7 +54,7 @@ public:
     void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
     void setShowHighway(bool on)        { showHighway = on; repaint(); }
 
-    void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; updateOverflow(); rebuildTrack(); if (onOverflowChanged) onOverflowChanged(); repaint(); }
+    void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; rebuildTrack(); repaint(); }
     void setTexture(const juce::Image& img) { trackRenderer.setTexture(img); }
     void clearTexture()                 { trackRenderer.clearTexture(); }
     void setTextureScale(float s)       { trackRenderer.textureScale = s; repaint(); }
@@ -77,7 +77,7 @@ public:
     std::function<void()> onOverflowChanged;
 
 private:
-    static constexpr int resizeDebounceMs = 150;
+    static constexpr int resizeDebounceMs = 50;
 
     juce::ValueTree& state;
     AssetManager& assetManager;
@@ -87,6 +87,9 @@ private:
     HighwayFrameData frameData;
 
     int topOverflow = 0;
+
+    // Dimensions of the last full rebuild (track bake + asset rescale)
+    int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;
 
 #ifdef DEBUG
     juce::Colour debugColour;

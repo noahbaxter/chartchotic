@@ -78,7 +78,7 @@ class SceneRenderer
         PositionConstants::InstrumentOffsets guitarOffsets = PositionConstants::GUITAR_OFFSETS;
         PositionConstants::InstrumentOffsets drumOffsets = PositionConstants::DRUM_OFFSETS;
 
-        // Per-column adjustments (X near/far + Z offsets)
+        // Per-column adjustments (Z offset, scale, W/H)
         PositionConstants::ColumnAdjust guitarColAdjust[6] = {
             PositionConstants::GUITAR_COL_ADJUST[0], PositionConstants::GUITAR_COL_ADJUST[1],
             PositionConstants::GUITAR_COL_ADJUST[2], PositionConstants::GUITAR_COL_ADJUST[3],
@@ -148,9 +148,12 @@ class SceneRenderer
 
     public:
         /** Register an image overlay to be drawn at a specific DrawOrder position.
-            The image is drawn at (0,0) with full opacity. Call before paint(). */
+            The image is drawn at (0, -overlayYOffset) with full opacity. Call before paint(). */
         void setOverlay(DrawOrder order, const juce::Image* img) { overlays[order] = img; }
         void clearOverlays() { overlays.clear(); }
+
+        /** Y offset for overlay images (pixels above viewport origin to cover overflow area). */
+        int overlayYOffset = 0;
 
     private:
         std::map<DrawOrder, const juce::Image*> overlays;

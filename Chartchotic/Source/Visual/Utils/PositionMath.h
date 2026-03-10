@@ -28,6 +28,17 @@ public:
     PositionMath() = default;
     ~PositionMath() = default;
 
+#ifdef DEBUG
+    static PositionConstants::PerspectiveParams debugPerspParamsGuitar;
+    static PositionConstants::PerspectiveParams debugPerspParamsDrums;
+    static bool debugPolyShade;
+
+    static const PositionConstants::PerspectiveParams& perspParams(bool isDrums)
+    {
+        return isDrums ? debugPerspParamsDrums : debugPerspParamsGuitar;
+    }
+#endif
+
     //==============================================================================
     // Bezier positioning system
     static PositionConstants::LaneCorners getFretboardEdge(
@@ -47,6 +58,7 @@ private:
     //==============================================================================
     // Core perspective calculation
     static juce::Rectangle<float> createPerspectiveGlyphRect(
+        const PositionConstants::PerspectiveParams& perspParams,
         float position,
         float normY1, float normY2,
         float normX1, float normX2,

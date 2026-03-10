@@ -73,7 +73,7 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
         : PositionConstants::guitarFretboardCoords;
     auto edge = getColumnEdge(position, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
     float gridWidth = edge.rightX - edge.leftX;
-    auto perspParams = PositionConstants::getPerspectiveParams();
+    auto perspParams = PositionConstants::getPerspectiveParams(isPart(state, Part::DRUMS));
     float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
 
     // Scale Z offset by perspective (ratio of current width to strikeline width)
