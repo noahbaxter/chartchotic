@@ -6,17 +6,56 @@
 DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     : state(state)
 {
+    // --- Perspective section ---
+    setupSectionHeader(perspectiveHeader, "Perspective");
+    {
+        static constexpr const char* names[PERSP_COUNT] = {"VP Depth", "VP Y", "Near Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
+        static constexpr float steps[PERSP_COUNT] = {0.1f, 0.001f, 0.005f, 0.01f, 5.0f, 5.0f, 0.01f};
+        static constexpr float lo[PERSP_COUNT]    = {0.5f, -0.500f, 0.30f, 0.05f, 10.0f, 10.0f, 0.0f};
+        static constexpr float hi[PERSP_COUNT]    = {20.0f, 0.500f, 2.00f, 2.0f, 500.0f, 500.0f, 2.0f};
+        static constexpr int   dec[PERSP_COUNT]   = {1, 3, 3, 2, 0, 0, 2};
+
+        auto getPerspPtr = [](int i) -> float* {
+            switch (i) {
+            case 0: return &PositionMath::debugPerspParamsGuitar.vanishingPointDepth;
+            case 1: return &PositionMath::debugPerspParamsGuitar.vanishingPointY;
+            case 2: return &PositionMath::debugPerspParamsGuitar.nearWidth;
+            case 3: return &PositionMath::debugPerspParamsGuitar.exponentialCurve;
+            case 4: return &PositionMath::debugPerspParamsGuitar.highwayDepth;
+            case 5: return &PositionMath::debugPerspParamsGuitar.playerDistance;
+            default: return &PositionMath::debugPerspParamsGuitar.perspectiveStrength;
+            }
+        };
+
+        for (int i = 0; i < PERSP_COUNT; i++)
+        {
+            setupScrollLabel(perspLabels[i]);
+            perspLabels[i].onScroll = [this, i, getPerspPtr](int delta) {
+                static constexpr const char* names_l[PERSP_COUNT] = {"VP Depth", "VP Y", "Near Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
+                static constexpr float steps_l[PERSP_COUNT] = {0.1f, 0.001f, 0.005f, 0.01f, 5.0f, 5.0f, 0.01f};
+                static constexpr float lo_l[PERSP_COUNT]    = {0.5f, -0.500f, 0.30f, 0.05f, 10.0f, 10.0f, 0.0f};
+                static constexpr float hi_l[PERSP_COUNT]    = {20.0f, 0.500f, 2.00f, 2.0f, 500.0f, 500.0f, 2.0f};
+                static constexpr int   dec_l[PERSP_COUNT]   = {1, 3, 3, 2, 0, 0, 2};
+                float* val = getPerspPtr(i);
+                *val = juce::jlimit(lo_l[i], hi_l[i], *val + delta * steps_l[i]);
+                perspLabels[i].setText(juce::String(names_l[i]) + ": " + juce::String(*val, dec_l[i]), juce::dontSendNotification);
+                if (onPerspectiveChanged) onPerspectiveChanged();
+            };
+        }
+    }
+
     // --- Track section (layers table + tiling) ---
     setupSectionHeader(trackHeader, "Track");
 
     for (int c = 0; c < LAYER_COLS; c++)
         setupTableHeader(layerColHdrLabels[c]);
 
-    auto getLayerPtr = [this](int r, int c) -> float* {
+    auto getLayerPtr = [this](int displayRow, int c) -> float* {
+        int storageIdx = displayLayerMap[displayRow];
         switch (c) {
-        case 0: return &layerStates[r].scale;
-        case 1: return &layerStates[r].xOffset;
-        default: return &layerStates[r].yOffset;
+        case 0: return &layerStates[storageIdx].scale;
+        case 1: return &layerStates[storageIdx].xOffset;
+        default: return &layerStates[storageIdx].yOffset;
         }
     };
 
@@ -25,7 +64,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     static constexpr float layerHi[LAYER_COLS]   = {3.00f,  1.0f,  1.0f};
     static constexpr int   layerDec[LAYER_COLS]   = {3, 4, 4};
 
-    for (int r = 0; r < NUM_LAYERS; r++)
+    for (int r = 0; r < NUM_DISPLAY_LAYERS; r++)
     {
         layerRowLabels[r].setText(layerNames[r], juce::dontSendNotification);
         layerRowLabels[r].setJustificationType(juce::Justification::centredLeft);
@@ -74,42 +113,18 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (onTextureOpacityChanged) onTextureOpacityChanged(textureOpacityValue);
     };
 
+    polyShadeToggle.setButtonText("Poly Shade");
+    polyShadeToggle.onClick = [this]() {
+        PositionMath::debugPolyShade = polyShadeToggle.getToggleState();
+        if (onPolyShadeChanged) onPolyShadeChanged();
+    };
+
     setupScrollLabel(gridPosLabel);
     gridPosLabel.onScroll = [this](int delta) {
         gridlinePosOffset = juce::jlimit(-0.10f, 0.10f, gridlinePosOffset + delta * 0.002f);
         gridPosLabel.setText("Grid: " + juce::String(gridlinePosOffset, 3), juce::dontSendNotification);
         fireChanged();
     };
-
-    // Fretboard width table
-    auto getFbField = [this](int r, int c) -> float& {
-        switch (c) {
-        case 0: return fbWidths[r].near;
-        case 1: return fbWidths[r].mid;
-        default: return fbWidths[r].far;
-        }
-    };
-    for (int c = 0; c < FB_COLS; c++)
-        setupTableHeader(fbColHdrLabels[c]);
-    for (int r = 0; r < FB_ROWS; r++)
-    {
-        fbRowLabels[r].setText(fbRowNames[r], juce::dontSendNotification);
-        fbRowLabels[r].setJustificationType(juce::Justification::centredLeft);
-        fbRowLabels[r].setColour(juce::Label::textColourId, juce::Colours::white);
-        fbRowLabels[r].setFont(juce::Font(10.0f));
-        for (int c = 0; c < FB_COLS; c++)
-        {
-            setupScrollLabel(fbParams[r][c]);
-            fbParams[r][c].setFont(juce::Font(10.0f));
-            fbParams[r][c].setJustificationType(juce::Justification::centred);
-            fbParams[r][c].onScroll = [this, r, c, getFbField](int delta) {
-                float& val = getFbField(r, c);
-                val = juce::jlimit(0.50f, 1.00f, val + delta * 0.005f);
-                fbParams[r][c].setText(juce::String(val, 3), juce::dontSendNotification);
-                if (onFretboardChanged) onFretboardChanged();
-            };
-        }
-    }
 
     // --- Curvature section ---
     setupSectionHeader(curvatureHeader, "Curvature");
@@ -340,25 +355,23 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     };
 
     // Helper: get ColumnAdjust field by column index (shared by guitar/drums note tables)
-    // Columns: 0=X1, 1=X2, 2=Z, 3=S1, 4=S2, 5=W, 6=H
+    // Columns: 0=Z, 1=S1, 2=S2, 3=W, 4=H
     auto getColAdjustField = [](PositionConstants::ColumnAdjust& ca, int c) -> float* {
         switch (c) {
-        case 0: return &ca.xNear;
-        case 1: return &ca.xFar;
-        case 2: return &ca.z;
-        case 3: return &ca.sNear;
-        case 4: return &ca.sFar;
-        case 5: return &ca.w;
+        case 0: return &ca.z;
+        case 1: return &ca.sNear;
+        case 2: return &ca.sFar;
+        case 3: return &ca.w;
         default: return &ca.h;
         }
     };
 
     // Note table scroll params per column: {step, lo, hi, decimals}
-    // X1/X2/Z are pixel offsets, S1/S2/W/H are scale multipliers
-    static constexpr float noteStep[COL_NOTE_COLS] = {0.5f, 0.5f, 0.5f, 0.01f, 0.01f, 0.01f, 0.01f};
-    static constexpr float noteLo[COL_NOTE_COLS]   = {-30.f, -30.f, -30.f, 0.30f, 0.30f, 0.30f, 0.30f};
-    static constexpr float noteHi[COL_NOTE_COLS]   = {30.f, 30.f, 30.f, 3.00f, 3.00f, 3.00f, 3.00f};
-    static constexpr int   noteDec[COL_NOTE_COLS]   = {1, 1, 1, 2, 2, 2, 2};
+    // Z is pixel offset, S1/S2/W/H are scale multipliers
+    static constexpr float noteStep[COL_NOTE_COLS] = {0.5f, 0.01f, 0.01f, 0.01f, 0.01f};
+    static constexpr float noteLo[COL_NOTE_COLS]   = {-30.f, 0.30f, 0.30f, 0.30f, 0.30f};
+    static constexpr float noteHi[COL_NOTE_COLS]   = {30.f, 3.00f, 3.00f, 3.00f, 3.00f};
+    static constexpr int   noteDec[COL_NOTE_COLS]   = {1, 2, 2, 2, 2};
 
     // --- Guitar Cols section ---
     setupSectionHeader(guitarColsHeader, "Guitar Cols");
@@ -399,9 +412,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     auto getGcolLanePtr = [this](int r, int c) -> float* {
         switch (c) {
         case 0: return &guitarLaneCoords[r].normX1;
-        case 1: return &guitarLaneCoords[r].normX2;
-        case 2: return &guitarLaneCoords[r].normWidth1;
-        default: return &guitarLaneCoords[r].normWidth2;
+        default: return &guitarLaneCoords[r].normWidth1;
         }
     };
 
@@ -465,9 +476,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     auto getDcolLanePtr = [this](int r, int c) -> float* {
         switch (c) {
         case 0: return &drumLaneCoords[r].normX1;
-        case 1: return &drumLaneCoords[r].normX2;
-        case 2: return &drumLaneCoords[r].normWidth1;
-        default: return &drumLaneCoords[r].normWidth2;
+        default: return &drumLaneCoords[r].normWidth1;
         }
     };
 
@@ -582,10 +591,15 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     // Register panel children
     // =========================================================================
 
+    // Perspective section
+    tuningButton.addPanelChild(&perspectiveHeader);
+    for (int i = 0; i < PERSP_COUNT; i++)
+        tuningButton.addPanelChild(&perspLabels[i]);
+
     tuningButton.addPanelChild(&trackHeader);
     for (int c = 0; c < LAYER_COLS; c++)
         tuningButton.addPanelChild(&layerColHdrLabels[c]);
-    for (int r = 0; r < NUM_LAYERS; r++)
+    for (int r = 0; r < NUM_DISPLAY_LAYERS; r++)
     {
         tuningButton.addPanelChild(&layerRowLabels[r]);
         for (int c = 0; c < LAYER_COLS; c++)
@@ -595,15 +609,8 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&tileScaleStepLabel);
     tuningButton.addPanelChild(&textureScaleLabel);
     tuningButton.addPanelChild(&textureOpacityLabel);
+    tuningButton.addPanelChild(&polyShadeToggle);
     tuningButton.addPanelChild(&gridPosLabel);
-    for (int c = 0; c < FB_COLS; c++)
-        tuningButton.addPanelChild(&fbColHdrLabels[c]);
-    for (int r = 0; r < FB_ROWS; r++)
-    {
-        tuningButton.addPanelChild(&fbRowLabels[r]);
-        for (int c = 0; c < FB_COLS; c++)
-            tuningButton.addPanelChild(&fbParams[r][c]);
-    }
 
     tuningButton.addPanelChild(&curvatureHeader);
     tuningButton.addPanelChild(&guitarCurvLabel);
@@ -756,14 +763,12 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
     std::copy_n(overlayAdjusts, NUM_OVERLAY_TYPES, sr.overlayAdjusts);
     sr.gridlinePosOffset = gridlinePosOffset;
     sr.laneShape = laneShape;
-    sr.fbWidthsGuitar = fbWidths[0];
-    sr.fbWidthsDrums  = fbWidths[1];
 }
 
 void DebugTuningPanel::initDefaults(const TrackRenderer& trackRenderer)
 {
-    std::copy_n(trackRenderer.layersGuitar, NUM_LAYERS, guitarStates);
-    std::copy_n(trackRenderer.layersDrums, NUM_LAYERS, drumStates);
+    std::copy_n(trackRenderer.layersGuitar, NUM_TRACK_LAYERS, guitarStates);
+    std::copy_n(trackRenderer.layersDrums, NUM_TRACK_LAYERS, drumStates);
     tileStepValue = trackRenderer.tileStep;
     tileScaleStepValue = trackRenderer.tileScaleStep;
     textureScaleValue = trackRenderer.textureScale;
@@ -777,10 +782,11 @@ void DebugTuningPanel::setDrums(bool isDrums)
     refreshTrackLabels();
 }
 
-void DebugTuningPanel::fireLayer(int idx)
+void DebugTuningPanel::fireLayer(int displayIdx)
 {
+    int storageIdx = displayLayerMap[displayIdx];
     if (onLayerChanged)
-        onLayerChanged(idx, layerStates[idx].scale, layerStates[idx].xOffset, layerStates[idx].yOffset);
+        onLayerChanged(storageIdx, layerStates[storageIdx].scale, layerStates[storageIdx].xOffset, layerStates[storageIdx].yOffset);
 }
 
 void DebugTuningPanel::refreshTrackLabels()
@@ -788,9 +794,10 @@ void DebugTuningPanel::refreshTrackLabels()
     static constexpr int layerDec[LAYER_COLS] = {3, 4, 4};
     for (int c = 0; c < LAYER_COLS; c++)
         layerColHdrLabels[c].setText(layerColNames[c], juce::dontSendNotification);
-    for (int r = 0; r < NUM_LAYERS; r++)
+    for (int r = 0; r < NUM_DISPLAY_LAYERS; r++)
     {
-        const float vals[LAYER_COLS] = {layerStates[r].scale, layerStates[r].xOffset, layerStates[r].yOffset};
+        int si = displayLayerMap[r];
+        const float vals[LAYER_COLS] = {layerStates[si].scale, layerStates[si].xOffset, layerStates[si].yOffset};
         for (int c = 0; c < LAYER_COLS; c++)
             layerParams[r][c].setText(juce::String(vals[c], layerDec[c]), juce::dontSendNotification);
     }
@@ -798,20 +805,13 @@ void DebugTuningPanel::refreshTrackLabels()
     tileScaleStepLabel.setText("Scale: " + juce::String(tileScaleStepValue, 3), juce::dontSendNotification);
     textureScaleLabel.setText("Tex S: " + juce::String(textureScaleValue, 2), juce::dontSendNotification);
     textureOpacityLabel.setText("Tex O: " + juce::String(textureOpacityValue, 2), juce::dontSendNotification);
+    polyShadeToggle.setToggleState(PositionMath::debugPolyShade, juce::dontSendNotification);
     gridPosLabel.setText("Grid: " + juce::String(gridlinePosOffset, 3), juce::dontSendNotification);
-    for (int c = 0; c < FB_COLS; c++)
-        fbColHdrLabels[c].setText(fbColNames[c], juce::dontSendNotification);
-    for (int r = 0; r < FB_ROWS; r++)
-    {
-        const float vals[FB_COLS] = {fbWidths[r].near, fbWidths[r].mid, fbWidths[r].far};
-        for (int c = 0; c < FB_COLS; c++)
-            fbParams[r][c].setText(juce::String(vals[c], 3), juce::dontSendNotification);
-    }
 }
 
 void DebugTuningPanel::refreshColLabels()
 {
-    static constexpr int noteDec[COL_NOTE_COLS] = {1, 1, 1, 2, 2, 2, 2};
+    static constexpr int noteDec[COL_NOTE_COLS] = {1, 2, 2, 2, 2};
 
     // Guitar notes
     for (int c = 0; c < COL_NOTE_COLS; c++)
@@ -819,7 +819,7 @@ void DebugTuningPanel::refreshColLabels()
     for (int r = 0; r < GUITAR_LANES; r++)
     {
         const auto& ca = guitarColAdjust[r];
-        const float vals[COL_NOTE_COLS] = {ca.xNear, ca.xFar, ca.z, ca.sNear, ca.sFar, ca.w, ca.h};
+        const float vals[COL_NOTE_COLS] = {ca.z, ca.sNear, ca.sFar, ca.w, ca.h};
         for (int c = 0; c < COL_NOTE_COLS; c++)
             gcolNoteParams[r][c].setText(juce::String(vals[c], noteDec[c]), juce::dontSendNotification);
     }
@@ -830,9 +830,7 @@ void DebugTuningPanel::refreshColLabels()
     for (int r = 0; r < GUITAR_LANES; r++)
     {
         gcolLaneParams[r][0].setText(juce::String(guitarLaneCoords[r].normX1, 3), juce::dontSendNotification);
-        gcolLaneParams[r][1].setText(juce::String(guitarLaneCoords[r].normX2, 3), juce::dontSendNotification);
-        gcolLaneParams[r][2].setText(juce::String(guitarLaneCoords[r].normWidth1, 3), juce::dontSendNotification);
-        gcolLaneParams[r][3].setText(juce::String(guitarLaneCoords[r].normWidth2, 3), juce::dontSendNotification);
+        gcolLaneParams[r][1].setText(juce::String(guitarLaneCoords[r].normWidth1, 3), juce::dontSendNotification);
     }
 
     // Drum notes
@@ -841,7 +839,7 @@ void DebugTuningPanel::refreshColLabels()
     for (int r = 0; r < DRUM_LANES; r++)
     {
         const auto& ca = drumColAdjust[r];
-        const float vals[COL_NOTE_COLS] = {ca.xNear, ca.xFar, ca.z, ca.sNear, ca.sFar, ca.w, ca.h};
+        const float vals[COL_NOTE_COLS] = {ca.z, ca.sNear, ca.sFar, ca.w, ca.h};
         for (int c = 0; c < COL_NOTE_COLS; c++)
             dcolNoteParams[r][c].setText(juce::String(vals[c], noteDec[c]), juce::dontSendNotification);
     }
@@ -852,9 +850,7 @@ void DebugTuningPanel::refreshColLabels()
     for (int r = 0; r < DRUM_LANES; r++)
     {
         dcolLaneParams[r][0].setText(juce::String(drumLaneCoords[r].normX1, 3), juce::dontSendNotification);
-        dcolLaneParams[r][1].setText(juce::String(drumLaneCoords[r].normX2, 3), juce::dontSendNotification);
-        dcolLaneParams[r][2].setText(juce::String(drumLaneCoords[r].normWidth1, 3), juce::dontSendNotification);
-        dcolLaneParams[r][3].setText(juce::String(drumLaneCoords[r].normWidth2, 3), juce::dontSendNotification);
+        dcolLaneParams[r][1].setText(juce::String(drumLaneCoords[r].normWidth1, 3), juce::dontSendNotification);
     }
 }
 
@@ -896,6 +892,23 @@ void DebugTuningPanel::refreshOverlayLabels()
 
 void DebugTuningPanel::refreshLabels()
 {
+    // Perspective labels
+    {
+        static constexpr const char* names[PERSP_COUNT] = {"VP Depth", "VP Y", "Near Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
+        static constexpr int dec[PERSP_COUNT] = {1, 3, 3, 2, 0, 0, 2};
+        const float vals[PERSP_COUNT] = {
+            PositionMath::debugPerspParamsGuitar.vanishingPointDepth,
+            PositionMath::debugPerspParamsGuitar.vanishingPointY,
+            PositionMath::debugPerspParamsGuitar.nearWidth,
+            PositionMath::debugPerspParamsGuitar.exponentialCurve,
+            PositionMath::debugPerspParamsGuitar.highwayDepth,
+            PositionMath::debugPerspParamsGuitar.playerDistance,
+            PositionMath::debugPerspParamsGuitar.perspectiveStrength
+        };
+        for (int i = 0; i < PERSP_COUNT; i++)
+            perspLabels[i].setText(juce::String(names[i]) + ": " + juce::String(vals[i], dec[i]), juce::dontSendNotification);
+    }
+
     guitarCurvLabel.setText("Guitar: " + juce::String(guitarCurvature, 3), juce::dontSendNotification);
     drumCurvLabel.setText("Drums: " + juce::String(drumCurvature, 3), juce::dontSendNotification);
     depthForeshortenLabel.setText("Depth: " + juce::String(depthForeshorten, 2), juce::dontSendNotification);
@@ -1055,6 +1068,13 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         }
     };
 
+    // --- Perspective section ---
+    perspectiveHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    for (int i = 0; i < PERSP_COUNT; i++)
+        layoutRow(perspLabels[i], perspectiveHeader.expanded);
+    y += headerGap;
+
     // --- Track section (layers table + tiling) ---
     trackHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
@@ -1063,26 +1083,23 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         y = layoutTable(y, margin, w, rowHeight, gap,
                         layerColHdrLabels, LAYER_COLS,
                         layerRowLabels, &layerParams[0][0],
-                        NUM_LAYERS, LAYER_COLS, 40);
+                        NUM_DISPLAY_LAYERS, LAYER_COLS, 40);
         layoutRow(tileStepLabel, true);
         layoutRow(tileScaleStepLabel, true);
         layoutRow(textureScaleLabel, true);
         layoutRow(textureOpacityLabel, true);
+        layoutRow(polyShadeToggle, true);
         layoutRow(gridPosLabel, true);
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        fbColHdrLabels, FB_COLS,
-                        fbRowLabels, &fbParams[0][0],
-                        FB_ROWS, FB_COLS, 40);
     }
     else
     {
-        hideTable(layerColHdrLabels, LAYER_COLS, layerRowLabels, &layerParams[0][0], NUM_LAYERS, LAYER_COLS);
+        hideTable(layerColHdrLabels, LAYER_COLS, layerRowLabels, &layerParams[0][0], NUM_DISPLAY_LAYERS, LAYER_COLS);
         tileStepLabel.setVisible(false);
         tileScaleStepLabel.setVisible(false);
         textureScaleLabel.setVisible(false);
         textureOpacityLabel.setVisible(false);
+        polyShadeToggle.setVisible(false);
         gridPosLabel.setVisible(false);
-        hideTable(fbColHdrLabels, FB_COLS, fbRowLabels, &fbParams[0][0], FB_ROWS, FB_COLS);
     }
     y += headerGap;
 

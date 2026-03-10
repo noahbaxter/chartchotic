@@ -38,12 +38,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     width = viewportWidth;
     height = viewportHeight;
 
-    // Resolve instrument-specific bezier params
     bool isDrums = isPart(state, Part::DRUMS);
-    const auto& fbw = isDrums ? fbWidthsDrums : fbWidthsGuitar;
-    float wNear = fbw.near;
-    float wMid  = fbw.mid;
-    float wFar  = fbw.far;
 
     // Update sustain states for active animations (force-trigger if playing into active sustain)
     animationRenderer.updateSustainStates(sustainWindow, isPlaying);
@@ -99,7 +94,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
         if (showGems || showBars)
             noteRenderer.populate(drawCallMap, trackWindow, windowStartTime, windowEndTime,
-                                  width, height, wNear, wMid, wFar, highwayPosEnd,
+                                  width, height, highwayPosEnd,
                                   farFadeEnd, farFadeLen, farFadeCurve);
     }
 
@@ -108,7 +103,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         sustainRenderer.laneShape = laneShape;
         sustainRenderer.populate(drawCallMap, sustainWindow, windowStartTime, windowEndTime,
                                  width, height, showLanes, showSustains,
-                                 wNear, wMid, wFar, highwayPosEnd,
+                                 highwayPosEnd,
                                  farFadeEnd, farFadeLen, farFadeCurve,
                                  guitarLaneCoordsLocal, drumLaneCoordsLocal);
     }
@@ -117,7 +112,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         ScopedPhaseMeasure m(lastPhaseTiming.gridlines_us, collectPhaseTiming);
         if (showGridlines)
             gridlineRenderer.populate(drawCallMap, gridlines, windowStartTime, windowEndTime,
-                                      width, height, wNear, wMid, wFar, highwayPosEnd,
+                                      width, height, highwayPosEnd,
                                       gridlinePosOffset,
                                       offsets.gridZ * resScale,
                                       farFadeEnd, farFadeLen, farFadeCurve);
@@ -144,7 +139,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             for (int i = 0; i < 5; i++)
                 animationRenderer.drumColZAdjust[i] = drumColAdjust[i].z * resScale;
 
-            animationRenderer.renderToDrawCallMap(drawCallMap, width, height, wNear, wMid, wFar, highwayPosEnd,
+            animationRenderer.renderToDrawCallMap(drawCallMap, width, height, highwayPosEnd,
                                                 strikePosGem);
         }
     }

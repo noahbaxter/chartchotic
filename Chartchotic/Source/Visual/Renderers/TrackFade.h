@@ -20,16 +20,16 @@
     overflow = extra pixels above the viewport baked into the image (0 for viewport-only). */
 inline void applyFarFade(juce::Image& image, int w, int h, int overflow,
                           bool isDrums, float fadeEnd, float fadeLen, float fadeCurve,
-                          float wNear, float wMid, float wFar, float posEnd)
+                          float posEnd)
 {
     if (w <= 0 || h <= 0) return;
 
     int origH = h - overflow;  // perspective math uses viewport height
     float fadeStart = fadeEnd - fadeLen;
 
-    auto edgeAtFadeStart = PositionMath::getFretboardEdge(isDrums, fadeStart, w, origH, wNear, wMid, wFar,
+    auto edgeAtFadeStart = PositionMath::getFretboardEdge(isDrums, fadeStart, w, origH,
         PositionConstants::HIGHWAY_POS_START, posEnd);
-    auto edgeAtFadeEnd = PositionMath::getFretboardEdge(isDrums, fadeEnd, w, origH, wNear, wMid, wFar,
+    auto edgeAtFadeEnd = PositionMath::getFretboardEdge(isDrums, fadeEnd, w, origH,
         PositionConstants::HIGHWAY_POS_START, posEnd);
 
     int fadeStartRow = juce::jlimit(0, h - 1, (int)edgeAtFadeStart.centerY + overflow);

@@ -21,15 +21,12 @@ GridlineRenderer::GridlineRenderer(juce::ValueTree& state, AssetManager& assetMa
 void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlineMap& gridlines,
                                 double windowStartTime, double windowEndTime,
                                 uint width, uint height,
-                                float wNear, float wMid, float wFar, float posEnd,
+                                float posEnd,
                                 float gridlinePosOffset, float gridZOffset,
                                 float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
     this->width = width;
     this->height = height;
-    this->wNear = wNear;
-    this->wMid = wMid;
-    this->wFar = wFar;
     this->posEnd = posEnd;
 
     double windowTimeSpan = windowEndTime - windowStartTime;

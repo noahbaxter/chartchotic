@@ -43,12 +43,10 @@ public:
     // Bezier positioning system
     static PositionConstants::LaneCorners getFretboardEdge(
         bool isDrums, float position, uint width, uint height,
-        float wNear, float wMid, float wFar,
         float posStart, float posEnd);
 
     static PositionConstants::LaneCorners getColumnPosition(
         bool isDrums, float position, uint width, uint height,
-        float wNear, float wMid, float wFar,
         float posStart, float posEnd,
         const PositionConstants::NormalizedCoordinates& colCoords,
         float sizeScale, float fretboardScale = 1.0f);
@@ -65,13 +63,6 @@ private:
         float normWidth1, float normWidth2,
         bool isBarNote,
         uint width, uint height
-    );
-
-    //==============================================================================
-    // Helper to apply scaling and centering to coordinates
-    static PositionConstants::NormalizedCoordinates applyWidthScaling(
-        const PositionConstants::NormalizedCoordinates& coords,
-        float scaler
     );
 
 };

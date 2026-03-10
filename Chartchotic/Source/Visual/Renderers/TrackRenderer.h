@@ -34,7 +34,7 @@ public:
         overflow = extra pixels above the viewport (for extended VP Y). Bitmaps are (width, height+overflow). */
     void rebuild(int width, int height, int overflow,
                  float farFadeEnd, float farFadeLen, float farFadeCurve,
-                 float wNear, float wMid, float wFar, float posEnd);
+                 float posEnd);
 
     /** Invalidate cached state so the next rebuild() is not skipped. */
     void invalidate() { cached.width = -1; }
@@ -108,7 +108,6 @@ private:
         int width = 0, height = 0;   // viewport dimensions
         int overflow = 0;            // extra pixels above viewport
         bool isDrums = false;
-        float wNear = 0, wMid = 0, wFar = 0;
         float posEnd = 0, fadeEnd = 0, fadeLen = 0, fadeCurve = 0;
         int totalHeight() const { return height + overflow; }
     } cached;
@@ -134,16 +133,15 @@ private:
 
     void rebuildPrebake();
     void compositeLayers(juce::Image& target, int w, int h, bool isDrums,
-                         float wNear, float wMid, float wFar, float posEnd,
-                         float farFadeEnd);
+                         float posEnd, float farFadeEnd);
     void bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
                         int w, int h, int overflow, bool isDrums, bool tiled,
                         float farFadeEnd, float farFadeLen, float farFadeCurve,
-                        float wNear, float wMid, float wFar, float posEnd);
+                        float posEnd);
 
     void bakeLaneLinesPerspective(int w, int h, int overflow, bool isDrums,
                                    float farFadeEnd, float farFadeLen, float farFadeCurve,
-                                   float wNear, float wMid, float wFar, float posEnd);
+                                   float posEnd);
 
     static constexpr int PIXELS_PER_STRIP = 1;
     static constexpr int MIN_STRIPS = 40;

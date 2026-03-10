@@ -216,18 +216,9 @@ namespace PositionConstants
     constexpr float FRETBOARD_SCALE = 1.25f;
 
     //==============================================================================
-    // Highway Range & Fretboard Width Scales (bezier system defaults)
+    // Highway Range (bezier system defaults)
     constexpr float HIGHWAY_POS_START = -0.3f;
     constexpr float HIGHWAY_POS_END = 1.12f;
-
-    struct FretboardWidths
-    {
-        float near = 0.0f;
-        float mid  = 0.0f;
-        float far  = 0.0f;
-    };
-    constexpr FretboardWidths FB_WIDTHS_GUITAR = {1.000f, 1.000f, 1.000f};
-    constexpr FretboardWidths FB_WIDTHS_DRUMS  = {1.000f, 1.000f, 1.000f};
 
     //==============================================================================
     // Bezier Lane Coordinate Tables (sustain/lane rendering, slightly different from glyph tables)

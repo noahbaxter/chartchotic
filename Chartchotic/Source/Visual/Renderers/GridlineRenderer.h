@@ -27,7 +27,7 @@ public:
     void populate(DrawCallMap& drawCallMap, const TimeBasedGridlineMap& gridlines,
                   double windowStartTime, double windowEndTime,
                   uint width, uint height,
-                  float wNear, float wMid, float wFar, float posEnd,
+                  float posEnd,
                   float gridlinePosOffset, float gridZOffset,
                   float farFadeEnd, float farFadeLen, float farFadeCurve);
 
@@ -37,7 +37,7 @@ private:
 
     // Cached per-populate call
     uint width = 0, height = 0;
-    float wNear = 0, wMid = 0, wFar = 0, posEnd = 0;
+    float posEnd = 0;
 
     using LaneCorners = PositionConstants::LaneCorners;
     using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
@@ -47,7 +47,6 @@ private:
     {
         bool isDrums = isPart(state, Part::DRUMS);
         return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                               wNear, wMid, wFar,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);
     }

@@ -50,7 +50,7 @@ public:
     void populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,
                   double windowStartTime, double windowEndTime,
                   uint width, uint height,
-                  float wNear, float wMid, float wFar, float posEnd,
+                  float posEnd,
                   float farFadeEnd, float farFadeLen, float farFadeCurve);
 
 private:
@@ -60,7 +60,7 @@ private:
     // Cached per-populate call
     DrawCallMap* currentDrawCallMap = nullptr;
     uint width = 0, height = 0;
-    float wNear = 0, wMid = 0, wFar = 0, posEnd = 0;
+    float posEnd = 0;
     float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
     double cachedNoteClipTime = 0, cachedBarClipTime = 0;
 
@@ -72,7 +72,6 @@ private:
     {
         bool isDrums = isPart(state, Part::DRUMS);
         return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                               wNear, wMid, wFar,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);
     }

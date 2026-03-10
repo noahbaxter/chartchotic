@@ -96,8 +96,13 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         repaintEditor();
     };
 
-    tune.onFretboardChanged = [&tune, &highway]() {
-        tune.applyTo(highway.getSceneRenderer());
+    tune.onPolyShadeChanged = [&highway]() {
+        highway.getTrackRenderer().invalidate();
+        highway.rebuildTrack();
+    };
+
+    tune.onPerspectiveChanged = [&highway]() {
+        highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();
     };
 
@@ -108,6 +113,7 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
 
     tune.onLaneCoordsChanged = [&tune, &highway, repaintEditor]() {
         tune.applyTo(highway.getSceneRenderer());
+        highway.rebuildTrack();
         repaintEditor();
     };
 }

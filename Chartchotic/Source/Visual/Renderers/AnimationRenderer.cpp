@@ -126,7 +126,7 @@ void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustai
 // Animation Rendering
 
 void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height,
-                                             float wNear, float wMid, float wFar, float posEnd,
+                                             float posEnd,
                                              float strikePos)
 {
     cachedWidth = width;
@@ -149,8 +149,8 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
-            drawCallMap[static_cast<int>(DrawOrder::BAR_ANIMATION)][column].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
-                this->renderKickAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos);
+            drawCallMap[static_cast<int>(DrawOrder::BAR_ANIMATION)][column].push_back([this, anim, width, height, offset, posEnd, strikePos](juce::Graphics &g) {
+                this->renderKickAnimation(g, anim, width, height, offset, posEnd, strikePos);
             });
         }
         else
@@ -161,15 +161,15 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
-            drawCallMap[static_cast<int>(DrawOrder::NOTE_ANIMATION)][anim.lane].push_back([this, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos](juce::Graphics &g) {
-                this->renderFretAnimation(g, anim, width, height, offset, wNear, wMid, wFar, posEnd, strikePos);
+            drawCallMap[static_cast<int>(DrawOrder::NOTE_ANIMATION)][anim.lane].push_back([this, anim, width, height, offset, posEnd, strikePos](juce::Graphics &g) {
+                this->renderFretAnimation(g, anim, width, height, offset, posEnd, strikePos);
             });
         }
     }
 }
 
 void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                                             float wNear, float wMid, float wFar, float posEnd, float strikePos)
+                                             float posEnd, float strikePos)
 {
     float strikelinePosition = strikePos;
     bool isGuitar = isPart(state, Part::GUITAR);
@@ -194,7 +194,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
             : laneCoordsGuitar[colIdx];
 
         auto edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
-                                   wNear, wMid, wFar, posEnd, PositionConstants::FRETBOARD_SCALE);
+                                   posEnd, PositionConstants::FRETBOARD_SCALE);
         auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
         float colWidth = edge.rightX - edge.leftX;
         float colHeight = colWidth / perspParams.barNoteHeightRatio;
@@ -223,7 +223,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 }
 
 void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                                             float wNear, float wMid, float wFar, float posEnd, float strikePos)
+                                             float posEnd, float strikePos)
 {
     float strikelinePosition = strikePos;
     bool isGuitar = isPart(state, Part::GUITAR);
@@ -254,7 +254,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 
     float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
     auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
-                               wNear, wMid, wFar, posEnd, PositionConstants::FRETBOARD_SCALE);
+                               posEnd, PositionConstants::FRETBOARD_SCALE);
     auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);

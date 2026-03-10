@@ -7,6 +7,7 @@
 #include "../UI/SectionHeader.h"
 #include "../Utils/Utils.h"
 #include "../Visual/Utils/PositionConstants.h"
+#include "../Visual/Utils/PositionMath.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "../Visual/Renderers/TrackRenderer.h"
 
@@ -36,7 +37,7 @@ public:
     std::function<void(float)> onTileScaleStepChanged;
     std::function<void(float)> onTextureScaleChanged;
     std::function<void(float)> onTextureOpacityChanged;
-    std::function<void()> onFretboardChanged;
+    std::function<void()> onPolyShadeChanged;
 
     // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
@@ -61,7 +62,7 @@ public:
     PositionConstants::InstrumentOffsets guitarOffsets = PositionConstants::GUITAR_OFFSETS;
     PositionConstants::InstrumentOffsets drumOffsets = PositionConstants::DRUM_OFFSETS;
 
-    // Per-column adjustments (X near/far + Z offsets)
+    // Per-column adjustments (Z offset, scale, W/H)
     PositionConstants::ColumnAdjust guitarColAdjust[6] = {
         PositionConstants::GUITAR_COL_ADJUST[0], PositionConstants::GUITAR_COL_ADJUST[1],
         PositionConstants::GUITAR_COL_ADJUST[2], PositionConstants::GUITAR_COL_ADJUST[3],
@@ -84,6 +85,9 @@ public:
 
     // Lane shape config (tuneable)
     PositionConstants::LaneShapeConfig laneShape;
+
+    // Perspective params (tuneable, synced to PositionMath::debugPerspParams)
+    std::function<void()> onPerspectiveChanged;
 
 private:
     juce::ValueTree& state;
@@ -115,21 +119,28 @@ private:
         static constexpr int dragPixelsPerStep = 3;
     };
 
+    // --- Perspective section ---
+    SectionHeader perspectiveHeader;
+    static constexpr int PERSP_COUNT = 7;
+    ScrollableLabel perspLabels[PERSP_COUNT];
+
     // --- Track section (layers table + tiling) ---
     SectionHeader trackHeader;
-    static constexpr int NUM_LAYERS = 4;
+    static constexpr int NUM_TRACK_LAYERS = 4;  // storage (matches TrackRenderer::NUM_LAYERS)
+    static constexpr int NUM_DISPLAY_LAYERS = 3; // UI rows (excludes LANE_LINES)
     static constexpr int LAYER_COLS = 3;
-    static constexpr const char* layerNames[NUM_LAYERS] = {"Side", "Lane", "Strike", "Conn"};
+    static constexpr int displayLayerMap[NUM_DISPLAY_LAYERS] = {0, 2, 3}; // SIDEBARS, STRIKELINE, CONNECTORS
+    static constexpr const char* layerNames[NUM_DISPLAY_LAYERS] = {"Side", "Strike", "Conn"};
     static constexpr const char* layerColNames[LAYER_COLS] = {"S", "X", "Y"};
 
     using LayerTransform = TrackRenderer::LayerTransform;
-    LayerTransform guitarStates[NUM_LAYERS];
-    LayerTransform drumStates[NUM_LAYERS];
+    LayerTransform guitarStates[NUM_TRACK_LAYERS];
+    LayerTransform drumStates[NUM_TRACK_LAYERS];
     LayerTransform* layerStates = guitarStates;
 
     juce::Label layerColHdrLabels[LAYER_COLS];
-    juce::Label layerRowLabels[NUM_LAYERS];
-    ScrollableLabel layerParams[NUM_LAYERS][LAYER_COLS];
+    juce::Label layerRowLabels[NUM_DISPLAY_LAYERS];
+    ScrollableLabel layerParams[NUM_DISPLAY_LAYERS][LAYER_COLS];
 
     float tileStepValue = 0.80f;
     float tileScaleStepValue = 0.50f;
@@ -141,22 +152,12 @@ private:
     float textureOpacityValue = TEXTURE_OPACITY_DEFAULT;
     ScrollableLabel textureScaleLabel;
     ScrollableLabel textureOpacityLabel;
+    // Polygon debug shade toggle
+    juce::ToggleButton polyShadeToggle;
+
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
     ScrollableLabel gridPosLabel;
-
-    // Fretboard width table (2 rows × 3 cols: N, M, F)
-    static constexpr int FB_ROWS = 2;
-    static constexpr int FB_COLS = 3;
-    static constexpr const char* fbRowNames[FB_ROWS] = {"Gtr", "Drm"};
-    static constexpr const char* fbColNames[FB_COLS] = {"N", "M", "F"};
-    PositionConstants::FretboardWidths fbWidths[FB_ROWS] = {
-        PositionConstants::FB_WIDTHS_GUITAR,
-        PositionConstants::FB_WIDTHS_DRUMS
-    };
-    juce::Label fbColHdrLabels[FB_COLS];
-    juce::Label fbRowLabels[FB_ROWS];
-    ScrollableLabel fbParams[FB_ROWS][FB_COLS];
 
     void fireLayer(int idx);
     void refreshTrackLabels();
@@ -218,10 +219,10 @@ private:
     // --- Guitar Cols section (notes table + lanes table) ---
     SectionHeader guitarColsHeader;
     static constexpr const char* guitarColNames[GUITAR_LANES] = {"Open", "Grn", "Red", "Yel", "Blu", "Org"};
-    static constexpr int COL_NOTE_COLS = 7;   // X1, X2, Z, S1, S2, W, H
-    static constexpr int COL_LANE_COLS = 4;   // X1, X2, W1, W2
-    static constexpr const char* colNoteColNames[COL_NOTE_COLS] = {"X1", "X2", "Z", "S1", "S2", "W", "H"};
-    static constexpr const char* colLaneColNames[COL_LANE_COLS] = {"X1", "X2", "W1", "W2"};
+    static constexpr int COL_NOTE_COLS = 5;   // Z, S1, S2, W, H
+    static constexpr int COL_LANE_COLS = 2;   // X, W
+    static constexpr const char* colNoteColNames[COL_NOTE_COLS] = {"Z", "S1", "S2", "W", "H"};
+    static constexpr const char* colLaneColNames[COL_LANE_COLS] = {"X", "W"};
     juce::Label gcolSubNoteLabel;   // "Notes" sub-header
     juce::Label gcolSubLaneLabel;   // "Lanes" sub-header
     juce::Label gcolNoteHdrLabels[COL_NOTE_COLS];

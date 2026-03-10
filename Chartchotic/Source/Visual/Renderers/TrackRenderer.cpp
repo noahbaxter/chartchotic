@@ -105,8 +105,7 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
 }
 
 void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDrums,
-                                     float wNear, float wMid, float wFar, float posEnd,
-                                     float farFadeEnd)
+                                     float posEnd, float farFadeEnd)
 {
     juce::Graphics g(target);
 
@@ -132,7 +131,7 @@ void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDr
 void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, const LayerTransform& t,
                                     int w, int h, int overflow, bool isDrums, bool tiled,
                                     float farFadeEnd, float farFadeLen, float farFadeCurve,
-                                    float wNear, float wMid, float wFar, float posEnd)
+                                    float posEnd)
 {
     if (!src.isValid()) { out = {}; return; }
 
@@ -170,18 +169,17 @@ void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, con
     }
 
     applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
-                 wNear, wMid, wFar, posEnd);
+                 posEnd);
 }
 
 void TrackRenderer::rebuild(int width, int height, int overflow,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                               float wNear, float wMid, float wFar, float posEnd)
+                               float posEnd)
 {
     if (width <= 0 || height <= 0) return;
 
     // Skip if nothing changed
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
-        wNear == cached.wNear && wMid == cached.wMid && wFar == cached.wFar &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
         isPart(state, Part::DRUMS) == cached.isDrums)
@@ -196,9 +194,9 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     float posRange = effectiveEnd - HIGHWAY_POS_START;
 
     auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height,
-                                                    wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
+                                                    HIGHWAY_POS_START, posEnd);
     auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height,
-                                                   wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
+                                                   HIGHWAY_POS_START, posEnd);
     int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
     cached.stripCount = std::clamp(pixelHeight / PIXELS_PER_STRIP, MIN_STRIPS, MAX_STRIPS);
 
@@ -207,7 +205,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     {
         float pos = HIGHWAY_POS_START + posRange * (float)i / (float)cached.stripCount;
         auto edge = PositionMath::getFretboardEdge(isDrums, pos, width, height,
-                                                    wNear, wMid, wFar, HIGHWAY_POS_START, posEnd);
+                                                    HIGHWAY_POS_START, posEnd);
         edge.centerY += (float)overflow;  // offset into taller bitmap
         cached.edges[i] = { edge, pos };
     }
@@ -216,9 +214,6 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     cached.height = height;
     cached.overflow = overflow;
     cached.isDrums = isDrums;
-    cached.wNear = wNear;
-    cached.wMid = wMid;
-    cached.wFar = wFar;
     cached.posEnd = posEnd;
     cached.fadeEnd = farFadeEnd;
     cached.fadeLen = farFadeLen;
@@ -226,30 +221,30 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
 
     // Bake dark fill base (uses cached edges for polygon — already offset by overflow)
     fadedTrackImage = juce::Image(juce::Image::ARGB, width, totalH, true);
-    compositeLayers(fadedTrackImage, width, totalH, isDrums, wNear, wMid, wFar, posEnd, farFadeEnd);
+    compositeLayers(fadedTrackImage, width, totalH, isDrums, posEnd, farFadeEnd);
 #ifdef DEBUG
     if (!PositionMath::debugPolyShade)
 #endif
     applyFarFade(fadedTrackImage, width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
-                 wNear, wMid, wFar, posEnd);
+                 posEnd);
 
     // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
     auto* layers = isDrums ? layersDrums : layersGuitar;
     bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
-                   width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
     bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
-                              farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                              farFadeEnd, farFadeLen, farFadeCurve, posEnd);
     bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
-                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
     bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
-                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, wNear, wMid, wFar, posEnd);
+                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
 
     rebuildPrebake();
 }
 
 void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool isDrums,
                                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                                               float wNear, float wMid, float wFar, float posEnd)
+                                               float posEnd)
 {
     auto& out = layerImages[LANE_LINES];
 
@@ -304,7 +299,7 @@ void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool is
     }
 
     applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
-                 wNear, wMid, wFar, posEnd);
+                 posEnd);
 }
 
 void TrackRenderer::rebuildPrebake()

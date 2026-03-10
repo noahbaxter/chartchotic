@@ -22,21 +22,6 @@ bool PositionMath::debugPolyShade = false;
 #endif
 
 //==============================================================================
-// Helper to apply scaling and centering to coordinates
-
-NormalizedCoordinates PositionMath::applyWidthScaling(
-    const NormalizedCoordinates& coords,
-    float scaler)
-{
-    float scaledNormWidth1 = coords.normWidth1 * scaler;
-    float scaledNormWidth2 = coords.normWidth2 * scaler;
-    float adjustedNormX1 = coords.normX1 + (coords.normWidth1 - scaledNormWidth1) / 2.0f;
-    float adjustedNormX2 = coords.normX2 + (coords.normWidth2 - scaledNormWidth2) / 2.0f;
-
-    return {adjustedNormX1, adjustedNormX2, coords.normY1, coords.normY2, scaledNormWidth1, scaledNormWidth2};
-}
-
-//==============================================================================
 // Core 3D Perspective Calculation (used by getFretboardEdge)
 
 juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
@@ -96,34 +81,20 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
 
 LaneCorners PositionMath::getFretboardEdge(
     bool isDrums, float position, uint width, uint height,
-    float wNear, float wMid, float wFar,
     float posStart, float posEnd)
 {
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
 
-    // Derive the same 1/z progress used by createPerspectiveGlyphRect, so the
-    // bezier width scale follows the same curve as the perspective projection.
-    // This prevents a derivative discontinuity at position = vpDepth.
 #ifdef DEBUG
     const auto& pp = perspParams(isDrums);
 #else
     auto pp = getPerspectiveParams(isDrums);
 #endif
-    float depth = position / pp.vanishingPointDepth;
-    float expDenom = std::pow(10.0f, pp.exponentialCurve) - 1.0f;
-    float expMidProgress = (std::pow(10.0f, pp.exponentialCurve * 0.5f) - 1.0f) / expDenom;
-    float k = 1.0f / expMidProgress - 2.0f;
-    float progress = (1.0f - depth) / (1.0f + depth * k);
-
-    // Linear width scale: wNear at strikeline (progress=1), wFar at vanishing point (progress=0)
-    float widthScale = wFar + (wNear - wFar) * progress;
-
-    auto scaled = applyWidthScaling(fbCoords, widthScale);
 
     auto rect = createPerspectiveGlyphRect(pp, position,
-        scaled.normY1, scaled.normY2,
-        scaled.normX1, scaled.normX2,
-        scaled.normWidth1, scaled.normWidth2,
+        fbCoords.normY1, fbCoords.normY2,
+        fbCoords.normX1, fbCoords.normX2,
+        fbCoords.normWidth1, fbCoords.normWidth2,
         true, width, height);
 
     return {rect.getX(), rect.getRight(), rect.getCentreY()};
@@ -132,13 +103,12 @@ LaneCorners PositionMath::getFretboardEdge(
 
 LaneCorners PositionMath::getColumnPosition(
     bool isDrums, float position, uint width, uint height,
-    float wNear, float wMid, float wFar,
     float posStart, float posEnd,
     const NormalizedCoordinates& colCoords,
     float sizeScale, float fretboardScale)
 {
     auto edge = getFretboardEdge(isDrums, position, width, height,
-                                 wNear, wMid, wFar, posStart, posEnd);
+                                 posStart, posEnd);
 
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
 

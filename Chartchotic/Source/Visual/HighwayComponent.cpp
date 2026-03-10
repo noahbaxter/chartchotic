@@ -82,10 +82,8 @@ void HighwayComponent::updateOverflow()
 {
     if (renderWidth <= 0 || renderHeight <= 0) return;
     bool isDrums = isPart(state, Part::DRUMS);
-    const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
     auto farEdge = PositionMath::getFretboardEdge(
         isDrums, sceneRenderer.farFadeEnd, renderWidth, renderHeight,
-        fbw.near, fbw.mid, fbw.far,
         PositionConstants::HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
     topOverflow = std::max(0, (int)std::ceil(-farEdge.centerY));
 }
@@ -101,7 +99,6 @@ void HighwayComponent::rebuildTrack()
     updateOverflow();
 
     bool isDrums = isPart(state, Part::DRUMS);
-    const auto& fbw = isDrums ? sceneRenderer.fbWidthsDrums : sceneRenderer.fbWidthsGuitar;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
@@ -113,7 +110,7 @@ void HighwayComponent::rebuildTrack()
 
     trackRenderer.rebuild(w, h, topOverflow,
                           sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
-                          fbw.near, fbw.mid, fbw.far, sceneRenderer.highwayPosEnd);
+                          sceneRenderer.highwayPosEnd);
 
     sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
     sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));

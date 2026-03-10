@@ -22,15 +22,12 @@ NoteRenderer::NoteRenderer(juce::ValueTree& state, AssetManager& assetManager)
 void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,
                             double windowStartTime, double windowEndTime,
                             uint width, uint height,
-                            float wNear, float wMid, float wFar, float posEnd,
+                            float posEnd,
                             float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
     currentDrawCallMap = &drawCallMap;
     this->width = width;
     this->height = height;
-    this->wNear = wNear;
-    this->wMid = wMid;
-    this->wFar = wFar;
     this->posEnd = posEnd;
     this->farFadeEnd = farFadeEnd;
     this->farFadeLen = farFadeLen;
@@ -130,7 +127,6 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         // Bar notes span the full fretboard polygon (no FRETBOARD_SCALE)
         bool isDrums = isPart(state, Part::DRUMS);
         auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
-                                                      wNear, wMid, wFar,
                                                       PositionConstants::HIGHWAY_POS_START, posEnd);
         float fbWidth = fbEdge.rightX - fbEdge.leftX;
         float colWidth = fbWidth * BAR_FRETBOARD_FIT * sizeScale;
@@ -266,7 +262,6 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         {
             bool isDrums = isPart(state, Part::DRUMS);
             auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
-                                                            wNear, wMid, wFar,
                                                             PositionConstants::HIGHWAY_POS_START, posEnd);
             strikeWidth = (fbStrike.rightX - fbStrike.leftX) * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
         }
@@ -290,7 +285,6 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     {
         float dist = getColumnDistFromCenter(gemColumn, isDrums);
         auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
-                                                      wNear, wMid, wFar,
                                                       PositionConstants::HIGHWAY_POS_START, posEnd);
         float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * PositionConstants::FRETBOARD_SCALE;
         arcOffset = fbWidthPx * curvature * (1.0f - dist * dist);

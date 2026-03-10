@@ -21,7 +21,7 @@ SustainRenderer::SustainRenderer(juce::ValueTree& state, AssetManager& assetMana
 void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainWindow& sustainWindow,
                                double windowStartTime, double windowEndTime,
                                uint width, uint height, bool showLanes, bool showSustains,
-                               float wNear, float wMid, float wFar, float posEnd,
+                               float posEnd,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
                                const NormalizedCoordinates* laneCoordsGuitar,
                                const NormalizedCoordinates* laneCoordsDrums)
@@ -31,9 +31,6 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
     this->height = height;
     this->showLanes = showLanes;
     this->showSustains = showSustains;
-    this->wNear = wNear;
-    this->wMid = wMid;
-    this->wFar = wFar;
     this->posEnd = posEnd;
     this->farFadeEnd = farFadeEnd;
     this->farFadeLen = farFadeLen;
@@ -247,9 +244,9 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
     {
         float fadeStartClamped = std::max(fadeStart, startPosition);
         auto fadeStartEdge = PositionMath::getFretboardEdge(isDrums, fadeStartClamped, width, height,
-            wNear, wMid, wFar, PositionConstants::HIGHWAY_POS_START, posEnd);
+            PositionConstants::HIGHWAY_POS_START, posEnd);
         auto fadeEndEdge = PositionMath::getFretboardEdge(isDrums, farFadeEnd, width, height,
-            wNear, wMid, wFar, PositionConstants::HIGHWAY_POS_START, posEnd);
+            PositionConstants::HIGHWAY_POS_START, posEnd);
 
         float gradStartY = fadeStartEdge.centerY;
         float gradEndY   = fadeEndEdge.centerY;

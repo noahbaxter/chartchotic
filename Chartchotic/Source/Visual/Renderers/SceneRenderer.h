@@ -55,9 +55,6 @@ class SceneRenderer
         bool collectPhaseTiming = false;
         PhaseTiming lastPhaseTiming;
 
-        // Tunable fretboard boundary scales (mutable for debug UI, defaults from PositionConstants)
-        PositionConstants::FretboardWidths fbWidthsGuitar = PositionConstants::FB_WIDTHS_GUITAR;
-        PositionConstants::FretboardWidths fbWidthsDrums  = PositionConstants::FB_WIDTHS_DRUMS;
         float highwayPosEnd = PositionConstants::HIGHWAY_POS_END;
 
         // Note curvature and scaling (runtime-adjustable for debug UI)
@@ -136,10 +133,7 @@ class SceneRenderer
                                   float sizeScale, float fretboardScale = 1.0f)
         {
             bool isDrums = isPart(state, Part::DRUMS);
-            const auto& fbw = isDrums ? fbWidthsDrums : fbWidthsGuitar;
-            float wNear = fbw.near, wMid = fbw.mid, wFar = fbw.far;
             return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                                   wNear, wMid, wFar,
                                                    PositionConstants::HIGHWAY_POS_START, highwayPosEnd,
                                                    colCoords, sizeScale, fretboardScale);
         }
