@@ -17,8 +17,8 @@ using namespace PositionConstants;
 
 //==============================================================================
 
-AnimationRenderer::AnimationRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter, AssetManager &assetManager)
-    : state(state), midiInterpreter(midiInterpreter), assetManager(assetManager)
+AnimationRenderer::AnimationRenderer(juce::ValueTree &state, AssetManager &assetManager)
+    : state(state), assetManager(assetManager)
 {
 }
 

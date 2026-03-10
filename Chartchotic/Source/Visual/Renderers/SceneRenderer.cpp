@@ -14,14 +14,13 @@
 
 using namespace PositionConstants;
 
-SceneRenderer::SceneRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter)
+SceneRenderer::SceneRenderer(juce::ValueTree &state, AssetManager &assetManager)
 	: state(state),
-	  midiInterpreter(midiInterpreter),
-	  assetManager(),
+	  assetManager(assetManager),
 	  noteRenderer(state, assetManager),
 	  sustainRenderer(state, assetManager),
 	  gridlineRenderer(state, assetManager),
-	  animationRenderer(state, midiInterpreter, assetManager)
+	  animationRenderer(state, assetManager)
 {
     std::copy_n(PositionConstants::OVERLAY_DEFAULTS, PositionConstants::NUM_OVERLAY_TYPES, overlayAdjusts);
 }

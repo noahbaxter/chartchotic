@@ -5,13 +5,13 @@
 #include <JuceHeader.h>
 #include "DebugPlaybackController.h"
 #include "DebugMidiFilePlayer.h"
-#include "../Visual/Renderers/SceneRenderer.h"
-#include "../Visual/Renderers/TrackRenderer.h"
+#include "../Visual/HighwayComponent.h"
 #include "../Visual/Utils/RenderTiming.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "../Utils/Utils.h"
 
 class ChartchoticAudioProcessor;
+class MidiInterpreter;
 class ToolbarComponent;
 
 class DebugEditorController
@@ -23,9 +23,7 @@ public:
               juce::ValueTree& state, bool isStandalone);
 
     void wireCallbacks(ToolbarComponent& toolbar,
-                       SceneRenderer& sceneRenderer,
-                       TrackRenderer& trackRenderer,
-                       std::function<void()> rebuildTrackImage,
+                       HighwayComponent& highway,
                        std::function<void()> repaintEditor);
 
     // Called from onFrame() — advances playhead, handles looping
@@ -34,9 +32,8 @@ public:
     // Called from paint() — draws profiler overlay
     void drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer);
 
-    // Paint path for standalone debug mode
-    void paintStandalone(juce::Graphics& g,
-                         int viewportWidth, int viewportHeight,
+    // Build frame data for standalone debug mode
+    void buildStandaloneFrameData(HighwayFrameData& out,
                          SceneRenderer& sceneRenderer,
                          MidiInterpreter& midiInterpreter,
                          double displaySizeInPPQ,

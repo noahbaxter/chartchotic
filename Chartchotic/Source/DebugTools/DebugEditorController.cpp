@@ -2,6 +2,7 @@
 
 #include "DebugEditorController.h"
 #include "../PluginProcessor.h"
+#include "../Midi/Processing/MidiInterpreter.h"
 #include "../UI/ToolbarComponent.h"
 #include "../Visual/Managers/GridlineGenerator.h"
 #include "../Utils/TimeConverter.h"
@@ -37,9 +38,7 @@ void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProces
 }
 
 void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
-                                           SceneRenderer& sceneRenderer,
-                                           TrackRenderer& trackRenderer,
-                                           std::function<void()> rebuildTrackImage,
+                                           HighwayComponent& highway,
                                            std::function<void()> repaintEditor)
 {
     auto& dbg = toolbar.getDebugPanel();
@@ -63,52 +62,52 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         consoleOutput.setVisible(show);
         clearLogsButton.setVisible(show);
     };
-    dbg.onProfilerChanged = [&sceneRenderer](bool on) {
-        sceneRenderer.collectPhaseTiming = on;
+    dbg.onProfilerChanged = [&highway](bool on) {
+        highway.getSceneRenderer().collectPhaseTiming = on;
     };
 
     auto& tune = toolbar.getTuningPanel();
-    tune.initDefaults(trackRenderer);
+    tune.initDefaults(highway.getTrackRenderer());
 
-    tune.onLayerChanged = [this, &trackRenderer, rebuildTrackImage](int layer, float scale, float x, float y) {
+    tune.onLayerChanged = [this, &highway](int layer, float scale, float x, float y) {
         bool isDrums = isPart(*statePtr, Part::DRUMS);
-        auto* layers = isDrums ? trackRenderer.layersDrums : trackRenderer.layersGuitar;
+        auto* layers = isDrums ? highway.getTrackRenderer().layersDrums : highway.getTrackRenderer().layersGuitar;
         layers[layer] = {scale, x, y};
-        rebuildTrackImage();
+        highway.rebuildTrack();
     };
 
-    tune.onTileStepChanged = [&trackRenderer, rebuildTrackImage](float step) {
-        trackRenderer.tileStep = step;
-        rebuildTrackImage();
+    tune.onTileStepChanged = [&highway](float step) {
+        highway.getTrackRenderer().tileStep = step;
+        highway.rebuildTrack();
     };
 
-    tune.onTileScaleStepChanged = [&trackRenderer, rebuildTrackImage](float step) {
-        trackRenderer.tileScaleStep = step;
-        rebuildTrackImage();
+    tune.onTileScaleStepChanged = [&highway](float step) {
+        highway.getTrackRenderer().tileScaleStep = step;
+        highway.rebuildTrack();
     };
 
-    tune.onTextureScaleChanged = [&trackRenderer, repaintEditor](float val) {
-        trackRenderer.textureScale = val;
+    tune.onTextureScaleChanged = [&highway, repaintEditor](float val) {
+        highway.getTrackRenderer().textureScale = val;
         repaintEditor();
     };
 
-    tune.onTextureOpacityChanged = [&trackRenderer, repaintEditor](float val) {
-        trackRenderer.textureOpacity = val;
+    tune.onTextureOpacityChanged = [&highway, repaintEditor](float val) {
+        highway.getTrackRenderer().textureOpacity = val;
         repaintEditor();
     };
 
-    tune.onFretboardChanged = [&tune, &sceneRenderer, rebuildTrackImage]() {
-        tune.applyTo(sceneRenderer);
-        rebuildTrackImage();
+    tune.onFretboardChanged = [&tune, &highway]() {
+        tune.applyTo(highway.getSceneRenderer());
+        highway.rebuildTrack();
     };
 
-    tune.onTuningChanged = [&tune, &sceneRenderer, repaintEditor]() {
-        tune.applyTo(sceneRenderer);
+    tune.onTuningChanged = [&tune, &highway, repaintEditor]() {
+        tune.applyTo(highway.getSceneRenderer());
         repaintEditor();
     };
 
-    tune.onLaneCoordsChanged = [&tune, &sceneRenderer, repaintEditor]() {
-        tune.applyTo(sceneRenderer);
+    tune.onLaneCoordsChanged = [&tune, &highway, repaintEditor]() {
+        tune.applyTo(highway.getSceneRenderer());
         repaintEditor();
     };
 }
@@ -182,8 +181,7 @@ void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRe
     g.drawFittedText(text, 8, 42, 132, 248, juce::Justification::topLeft, 18);
 }
 
-void DebugEditorController::paintStandalone(juce::Graphics& g,
-                                             int viewportWidth, int viewportHeight,
+void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
                                              SceneRenderer& sceneRenderer,
                                              MidiInterpreter& midiInterpreter,
                                              double displaySizeInPPQ,
@@ -211,9 +209,12 @@ void DebugEditorController::paintStandalone(juce::Graphics& g,
     TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
         tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
 
-    sceneRenderer.paint(g, viewportWidth, viewportHeight,
-                        timeTrackWindow, timeSustainWindow, timeGridlineMap,
-                        0.0, displayWindowTimeSeconds, playbackController.isPlaying());
+    out.trackWindow = timeTrackWindow;
+    out.sustainWindow = timeSustainWindow;
+    out.gridlines = timeGridlineMap;
+    out.windowStartTime = 0.0;
+    out.windowEndTime = displayWindowTimeSeconds;
+    out.isPlaying = playbackController.isPlaying();
 }
 
 bool DebugEditorController::computeScrollOffset(float& outOffset, double displayWindowTimeSeconds) const

@@ -13,9 +13,6 @@
 #include <JuceHeader.h>
 #include "../../Utils/Utils.h"
 
-// Forward declarations
-class MidiInterpreter;
-
 class AssetManager
 {
 public:

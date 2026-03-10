@@ -15,7 +15,6 @@
 
 #include <JuceHeader.h>
 #include <array>
-#include "../../Midi/Processing/MidiInterpreter.h"
 #include "../../Utils/Utils.h"
 #include "../../Utils/TimeConverter.h"
 #include "../Managers/AnimationManager.h"
@@ -27,7 +26,7 @@
 class AnimationRenderer
 {
 public:
-    AnimationRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter, AssetManager &assetManager);
+    AnimationRenderer(juce::ValueTree &state, AssetManager &assetManager);
     ~AnimationRenderer();
 
     /**
@@ -74,7 +73,6 @@ public:
 
 private:
     juce::ValueTree &state;
-    MidiInterpreter &midiInterpreter;
     AnimationManager animationManager;
     AssetManager& assetManager;
 

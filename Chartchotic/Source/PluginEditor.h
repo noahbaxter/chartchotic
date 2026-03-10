@@ -11,8 +11,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Midi/Processing/MidiInterpreter.h"
-#include "Visual/Renderers/SceneRenderer.h"
-#include "Visual/Renderers/TrackRenderer.h"
+#include "Visual/HighwayComponent.h"
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/Utils.h"
 #include "Utils/TimeConverter.h"
@@ -29,8 +28,7 @@
 /**
 */
 class ChartchoticAudioProcessorEditor  :
-    public juce::AudioProcessorEditor,
-    private juce::Timer
+    public juce::AudioProcessorEditor
 {
 public:
     ChartchoticAudioProcessorEditor (ChartchoticAudioProcessor&, juce::ValueTree &state);
@@ -38,8 +36,8 @@ public:
 
     //==============================================================================
     void paint (juce::Graphics&) override;
+    void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
-    void timerCallback() override;
 
     // Resizable constraints
     juce::ComponentBoundsConstrainer* getConstrainer();
@@ -93,8 +91,8 @@ private:
 
     ChartchoticAudioProcessor& audioProcessor;
     MidiInterpreter midiInterpreter;
-    SceneRenderer sceneRenderer;
-    TrackRenderer trackRenderer;
+    AssetManager assetManager;
+    HighwayComponent highway;
 
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
@@ -108,7 +106,6 @@ private:
     static constexpr int defaultHeight = 600;
     static constexpr int minWidth = 400;
     static constexpr int minHeight = 200;
-    static constexpr int resizeDebounceMs = 150;
     static constexpr double sceneAspectRatio = 4.0 / 3.0;
 
     // Virtual scene dimensions (maintain internal 4:3 ratio)
@@ -170,9 +167,8 @@ private:
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
 
-    void paintReaperMode(juce::Graphics& g);
-    void paintStandardMode(juce::Graphics& g);
-    void rebuildFadedTrackImage();
+    void buildReaperFrameData(HighwayFrameData& out);
+    void buildStandardFrameData(HighwayFrameData& out);
 
     // Highway texture overlay
     juce::StringArray highwayTextureNames;
@@ -181,7 +177,6 @@ private:
     void loadHighwayTexture(const juce::String& filename);
     float computeScrollOffset();
 
-    bool showHighway = true;
     float latencyInSeconds = 0.0;
 
     // Resize constraints

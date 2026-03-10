@@ -15,7 +15,6 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Midi/Processing/MidiInterpreter.h"
 #include "../../Utils/Utils.h"
 #include "../../Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
@@ -32,7 +31,7 @@
 class SceneRenderer
 {
     public:
-        SceneRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
+        SceneRenderer(juce::ValueTree &state, AssetManager &assetManager);
         ~SceneRenderer();
 
         void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
@@ -120,8 +119,7 @@ class SceneRenderer
 
     private:
         juce::ValueTree &state;
-        MidiInterpreter &midiInterpreter;
-        AssetManager assetManager;
+        AssetManager &assetManager;
         NoteRenderer noteRenderer;
         SustainRenderer sustainRenderer;
         GridlineRenderer gridlineRenderer;
