@@ -102,7 +102,7 @@ private:
 
     //==============================================================================
     // UI Elements
-    static constexpr int defaultWidth = 800;
+    static constexpr int defaultWidth = 600;
     static constexpr int defaultHeight = 600;
     static constexpr int minWidth = 400;
     static constexpr int minHeight = 200;

@@ -48,7 +48,7 @@ constexpr double KICK_ANIMATION_DURATION = 0.15;  // Kick/bar flash total durati
 constexpr int HIT_FLARE_MAX_FRAME = 2;            // Show flare for first N frames of hit animation
 
 // Far-end fade (highway length)
-constexpr float FAR_FADE_DEFAULT = 5.00f;     // Default user slider value (position space)
+constexpr float FAR_FADE_DEFAULT = 1.20f;     // Default user slider value (position space)
 constexpr float FAR_FADE_MIN     = 0.50f;     // Minimum user slider value
 constexpr float FAR_FADE_MAX     = 5.00f;     // Maximum user slider value
 constexpr float FAR_FADE_LEN     = 0.35f;     // Length of fade zone
@@ -62,9 +62,6 @@ constexpr float HWY_SCALE_DRUMS  = 1.00f;     // 5.0 * 1.00 = 5.00
 
 inline float getHwyScale(bool isDrums) { return isDrums ? HWY_SCALE_DRUMS : HWY_SCALE_GUITAR; }
 
-// Reference highway length for note speed normalization.
-// Note speed was tuned at this farFadeEnd; other lengths scale proportionally.
-constexpr float HWY_SPEED_REFERENCE = FAR_FADE_DEFAULT * HWY_SCALE_GUITAR;
 
 inline float calculateFarFade(float position, float fadeEnd, float fadeLen, float fadeCurve)
 {

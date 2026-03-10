@@ -660,16 +660,13 @@ void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
     // Convert note speed to highway time: 7.87 is the default highway length in world units,
     // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
-    // Scale by highway length so apparent note speed stays consistent across different lengths.
     int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
-    double hwLength = (double)highway.getSceneRenderer().farFadeEnd;
-    double hwSpeedScale = hwLength / (double)HWY_SPEED_REFERENCE;
-    displayWindowTimeSeconds = 7.87 * hwSpeedScale / (double)noteSpeed;
+    displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
 
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
     // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.
     const double BASE_PPQ_WINDOW = 30.0;
-    double hwScale = std::max(1.0, hwLength);
+    double hwScale = std::max(1.0, (double)highway.getSceneRenderer().farFadeEnd);
     displaySizeInPPQ = PPQ(BASE_PPQ_WINDOW * hwScale);
 
     // Sync the display size to the processor so processBlock can use it
