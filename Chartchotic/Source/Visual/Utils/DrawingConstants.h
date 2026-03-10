@@ -50,7 +50,7 @@ constexpr int HIT_FLARE_MAX_FRAME = 2;            // Show flare for first N fram
 // Far-end fade (highway length)
 constexpr float FAR_FADE_DEFAULT = 1.20f;     // Default farFadeEnd (normalized position)
 constexpr float FAR_FADE_MIN     = 0.50f;     // Minimum highway length
-constexpr float FAR_FADE_MAX     = 3.00f;     // Maximum highway length
+constexpr float FAR_FADE_MAX     = 5.00f;     // Maximum highway length
 constexpr float FAR_FADE_LEN     = 0.35f;     // Length of fade zone
 constexpr float FAR_FADE_CURVE   = 1.0f;      // Fade exponent (1=linear)
 

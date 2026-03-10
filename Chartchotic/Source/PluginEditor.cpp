@@ -56,6 +56,8 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
+    highway.onOverflowChanged = [this]() { resized(); };
+
     addAndMakeVisible(highway);
     addAndMakeVisible(toolbar);
     initBottomBar();
@@ -606,8 +608,12 @@ void ChartchoticAudioProcessorEditor::resized()
     int tbHeight = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Highway component — fills the virtual 4:3 scene area
-    highway.setBounds(0, sceneOffsetY, sceneWidth, sceneHeight);
+    // Highway component — fills the virtual 4:3 scene area, extended upward for overflow
+    highway.renderWidth = sceneWidth;
+    highway.renderHeight = sceneHeight;
+    highway.updateOverflow();
+    int hwOverflow = highway.getTopOverflow();
+    highway.setBounds(0, sceneOffsetY - hwOverflow, sceneWidth, sceneHeight + hwOverflow);
 
     // Version label + update badge (bottom-left) — same scale as toolbar
     float s = (float)tbHeight / (float)ToolbarComponent::referenceHeight;
