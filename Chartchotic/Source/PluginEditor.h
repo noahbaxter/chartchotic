@@ -189,6 +189,13 @@ private:
     PPQ displaySizeInPPQ = 1.5; // Only used for MIDI window fetching
     double displayWindowTimeSeconds = 1.0; // Actual render window time in seconds
 
+    // Compute farFadeEnd from user slider value × per-instrument scale
+    float computeFarFadeEnd(float userLength) const
+    {
+        bool isDrums = isPart(state, Part::DRUMS);
+        return userLength * getHwyScale(isDrums);
+    }
+
     // VBlank-synced rendering
     juce::VBlankAttachment vblankAttachment;
     double targetFrameInterval = 0.0;  // 0 = native (no throttle), otherwise seconds between frames

@@ -98,6 +98,12 @@ public:
 
     void setLatencyOffsetRange(int minMs, int maxMs);
 
+    void setHighwayLengthPct(int pct)
+    {
+        highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT, pct);
+        highwayLengthStepper.setDisplayValue(highwayLengthPct);
+    }
+
     // Expose for scroll-wheel handling in editor
     ValueStepper& getNoteSpeedStepper() { return noteSpeedStepper; }
 

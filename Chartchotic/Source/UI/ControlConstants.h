@@ -31,7 +31,7 @@ constexpr int TEX_SCALE_STEP_PCT    = 25;
 constexpr int TEX_SCALE_DEFAULT_PCT = 100;
 
 // Texture Opacity
-constexpr int TEX_OPACITY_MIN     = 5;
+constexpr int TEX_OPACITY_MIN     = 0;
 constexpr int TEX_OPACITY_MAX     = 100;
 constexpr int TEX_OPACITY_STEP    = 5;
 constexpr int TEX_OPACITY_DEFAULT = 100;
