@@ -11,6 +11,7 @@
 #   ./build.sh --vst3-only      Skip AU and Standalone builds
 #   ./build.sh --au-only        Skip VST3 and Standalone builds
 #   ./build.sh --standalone     Build Standalone app (skips VST3+AU unless specified)
+#   ./build.sh --skin-dir <path>  Use skin override directory for assets
 #
 # Debug builds check the DEV update channel, Release builds check RELEASE channel.
 # Uses Ninja generator + native arch only for fast incremental builds.
@@ -27,9 +28,16 @@ BUILD_VST3=true
 BUILD_AU=true
 BUILD_STANDALONE=false
 BUILD_BENCHMARK=false
+SKIN_DIR=""
+NEXT_IS_SKIN_DIR=false
 
 # Parse arguments
 for arg in "$@"; do
+    if [ "$NEXT_IS_SKIN_DIR" = true ]; then
+        SKIN_DIR="$(cd "$arg" 2>/dev/null && pwd)" || { echo "Skin directory not found: $arg"; exit 1; }
+        NEXT_IS_SKIN_DIR=false
+        continue
+    fi
     case "$arg" in
         release)        BUILD_CONFIG="Release" ;;
         clean)
@@ -43,8 +51,9 @@ for arg in "$@"; do
         --au-only)      BUILD_VST3=false; BUILD_STANDALONE=false ;;
         --standalone)   BUILD_STANDALONE=true; BUILD_VST3=false; BUILD_AU=false ;;
         --benchmark)    BUILD_BENCHMARK=true; BUILD_VST3=false; BUILD_AU=false ;;
+        --skin-dir)     NEXT_IS_SKIN_DIR=true ;;
         -h|--help)
-            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark]"
+            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--skin-dir <path>]"
             exit 0
             ;;
         *)
@@ -53,6 +62,11 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+if [ "$NEXT_IS_SKIN_DIR" = true ]; then
+    echo "Error: --skin-dir requires a path argument"
+    exit 1
+fi
 
 # Debug -> DEV channel, Release -> RELEASE channel
 if [ "$BUILD_CONFIG" = "Debug" ]; then
@@ -92,14 +106,28 @@ elif ! grep -q "CMAKE_BUILD_TYPE:STRING=$BUILD_CONFIG" "$NINJA_BUILD_DIR/CMakeCa
     NEEDS_CONFIGURE=true
 fi
 
+# Reconfigure if SKIN_DIR changed
+if [ "$NEEDS_CONFIGURE" = false ] && [ -f "$NINJA_BUILD_DIR/CMakeCache.txt" ]; then
+    CACHED_SKIN_DIR=$(grep "^SKIN_DIR:PATH=" "$NINJA_BUILD_DIR/CMakeCache.txt" 2>/dev/null | cut -d= -f2-)
+    if [ "$CACHED_SKIN_DIR" != "$SKIN_DIR" ]; then
+        NEEDS_CONFIGURE=true
+    fi
+fi
+
 if [ "$NEEDS_CONFIGURE" = true ]; then
     echo ""
     echo "Configuring CMake (Ninja, $BUILD_CONFIG)..."
+    CMAKE_EXTRA_ARGS=""
+    if [ -n "$SKIN_DIR" ]; then
+        CMAKE_EXTRA_ARGS="-DSKIN_DIR=$SKIN_DIR"
+        echo "  Skin directory: $SKIN_DIR"
+    fi
     cmake -B "$NINJA_BUILD_DIR" -G Ninja \
         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
         -DCMAKE_OSX_ARCHITECTURES="arm64" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
         -DBUILD_CHANNEL="$BUILD_CHANNEL" \
+        $CMAKE_EXTRA_ARGS \
         -S "$SCRIPT_DIR"
 fi
 
