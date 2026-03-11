@@ -21,7 +21,7 @@
 class ToolbarComponent : public juce::Component
 {
 public:
-    static constexpr float toolbarRatio = 0.0675f;  // fraction of editor width (single strip)
+    static constexpr float toolbarRatio = 0.06f;    // fraction of editor width (single strip)
     static constexpr int referenceHeight = 36;     // design reference for the strip portion
     static constexpr float stripFraction = 1.0f;   // strip is the full toolbar height
     static constexpr float logoFontRatio = 0.90f;  // logo font size as fraction of strip height
@@ -70,6 +70,7 @@ public:
     std::function<void(float scale)> onGemScaleChanged;
     std::function<void(float scale)> onBarScaleChanged;
     std::function<void(float length)> onHighwayLengthChanged;
+    std::function<void(bool)> onStretchChanged;
     std::function<void(bool)> onShowFpsChanged;
     std::function<void(bool)> onShowBackgroundChanged;
     std::function<void()> onOpenBackgroundFolder;
@@ -175,6 +176,7 @@ private:
     ValueStepper latencyStepper{"Latency"};
     int latencyIndex = LATENCY_DEFAULT - 1; // state is 1-based
     SegmentedButtons framerateButtons;
+    CheckboxToggle stretchToggle{"Free Resize"};
     CheckboxToggle showFpsToggle{"Show FPS"};
     CheckboxToggle showBackgroundToggle{"Background"};
 

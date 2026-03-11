@@ -72,6 +72,7 @@ public:
     void updateOverflow();
 
     bool showHighway = true;
+    bool stretchToFill = false;
 
     int renderWidth = 0, renderHeight = 0;
     std::function<void()> onOverflowChanged;

@@ -37,10 +37,13 @@ void HighwayComponent::paint(juce::Graphics& g)
     int overflow = debouncing ? bakedOverflow  : topOverflow;
     int totalH   = h + overflow;
 
-    if (debouncing)
+    bool needsScale = debouncing || stretchToFill;
+    if (needsScale)
     {
-        float sx = (float)getWidth()  / (float)bakedRenderW;
-        float sy = (float)getHeight() / (float)(bakedRenderH + bakedOverflow);
+        float srcW = debouncing ? (float)bakedRenderW : (float)renderWidth;
+        float srcH = debouncing ? (float)(bakedRenderH + bakedOverflow) : (float)(renderHeight + topOverflow);
+        float sx = (float)getWidth()  / srcW;
+        float sy = (float)getHeight() / srcH;
         g.addTransform(juce::AffineTransform::scale(sx, sy));
     }
 

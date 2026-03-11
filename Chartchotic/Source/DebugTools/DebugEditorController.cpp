@@ -105,6 +105,12 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         highway.showDebugColour = on;
     };
 
+    tune.onStretchChanged = [&highway](bool on) {
+        highway.stretchToFill = on;
+        if (auto* parent = highway.getParentComponent())
+            parent->resized();
+    };
+
     tune.onPerspectiveChanged = [&highway]() {
         highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();

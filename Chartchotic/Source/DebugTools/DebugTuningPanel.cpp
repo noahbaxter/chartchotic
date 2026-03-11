@@ -124,6 +124,11 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (onDebugColourChanged) onDebugColourChanged(debugColourToggle.getToggleState());
     };
 
+    stretchToggle.setButtonText("Stretch Fill");
+    stretchToggle.onClick = [this]() {
+        if (onStretchChanged) onStretchChanged(stretchToggle.getToggleState());
+    };
+
     setupScrollLabel(gridPosLabel);
     gridPosLabel.onScroll = [this](int delta) {
         gridlinePosOffset = juce::jlimit(-0.10f, 0.10f, gridlinePosOffset + delta * 0.002f);
@@ -616,6 +621,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&textureOpacityLabel);
     tuningButton.addPanelChild(&polyShadeToggle);
     tuningButton.addPanelChild(&debugColourToggle);
+    tuningButton.addPanelChild(&stretchToggle);
     tuningButton.addPanelChild(&gridPosLabel);
 
     tuningButton.addPanelChild(&curvatureHeader);
@@ -1096,6 +1102,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         layoutRow(textureOpacityLabel, true);
         layoutRow(polyShadeToggle, true);
         layoutRow(debugColourToggle, true);
+        layoutRow(stretchToggle, true);
         layoutRow(gridPosLabel, true);
     }
     else
@@ -1107,6 +1114,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         textureOpacityLabel.setVisible(false);
         polyShadeToggle.setVisible(false);
         debugColourToggle.setVisible(false);
+        stretchToggle.setVisible(false);
         gridPosLabel.setVisible(false);
     }
     y += headerGap;

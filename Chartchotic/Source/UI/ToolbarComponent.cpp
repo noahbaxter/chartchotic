@@ -81,6 +81,11 @@ void ToolbarComponent::initTopBar()
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     addAndMakeVisible(noteSpeedStepper);
+
+    // Highway Length stepper (no label — tooltip on hover, % suffix)
+    highwayLengthStepper.setLabelRatio(0.0f);
+    highwayLengthStepper.setTooltip("Highway Length");
+    addAndMakeVisible(highwayLengthStepper);
 }
 
 //==============================================================================
@@ -310,7 +315,7 @@ void ToolbarComponent::initSettingsPanel()
     highwayLengthStepper.setDisplayValue(highwayLengthPct);
     highwayLengthStepper.onStep = [this](int delta) {
         // Adaptive step: fine at low values, coarser at high
-        int step = highwayLengthPct < 150 ? 5 : (highwayLengthPct < 300 ? 10 : 25);
+        int step = highwayLengthPct < 100 ? 5 : (highwayLengthPct < 200 ? 10 : 25);
         int snapped = (int)std::round(highwayLengthPct / (double)step) * step;
         highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT,
             snapped + delta * step);
@@ -341,6 +346,13 @@ void ToolbarComponent::initSettingsPanel()
         bool on = showFpsToggle.getToggleState();
         state.setProperty("showFps", on, nullptr);
         if (onShowFpsChanged) onShowFpsChanged(on);
+    };
+
+    stretchToggle.setToggleState(false);
+    stretchToggle.onClick = [this]() {
+        bool on = stretchToggle.getToggleState();
+        state.setProperty("stretchToFill", on, nullptr);
+        if (onStretchChanged) onStretchChanged(on);
     };
 
     // --- Sync ---
@@ -374,12 +386,12 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&showFpsToggle);
     settingsButton.addPanelChild(&showBackgroundToggle);
     settingsButton.addPanelChild(&highwayHeader);
-    settingsButton.addPanelChild(&highwayLengthStepper);
     settingsButton.addPanelChild(&highwayTextureStepper);
     settingsButton.addPanelChild(&textureScaleLabel);
     settingsButton.addPanelChild(&textureOpacityLabel);
     settingsButton.addPanelChild(&textureScaleStepper);
     settingsButton.addPanelChild(&textureOpacityStepper);
+    settingsButton.addPanelChild(&stretchToggle);
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&barScaleStepper);
@@ -437,8 +449,8 @@ void ToolbarComponent::resized()
     int leftEdge = logo.getRight();
 
     // Right side: popup buttons (compute positions first for centering)
-    int btnW = juce::roundToInt(56.0f * scale);
-    int gearW = juce::roundToInt(36.0f * scale);
+    int btnW = juce::roundToInt(46.0f * scale);
+    int gearW = juce::roundToInt(32.0f * scale);
     int rx = getWidth() - margin;
 
     chartButton.setScale(scale);
@@ -460,10 +472,13 @@ void ToolbarComponent::resized()
     tuningPanel.getButton().setBounds(rx, y + h - sqSize, sqSize, sqSize);
 #endif
 
-    // Note Speed stepper — centered between logo and right-side buttons
-    int speedW = juce::roundToInt(68.0f * scale);
-    int speedX = leftEdge + (rx - leftEdge - speedW) / 2;
-    noteSpeedStepper.setBounds(speedX, y, speedW, h);
+    // Note Speed + Highway Length steppers — centered between logo and right-side buttons
+    int stepW = juce::roundToInt(66.0f * scale);
+    int stepGap = juce::roundToInt(4.0f * scale);
+    int totalW = stepW * 2 + stepGap;
+    int cx = leftEdge + (rx - leftEdge - totalW) / 2;
+    noteSpeedStepper.setBounds(cx, y, stepW, h);
+    highwayLengthStepper.setBounds(cx + stepW + stepGap, y, stepW, h);
 }
 
 //==============================================================================
@@ -515,6 +530,9 @@ void ToolbarComponent::loadState()
     highwayToggle.setToggleState(!state.hasProperty("showHighway") || (bool)state["showHighway"]);
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
+    // Stretch to fill
+    stretchToggle.setToggleState(state.hasProperty("stretchToFill") && (bool)state["stretchToFill"]);
+
     // Background
     if (backgroundNames.isEmpty())
     {
@@ -749,9 +767,6 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     highwayTextureStepper.setBounds(margin, y, w, stepperH);
     y += stepperH + gap;
 
-    highwayLengthStepper.setBounds(margin, y, w, stepperH);
-    y += stepperH + gap;
-
     // Scale + Opacity: labels above, value-only steppers below, two columns
     {
         int colW = (w - gap) / 2;
@@ -763,8 +778,11 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         y += labelH + juce::roundToInt(1.0f * s);
         textureScaleStepper.setBounds(margin, y, colW, stepperH);
         textureOpacityStepper.setBounds(margin + colW + gap, y, colW, stepperH);
-        y += stepperH + sectionGap;
+        y += stepperH + gap;
     }
+
+    stretchToggle.setBounds(margin, y, w, stepperH);
+    y += stepperH + sectionGap;
 
     // --- Sync ---
     syncHeader.setBounds(margin, y, w, headerH);

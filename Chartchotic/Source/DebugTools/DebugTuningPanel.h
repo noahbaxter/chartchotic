@@ -39,6 +39,7 @@ public:
     std::function<void(float)> onTextureOpacityChanged;
     std::function<void()> onPolyShadeChanged;
     std::function<void(bool)> onDebugColourChanged;
+    std::function<void(bool)> onStretchChanged;
 
     // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
@@ -156,6 +157,7 @@ private:
     // Debug visualization toggles
     juce::ToggleButton polyShadeToggle;
     juce::ToggleButton debugColourToggle;
+    juce::ToggleButton stretchToggle;
 
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
