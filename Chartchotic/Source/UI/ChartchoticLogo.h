@@ -26,7 +26,7 @@ public:
         float chartW = boldFont.getStringWidthFloat("CHART");
         float choticW = medFont.getStringWidthFloat("CHOTIC");
         float dotClusterW = getDotClusterWidth();
-        float gapW = fontSize * gapRatio * 2.0f;
+        float gapW = fontSize * logoGapRatio * 2.0f;
 
         return chartW + gapW + dotClusterW + choticW;
     }
@@ -44,7 +44,7 @@ public:
         float chartW = boldFont.getStringWidthFloat("CHART");
         float choticW = medFont.getStringWidthFloat("CHOTIC");
         float dotClusterW = getDotClusterWidth();
-        float gapW = fontSize * gapRatio;
+        float gapW = fontSize * logoGapRatio;
 
         float totalW = chartW + gapW + dotClusterW + gapW + choticW;
         float x = ((float)getWidth() - totalW) * 0.5f;
@@ -57,8 +57,8 @@ public:
                    juce::Justification::centredLeft, false);
         x += chartW + gapW;
 
-        // Dot cluster — vertically centered
-        drawDotCluster(g, x, cy);
+        // Dot cluster — vertically centered, nudged left under the T
+        drawDotCluster(g, x + fontSize * dotNudge, cy);
         x += dotClusterW + gapW;
 
         // "CHOTIC" — red-orange medium
@@ -68,10 +68,11 @@ public:
                    juce::Justification::centredLeft, false);
     }
 
+    float logoGapRatio = 0.1f;    // gap between text and dots (debug-tunable)
+    float dotNudge = -0.04f;      // dot cluster X nudge as ratio of fontSize (negative = left)
+
 private:
     float fontSize = 13.0f;
-
-    static constexpr float gapRatio = 0.22f;     // gap between text and dots, relative to fontSize
     static constexpr float dotSizeRatio = 0.16f;  // dot diameter relative to fontSize
     static constexpr float dotGapRatio = 0.065f;   // gap between dots relative to fontSize
 

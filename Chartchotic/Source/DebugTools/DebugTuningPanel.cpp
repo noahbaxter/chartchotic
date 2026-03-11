@@ -129,6 +129,22 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (onStretchChanged) onStretchChanged(stretchToggle.getToggleState());
     };
 
+    setupScrollLabel(logoPadLabel);
+    logoPadLabel.setText("LogoGap: " + juce::String(logoPadValue, 3), juce::dontSendNotification);
+    logoPadLabel.onScroll = [this](int delta) {
+        logoPadValue = juce::jlimit(-0.1f, 0.5f, logoPadValue + delta * 0.01f);
+        logoPadLabel.setText("LogoGap: " + juce::String(logoPadValue, 3), juce::dontSendNotification);
+        if (onLogoPadChanged) onLogoPadChanged(logoPadValue, dotNudgeValue);
+    };
+
+    setupScrollLabel(dotNudgeLabel);
+    dotNudgeLabel.setText("DotNudge: " + juce::String(dotNudgeValue, 3), juce::dontSendNotification);
+    dotNudgeLabel.onScroll = [this](int delta) {
+        dotNudgeValue = juce::jlimit(-0.5f, 0.3f, dotNudgeValue + delta * 0.01f);
+        dotNudgeLabel.setText("DotNudge: " + juce::String(dotNudgeValue, 3), juce::dontSendNotification);
+        if (onLogoPadChanged) onLogoPadChanged(logoPadValue, dotNudgeValue);
+    };
+
     setupScrollLabel(gridPosLabel);
     gridPosLabel.onScroll = [this](int delta) {
         gridlinePosOffset = juce::jlimit(-0.10f, 0.10f, gridlinePosOffset + delta * 0.002f);
@@ -622,6 +638,8 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&polyShadeToggle);
     tuningButton.addPanelChild(&debugColourToggle);
     tuningButton.addPanelChild(&stretchToggle);
+    tuningButton.addPanelChild(&logoPadLabel);
+    tuningButton.addPanelChild(&dotNudgeLabel);
     tuningButton.addPanelChild(&gridPosLabel);
 
     tuningButton.addPanelChild(&curvatureHeader);
@@ -1103,6 +1121,8 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         layoutRow(polyShadeToggle, true);
         layoutRow(debugColourToggle, true);
         layoutRow(stretchToggle, true);
+        layoutRow(logoPadLabel, true);
+        layoutRow(dotNudgeLabel, true);
         layoutRow(gridPosLabel, true);
     }
     else
@@ -1115,6 +1135,8 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         polyShadeToggle.setVisible(false);
         debugColourToggle.setVisible(false);
         stretchToggle.setVisible(false);
+        logoPadLabel.setVisible(false);
+        dotNudgeLabel.setVisible(false);
         gridPosLabel.setVisible(false);
     }
     y += headerGap;

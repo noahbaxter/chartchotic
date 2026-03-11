@@ -111,6 +111,12 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
             parent->resized();
     };
 
+    tune.onLogoPadChanged = [&toolbar](float gap, float nudge) {
+        toolbar.getLogo().logoGapRatio = gap;
+        toolbar.getLogo().dotNudge = nudge;
+        toolbar.resized();
+    };
+
     tune.onPerspectiveChanged = [&highway]() {
         highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();

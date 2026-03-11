@@ -54,15 +54,15 @@ void ToolbarComponent::initTopBar()
     };
     addAndMakeVisible(instrumentSelector);
 
-    // Difficulty selector (text circles: E M H X)
+    // Difficulty selector (text circles: X H M E — hardest on top)
     difficultySelector.setItems({
-        { "E", {}, juce::Colour(Theme::green),  "Easy" },
-        { "M", {}, juce::Colour(Theme::yellow), "Medium" },
+        { "X", {}, juce::Colour(Theme::red),    "Expert" },
         { "H", {}, juce::Colour(Theme::orange), "Hard" },
-        { "X", {}, juce::Colour(Theme::red),    "Expert" }
+        { "M", {}, juce::Colour(Theme::yellow), "Medium" },
+        { "E", {}, juce::Colour(Theme::green),  "Easy" }
     });
     difficultySelector.onSelectionChanged = [this](int index) {
-        if (onSkillChanged) onSkillChanged(index + 1); // 1-based ID
+        if (onSkillChanged) onSkillChanged(4 - index); // reversed: 0=Expert(4), 3=Easy(1)
     };
     addAndMakeVisible(difficultySelector);
 
@@ -439,7 +439,7 @@ void ToolbarComponent::resized()
 
     // Difficulty circle
     difficultySelector.setBounds(x, y, h, h);
-    x += h + gap + juce::roundToInt(6.0f * scale);
+    x += h + gap;
 
     // Logo
     int logoH = stripH;
@@ -486,10 +486,10 @@ void ToolbarComponent::resized()
 
 void ToolbarComponent::loadState()
 {
-    // Difficulty (1-based → 0-based)
+    // Difficulty (1-based skill → reversed index: 1=Easy→3, 4=Expert→0)
     int skill = (int)state["skillLevel"];
     if (skill >= 1 && skill <= 4)
-        difficultySelector.setSelectedIndex(skill - 1);
+        difficultySelector.setSelectedIndex(4 - skill);
 
     // Part (1-based → 0-based)
     int part = (int)state["part"];

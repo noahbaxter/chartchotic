@@ -40,6 +40,7 @@ public:
     std::function<void()> onPolyShadeChanged;
     std::function<void(bool)> onDebugColourChanged;
     std::function<void(bool)> onStretchChanged;
+    std::function<void(float gap, float nudge)> onLogoPadChanged;
 
     // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
@@ -158,6 +159,12 @@ private:
     juce::ToggleButton polyShadeToggle;
     juce::ToggleButton debugColourToggle;
     juce::ToggleButton stretchToggle;
+
+    // Logo padding slider
+    float logoPadValue = 0.1f;
+    float dotNudgeValue = -0.04f;
+    ScrollableLabel logoPadLabel;
+    ScrollableLabel dotNudgeLabel;
 
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;

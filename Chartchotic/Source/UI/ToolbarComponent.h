@@ -108,6 +108,7 @@ public:
 
     // Expose for scroll-wheel handling in editor
     ValueStepper& getNoteSpeedStepper() { return noteSpeedStepper; }
+    ChartchoticLogo& getLogo() { return logo; }
 
 private:
     juce::ValueTree& state;
