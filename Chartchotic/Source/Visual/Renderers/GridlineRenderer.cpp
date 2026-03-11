@@ -65,12 +65,12 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
     }
     opacity *= fadeOpacity;
 
-    const auto& fbCoords = isPart(state, Part::DRUMS)
+    const auto& fbCoords = activePart == Part::DRUMS
         ? PositionConstants::drumFretboardCoords
         : PositionConstants::guitarFretboardCoords;
     auto edge = getColumnEdge(position, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
     float gridWidth = edge.rightX - edge.leftX;
-    auto perspParams = PositionConstants::getPerspectiveParams(isPart(state, Part::DRUMS));
+    auto perspParams = PositionConstants::getPerspectiveParams(activePart == Part::DRUMS);
     float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
 
     // Scale Z offset by perspective (ratio of current width to strikeline width)

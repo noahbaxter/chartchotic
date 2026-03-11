@@ -232,6 +232,8 @@ fi
 
 # Auto-open standalone if it was built
 if [ "$BUILD_STANDALONE" = true ]; then
-    echo "Opening Standalone..."
-    open "$APP_PATH"
+    echo "Launching Standalone (console attached)..."
+    echo "  Press Ctrl+C to quit."
+    echo ""
+    "$APP_PATH/Contents/MacOS/Chartchotic" 2>&1
 fi

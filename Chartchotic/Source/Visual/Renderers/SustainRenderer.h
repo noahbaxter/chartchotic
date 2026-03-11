@@ -24,6 +24,8 @@ class SustainRenderer
 public:
     SustainRenderer(juce::ValueTree& state, AssetManager& assetManager);
 
+    Part activePart = Part::GUITAR;
+
     PositionConstants::LaneShapeConfig laneShape;
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedSustainWindow& sustainWindow,
@@ -53,7 +55,7 @@ private:
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                               float sizeScale, float fretboardScale = 1.0f)
     {
-        bool isDrums = isPart(state, Part::DRUMS);
+        bool isDrums = activePart == Part::DRUMS;
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);

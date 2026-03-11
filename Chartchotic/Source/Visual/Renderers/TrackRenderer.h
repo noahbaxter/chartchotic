@@ -25,6 +25,8 @@ class TrackRenderer
 public:
     TrackRenderer(juce::ValueTree& state);
 
+    Part activePart = Part::GUITAR;
+
     void paint(juce::Graphics& g, int viewportWidth, int viewportHeight);
 
     /** Paint the scrolling highway texture overlay. Call between track and scene rendering. */

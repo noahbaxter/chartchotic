@@ -27,6 +27,8 @@ class AnimationRenderer
 {
 public:
     AnimationRenderer(juce::ValueTree &state, AssetManager &assetManager);
+
+    Part activePart = Part::GUITAR;
     ~AnimationRenderer();
 
     /**
@@ -89,7 +91,7 @@ private:
                                                   float sizeScale, float posEnd,
                                                   float fretboardScale = 1.0f)
     {
-        bool isDrums = isPart(state, Part::DRUMS);
+        bool isDrums = activePart == Part::DRUMS;
         return PositionMath::getColumnPosition(isDrums, position, cachedWidth, cachedHeight,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);

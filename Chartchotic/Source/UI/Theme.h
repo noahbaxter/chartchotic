@@ -40,11 +40,25 @@ public:
     //==========================================================================
     // Typeface
 
-    static inline juce::Typeface::Ptr getUITypeface()
+    static inline juce::Typeface::Ptr& getUITypefaceRef()
     {
-        static auto tf = juce::Typeface::createSystemTypefaceFor(
-            BinaryData::ChakraPetchMedium_ttf, BinaryData::ChakraPetchMedium_ttfSize);
+        static juce::Typeface::Ptr tf;
+        if (tf == nullptr)
+            tf = juce::Typeface::createSystemTypefaceFor(
+                BinaryData::ChakraPetchMedium_ttf, BinaryData::ChakraPetchMedium_ttfSize);
         return tf;
+    }
+
+    static inline juce::Typeface::Ptr getUITypeface() { return getUITypefaceRef(); }
+
+    static inline void clearTypefaces()
+    {
+        controlFont = {};
+        pillFont = {};
+        buttonFont = {};
+        headerFont = {};
+        smallFont = {};
+        getUITypefaceRef() = nullptr;
     }
 
     // For one-off font sizes not covered by the scaled fonts below

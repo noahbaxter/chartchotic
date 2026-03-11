@@ -15,10 +15,19 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
       sceneRenderer(state, assetManager),
       trackRenderer(state)
 {
+    // Sync activePart from state
+    setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR);
 #ifdef DEBUG
     debugColour = juce::Colour::fromHSV(
         juce::Random::getSystemRandom().nextFloat(), 0.4f, 0.4f, 1.0f);
 #endif
+}
+
+void HighwayComponent::setActivePart(Part part)
+{
+    activePart = part;
+    sceneRenderer.activePart = part;
+    trackRenderer.activePart = part;
 }
 
 void HighwayComponent::paint(juce::Graphics& g)
@@ -37,8 +46,16 @@ void HighwayComponent::paint(juce::Graphics& g)
     int overflow = debouncing ? bakedOverflow  : topOverflow;
     int totalH   = h + overflow;
 
-    bool needsScale = debouncing || stretchToFill;
-    if (needsScale)
+    // In split mode (render wider than component), always use uniform scale-to-fit
+    // even during debounce — the stretch path would distort the aspect ratio.
+    if (w > getWidth() && !stretchToFill)
+    {
+        float scale = (float)getWidth() / (float)w;
+        float scaledTotalH = (float)totalH * scale;
+        float yOffset = (float)getHeight() - scaledTotalH;
+        g.addTransform(juce::AffineTransform(scale, 0.0f, 0.0f, 0.0f, scale, yOffset));
+    }
+    else if (debouncing || stretchToFill)
     {
         float srcW = debouncing ? (float)bakedRenderW : (float)renderWidth;
         float srcH = debouncing ? (float)(bakedRenderH + bakedOverflow) : (float)(renderHeight + topOverflow);
@@ -84,7 +101,7 @@ void HighwayComponent::setFrameData(const HighwayFrameData& data)
 void HighwayComponent::updateOverflow()
 {
     if (renderWidth <= 0 || renderHeight <= 0) return;
-    bool isDrums = isPart(state, Part::DRUMS);
+    bool isDrums = activePart == Part::DRUMS;
     auto farEdge = PositionMath::getFretboardEdge(
         isDrums, sceneRenderer.farFadeEnd, renderWidth, renderHeight,
         PositionConstants::HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
@@ -101,7 +118,7 @@ void HighwayComponent::rebuildTrack()
     int prevOverflow = topOverflow;
     updateOverflow();
 
-    bool isDrums = isPart(state, Part::DRUMS);
+    bool isDrums = activePart == Part::DRUMS;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;

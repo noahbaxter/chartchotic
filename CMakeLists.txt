@@ -87,6 +87,8 @@ target_sources(Chartchotic
         Chartchotic/Source/DebugTools/DebugTuningPanel.h
         Chartchotic/Source/DebugTools/Logger.h
         Chartchotic/Source/DebugTools/DataGenerators.h
+        # Midi
+        Chartchotic/Source/Midi/InstrumentSlot.h
         # Midi / Processing
         Chartchotic/Source/Midi/Processing/MidiInterpreter.cpp
         Chartchotic/Source/Midi/Processing/MidiInterpreter.h

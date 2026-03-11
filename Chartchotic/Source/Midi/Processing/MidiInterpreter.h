@@ -22,6 +22,9 @@ class MidiInterpreter
 {
 	public:
 		MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock);
+		MidiInterpreter(Part part, juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock);
+
+		Part instrumentPart = Part::GUITAR;
 		~MidiInterpreter();
 
 		NoteStateMapArray &noteStateMapArray;

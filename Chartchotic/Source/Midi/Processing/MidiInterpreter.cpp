@@ -16,6 +16,16 @@ MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &note
       noteStateMapLock(noteStateMapLock),
       state(state)
 {
+    // Sync instrumentPart from state
+    instrumentPart = isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR;
+}
+
+MidiInterpreter::MidiInterpreter(Part part, juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock)
+    : instrumentPart(part),
+      noteStateMapArray(noteStateMapArray),
+      noteStateMapLock(noteStateMapLock),
+      state(state)
+{
 }
 
 MidiInterpreter::~MidiInterpreter()
@@ -52,11 +62,11 @@ TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ track
                 trackWindow[position] = generateEmptyTrackFrame();
             }
 
-            if (isPart(state, Part::GUITAR))
+            if (instrumentPart == Part::GUITAR)
             {
                 addGuitarEventToFrame(trackWindow[position], position, pitch, it->second.gemType);
             }
-            else // if (isPart(state, Part::DRUMS))
+            else
             {
                 addDrumEventToFrame(trackWindow[position], position, pitch, it->second.gemType);
             }
@@ -146,7 +156,7 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
                     }
                 }
                 // Sustains (guitar only)
-                else if (isPart(state, Part::GUITAR)) {
+                else if (instrumentPart == Part::GUITAR) {
                     // Only create sustains for valid playable notes (OPEN, GREEN, RED, YELLOW, BLUE, ORANGE)
                     SkillLevel currentSkill = (SkillLevel)((int)state.getProperty("skillLevel"));
                     auto validPitches = InstrumentMapper::getGuitarPitchesForSkill(currentSkill);

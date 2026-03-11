@@ -91,19 +91,41 @@ private:
         juce::Font medium;
     };
 
+public:
+    static juce::Typeface::Ptr& getBoldTypeface()
+    {
+        static juce::Typeface::Ptr tf;
+        if (tf == nullptr)
+            tf = juce::Typeface::createSystemTypefaceFor(
+                BinaryData::TurretRoadBold_ttf, BinaryData::TurretRoadBold_ttfSize);
+        return tf;
+    }
+
+    static juce::Typeface::Ptr& getMediumTypeface()
+    {
+        static juce::Typeface::Ptr tf;
+        if (tf == nullptr)
+            tf = juce::Typeface::createSystemTypefaceFor(
+                BinaryData::TurretRoadMedium_ttf, BinaryData::TurretRoadMedium_ttfSize);
+        return tf;
+    }
+
+    static void clearTypefaces()
+    {
+        getBoldTypeface() = nullptr;
+        getMediumTypeface() = nullptr;
+    }
+
+private:
     FontPair getFonts() const
     {
-        static auto boldTypeface = juce::Typeface::createSystemTypefaceFor(
-            BinaryData::TurretRoadBold_ttf,
-            BinaryData::TurretRoadBold_ttfSize);
-        static auto mediumTypeface = juce::Typeface::createSystemTypefaceFor(
-            BinaryData::TurretRoadMedium_ttf,
-            BinaryData::TurretRoadMedium_ttfSize);
+        auto& boldTf = getBoldTypeface();
+        auto& medTf = getMediumTypeface();
 
-        juce::Font bold = boldTypeface != nullptr
-            ? juce::Font(boldTypeface) : juce::Font(fontSize, juce::Font::bold);
-        juce::Font med = mediumTypeface != nullptr
-            ? juce::Font(mediumTypeface) : juce::Font(fontSize);
+        juce::Font bold = boldTf != nullptr
+            ? juce::Font(boldTf) : juce::Font(fontSize, juce::Font::bold);
+        juce::Font med = medTf != nullptr
+            ? juce::Font(medTf) : juce::Font(fontSize);
 
         return { bold, med };
     }

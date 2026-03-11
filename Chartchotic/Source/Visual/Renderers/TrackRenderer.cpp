@@ -182,10 +182,10 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
-        isPart(state, Part::DRUMS) == cached.isDrums)
+        (activePart == Part::DRUMS) == cached.isDrums)
         return;
 
-    bool isDrums = isPart(state, Part::DRUMS);
+    bool isDrums = activePart == Part::DRUMS;
     int totalH = height + overflow;
 
     // Rebuild cached edge geometry (shared by polygon fill and texture scanline LUT)

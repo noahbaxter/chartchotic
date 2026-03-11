@@ -38,7 +38,13 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     width = viewportWidth;
     height = viewportHeight;
 
-    bool isDrums = isPart(state, Part::DRUMS);
+    bool isDrums = activePart == Part::DRUMS;
+
+    // Propagate activePart to sub-renderers
+    noteRenderer.activePart = activePart;
+    sustainRenderer.activePart = activePart;
+    gridlineRenderer.activePart = activePart;
+    animationRenderer.activePart = activePart;
 
     // Update sustain states for active animations (force-trigger if playing into active sustain)
     animationRenderer.updateSustainStates(sustainWindow, isPlaying);

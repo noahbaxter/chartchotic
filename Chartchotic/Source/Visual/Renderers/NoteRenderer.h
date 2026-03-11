@@ -27,6 +27,8 @@ class NoteRenderer
 public:
     NoteRenderer(juce::ValueTree& state, AssetManager& assetManager);
 
+    Part activePart = Part::GUITAR;
+
     bool showGems = true;
     bool showBars = true;
     float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
@@ -70,7 +72,7 @@ private:
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                               float sizeScale, float fretboardScale = 1.0f)
     {
-        bool isDrums = isPart(state, Part::DRUMS);
+        bool isDrums = activePart == Part::DRUMS;
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);

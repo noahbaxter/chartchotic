@@ -32,6 +32,8 @@ class SceneRenderer
 {
     public:
         SceneRenderer(juce::ValueTree &state, AssetManager &assetManager);
+
+        Part activePart = Part::GUITAR;
         ~SceneRenderer();
 
         void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
@@ -132,7 +134,7 @@ class SceneRenderer
         LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                                   float sizeScale, float fretboardScale = 1.0f)
         {
-            bool isDrums = isPart(state, Part::DRUMS);
+            bool isDrums = activePart == Part::DRUMS;
             return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                    PositionConstants::HIGHWAY_POS_START, highwayPosEnd,
                                                    colCoords, sizeScale, fretboardScale);

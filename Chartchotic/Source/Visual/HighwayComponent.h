@@ -36,6 +36,9 @@ class HighwayComponent : public juce::Component, private juce::Timer
 public:
     HighwayComponent(juce::ValueTree& state, AssetManager& assetManager);
 
+    void setActivePart(Part part);
+    Part getActivePart() const { return activePart; }
+
     void paint(juce::Graphics& g) override;
     void resized() override;
     void timerCallback() override;
@@ -62,7 +65,7 @@ public:
     void setGemScale(float)             { repaint(); }
     void setBarScale(float)             { repaint(); }
 
-    void onInstrumentChanged()          { rebuildTrack(); repaint(); }
+    void onInstrumentChanged()          { setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR); rebuildTrack(); repaint(); }
 
     // Accessors for debug wiring
     SceneRenderer& getSceneRenderer()   { return sceneRenderer; }
@@ -84,6 +87,7 @@ public:
 private:
     static constexpr int rebuildDebounceMs = 500;
 
+    Part activePart = Part::GUITAR;
     juce::ValueTree& state;
     AssetManager& assetManager;
     SceneRenderer sceneRenderer;

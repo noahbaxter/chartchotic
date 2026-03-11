@@ -24,6 +24,8 @@ class GridlineRenderer
 public:
     GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager);
 
+    Part activePart = Part::GUITAR;
+
     void populate(DrawCallMap& drawCallMap, const TimeBasedGridlineMap& gridlines,
                   double windowStartTime, double windowEndTime,
                   uint width, uint height,
@@ -45,7 +47,7 @@ private:
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                               float sizeScale, float fretboardScale = 1.0f)
     {
-        bool isDrums = isPart(state, Part::DRUMS);
+        bool isDrums = activePart == Part::DRUMS;
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);
