@@ -62,13 +62,13 @@ public:
         {0.940f, 0.0f,     0.0f},      // SIDEBARS
         {0.550f, 0.0f,     0.0f},      // LANE_LINES
         {0.750f, 0.0f, -0.1825f},      // STRIKELINE
-        {0.810f, 0.0f, -0.1960f}       // CONNECTORS
+        {0.835f, 0.0f, -0.1960f}       // CONNECTORS
     };
     LayerTransform layersDrums[NUM_LAYERS] = {
         {0.925f, 0.0f,     0.0f},      // SIDEBARS
         {0.440f, 0.0f,     0.0f},      // LANE_LINES
         {0.730f, 0.0f, -0.1815f},      // STRIKELINE
-        {0.825f, 0.0f, -0.1600f}       // CONNECTORS
+        {0.840f, 0.0f, -0.1600f}       // CONNECTORS
     };
 
     /** Set lane coords for perspective-projected lane line rendering. */

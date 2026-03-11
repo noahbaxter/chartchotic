@@ -73,6 +73,7 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         bool isDrums = isPart(*statePtr, Part::DRUMS);
         auto* layers = isDrums ? highway.getTrackRenderer().layersDrums : highway.getTrackRenderer().layersGuitar;
         layers[layer] = {scale, x, y};
+        highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();
     };
 
