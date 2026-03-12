@@ -22,6 +22,7 @@
 #include "NoteRenderer.h"
 #include "SustainRenderer.h"
 #include "GridlineRenderer.h"
+#include "TextEventRenderer.h"
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
@@ -36,7 +37,7 @@ class SceneRenderer
         Part activePart = Part::GUITAR;
         ~SceneRenderer();
 
-        void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
+        void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
         // Pre-scale assets for the current viewport size. Call on window resize.
         void rescaleAssets(int viewportWidth)
@@ -123,6 +124,7 @@ class SceneRenderer
         SustainRenderer sustainRenderer;
         GridlineRenderer gridlineRenderer;
         AnimationRenderer animationRenderer;
+        TextEventRenderer textEventRenderer;
 
         uint width = 0, height = 0;
         double lastFrameTimeSeconds = 0.0;

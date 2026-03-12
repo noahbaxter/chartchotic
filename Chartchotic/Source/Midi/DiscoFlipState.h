@@ -94,6 +94,7 @@ public:
     }
 
     bool hasRegions() const { return !regions.empty(); }
+    const std::vector<FlipRegion>& getRegions() const { return regions; }
 
 private:
     std::vector<FlipRegion> regions;

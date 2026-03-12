@@ -92,9 +92,20 @@ enum class DrawOrder
     OVERLAY,
     BAR_ANIMATION,
     NOTE_ANIMATION,
+    TEXT_EVENT,
 };
 
-static constexpr int DRAW_ORDER_COUNT = 14;
+static constexpr int DRAW_ORDER_COUNT = 15;
+
+//==============================================================================
+// Text Event Data
+//==============================================================================
+
+struct TimeBasedFlipRegion {
+    double startTime;
+    double endTime;
+};
+using TimeBasedFlipRegions = std::vector<TimeBasedFlipRegion>;
 static constexpr int MAX_DRAW_COLUMNS = 8;
 using DrawCallBucket = std::vector<std::function<void(juce::Graphics&)>>;
 using DrawCallGrid = std::array<std::array<DrawCallBucket, MAX_DRAW_COLUMNS>, DRAW_ORDER_COUNT>;

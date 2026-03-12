@@ -141,6 +141,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Renderers/SceneRenderer.h
         Chartchotic/Source/Visual/Renderers/GridlineRenderer.cpp
         Chartchotic/Source/Visual/Renderers/GridlineRenderer.h
+        Chartchotic/Source/Visual/Renderers/TextEventRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/TextEventRenderer.h
         Chartchotic/Source/Visual/Renderers/TrackRenderer.cpp
         Chartchotic/Source/Visual/Renderers/TrackRenderer.h
         Chartchotic/Source/Visual/HighwayComponent.cpp

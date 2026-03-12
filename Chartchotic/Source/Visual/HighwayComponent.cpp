@@ -79,6 +79,7 @@ void HighwayComponent::paint(juce::Graphics& g)
 
     sceneRenderer.paint(g, w, h,
                         frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
+                        frameData.flipRegions,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
     // Disco ball indicator when disco flip is active at current playhead

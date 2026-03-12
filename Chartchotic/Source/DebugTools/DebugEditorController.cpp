@@ -241,9 +241,24 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
     out.windowStartTime = 0.0;
     out.windowEndTime = displayWindowTimeSeconds;
     out.isPlaying = playbackController.isPlaying();
-    out.discoFlipActive = (int)statePtr->getProperty("drumType") == 2
-                          && (bool)statePtr->getProperty("discoFlip")
+
+    bool isProDrums = (int)statePtr->getProperty("drumType") == 2;
+    bool discoEnabled = (bool)statePtr->getProperty("discoFlip");
+    out.discoFlipActive = isProDrums && discoEnabled
                           && discoFlipState.isFlipped(trackWindowStartPPQ);
+
+    // Convert flip region boundaries to time-relative for highway markers
+    if (isProDrums && discoEnabled && discoFlipState.hasRegions())
+    {
+        double cursorTime = ppqToTime(cursorPPQ.toDouble());
+        for (const auto& r : discoFlipState.getRegions())
+        {
+            double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
+            double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
+            if (startTime > 0.0 || endTime > -displayWindowTimeSeconds)
+                out.flipRegions.push_back({startTime, endTime});
+        }
+    }
 }
 
 bool DebugEditorController::computeScrollOffset(float& outOffset, double displayWindowTimeSeconds) const

@@ -535,14 +535,30 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     out.isPlaying = audioProcessor.isPlaying;
     out.scrollOffset = computeScrollOffset();
 
-    // Disco flip indicator
+    // Disco flip indicator + region markers
     if (reaperPipeline)
     {
         auto* flip = reaperPipeline->getDiscoFlipState();
-        out.discoFlipActive = flip != nullptr
-                              && (int)state.getProperty("drumType") == 2
-                              && (bool)state.getProperty("discoFlip")
+        bool isProDrums = (int)state.getProperty("drumType") == 2;
+        bool discoEnabled = (bool)state.getProperty("discoFlip");
+        out.discoFlipActive = flip != nullptr && isProDrums && discoEnabled
                               && flip->isFlipped(trackWindowStartPPQ);
+
+        // Convert flip region boundaries to time-relative for highway markers
+        if (flip != nullptr && isProDrums && discoEnabled)
+        {
+            double cursorTime = ppqToTime(cursorPPQ.toDouble());
+            for (const auto& r : flip->getRegions())
+            {
+                double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
+                double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
+                // Include if either marker could still be on-screen.
+                // End markers scroll past strikeline, so allow negative endTime.
+                // Renderer clips at farFadeEnd (upper) and off-screen (lower).
+                if (startTime > 0.0 || endTime > -displayWindowTimeSeconds)
+                    out.flipRegions.push_back({startTime, endTime});
+            }
+        }
     }
 }
 

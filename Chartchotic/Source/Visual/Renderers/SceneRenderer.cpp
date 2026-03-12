@@ -29,7 +29,7 @@ SceneRenderer::~SceneRenderer()
 {
 }
 
-void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying)
+void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, double windowStartTime, double windowEndTime, bool isPlaying)
 {
     ScopedPhaseMeasure totalMeasure(lastPhaseTiming.total_us, collectPhaseTiming);
 
@@ -122,6 +122,15 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                       gridlinePosOffset,
                                       offsets.gridZ * resScale,
                                       farFadeEnd, farFadeLen, farFadeCurve);
+    }
+
+    // Text event markers (disco flip start/end)
+    if (!flipRegions.empty())
+    {
+        textEventRenderer.activePart = activePart;
+        textEventRenderer.populate(drawCallMap, flipRegions, windowStartTime, windowEndTime,
+                                   width, height, highwayPosEnd,
+                                   farFadeEnd, farFadeLen, farFadeCurve);
     }
 
     // Detect and add animations to drawCallMap (if enabled)
