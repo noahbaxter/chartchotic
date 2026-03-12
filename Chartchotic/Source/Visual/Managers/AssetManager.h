@@ -82,6 +82,9 @@ public:
     juce::Image* getSustainOpenWhiteImage() { return &sustainOpenWhiteImage; }
     juce::Image* getSustainOpenImage() { return &sustainOpenImage; }
 
+    // Indicator graphics
+    juce::Image* getDiscoBallImage() { return &discoBallImage; }
+
     // Hit animation graphics
     juce::Image* getHitAnimationFrame(int frameNumber) {
         if (frameNumber >= 1 && frameNumber <= 5) return &hitAnimationFrames[frameNumber - 1];
@@ -176,6 +179,9 @@ private:
     // Sustain graphics (open only)
     juce::Image sustainOpenWhiteImage;
     juce::Image sustainOpenImage;
+
+    // Indicator graphics
+    juce::Image discoBallImage;
 
     // Hit animation graphics
     juce::Image hitAnimationFrames[5];   // hit_1.png through hit_5.png

@@ -41,6 +41,8 @@ struct ReaperAPIs
     int (*MIDI_CountEvts)(void* take, int* notecnt, int* ccevtcnt, int* textsyxevtcnt) = nullptr;
     bool (*MIDI_GetNote)(void* take, int noteidx, bool* selected, bool* muted,
                         double* startppq, double* endppq, int* chan, int* pitch, int* vel) = nullptr;
+    bool (*MIDI_GetTextSysexEvt)(void* take, int textsyxevtidx, bool* selectedOut, bool* mutedOut,
+                                 double* ppqposOut, int* typeOut, char* msgOut, int* msgOut_sz) = nullptr;
     double (*MIDI_GetProjQNFromPPQPos)(void* take, double ppqpos) = nullptr;
     bool (*MIDI_GetTrackHash)(void* track, bool notesonly, char* hashOut, int hashOut_sz) = nullptr;
 
@@ -138,6 +140,7 @@ public:
         // MIDI notes
         outAPIs.MIDI_CountEvts = (int(*)(void*, int*, int*, int*))apiFunc("MIDI_CountEvts");
         outAPIs.MIDI_GetNote = (bool(*)(void*, int, bool*, bool*, double*, double*, int*, int*, int*))apiFunc("MIDI_GetNote");
+        outAPIs.MIDI_GetTextSysexEvt = (bool(*)(void*, int, bool*, bool*, double*, int*, char*, int*))apiFunc("MIDI_GetTextSysexEvt");
         outAPIs.MIDI_GetProjQNFromPPQPos = (double(*)(void*, double))apiFunc("MIDI_GetProjQNFromPPQPos");
         outAPIs.MIDI_GetTrackHash = (bool(*)(void*, bool, char*, int))apiFunc("MIDI_GetTrackHash");
 

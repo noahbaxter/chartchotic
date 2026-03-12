@@ -107,6 +107,81 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperNoteFetcher::iterateAndExt
     return notes;
 }
 
+TrackTextEvents ReaperNoteFetcher::fetchAllTextEvents(int trackIndex)
+{
+    TrackTextEvents events;
+
+    if (!apis.isLoaded() || !getReaperApi || !apis.MIDI_GetTextSysexEvt)
+        return events;
+
+    try
+    {
+        juce::ScopedLock lock(apiLock);
+
+        void* project = ReaperApiHelpers::getProject(getReaperApi);
+        if (!project) return events;
+
+        void* targetTrack = getTargetTrack(project, trackIndex);
+        if (!targetTrack) return events;
+
+        if (!apis.CountMediaItems || !apis.GetMediaItem)
+            return events;
+
+        int itemCount = apis.CountMediaItems(project);
+        for (int itemIdx = 0; itemIdx < itemCount; itemIdx++)
+        {
+            void* item = apis.GetMediaItem(project, itemIdx);
+            if (!item) continue;
+
+            void* take = apis.GetActiveTake(item);
+            if (!take) continue;
+
+            void* itemTrack = apis.GetMediaItemTake_Track(take);
+            if (itemTrack != targetTrack) continue;
+
+            extractTextEventsFromTake(take, events);
+        }
+    }
+    catch (...)
+    {
+    }
+
+    return events;
+}
+
+void ReaperNoteFetcher::extractTextEventsFromTake(void* take, TrackTextEvents& outEvents)
+{
+    if (!take || !apis.MIDI_GetTextSysexEvt || !apis.MIDI_CountEvts || !apis.MIDI_GetProjQNFromPPQPos)
+        return;
+
+    int noteCount = 0, ccCount = 0, textsyxCount = 0;
+    if (apis.MIDI_CountEvts(take, &noteCount, &ccCount, &textsyxCount) == 0 || textsyxCount == 0)
+        return;
+
+    for (int idx = 0; idx < textsyxCount; idx++)
+    {
+        bool selected = false, muted = false;
+        double ppqpos = 0.0;
+        int type = 0;
+        char msg[1024] = {};
+        int msgSize = sizeof(msg);
+
+        if (!apis.MIDI_GetTextSysexEvt(take, idx, &selected, &muted, &ppqpos, &type, msg, &msgSize))
+            continue;
+
+        // type 1 = general text event (FF 01)
+        if (type != 1)
+            continue;
+
+        double projectQN = apis.MIDI_GetProjQNFromPPQPos(take, ppqpos);
+
+        ChartTextEvent evt;
+        evt.position = PPQ(projectQN);
+        evt.text = juce::String(msg, (size_t)msgSize);
+        outEvents.push_back(evt);
+    }
+}
+
 void ReaperNoteFetcher::extractNotesFromTake(void* take,
                                             std::vector<ReaperMidiProvider::ReaperMidiNote>& outNotes,
                                             double startPPQ,

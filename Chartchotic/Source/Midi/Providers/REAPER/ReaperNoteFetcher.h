@@ -17,6 +17,7 @@
 #include "ReaperApiHelpers.h"
 #include "../../../Utils/PPQ.h"
 #include "../../../DebugTools/Logger.h"
+#include "../../ChartTextEvent.h"
 
 /**
  * Handles all track-level MIDI data extraction from REAPER.
@@ -42,6 +43,9 @@ public:
     // Fetch notes within a specific PPQ range (windowed operation)
     std::vector<ReaperMidiProvider::ReaperMidiNote> fetchNotesInRange(double startPPQ, double endPPQ, int trackIndex = -1);
 
+    // Fetch all text events from a track
+    TrackTextEvents fetchAllTextEvents(int trackIndex = -1);
+
 private:
     std::function<void*(const char*)> getReaperApi;  // For track detection only
     const ReaperAPIs& apis;
@@ -55,6 +59,9 @@ private:
                              std::vector<ReaperMidiProvider::ReaperMidiNote>& outNotes,
                              double startPPQ = -std::numeric_limits<double>::infinity(),
                              double endPPQ = std::numeric_limits<double>::infinity());
+
+    // Helper: Extract text events from a single MIDI take
+    void extractTextEventsFromTake(void* take, TrackTextEvents& outEvents);
 
     // Core: Iterate media items and extract notes
     std::vector<ReaperMidiProvider::ReaperMidiNote> iterateAndExtractNotes(void* project,

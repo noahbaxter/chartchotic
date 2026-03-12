@@ -28,9 +28,15 @@ public:
     {
         auto bounds = getLocalBounds().toFloat().reduced(1.0f);
         auto cornerSize = Theme::pillCorner;
-        bool hovering = isMouseOver();
+        bool hovering = !disabled && isMouseOver();
 
-        if (on)
+        if (disabled)
+        {
+            g.setColour(juce::Colour(Theme::textDim).withAlpha(0.2f));
+            g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
+            g.setColour(juce::Colour(Theme::textDim).withAlpha(0.25f));
+        }
+        else if (on)
         {
             g.setColour(hovering ? juce::Colour(Theme::coral).brighter(0.15f)
                                  : juce::Colour(Theme::coral));
@@ -50,8 +56,17 @@ public:
         g.drawText(label, getLocalBounds(), juce::Justification::centred);
     }
 
+    void setDisabled(bool shouldBeDisabled)
+    {
+        if (disabled == shouldBeDisabled) return;
+        disabled = shouldBeDisabled;
+        repaint();
+    }
+    bool isDisabled() const { return disabled; }
+
     void mouseUp(const juce::MouseEvent& e) override
     {
+        if (disabled) return;
         if (getLocalBounds().contains(e.getPosition()))
         {
             on = !on;
@@ -66,4 +81,5 @@ public:
 private:
     juce::String label;
     bool on = true;
+    bool disabled = false;
 };

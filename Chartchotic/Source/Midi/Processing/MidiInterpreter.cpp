@@ -242,8 +242,30 @@ void MidiInterpreter::addDrumEventToFrame(TrackFrame &frame, PPQ position, uint 
 {
     uint gemColumn = InstrumentMapper::getDrumColumn(pitch, (SkillLevel)((int)state.getProperty("skillLevel")), (bool)state.getProperty("kick2x"));
     if (gemColumn < LANE_COUNT) {
-        // Check if star power is held at this position (MIDI pitch 116)
         using Drums = MidiPitchDefinitions::Drums;
+
+        // Disco flip: swap red (column 1) <-> yellow (column 2)
+        // Only applies in Pro Drums — in Legacy mode, notes are already charted swapped
+        bool isProDrums = (int)state.getProperty("drumType") == 2;
+        if (discoFlip != nullptr && isProDrums && (bool)state.getProperty("discoFlip") && discoFlip->isFlipped(position))
+        {
+            if (gemColumn == 1)
+            {
+                // Red → yellow column: check yellow tom marker to decide cymbal vs tom
+                bool yellowTomActive = isNoteHeld((uint)Drums::TOM_YELLOW, position);
+                bool cymbal = !yellowTomActive;
+                gemType = swapCymbalFlag(gemType, cymbal);
+                gemColumn = 2;
+            }
+            else if (gemColumn == 2)
+            {
+                // Yellow → red column: always tom (red can't be cymbal)
+                gemType = swapCymbalFlag(gemType, false);
+                gemColumn = 1;
+            }
+        }
+
+        // Check if star power is held at this position (MIDI pitch 116)
         bool isSpHeld = isNoteHeld(static_cast<uint>(Drums::SP), position);
         frame[gemColumn] = GemWrapper(gemType, isSpHeld);
     }

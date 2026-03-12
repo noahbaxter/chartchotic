@@ -212,6 +212,9 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
 {
     if (!standalone || !playbackController.isNotesActive()) return;
 
+    // Wire disco flip state to interpreter each frame (lightweight pointer set)
+    midiInterpreter.setDiscoFlipState(discoFlipState.hasRegions() ? &discoFlipState : nullptr);
+
     PPQ trackWindowStartPPQ = playbackController.getCurrentPPQ();
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + PPQ(displaySizeInPPQ);
     PPQ extendedStart = trackWindowStartPPQ - PPQ(displaySizeInPPQ);
@@ -238,6 +241,9 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
     out.windowStartTime = 0.0;
     out.windowEndTime = displayWindowTimeSeconds;
     out.isPlaying = playbackController.isPlaying();
+    out.discoFlipActive = (int)statePtr->getProperty("drumType") == 2
+                          && (bool)statePtr->getProperty("discoFlip")
+                          && discoFlipState.isFlipped(trackWindowStartPPQ);
 }
 
 bool DebugEditorController::computeScrollOffset(float& outOffset, double displayWindowTimeSeconds) const
@@ -336,6 +342,12 @@ void DebugEditorController::loadDebugChart(int index)
     debugMidiTempoMap = result.tempoMap;
     debugChartLengthInBeats = result.lengthInBeats;
     playbackController.setBPM(result.initialBPM);
+
+    // Build disco flip state from text events (drums only)
+    if (isDrums)
+        discoFlipState.buildFromTextEvents(result.textEvents);
+    else
+        discoFlipState = DiscoFlipState();
 }
 
 #endif

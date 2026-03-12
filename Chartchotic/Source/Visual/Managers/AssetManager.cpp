@@ -63,6 +63,8 @@ void AssetManager::initAssets()
     sustainOpenWhiteImage = juce::ImageCache::getFromMemory(BinaryData::sustain_open_white_png, BinaryData::sustain_open_white_pngSize);
     sustainOpenImage = juce::ImageCache::getFromMemory(BinaryData::sustain_open_png, BinaryData::sustain_open_pngSize);
 
+    discoBallImage = juce::ImageCache::getFromMemory(BinaryData::discoball_jpg, BinaryData::discoball_jpgSize);
+
     // Hit animation frames
     hitAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_1_png, BinaryData::hit_flash_1_pngSize);
     hitAnimationFrames[1] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_2_png, BinaryData::hit_flash_2_pngSize);

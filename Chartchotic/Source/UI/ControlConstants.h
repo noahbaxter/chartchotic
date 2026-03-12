@@ -75,6 +75,7 @@ constexpr bool DEFAULT_AUTO_HOPO        = true;
 constexpr bool DEFAULT_KICK_2X          = true;
 constexpr bool DEFAULT_DYNAMICS         = true;
 constexpr bool DEFAULT_CYMBALS          = true; // PRO drums
+constexpr bool DEFAULT_DISCO_FLIP       = true;
 
 //==============================================================================
 // Menu Enums (1-based, matching state storage)

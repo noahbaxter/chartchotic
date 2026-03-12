@@ -80,6 +80,22 @@ void HighwayComponent::paint(juce::Graphics& g)
     sceneRenderer.paint(g, w, h,
                         frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
+
+    // Disco ball indicator when disco flip is active at current playhead
+    if (frameData.discoFlipActive)
+    {
+        auto* discoBall = assetManager.getDiscoBallImage();
+        if (discoBall != nullptr && discoBall->isValid())
+        {
+            int size = juce::jmax(32, w / 8);
+            int margin = size / 4;
+            juce::Rectangle<float> dest((float)(w - size - margin), (float)margin,
+                                         (float)size, (float)size);
+            g.setOpacity(0.7f);
+            g.drawImage(*discoBall, dest);
+            g.setOpacity(1.0f);
+        }
+    }
 }
 
 void HighwayComponent::resized()

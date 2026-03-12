@@ -29,6 +29,7 @@ struct HighwayFrameData {
     float scrollOffset = 0.0f;
     double deltaSeconds = 0.0;
     bool isPlaying = false;
+    bool discoFlipActive = false;
 };
 
 class HighwayComponent : public juce::Component, private juce::Timer

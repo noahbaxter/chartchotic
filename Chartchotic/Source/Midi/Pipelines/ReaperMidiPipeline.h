@@ -16,6 +16,7 @@
 #include "../Providers/REAPER/ReaperMidiProvider.h"
 #include "../Utils/InstrumentMapper.h"
 #include "../Utils/ChordAnalyzer.h"
+#include "../DiscoFlipState.h"
 #include "../../Utils/Utils.h"
 
 class ReaperMidiPipeline : public MidiPipeline
@@ -47,6 +48,10 @@ public:
     // Bulk fetch all MIDI events (faster than grabbing a smaller window)
     void fetchAllNoteEvents();
     void fetchAllTempoTimeSignatureEvents();
+    void fetchAllTextEvents();
+
+    // Disco flip state built from text events
+    const DiscoFlipState* getDiscoFlipState() const { return discoFlipState.hasRegions() ? &discoFlipState : nullptr; }
 
 private:
     void processCachedNotesIntoState(PPQ currentPos, double bpm, double sampleRate);
@@ -61,6 +66,8 @@ private:
     std::string previousMidiHash; // Hash from last poll (for detecting if MIDI has changed)
 
     std::vector<MidiCache::CachedNote> allNotes;
+    TrackTextEvents textEvents;
+    DiscoFlipState discoFlipState;
 
     // Target track for MIDI data
     int targetTrackIndex = -1;  // -1 means auto-detect

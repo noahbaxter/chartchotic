@@ -131,6 +131,13 @@ void ToolbarComponent::initChartPanel()
     cymbalsToggle.onClick = [this]() {
         // Cymbals ON = Pro (id 2), OFF = Normal (id 1)
         if (onDrumTypeChanged) onDrumTypeChanged(cymbalsToggle.getToggleState() ? 2 : 1);
+        // Relayout to update disco flip disabled state
+        if (chartButton.isPanelVisible())
+            chartButton.relayoutPanel();
+    };
+
+    discoFlipToggle.onClick = [this]() {
+        if (onDiscoFlipChanged) onDiscoFlipChanged(discoFlipToggle.getToggleState());
     };
 
     // --- Chart + Scene ---
@@ -183,6 +190,7 @@ void ToolbarComponent::initChartPanel()
     chartButton.addPanelChild(&dynamicsToggle);
     chartButton.addPanelChild(&kick2xToggle);
     chartButton.addPanelChild(&cymbalsToggle);
+    chartButton.addPanelChild(&discoFlipToggle);
     chartButton.addPanelChild(&chartHeader);
     chartButton.addPanelChild(&gemsToggle);
     chartButton.addPanelChild(&barsToggle);
@@ -530,6 +538,7 @@ void ToolbarComponent::loadState()
     highwayToggle.setToggleState(!state.hasProperty("showHighway") || (bool)state["showHighway"]);
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
+    discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
     // Stretch to fill
     stretchToggle.setToggleState(state.hasProperty("stretchToFill") && (bool)state["stretchToFill"]);
 
@@ -665,6 +674,11 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         kick2xToggle.setVisible(true);
         y += pillH + gap;
 
+        discoFlipToggle.setBounds(margin, y, pillW, pillH);
+        discoFlipToggle.setVisible(true);
+        discoFlipToggle.setDisabled(!cymbalsToggle.getToggleState());
+        y += pillH + gap;
+
         autoHopoToggle.setVisible(false);
         hopoThresholdStepper.setVisible(false);
     }
@@ -673,6 +687,7 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         cymbalsToggle.setVisible(false);
         dynamicsToggle.setVisible(false);
         kick2xToggle.setVisible(false);
+        discoFlipToggle.setVisible(false);
 
         autoHopoToggle.setBounds(margin + col2, y, pillW, pillH);
         autoHopoToggle.setVisible(true);

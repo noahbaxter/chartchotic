@@ -58,6 +58,7 @@ public:
     std::function<void(bool)> onHighwayChanged;
     std::function<void(bool)> onStarPowerChanged;
     std::function<void(bool)> onKick2xChanged;
+    std::function<void(bool)> onDiscoFlipChanged;
     std::function<void(bool)> onDynamicsChanged;
     std::function<void(int noteSpeed)> onNoteSpeedChanged;
     std::function<void(int framerateId)> onFramerateChanged;
@@ -137,6 +138,7 @@ private:
     PillToggle dynamicsToggle{"Dynamics"};
     PillToggle kick2xToggle{"Kick 2x"};
     PillToggle cymbalsToggle{"Cymbals"};
+    PillToggle discoFlipToggle{"Disco Flip"};
 
     // View panel — Chart elements
     PanelSectionHeader chartHeader{"Chart"};

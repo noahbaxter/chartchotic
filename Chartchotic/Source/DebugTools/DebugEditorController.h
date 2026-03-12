@@ -5,6 +5,7 @@
 #include <JuceHeader.h>
 #include "DebugPlaybackController.h"
 #include "DebugMidiFilePlayer.h"
+#include "../Midi/DiscoFlipState.h"
 #include "../Visual/HighwayComponent.h"
 #include "../Visual/Utils/RenderTiming.h"
 #include "../Visual/Utils/DrawingConstants.h"
@@ -51,6 +52,10 @@ public:
     // State queries
     bool isStandalone() const { return standalone; }
     bool isNotesActive() const { return playbackController.isNotesActive(); }
+    const DiscoFlipState* getDiscoFlipState() const { return &discoFlipState; }
+
+    // Reload current chart (e.g. after instrument switch)
+    void reloadCurrentChart() { loadDebugChart(playbackController.getChartIndex()); }
 
     // Console
     juce::TextEditor& getConsole() { return consoleOutput; }
@@ -85,6 +90,7 @@ private:
     // Debug chart loading (scans assets/midi/ directory)
     TempoTimeSignatureMap debugMidiTempoMap;
     double debugChartLengthInBeats = 0.0;
+    DiscoFlipState discoFlipState;
     void loadDebugChart(int index);
     void scanMidiDirectory();
 

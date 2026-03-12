@@ -17,6 +17,7 @@
 #include "../Utils/InstrumentMapper.h"
 #include "../Utils/GemCalculator.h"
 #include "../Utils/LaneDetector.h"
+#include "../DiscoFlipState.h"
 
 class MidiInterpreter
 {
@@ -26,6 +27,8 @@ class MidiInterpreter
 
 		Part instrumentPart = Part::GUITAR;
 		~MidiInterpreter();
+
+		void setDiscoFlipState(const DiscoFlipState* flipState) { discoFlip = flipState; }
 
 		NoteStateMapArray &noteStateMapArray;
 		juce::CriticalSection &noteStateMapLock;
@@ -41,9 +44,25 @@ class MidiInterpreter
 
 	private:
 		juce::ValueTree &state;
+		const DiscoFlipState* discoFlip = nullptr;
 
 		void addGuitarEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType);
 		void addDrumEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType);
+
+		// Disco flip: replace cymbal/tom flag while preserving dynamic (ghost/accent)
+		static Gem swapCymbalFlag(Gem gem, bool cymbal)
+		{
+			switch (gem)
+			{
+				case Gem::CYM_GHOST:
+				case Gem::HOPO_GHOST:  return cymbal ? Gem::CYM_GHOST  : Gem::HOPO_GHOST;
+				case Gem::CYM:
+				case Gem::NOTE:        return cymbal ? Gem::CYM        : Gem::NOTE;
+				case Gem::CYM_ACCENT:
+				case Gem::TAP_ACCENT:  return cymbal ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
+				default:               return gem;
+			}
+		}
 
 		// Helper functions for testing
 		TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ);

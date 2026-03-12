@@ -152,6 +152,14 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getAllNotesF
     return noteFetcher->fetchAllNotes(trackIndex);
 }
 
+TrackTextEvents ReaperMidiProvider::getAllTextEventsFromTrack(int trackIndex)
+{
+    if (!noteFetcher)
+        return {};
+
+    return noteFetcher->fetchAllTextEvents(trackIndex);
+}
+
 double ReaperMidiProvider::getCurrentPlayPosition()
 {
     if (!reaperApiInitialized || !apis.GetPlayPosition2Ex)

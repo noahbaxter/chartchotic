@@ -6,6 +6,7 @@
 #include "../Midi/Providers/REAPER/MidiCache.h"
 #include "../Midi/Processing/NoteProcessor.h"
 #include "../Midi/Processing/MidiProcessor.h"
+#include "../Midi/ChartTextEvent.h"
 #include "../Utils/Utils.h"
 #include "../Utils/TimeConverter.h"
 
@@ -17,6 +18,7 @@ struct LoadedChart
     TempoTimeSignatureMap tempoMap;
     double initialBPM = 120.0;
     double lengthInBeats = 0.0;
+    TrackTextEvents textEvents;
 };
 
 inline int findTrackByName(const juce::MidiFile& midiFile, const juce::String& name)
@@ -158,6 +160,20 @@ inline LoadedChart loadMidiFile(
 
                 activeNotes.erase(it);
             }
+        }
+    }
+
+    // --- Extract text events from instrument track ---
+    for (int i = 0; i < noteTrack->getNumEvents(); ++i)
+    {
+        const auto& msg = noteTrack->getEventPointer(i)->message;
+        if (msg.isTextMetaEvent())
+        {
+            double beatPos = msg.getTimeStamp() / ticksPerQN;
+            ChartTextEvent textEvt;
+            textEvt.position = PPQ(beatPos);
+            textEvt.text = msg.getTextFromTextMetaEvent();
+            result.textEvents.push_back(textEvt);
         }
     }
 

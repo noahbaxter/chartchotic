@@ -8,6 +8,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Midi/Pipelines/ReaperMidiPipeline.h"
 
 // CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
@@ -74,6 +75,11 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
 {
     setLookAndFeel(nullptr);
+
+    // Clear static typeface refs so JUCE leak detector doesn't fire on shutdown.
+    // Safe in plugin mode too — typefaces are lazily recreated on next use.
+    Theme::clearTypefaces();
+    ChartchoticLogo::clearTypefaces();
 }
 
 void ChartchoticAudioProcessorEditor::onFrame()
@@ -182,6 +188,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onPartChanged = [this](int id) {
         state.setProperty("part", id, nullptr);
+        midiInterpreter.instrumentPart = isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR;
         audioProcessor.refreshMidiDisplay();
 
         // Recompute farFadeEnd with new instrument scale (slider value unchanged)
@@ -194,6 +201,9 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         updateMinimumHeight();
 #ifdef DEBUG
         toolbar.getTuningPanel().setDrums(isPart(state, Part::DRUMS));
+        // Reload debug chart from the correct instrument track
+        if (debugController.isStandalone())
+            debugController.reloadCurrentChart();
 #endif
     };
 
@@ -249,6 +259,10 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onKick2xChanged = [this](bool on) {
         state.setProperty("kick2x", on, nullptr);
         audioProcessor.refreshMidiDisplay();
+    };
+
+    toolbar.onDiscoFlipChanged = [this](bool on) {
+        state.setProperty("discoFlip", on, nullptr);
     };
 
     toolbar.onDynamicsChanged = [this](bool on) {
@@ -475,6 +489,13 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     // Extend window for notes behind cursor
     PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
 
+    // Wire disco flip state from REAPER pipeline
+    auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(audioProcessor.getMidiPipeline());
+    if (reaperPipeline)
+        midiInterpreter.setDiscoFlipState(reaperPipeline->getDiscoFlipState());
+    else
+        midiInterpreter.setDiscoFlipState(nullptr);
+
     // Generate PPQ-based windows from MidiInterpreter
     TrackWindow ppqTrackWindow;
     SustainWindow ppqSustainWindow;
@@ -513,6 +534,16 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     out.windowEndTime = displayWindowTimeSeconds;
     out.isPlaying = audioProcessor.isPlaying;
     out.scrollOffset = computeScrollOffset();
+
+    // Disco flip indicator
+    if (reaperPipeline)
+    {
+        auto* flip = reaperPipeline->getDiscoFlipState();
+        out.discoFlipActive = flip != nullptr
+                              && (int)state.getProperty("drumType") == 2
+                              && (bool)state.getProperty("discoFlip")
+                              && flip->isFlipped(trackWindowStartPPQ);
+    }
 }
 
 void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& out)

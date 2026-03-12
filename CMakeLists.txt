@@ -88,6 +88,7 @@ target_sources(Chartchotic
         Chartchotic/Source/DebugTools/Logger.h
         Chartchotic/Source/DebugTools/DataGenerators.h
         # Midi
+        Chartchotic/Source/Midi/ChartTextEvent.h
         Chartchotic/Source/Midi/InstrumentSlot.h
         # Midi / Processing
         Chartchotic/Source/Midi/Processing/MidiInterpreter.cpp
@@ -204,6 +205,7 @@ juce_add_binary_data(ChartchoticData
         assets/static/backgrounds/background_red.jpg
         assets/static/icons/icon_guitar.png
         assets/static/icons/icon_drums.png
+        assets/static/icons/discoball.jpg
         assets/static/logo-reaper.svg
         # Default highway textures
         assets/static/highways/kanaizo_amber.png

@@ -6,6 +6,7 @@
 #include "../../../Utils/Utils.h"
 #include "../../../Utils/TimeConverter.h"
 #include "../../../DebugTools/Logger.h"
+#include "../../ChartTextEvent.h"
 
 class ReaperNoteFetcher;  // Forward declaration
 
@@ -47,6 +48,9 @@ public:
     // Get ALL notes from a track in the entire session (delegates to ReaperNoteFetcher)
     // trackIndex: 0-based track index (-1 = auto-detect)
     std::vector<ReaperMidiNote> getAllNotesFromTrack(int trackIndex = -1);
+
+    // Get ALL text events from a track (delegates to ReaperNoteFetcher)
+    TrackTextEvents getAllTextEventsFromTrack(int trackIndex = -1);
 
     // Get ALL tempo and time signature events in the entire session
     // Returns events sorted by PPQ position

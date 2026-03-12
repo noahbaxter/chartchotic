@@ -82,6 +82,7 @@ void ReaperMidiPipeline::refetchAllMidiData()
     // Fetch all midi events from the session (one-time bulk fetch)
     fetchAllNoteEvents();
     fetchAllTempoTimeSignatureEvents();
+    fetchAllTextEvents();
 
     // Process newly fetched notes into state immediately
     // Default bpm/sampleRate will be updated on next process() call
@@ -119,6 +120,13 @@ void ReaperMidiPipeline::fetchAllTempoTimeSignatureEvents()
     {
         midiProcessor.tempoTimeSignatureMap[event.ppqPosition] = event;
     }
+}
+
+void ReaperMidiPipeline::fetchAllTextEvents()
+{
+    int configuredTrackIndex = (int)state.getProperty("reaperTrack") - 1;
+    textEvents = reaperProvider.getAllTextEventsFromTrack(configuredTrackIndex);
+    discoFlipState.buildFromTextEvents(textEvents);
 }
 
 void ReaperMidiPipeline::processCachedNotesIntoState(PPQ currentPos, double bpm, double sampleRate)
