@@ -134,6 +134,25 @@ fi
 # Ensure user data directories exist
 mkdir -p "$HOME/Library/Application Support/Chartchotic/highways"
 
+# Warn if system-level plugin copies exist (they shadow user-level installs)
+SYSTEM_VST3="/Library/Audio/Plug-Ins/VST3/Chartchotic.vst3"
+SYSTEM_AU="/Library/Audio/Plug-Ins/Components/Chartchotic.component"
+SHADOW_FOUND=false
+if [ -d "$SYSTEM_VST3" ] || [ -d "$SYSTEM_AU" ]; then
+    echo ""
+    echo "⚠  System-level plugin copies detected (will shadow your dev build):"
+    [ -d "$SYSTEM_VST3" ] && echo "    $SYSTEM_VST3"
+    [ -d "$SYSTEM_AU" ]   && echo "    $SYSTEM_AU"
+    printf "  Remove them? (requires sudo) [y/N] "
+    read -r answer
+    if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
+        [ -d "$SYSTEM_VST3" ] && sudo rm -rf "$SYSTEM_VST3" && echo "    Removed $SYSTEM_VST3"
+        [ -d "$SYSTEM_AU" ]   && sudo rm -rf "$SYSTEM_AU"   && echo "    Removed $SYSTEM_AU"
+    else
+        echo "  Skipped — REAPER may load the old system copy instead of your build."
+    fi
+fi
+
 ARTIFACT_DIR="$NINJA_BUILD_DIR/Chartchotic_artefacts/$BUILD_CONFIG"
 
 if [ "$BUILD_VST3" = true ]; then
