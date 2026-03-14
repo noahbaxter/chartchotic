@@ -14,8 +14,10 @@
 #pragma once
 
 #include "Utils.h"
+#include "../Visual/Utils/DrawingConstants.h"
 #include <map>
 #include <cmath>
+#include <functional>
 
 class TempoTimeSignatureEventHelper
 {
@@ -179,5 +181,51 @@ public:
         }
 
         return PPQ(0.0);
+    }
+
+    /**
+     * Build event markers for tempo and time signature changes.
+     * Skips the first event (initial state) and emits a marker for each
+     * subsequent change in BPM or time signature.
+     *
+     * @param map The tempo/timesig event map
+     * @param cursorPPQ Current cursor position (for relative time conversion)
+     * @param ppqToTime Function converting PPQ to absolute time in seconds
+     * @return Vector of event markers with labels like "BPM 140.0", "3/4", or "BPM 140.0  3/4"
+     */
+    static TimeBasedEventMarkers buildTempoEventMarkers(
+        const TempoTimeSignatureMap& map,
+        PPQ cursorPPQ,
+        const std::function<double(double)>& ppqToTime)
+    {
+        TimeBasedEventMarkers markers;
+        double cursorTime = ppqToTime(cursorPPQ.toDouble());
+        TempoTimeSignatureEvent prev;
+        bool first = true;
+
+        for (const auto& [ppq, event] : map)
+        {
+            if (first) { prev = event; first = false; continue; }
+
+            bool tempoChanged = hasTempoChange(event, prev);
+            bool timeSigChanged = hasTimeSignatureChange(event, prev);
+
+            if (tempoChanged || timeSigChanged)
+            {
+                double markerTime = ppqToTime(ppq.toDouble()) - cursorTime;
+                juce::String label;
+                if (tempoChanged)
+                    label = "BPM " + juce::String(event.bpm, 1);
+                if (timeSigChanged)
+                {
+                    if (label.isNotEmpty()) label += "  ";
+                    label += juce::String(event.timeSigNumerator) + "/"
+                           + juce::String(event.timeSigDenominator);
+                }
+                markers.push_back({markerTime, label});
+            }
+            prev = event;
+        }
+        return markers;
     }
 };

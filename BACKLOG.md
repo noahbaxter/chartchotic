@@ -10,11 +10,11 @@ Work from the top.
 - **Ratio-agnostic window resizing** — Proper resize support. Fixes "too much space below strikeline" tuning and REAPER fullscreen restore white gap / ~98% size bug.
 - **Update banner: show changelog** — `releaseNotes` already fetched from GitHub release body (release channel). Need: display in overlay card (taller/scrollable), strip markdown to plaintext, also fetch for dev channel.
 - ~~**Disco flip (Pro Drums)**~~ — ✅ Done. Text event infrastructure + DiscoFlipState + red↔yellow swap in MidiInterpreter. REAPER + standalone pipelines wired.
-- **Disco flip highway markers** — "Force field" translucent bands at disco start/end positions on the highway with text labels. Priority: visible tells on the chart where text events hit.
+- ~~**Disco flip highway markers**~~ — ✅ Done. Force field markers at disco start/end positions.
 - **Disco ball animation upgrade** — Replace static disco ball JPG with rotating disco ball (quarter-turn loop), "DISCO FLIP" text underneath in disco/rainbow colors. Fun polish.
 - **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
 - **Solo sections** — Blue highway background during solo passages.
-- **Time sig changes display** — Symbols on left side, scroll with highway.
+- **Event marker rendering** — Backend wired (`TimeBasedEventMarker`, `populateEventMarkers`), rendering commented out in SceneRenderer. Enable for tempo/timesig changes, then extend for sections, lyrics, etc.
 - **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
 - **Better mouse scrolling** — shift=faster, ctrl=precise.
 - **Save as default settings** — Persist user-preferred defaults to disk so new plugin instances start with custom settings instead of hardcoded defaults.
@@ -53,6 +53,9 @@ Unordered. Pull into Up Next when the time comes.
 - Moonscraper-style note placement, grid snapping, note eraser
 - INI generation/export
 - 2D pitch-based karaoke display, lyrics with rhythm timing
+
+**Standalone:**
+- Standalone chart player — open a chart file/folder and play it back like a DAW session (no REAPER needed). Debug standalone already has playback; needs file open UI, chart format parsing, and tempo map from file.
 
 **DAW Integration:**
 - Max4Live wrapper for Ableton — use Ableton LOM to expose REAPER-equivalent features (text events, timeline access) via Max4Live device. Would enable disco flip, sections, etc. in Ableton.

@@ -25,6 +25,7 @@ struct HighwayFrameData {
     TimeBasedSustainWindow sustainWindow;
     TimeBasedGridlineMap gridlines;
     TimeBasedFlipRegions flipRegions;
+    TimeBasedEventMarkers eventMarkers;
     double windowStartTime = 0.0;
     double windowEndTime = 1.0;
     float scrollOffset = 0.0f;

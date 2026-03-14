@@ -37,7 +37,7 @@ class SceneRenderer
         Part activePart = Part::GUITAR;
         ~SceneRenderer();
 
-        void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, double windowStartTime, double windowEndTime, bool isPlaying = true);
+        void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
         // Pre-scale assets for the current viewport size. Call on window resize.
         void rescaleAssets(int viewportWidth)

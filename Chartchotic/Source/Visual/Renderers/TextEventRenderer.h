@@ -30,6 +30,13 @@ public:
                   float posEnd,
                   float farFadeEnd, float farFadeLen, float farFadeCurve);
 
+    void populateEventMarkers(DrawCallMap& drawCallMap,
+                              const TimeBasedEventMarkers& markers,
+                              double windowStartTime, double windowEndTime,
+                              uint width, uint height,
+                              float posEnd,
+                              float farFadeEnd, float farFadeLen, float farFadeCurve);
+
 private:
     uint width = 0, height = 0;
     float posEnd = 0;

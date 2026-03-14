@@ -29,7 +29,7 @@ SceneRenderer::~SceneRenderer()
 {
 }
 
-void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, double windowStartTime, double windowEndTime, bool isPlaying)
+void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying)
 {
     ScopedPhaseMeasure totalMeasure(lastPhaseTiming.total_us, collectPhaseTiming);
 
@@ -132,6 +132,12 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                    width, height, highwayPosEnd,
                                    farFadeEnd, farFadeLen, farFadeCurve);
     }
+
+    // TODO: enable event marker rendering (tempo/timesig changes, sections, lyrics, etc.)
+    // textEventRenderer.activePart = activePart;
+    // textEventRenderer.populateEventMarkers(drawCallMap, eventMarkers, windowStartTime, windowEndTime,
+    //                                        width, height, highwayPosEnd,
+    //                                        farFadeEnd, farFadeLen, farFadeCurve);
 
     // Detect and add animations to drawCallMap (if enabled)
     {

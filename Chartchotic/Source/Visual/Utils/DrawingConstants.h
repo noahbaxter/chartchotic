@@ -106,6 +106,12 @@ struct TimeBasedFlipRegion {
     double endTime;
 };
 using TimeBasedFlipRegions = std::vector<TimeBasedFlipRegion>;
+
+struct TimeBasedEventMarker {
+    double time;
+    juce::String label;
+};
+using TimeBasedEventMarkers = std::vector<TimeBasedEventMarker>;
 static constexpr int MAX_DRAW_COLUMNS = 8;
 using DrawCallBucket = std::vector<std::function<void(juce::Graphics&)>>;
 using DrawCallGrid = std::array<std::array<DrawCallBucket, MAX_DRAW_COLUMNS>, DRAW_ORDER_COUNT>;

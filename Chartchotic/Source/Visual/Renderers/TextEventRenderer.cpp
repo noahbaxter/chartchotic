@@ -54,6 +54,35 @@ void TextEventRenderer::populate(DrawCallMap& drawCallMap,
     }
 }
 
+void TextEventRenderer::populateEventMarkers(DrawCallMap& drawCallMap,
+                                              const TimeBasedEventMarkers& markers,
+                                              double windowStartTime, double windowEndTime,
+                                              uint width, uint height,
+                                              float posEnd,
+                                              float farFadeEnd, float farFadeLen, float farFadeCurve)
+{
+    this->width = width;
+    this->height = height;
+    this->posEnd = posEnd;
+
+    double windowTimeSpan = windowEndTime - windowStartTime;
+    if (windowTimeSpan <= 0.0) return;
+
+    for (const auto& marker : markers)
+    {
+        float pos = (float)((marker.time - windowStartTime) / windowTimeSpan);
+        if (pos >= HIGHWAY_POS_START && pos <= farFadeEnd)
+        {
+            float fade = calculateFarFade(pos, farFadeEnd, farFadeLen, farFadeCurve);
+            juce::String label = marker.label;
+            drawCallMap[static_cast<int>(DrawOrder::TEXT_EVENT)][0].push_back(
+                [this, pos, label, fade](juce::Graphics& g) {
+                    this->drawMarker(g, pos, label, fade);
+                });
+        }
+    }
+}
+
 void TextEventRenderer::drawMarker(juce::Graphics& g, float position, const juce::String& label,
                                    float fadeOpacity)
 {

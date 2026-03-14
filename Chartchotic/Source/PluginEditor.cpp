@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Midi/Pipelines/ReaperMidiPipeline.h"
+#include "Utils/TempoTimeSignatureEventHelper.h"
 
 // CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
@@ -527,6 +528,9 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
         tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
 
+    out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
+        tempoTimeSigMap, cursorPPQ, ppqToTime);
+
     out.trackWindow = timeTrackWindow;
     out.sustainWindow = timeSustainWindow;
     out.gridlines = timeGridlineMap;
@@ -657,6 +661,9 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
     // Generate gridlines on-the-fly from tempo/timesig map
     TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
         tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
+
+    out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
+        tempoTimeSigMap, cursorPPQ, ppqToTime);
 
     out.trackWindow = timeTrackWindow;
     out.sustainWindow = timeSustainWindow;
