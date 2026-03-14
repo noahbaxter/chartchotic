@@ -24,6 +24,18 @@ TrackRenderer::TrackRenderer(juce::ValueTree& state)
 
 void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeight)
 {
+    if (PositionMath::bemaniMode)
+    {
+        bool isDrums = activePart == Part::DRUMS;
+        auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                        HIGHWAY_POS_START, cached.posEnd);
+
+        // Dark highway rectangle — full height of viewport
+        g.setColour(juce::Colour(0xFF111111));
+        g.fillRect(edge.leftX, 0.0f, edge.rightX - edge.leftX, (float)viewportHeight);
+        return;
+    }
+
     if (!fadedTrackImage.isValid()) return;
 
     // Stretch if baked size doesn't match (during resize, before rebuild settles)
@@ -34,8 +46,143 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
                     0, 0, fadedTrackImage.getWidth(), fadedTrackImage.getHeight());
 }
 
+void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int viewportHeight)
+{
+    if (!PositionMath::bemaniMode) return;
+
+    bool isDrums = activePart == Part::DRUMS;
+    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                    HIGHWAY_POS_START, cached.posEnd);
+    float leftX = edge.leftX;
+    float rightX = edge.rightX;
+    float fbWidth = rightX - leftX;
+    float h = (float)viewportHeight;
+
+    // Sidebars — thicker gradient lines at edges
+    {
+        float sidebarW = std::max(2.0f, fbWidth * 0.012f);
+        g.setColour(juce::Colours::white.withAlpha(0.35f));
+        g.fillRect(leftX - sidebarW * 0.5f, 0.0f, sidebarW, h);
+        g.fillRect(rightX - sidebarW * 0.5f, 0.0f, sidebarW, h);
+    }
+
+    // Lane dividers — evenly spaced
+    {
+        int numCols = isDrums ? 4 : 5;  // non-bar columns
+#ifdef DEBUG
+        float laneAlpha = debugBemaniLaneOpacity;
+#else
+        float laneAlpha = BEMANI_LANE_OPACITY;
+#endif
+        g.setColour(juce::Colours::white.withAlpha(laneAlpha));
+        for (int i = 1; i < numCols; i++)
+        {
+            float cx = leftX + (float)i / (float)numCols * fbWidth;
+            g.drawVerticalLine((int)cx, 0.0f, h);
+        }
+    }
+
+    // Strikeline — colored rounded squares per lane
+    {
+#ifdef DEBUG
+        float strikeAlpha = debugBemaniStrikelineOpacity;
+        float strikeFrac = debugBemaniStrikelinePos;
+#else
+        float strikeAlpha = BEMANI_STRIKELINE_OPACITY;
+        float strikeFrac = BEMANI_STRIKELINE_POS;
+#endif
+        int numCols = isDrums ? 4 : 5;
+        float colW = fbWidth / (float)numCols;
+        float strikeY = h * strikeFrac;
+        float padH = colW * 0.55f;   // square-ish pads
+        float padY = strikeY - padH * 0.5f;
+        float inset = colW * 0.08f;
+        float corner = colW * 0.15f;
+
+        // Guitar: Green Red Yellow Blue Orange
+        // Drums:  Red Yellow Blue Green
+        static const juce::Colour guitarCols[] = {
+            juce::Colours::green, juce::Colours::red, juce::Colours::yellow,
+            juce::Colours::blue, juce::Colours::orange
+        };
+        static const juce::Colour drumCols[] = {
+            juce::Colours::red, juce::Colours::yellow, juce::Colours::blue, juce::Colours::green
+        };
+        const juce::Colour* cols = isDrums ? drumCols : guitarCols;
+
+        for (int i = 0; i < numCols; i++)
+        {
+            float cx = leftX + ((float)i + 0.5f) * colW;
+            float pw = colW - inset * 2.0f;
+            auto padRect = juce::Rectangle<float>(cx - pw * 0.5f, padY, pw, padH);
+
+            // Outer rounded square — gem color, semi-transparent
+            g.setColour(cols[i].withAlpha(strikeAlpha * 0.5f));
+            g.fillRoundedRectangle(padRect, corner);
+
+            // Darker inner rectangle — darker center chunk
+            float innerInset = pw * 0.15f;
+            auto innerRect = padRect.reduced(innerInset, padH * 0.2f);
+            g.setColour(cols[i].darker(0.6f).withAlpha(strikeAlpha * 0.7f));
+            g.fillRoundedRectangle(innerRect, corner * 0.5f);
+
+            // Thin bright border
+            g.setColour(cols[i].withAlpha(strikeAlpha * 0.8f));
+            g.drawRoundedRectangle(padRect, corner, 1.0f);
+        }
+
+        // Thin white line through center of strikeline
+        g.setColour(juce::Colours::white.withAlpha(strikeAlpha * 0.3f));
+        g.drawHorizontalLine((int)strikeY, leftX, rightX);
+    }
+}
+
 void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targetW, int targetH)
 {
+    if (PositionMath::bemaniMode)
+    {
+        if (!textureEnabled || !sourceTexture.isValid()) return;
+
+        bool isDrums = activePart == Part::DRUMS;
+        auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, targetW, targetH,
+                        HIGHWAY_POS_START, cached.posEnd);
+        float leftX = edge.leftX;
+        float hwyW = edge.rightX - edge.leftX;
+        if (hwyW <= 0) return;
+
+        // Tile the texture vertically within the highway bounds, scrolling
+        float texAspect = (float)sourceTexture.getWidth() / (float)sourceTexture.getHeight();
+        float tileW = hwyW;
+        float tileH = tileW / texAspect * textureScale;
+        if (tileH < 1.0f) return;
+
+        // Seamless tiling: scroll N tiles per cycle where N is the integer closest
+        // to the actual note travel distance in tiles. Integer = no snap on wrap.
+#ifdef DEBUG
+        float strikeFrac = debugBemaniStrikelinePos;
+        float texSpeed = debugBemaniTexSpeed;
+#else
+        float strikeFrac = BEMANI_STRIKELINE_POS;
+        float texSpeed = BEMANI_TEX_SPEED;
+#endif
+        float noteTravel = strikeFrac * (float)targetH;
+        int tilesPerCycle = std::max(1, (int)std::round(noteTravel / tileH * texSpeed));
+        // Scroll offset: seamless tile-aligned cycling
+        float rawOffset = scrollOffset * (float)tilesPerCycle * tileH;
+        float offset = rawOffset - std::floor(rawOffset / tileH) * tileH;
+
+        // Tile from bottom to top, covering entire viewport
+        g.saveState();
+        g.reduceClipRegion((int)leftX, 0, (int)std::ceil(hwyW), targetH);
+        g.setOpacity(textureOpacity);
+        // Start below bottom edge (for scroll offset) and tile all the way past top
+        float startY = (float)targetH + tileH - offset;
+        for (float y = startY; y > -tileH; y -= tileH)
+            g.drawImage(sourceTexture, leftX, y - tileH, tileW, tileH,
+                        0, 0, sourceTexture.getWidth(), sourceTexture.getHeight());
+        g.restoreState();
+        return;
+    }
 #ifdef DEBUG
     if (PositionMath::debugPolyShade) return;
 #endif
@@ -187,6 +334,24 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
 
     bool isDrums = activePart == Part::DRUMS;
     int totalH = height + overflow;
+
+    if (PositionMath::bemaniMode)
+    {
+        // In Bemani mode, skip all perspective baking — draw flat programmatically in paint()
+        cached.width = width;
+        cached.height = height;
+        cached.overflow = overflow;
+        cached.isDrums = isDrums;
+        cached.posEnd = posEnd;
+        cached.fadeEnd = farFadeEnd;
+        cached.fadeLen = farFadeLen;
+        cached.fadeCurve = farFadeCurve;
+
+        fadedTrackImage = {};
+        for (auto& img : layerImages) img = {};
+        prebaked.valid = false;
+        return;
+    }
 
     // Rebuild cached edge geometry (shared by polygon fill and texture scanline LUT)
     // Perspective math uses original viewport height; overflow offsets Y into the taller bitmap.

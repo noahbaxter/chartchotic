@@ -8,9 +8,12 @@
 //==============================================================================
 
 // Note Speed
-constexpr int NOTE_SPEED_MIN     = 2;
-constexpr int NOTE_SPEED_MAX     = 20;
-constexpr int NOTE_SPEED_DEFAULT = 7;
+constexpr int NOTE_SPEED_MIN         = 2;
+constexpr int NOTE_SPEED_MAX         = 20;
+constexpr int NOTE_SPEED_DEFAULT     = 7;
+constexpr int NOTE_SPEED_BEMANI_MIN  = 0;   // Bemani display range: 0-30
+constexpr int NOTE_SPEED_BEMANI_MAX  = 30;
+constexpr int NOTE_SPEED_BEMANI_DEFAULT = 12;
 
 // Gem Scale (continuous %)
 constexpr int GEM_SCALE_MIN_PCT     = 20;

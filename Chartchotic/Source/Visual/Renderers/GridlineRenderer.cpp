@@ -44,7 +44,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
 
             if (markerImage != nullptr)
             {
-                float fadeOpacity = calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
+                float fadeOpacity = PositionMath::bemaniMode ? 1.0f : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
                 drawCallMap[static_cast<int>(DrawOrder::GRID)][0].push_back([=](juce::Graphics& g) {
                     this->drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity, gridZOffset);
                 });
@@ -64,6 +64,32 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
         case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
     }
     opacity *= fadeOpacity;
+
+    if (PositionMath::bemaniMode)
+    {
+#ifdef DEBUG
+        opacity = std::min(1.0f, opacity * debugBemaniGridlineBoost);
+#else
+        opacity = std::min(1.0f, opacity * BEMANI_GRIDLINE_BOOST);
+#endif
+        // Flat horizontal line instead of marker image
+        bool isDrums = activePart == Part::DRUMS;
+        auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
+                        PositionConstants::HIGHWAY_POS_START, posEnd);
+        float lineH = std::max(1.0f, (float)width * 0.003f);
+        float lineY = edge.centerY - lineH * 0.5f;
+
+        // Gradient: brighter at center, fades at edges
+        juce::ColourGradient grad(
+            juce::Colours::white.withAlpha(opacity), (edge.leftX + edge.rightX) * 0.5f, lineY,
+            juce::Colours::white.withAlpha(opacity * 0.3f), edge.leftX, lineY, false);
+        grad.addColour(0.0, juce::Colours::white.withAlpha(opacity * 0.3f));
+        grad.addColour(0.5, juce::Colours::white.withAlpha(opacity));
+        grad.addColour(1.0, juce::Colours::white.withAlpha(opacity * 0.3f));
+        g.setGradientFill(grad);
+        g.fillRect(edge.leftX, lineY, edge.rightX - edge.leftX, lineH);
+        return;
+    }
 
     const auto& fbCoords = activePart == Part::DRUMS
         ? PositionConstants::drumFretboardCoords

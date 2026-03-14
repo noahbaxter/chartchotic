@@ -28,6 +28,9 @@ public:
     PositionMath() = default;
     ~PositionMath() = default;
 
+    static bool bemaniMode;
+    static float bemaniHwyScale;  // farFadeEnd, controls vertical spread in flat mode
+
 #ifdef DEBUG
     static PositionConstants::PerspectiveParams debugPerspParamsGuitar;
     static PositionConstants::PerspectiveParams debugPerspParamsDrums;

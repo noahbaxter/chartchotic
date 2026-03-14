@@ -60,10 +60,29 @@ constexpr float FAR_FADE_CURVE   = 1.0f;      // Fade exponent (1=linear)
 constexpr float HWY_SCALE_GUITAR = 1.00f;
 constexpr float HWY_SCALE_DRUMS  = 1.00f;
 
+// Bemani mode tunables
+constexpr float BEMANI_GRIDLINE_BOOST = 2.5f;  // Gridline opacity multiplier in Bemani mode
+constexpr float BEMANI_NOTE_Y_OFFSET = 0.0f;   // Vertical offset for notes in Bemani mode (normalized)
+constexpr float BEMANI_LANE_OPACITY = 0.20f;    // Lane divider opacity in Bemani mode
+constexpr float BEMANI_STRIKELINE_OPACITY = 0.8f; // Strikeline opacity in Bemani mode
+constexpr float BEMANI_BAR_FIT = 1.02f;         // Bar note fretboard fit in Bemani mode
+constexpr float BEMANI_GEM_Y_NUDGE = 0.35f;     // Gem Y nudge (fraction of gem height) in Bemani mode
+constexpr float BEMANI_STRIKELINE_POS = 0.93f;  // Strikeline Y as fraction of height (0=top, 1=bottom)
+constexpr float BEMANI_TEX_SPEED = 1.0f;        // Texture scroll speed multiplier (1.0 = match notes)
+
 #ifdef DEBUG
 inline float debugHwyScaleGuitar = HWY_SCALE_GUITAR;
 inline float debugHwyScaleDrums  = HWY_SCALE_DRUMS;
 inline float getHwyScale(bool isDrums) { return isDrums ? debugHwyScaleDrums : debugHwyScaleGuitar; }
+
+inline float debugBemaniGridlineBoost = BEMANI_GRIDLINE_BOOST;
+inline float debugBemaniNoteYOffset = BEMANI_NOTE_Y_OFFSET;
+inline float debugBemaniLaneOpacity = BEMANI_LANE_OPACITY;
+inline float debugBemaniStrikelineOpacity = BEMANI_STRIKELINE_OPACITY;
+inline float debugBemaniBarFit = BEMANI_BAR_FIT;
+inline float debugBemaniGemYNudge = BEMANI_GEM_Y_NUDGE;
+inline float debugBemaniStrikelinePos = BEMANI_STRIKELINE_POS;
+inline float debugBemaniTexSpeed = BEMANI_TEX_SPEED;
 #else
 inline float getHwyScale(bool isDrums) { return isDrums ? HWY_SCALE_DRUMS : HWY_SCALE_GUITAR; }
 #endif

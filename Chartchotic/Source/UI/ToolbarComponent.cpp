@@ -71,12 +71,26 @@ void ToolbarComponent::initTopBar()
     noteSpeedStepper.setLabelRatio(0.0f);
     noteSpeedStepper.setTooltip("Note Speed");
     noteSpeedStepper.onStep = [this](int delta) {
-        noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + delta);
+        if (bemaniModeToggle.getToggleState())
+        {
+            noteSpeed = juce::jlimit(NOTE_SPEED_BEMANI_MIN, NOTE_SPEED_BEMANI_MAX, noteSpeed + delta);
+        }
+        else
+        {
+            noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + delta);
+        }
         noteSpeedStepper.setDisplayValue(noteSpeed);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     noteSpeedStepper.onValueEdited = [this](const juce::String& text) {
-        noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, text.getIntValue());
+        if (bemaniModeToggle.getToggleState())
+        {
+            noteSpeed = juce::jlimit(NOTE_SPEED_BEMANI_MIN, NOTE_SPEED_BEMANI_MAX, text.getIntValue());
+        }
+        else
+        {
+            noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, text.getIntValue());
+        }
         noteSpeedStepper.setDisplayValue(noteSpeed);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
@@ -363,6 +377,18 @@ void ToolbarComponent::initSettingsPanel()
         if (onStretchChanged) onStretchChanged(on);
     };
 
+    bemaniModeToggle.setToggleState(false);
+    bemaniModeToggle.onClick = [this]() {
+        bool on = bemaniModeToggle.getToggleState();
+        state.setProperty("bemaniMode", on, nullptr);
+        // Switch speed to appropriate default for the mode
+        noteSpeed = on ? NOTE_SPEED_BEMANI_DEFAULT : NOTE_SPEED_DEFAULT;
+        noteSpeedStepper.setDisplayValue(noteSpeed);
+        state.setProperty("noteSpeed", noteSpeed, nullptr);
+        if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
+        if (onBemaniModeChanged) onBemaniModeChanged(on);
+    };
+
     // --- Sync ---
 
     latencyStepper.setDisplayValue(latencyLabels[LATENCY_DEFAULT - 1]);
@@ -400,6 +426,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&textureScaleStepper);
     settingsButton.addPanelChild(&textureOpacityStepper);
     settingsButton.addPanelChild(&stretchToggle);
+    settingsButton.addPanelChild(&bemaniModeToggle);
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&barScaleStepper);
@@ -483,10 +510,22 @@ void ToolbarComponent::resized()
     // Note Speed + Highway Length steppers — centered between logo and right-side buttons
     int stepW = juce::roundToInt(66.0f * scale);
     int stepGap = juce::roundToInt(4.0f * scale);
-    int totalW = stepW * 2 + stepGap;
-    int cx = leftEdge + (rx - leftEdge - totalW) / 2;
-    noteSpeedStepper.setBounds(cx, y, stepW, h);
-    highwayLengthStepper.setBounds(cx + stepW + stepGap, y, stepW, h);
+    bool bemani = bemaniModeToggle.getToggleState();
+    if (bemani)
+    {
+        // Bemani: hide highway length, center note speed
+        highwayLengthStepper.setVisible(false);
+        int cx = leftEdge + (rx - leftEdge - stepW) / 2;
+        noteSpeedStepper.setBounds(cx, y, stepW, h);
+    }
+    else
+    {
+        highwayLengthStepper.setVisible(true);
+        int totalW = stepW * 2 + stepGap;
+        int cx = leftEdge + (rx - leftEdge - totalW) / 2;
+        noteSpeedStepper.setBounds(cx, y, stepW, h);
+        highwayLengthStepper.setBounds(cx + stepW + stepGap, y, stepW, h);
+    }
 }
 
 //==============================================================================
@@ -541,6 +580,9 @@ void ToolbarComponent::loadState()
     discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
     // Stretch to fill
     stretchToggle.setToggleState(state.hasProperty("stretchToFill") && (bool)state["stretchToFill"]);
+
+    // Bemani mode
+    bemaniModeToggle.setToggleState(state.hasProperty("bemaniMode") && (bool)state["bemaniMode"]);
 
     // Background
     if (backgroundNames.isEmpty())
@@ -796,8 +838,12 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         y += stepperH + gap;
     }
 
-    stretchToggle.setBounds(margin, y, w, stepperH);
-    y += stepperH + sectionGap;
+    {
+        int halfW = (w - gap) / 2;
+        stretchToggle.setBounds(margin, y, halfW, stepperH);
+        bemaniModeToggle.setBounds(margin + halfW + gap, y, halfW, stepperH);
+        y += stepperH + sectionGap;
+    }
 
     // --- Sync ---
     syncHeader.setBounds(margin, y, w, headerH);

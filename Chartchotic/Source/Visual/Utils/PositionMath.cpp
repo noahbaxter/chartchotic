@@ -12,8 +12,12 @@
 */
 
 #include "PositionMath.h"
+#include "DrawingConstants.h"
 
 using namespace PositionConstants;
+
+bool PositionMath::bemaniMode = false;
+float PositionMath::bemaniHwyScale = 1.0f;
 
 #ifdef DEBUG
 PerspectiveParams PositionMath::debugPerspParamsGuitar = getGuitarPerspectiveParams();
@@ -33,6 +37,37 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
     bool isBarNote,
     uint width, uint height)
 {
+    if (bemaniMode)
+    {
+        // Flat mode: full-height linear Y, constant width, no perspective
+        float nw = perspParams.nearWidth;
+        float adjW = normWidth1 * nw;
+        float adjX = normX1 + (normWidth1 - adjW) * 0.5f;
+
+        // Position 0 = strikeline, positive = toward top of viewport
+#ifdef DEBUG
+        float strikeY = debugBemaniStrikelinePos;
+        float noteYOff = debugBemaniNoteYOffset;
+#else
+        float strikeY = BEMANI_STRIKELINE_POS;
+        float noteYOff = BEMANI_NOTE_Y_OFFSET;
+#endif
+        float scaledPos = position / std::max(0.1f, bemaniHwyScale);
+        float yPos = (float)height * (strikeY - scaledPos * strikeY + noteYOff);
+
+        float finalWidth = adjW * width;
+        float targetHeight = isBarNote
+            ? finalWidth / perspParams.barNoteHeightRatio
+            : finalWidth / perspParams.regularNoteHeightRatio;
+
+        float xPos = adjX * width;
+        float xOffset = finalWidth * perspParams.xOffsetMultiplier;
+        float finalX = xPos + xOffset - finalWidth / 2.0f;
+        float finalY = yPos - targetHeight / 2.0f;
+
+        return juce::Rectangle<float>(finalX, finalY, finalWidth, targetHeight);
+    }
+
     float depth = position / perspParams.vanishingPointDepth;
 
     // Derive 1/z depth coefficient from exponentialCurve parameter

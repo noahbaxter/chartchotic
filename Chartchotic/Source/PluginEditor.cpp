@@ -190,9 +190,12 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         audioProcessor.refreshMidiDisplay();
 
         // Recompute farFadeEnd with new instrument scale (slider value unchanged)
-        float userLength = state.hasProperty("highwayLength")
-            ? (float)state["highwayLength"] : FAR_FADE_DEFAULT;
-        highway.setHighwayLength(computeFarFadeEnd(userLength));
+        if (!PositionMath::bemaniMode)
+        {
+            float userLength = state.hasProperty("highwayLength")
+                ? (float)state["highwayLength"] : FAR_FADE_DEFAULT;
+            highway.setHighwayLength(computeFarFadeEnd(userLength));
+        }
         updateDisplaySizeFromSpeedSlider();
 
         highway.onInstrumentChanged();
@@ -349,13 +352,24 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onHighwayLengthChanged = [this](float length) {
         state.setProperty("highwayLength", length, nullptr);
-        highway.setHighwayLength(computeFarFadeEnd(length));
+        if (!PositionMath::bemaniMode)
+            highway.setHighwayLength(computeFarFadeEnd(length));
         updateDisplaySizeFromSpeedSlider();
     };
 
     toolbar.onStretchChanged = [this](bool on) {
         highway.stretchToFill = on;
         state.setProperty("stretchToFill", on, nullptr);
+        resized();
+    };
+
+    toolbar.onBemaniModeChanged = [this](bool on) {
+        PositionMath::bemaniMode = on;
+        PositionMath::bemaniHwyScale = 1.0f;
+        state.setProperty("bemaniMode", on, nullptr);
+        highway.getTrackRenderer().invalidate();
+        highway.rebuildTrack();
+        updateDisplaySizeFromSpeedSlider();
         resized();
     };
 
@@ -672,9 +686,10 @@ void ChartchoticAudioProcessorEditor::resized()
     state.setProperty("editorWidth", getWidth(), nullptr);
     state.setProperty("editorHeight", getHeight(), nullptr);
 
-    // Virtual scene dimensions — maintain 4:3 internally
+    // Virtual scene dimensions — aspect ratio depends on mode
+    double activeAspect = PositionMath::bemaniMode ? bemaniAspectRatio : sceneAspectRatio;
     sceneWidth = getWidth();
-    sceneHeight = juce::roundToInt(sceneWidth / sceneAspectRatio);
+    sceneHeight = juce::roundToInt(sceneWidth / activeAspect);
 
     const int margin = 10;
 
@@ -728,7 +743,17 @@ void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
     // Convert note speed to highway time: 7.87 is the default highway length in world units,
     // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
     int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
-    displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
+
+    if (PositionMath::bemaniMode)
+    {
+        // Bemani range: 0-30 (31 steps). 0 → 15s (very slow), 30 → 0.3s (fast). Exponential.
+        double t = (double)(noteSpeed - NOTE_SPEED_BEMANI_MIN) / (double)(NOTE_SPEED_BEMANI_MAX - NOTE_SPEED_BEMANI_MIN);
+        displayWindowTimeSeconds = 15.0 * std::pow(0.3 / 15.0, t);
+    }
+    else
+    {
+        displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
+    }
 
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
     // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.
@@ -781,7 +806,9 @@ void ChartchoticAudioProcessorEditor::loadState()
         float userLength = state.hasProperty("highwayLength")
             ? juce::jlimit(FAR_FADE_MIN, FAR_FADE_MAX, (float)state["highwayLength"])
             : FAR_FADE_DEFAULT;
-        highway.getSceneRenderer().farFadeEnd = computeFarFadeEnd(userLength);
+        float scaledLength = computeFarFadeEnd(userLength);
+        highway.getSceneRenderer().farFadeEnd = scaledLength;
+        PositionMath::bemaniHwyScale = scaledLength;
     }
 
     // Load highway texture
@@ -809,6 +836,10 @@ void ChartchoticAudioProcessorEditor::loadState()
 
     // Restore stretch mode
     highway.stretchToFill = state.hasProperty("stretchToFill") && (bool)state["stretchToFill"];
+
+    // Restore Bemani mode
+    PositionMath::bemaniMode = state.hasProperty("bemaniMode") && (bool)state["bemaniMode"];
+    PositionMath::bemaniHwyScale = 1.0f;
 
     updateDisplaySizeFromSpeedSlider();
     highway.rebuildTrack();

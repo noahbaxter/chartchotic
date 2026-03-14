@@ -72,6 +72,7 @@ public:
     std::function<void(float scale)> onBarScaleChanged;
     std::function<void(float length)> onHighwayLengthChanged;
     std::function<void(bool)> onStretchChanged;
+    std::function<void(bool)> onBemaniModeChanged;
     std::function<void(bool)> onShowFpsChanged;
     std::function<void(bool)> onShowBackgroundChanged;
     std::function<void()> onOpenBackgroundFolder;
@@ -179,7 +180,8 @@ private:
     ValueStepper latencyStepper{"Latency"};
     int latencyIndex = LATENCY_DEFAULT - 1; // state is 1-based
     SegmentedButtons framerateButtons;
-    CheckboxToggle stretchToggle{"Stretch to Window"};
+    CheckboxToggle stretchToggle{"Stretch"};
+    CheckboxToggle bemaniModeToggle{juce::CharPointer_UTF8("\xe3\x83\x93\xe3\x83\xbc\xe3\x83\x9e\xe3\x83\x8b"), "Bemani Mode"}; // ビーマニ
     CheckboxToggle showFpsToggle{"Show FPS"};
     CheckboxToggle showBackgroundToggle{"Background"};
 

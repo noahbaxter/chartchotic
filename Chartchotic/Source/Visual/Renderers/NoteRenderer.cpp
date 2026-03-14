@@ -108,7 +108,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     // Perspective foreshortening: reduce note height toward the far end.
     // Normalized against vanishingPointDepth for consistent perspective.
     float foreshorten = 1.0f;
-    if (depthForeshorten > 0.0f)
+    if (depthForeshorten > 0.0f && !PositionMath::bemaniMode)
     {
 #ifdef DEBUG
         const auto& pp = PositionMath::perspParams(activePart == Part::DRUMS);
@@ -129,7 +129,12 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
                                                       PositionConstants::HIGHWAY_POS_START, posEnd);
         float fbWidth = fbEdge.rightX - fbEdge.leftX;
-        float colWidth = fbWidth * BAR_FRETBOARD_FIT * sizeScale;
+#ifdef DEBUG
+        float barFit = PositionMath::bemaniMode ? debugBemaniBarFit : BAR_FRETBOARD_FIT;
+#else
+        float barFit = PositionMath::bemaniMode ? BEMANI_BAR_FIT : BAR_FRETBOARD_FIT;
+#endif
+        float colWidth = fbWidth * barFit * sizeScale;
         float colHeight = (colWidth / imageAspect) * foreshorten;
         float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
         glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
@@ -173,15 +178,35 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
     }
 
+    // Bemani mode: nudge gems down so they sit on bar notes
+    if (PositionMath::bemaniMode && !barNote)
+    {
+#ifdef DEBUG
+        glyphRect.translate(0.0f, glyphRect.getHeight() * debugBemaniGemYNudge);
+#else
+        glyphRect.translate(0.0f, glyphRect.getHeight() * BEMANI_GEM_Y_NUDGE);
+#endif
+    }
+
     float opacity = calculateOpacity(position);
     bool isDrums = activePart == Part::DRUMS;
     float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
-    float curvature = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
+    float baseCurv = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
+    float curvature = PositionMath::bemaniMode ? baseCurv * 0.4f : baseCurv;
 
     // Debug scale factors (separate note vs bar)
     const auto& baseScale = barNote ? barScale : gemScale;
-    float baseW = baseScale.width;
-    float baseH = baseScale.height;
+    float baseW, baseH;
+    if (PositionMath::bemaniMode)
+    {
+        baseW = barNote ? 1.02f : 0.95f;
+        baseH = barNote ? 0.50f : 0.90f;
+    }
+    else
+    {
+        baseW = baseScale.width;
+        baseH = baseScale.height;
+    }
 
     // Per-note-type scale (applied uniformly to base + overlay)
     float typeScale = 1.0f;

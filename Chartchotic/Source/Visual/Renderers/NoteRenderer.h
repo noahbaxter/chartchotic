@@ -80,6 +80,7 @@ private:
 
     float calculateOpacity(float position)
     {
+        if (PositionMath::bemaniMode) return 1.0f;
         return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
     }
 

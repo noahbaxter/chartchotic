@@ -71,6 +71,7 @@ void HighwayComponent::paint(juce::Graphics& g)
     {
         trackRenderer.paint(g, w, totalH);
         trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH);
+        trackRenderer.paintBemaniOverlay(g, w, totalH);
     }
 
     // Translate so scene renderer (notes, gridlines, etc.) sees viewport coordinates.
@@ -119,6 +120,7 @@ void HighwayComponent::setFrameData(const HighwayFrameData& data)
 void HighwayComponent::updateOverflow()
 {
     if (renderWidth <= 0 || renderHeight <= 0) return;
+    if (PositionMath::bemaniMode) { topOverflow = 0; return; }
     bool isDrums = activePart == Part::DRUMS;
     auto farEdge = PositionMath::getFretboardEdge(
         isDrums, sceneRenderer.farFadeEnd, renderWidth, renderHeight,
@@ -150,10 +152,15 @@ void HighwayComponent::rebuildTrack()
                           sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
                           sceneRenderer.highwayPosEnd);
 
-    sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
-    sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
-    sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
-    sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+    // Always reset overlays — Bemani mode uses programmatic drawing, perspective uses baked images
+    sceneRenderer.clearOverlays();
+    if (!PositionMath::bemaniMode)
+    {
+        sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
+        sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
+        sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
+        sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+    }
 
     bakedRenderW = w;
     bakedRenderH = h;

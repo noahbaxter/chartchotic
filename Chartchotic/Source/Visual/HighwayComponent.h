@@ -60,7 +60,7 @@ public:
     void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
     void setShowHighway(bool on)        { showHighway = on; repaint(); }
 
-    void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; rebuildTrack(); repaint(); }
+    void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; PositionMath::bemaniHwyScale = length; rebuildTrack(); repaint(); }
     void setTexture(const juce::Image& img) { trackRenderer.setTexture(img); }
     void clearTexture()                 { trackRenderer.clearTexture(); }
     void setTextureScale(float s)       { trackRenderer.textureScale = s; repaint(); }
@@ -68,7 +68,7 @@ public:
     void setGemScale(float)             { repaint(); }
     void setBarScale(float)             { repaint(); }
 
-    void onInstrumentChanged()          { setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR); rebuildTrack(); repaint(); }
+    void onInstrumentChanged()          { setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR); trackRenderer.invalidate(); rebuildTrack(); repaint(); }
 
     // Accessors for debug wiring
     SceneRenderer& getSceneRenderer()   { return sceneRenderer; }
