@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.1.0
+Disco flip support for Pro Drums, rebuilt perspective engine, window resizing improvements, and visual polish.
+
+### Disco Flip (Pro Drums)
+- Automatic red↔yellow lane swap during disco flip sections
+- Parses `[mix 3 drums*d]` text events from MIDI tracks (REAPER and standalone)
+- Toggle in toolbar (visible when cymbals are enabled)
+- Disco start/end markers on the highway
+- Disco ball indicator when flip is active at the playhead
+
+### Perspective & Rendering
+- Rebuilt 1/z perspective model with per-instrument tuning — replaces the previous curve system
+- Lane-based positioning for notes, sustains, and gridlines
+- Per-instrument highway scale normalization (guitar and drums feel visually equivalent at the same slider setting)
+- Highway viewport overflow — extended highway lengths no longer clip at the top
+
+### Window & Layout
+- Reworked window resizing with constrained aspect ratio by default
+- Free resize toggle for unconstrained mode
+- Highway length slider moved to the top bar
+- Highway length range extended to 500%
+- Background toggle to show/hide the highway fill
+- Default window ratio changed to 1:1
+
+### Visual
+- Refreshed strikeline and note assets
+- Difficulty selector now shows in descending order (Expert first)
+- Updated logo and toolbar layout tweaks
+
+### Bug Fixes
+- Fixed highway texture tile loop causing infinite spin at narrow widths
+
+### Infrastructure
+- LV2 plugin format support
+- Pluginval validation on Linux builds
+- Skin override directory with documentation
+
 ## 1.0.0
 This is the official 1.0 release of Chartchotic. This ground-up overhaul consists of a rewritten rendering engine, brand new UI, and comprehensive improvements to every visual asset.
 
