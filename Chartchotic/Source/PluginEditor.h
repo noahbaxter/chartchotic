@@ -26,37 +26,6 @@
 
 //==============================================================================
 
-class HighwayConstrainer : public juce::ComponentBoundsConstrainer
-{
-public:
-    std::function<int(int)> computeIdealHeight;
-    bool locked = true;
-
-    void checkBounds(juce::Rectangle<int>& bounds,
-                     const juce::Rectangle<int>& previousBounds,
-                     const juce::Rectangle<int>& limits,
-                     bool isStretchingTop, bool isStretchingLeft,
-                     bool isStretchingBottom, bool isStretchingRight) override
-    {
-        // Block top and left edge dragging — only bottom-right corner allowed
-        if (isStretchingTop)
-            bounds = bounds.withTop(previousBounds.getY());
-        if (isStretchingLeft)
-            bounds = bounds.withLeft(previousBounds.getX());
-
-        ComponentBoundsConstrainer::checkBounds(bounds, previousBounds, limits,
-            false, false, isStretchingBottom, isStretchingRight);
-
-        if (locked && computeIdealHeight)
-        {
-            int idealH = computeIdealHeight(bounds.getWidth());
-            bounds = bounds.withHeight(idealH);
-        }
-    }
-};
-
-//==============================================================================
-
 class ChartchoticAudioProcessorEditor  :
     public juce::AudioProcessorEditor
 {
@@ -141,7 +110,6 @@ private:
     // Virtual scene dimensions (maintain internal 4:3 ratio)
     int sceneWidth = defaultWidth;
     int sceneHeight = defaultHeight;
-    int sceneOffsetY = 0;
 
     // Background Assets
     bool showBackground = false;
@@ -198,8 +166,6 @@ private:
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
 
-    int computeMinWindowHeight(int width) const;
-    void updateMinimumHeight();
 
     void buildReaperFrameData(HighwayFrameData& out);
     void buildStandardFrameData(HighwayFrameData& out);
@@ -214,7 +180,7 @@ private:
     float latencyInSeconds = 0.0;
 
     // Resize constraints
-    HighwayConstrainer constrainer;
+    juce::ComponentBoundsConstrainer constrainer;
 
     // Position tracking for cursor vs playhead separation
     PPQ lastKnownPosition = 0.0;

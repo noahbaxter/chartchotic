@@ -46,22 +46,23 @@ void HighwayComponent::paint(juce::Graphics& g)
     int overflow = debouncing ? bakedOverflow  : topOverflow;
     int totalH   = h + overflow;
 
-    // In split mode (render wider than component), always use uniform scale-to-fit
-    // even during debounce — the stretch path would distort the aspect ratio.
-    if (w > getWidth() && !stretchToFill)
+    if (stretchToFill)
     {
-        float scale = (float)getWidth() / (float)w;
-        float scaledTotalH = (float)totalH * scale;
-        float yOffset = (float)getHeight() - scaledTotalH;
-        g.addTransform(juce::AffineTransform(scale, 0.0f, 0.0f, 0.0f, scale, yOffset));
-    }
-    else if (debouncing || stretchToFill)
-    {
-        float srcW = debouncing ? (float)bakedRenderW : (float)renderWidth;
-        float srcH = debouncing ? (float)(bakedRenderH + bakedOverflow) : (float)(renderHeight + topOverflow);
-        float sx = (float)getWidth()  / srcW;
-        float sy = (float)getHeight() / srcH;
+        // Non-uniform stretch to fill all available space
+        float sx = (float)getWidth()  / (float)w;
+        float sy = (float)getHeight() / (float)totalH;
         g.addTransform(juce::AffineTransform::scale(sx, sy));
+    }
+    else
+    {
+        // Uniform scale to maximize height, centered horizontally, bottom-anchored
+        float scale = std::min((float)getWidth() / (float)w,
+                               (float)getHeight() / (float)totalH);
+        float scaledW = (float)w * scale;
+        float scaledH = (float)totalH * scale;
+        float offsetX = ((float)getWidth() - scaledW) / 2.0f;
+        float offsetY = (float)getHeight() - scaledH;
+        g.addTransform(juce::AffineTransform(scale, 0.0f, offsetX, 0.0f, scale, offsetY));
     }
 
     // Track fill, layers, and texture are baked at totalH (viewport + overflow).

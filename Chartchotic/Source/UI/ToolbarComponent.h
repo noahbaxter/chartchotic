@@ -179,7 +179,7 @@ private:
     ValueStepper latencyStepper{"Latency"};
     int latencyIndex = LATENCY_DEFAULT - 1; // state is 1-based
     SegmentedButtons framerateButtons;
-    CheckboxToggle stretchToggle{"Free Resize"};
+    CheckboxToggle stretchToggle{"Stretch to Window"};
     CheckboxToggle showFpsToggle{"Show FPS"};
     CheckboxToggle showBackgroundToggle{"Background"};
 

@@ -34,9 +34,6 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     setLookAndFeel(&chartPreviewLnF);
 
     // Set up resize constraints
-    constrainer.computeIdealHeight = [this](int w) {
-        return computeMinWindowHeight(w);
-    };
     constrainer.setMinimumSize(minWidth, minHeight);
     setConstrainer(&constrainer);
     setResizable(true, true);
@@ -61,7 +58,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
-    highway.onOverflowChanged = [this]() { updateMinimumHeight(); resized(); };
+    highway.onOverflowChanged = [this]() { resized(); };
 
     addAndMakeVisible(highway);
     addAndMakeVisible(toolbar);
@@ -199,7 +196,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         updateDisplaySizeFromSpeedSlider();
 
         highway.onInstrumentChanged();
-        updateMinimumHeight();
 #ifdef DEBUG
         toolbar.getTuningPanel().setDrums(isPart(state, Part::DRUMS));
         // Reload debug chart from the correct instrument track
@@ -355,14 +351,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         state.setProperty("highwayLength", length, nullptr);
         highway.setHighwayLength(computeFarFadeEnd(length));
         updateDisplaySizeFromSpeedSlider();
-        updateMinimumHeight();
     };
 
     toolbar.onStretchChanged = [this](bool on) {
         highway.stretchToFill = on;
         state.setProperty("stretchToFill", on, nullptr);
-        constrainer.locked = !on;
-        updateMinimumHeight();
         resized();
     };
 
@@ -679,10 +672,9 @@ void ChartchoticAudioProcessorEditor::resized()
     state.setProperty("editorWidth", getWidth(), nullptr);
     state.setProperty("editorHeight", getHeight(), nullptr);
 
-    // Virtual scene dimensions — maintain 4:3 internally, anchor strikeline to bottom
+    // Virtual scene dimensions — maintain 4:3 internally
     sceneWidth = getWidth();
     sceneHeight = juce::roundToInt(sceneWidth / sceneAspectRatio);
-    sceneOffsetY = getHeight() - sceneHeight;
 
     const int margin = 10;
 
@@ -690,25 +682,12 @@ void ChartchoticAudioProcessorEditor::resized()
     int tbHeight = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Highway component — fills the virtual 4:3 scene area, extended upward for overflow
+    // Highway component — fills all space below toolbar, paint() handles scaling
     highway.renderWidth = sceneWidth;
     highway.renderHeight = sceneHeight;
     highway.updateOverflow();
-    int hwOverflow = highway.getTopOverflow();
 
-    int minH = computeMinWindowHeight(getWidth());
-    constrainer.locked = !highway.stretchToFill;
-
-    if (highway.stretchToFill)
-    {
-        highway.setBounds(0, tbHeight, sceneWidth, getHeight() - tbHeight);
-        constrainer.setMinimumSize(minWidth, minH);
-    }
-    else
-    {
-        highway.setBounds(0, sceneOffsetY - hwOverflow, sceneWidth, sceneHeight + hwOverflow);
-        constrainer.setMinimumSize(minWidth, minH);
-    }
+    highway.setBounds(0, tbHeight, getWidth(), getHeight() - tbHeight);
 
     // Version label + update badge (bottom-left) — same scale as toolbar
     float s = (float)tbHeight / (float)ToolbarComponent::referenceHeight;
@@ -830,11 +809,9 @@ void ChartchoticAudioProcessorEditor::loadState()
 
     // Restore stretch mode
     highway.stretchToFill = state.hasProperty("stretchToFill") && (bool)state["stretchToFill"];
-    constrainer.locked = !highway.stretchToFill;
 
     updateDisplaySizeFromSpeedSlider();
     highway.rebuildTrack();
-    updateMinimumHeight();
 }
 
 void ChartchoticAudioProcessorEditor::applyLatencySetting(int latencyValue)
@@ -848,31 +825,6 @@ void ChartchoticAudioProcessorEditor::applyLatencySetting(int latencyValue)
     default: latencyInSeconds = 0.500; break;
     }
     audioProcessor.setLatencyInSeconds(latencyInSeconds);
-}
-
-int ChartchoticAudioProcessorEditor::computeMinWindowHeight(int width) const
-{
-    int tbHeight = juce::roundToInt(width * ToolbarComponent::toolbarRatio);
-    int sHeight = juce::roundToInt(width / sceneAspectRatio);
-    int currentOverflow = highway.getTopOverflow();
-    int currentRenderH = highway.renderHeight;
-    // Scale overflow proportionally when computing for a hypothetical width
-    int scaledOverflow = (currentRenderH > 0 && currentRenderH != sHeight)
-        ? juce::roundToInt((float)currentOverflow * sHeight / currentRenderH)
-        : currentOverflow;
-    return tbHeight + sHeight + scaledOverflow;
-}
-
-void ChartchoticAudioProcessorEditor::updateMinimumHeight()
-{
-    int idealH = computeMinWindowHeight(getWidth());
-    constrainer.setMinimumSize(minWidth, idealH);
-
-    if (highway.stretchToFill)
-        return;
-
-    if (getHeight() != idealH)
-        setSize(getWidth(), idealH);
 }
 
 juce::ComponentBoundsConstrainer* ChartchoticAudioProcessorEditor::getConstrainer()
