@@ -40,7 +40,9 @@ public:
     std::function<void()> onPolyShadeChanged;
     std::function<void(bool)> onDebugColourChanged;
     std::function<void(bool)> onStretchChanged;
+    std::function<void(bool)> onBemaniToggled;
     std::function<void(float, float)> onHwyScaleChanged;
+    std::function<void()> onBemaniTuningChanged;
     std::function<void(float gap, float nudge)> onLogoPadChanged;
 
     // Current tuning values (read by applyTo)
@@ -160,6 +162,7 @@ private:
     juce::ToggleButton polyShadeToggle;
     juce::ToggleButton debugColourToggle;
     juce::ToggleButton stretchToggle;
+    juce::ToggleButton bemaniToggle;
 
     // Logo padding slider
     float logoPadValue = 0.1f;
@@ -172,6 +175,27 @@ private:
     float hwyScaleDrumsValue = HWY_SCALE_DRUMS;
     ScrollableLabel hwyScaleGuitarLabel;
     ScrollableLabel hwyScaleDrumsLabel;
+
+    // --- Bemani section ---
+    SectionHeader bemaniHeader;
+
+    // Bemani mode tunables
+    float bemaniGridBoostValue = BEMANI_GRIDLINE_BOOST;
+    float bemaniNoteYValue = BEMANI_NOTE_Y_OFFSET;
+    float bemaniLaneOpValue = BEMANI_LANE_OPACITY;
+    float bemaniStrikeOpValue = BEMANI_STRIKELINE_OPACITY;
+    float bemaniBarFitValue = BEMANI_BAR_FIT;
+    float bemaniGemYValue = BEMANI_GEM_Y_NUDGE;
+    float bemaniStrikePosValue = BEMANI_STRIKELINE_POS;
+    float bemaniTexSpeedValue = BEMANI_TEX_SPEED;
+    ScrollableLabel bemaniGridBoostLabel;
+    ScrollableLabel bemaniNoteYLabel;
+    ScrollableLabel bemaniLaneOpLabel;
+    ScrollableLabel bemaniStrikeOpLabel;
+    ScrollableLabel bemaniBarFitLabel;
+    ScrollableLabel bemaniGemYLabel;
+    ScrollableLabel bemaniStrikePosLabel;
+    ScrollableLabel bemaniTexSpeedLabel;
 
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;

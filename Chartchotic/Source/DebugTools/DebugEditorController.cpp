@@ -112,11 +112,24 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
             parent->resized();
     };
 
+    tune.onBemaniToggled = [&highway, repaintEditor](bool on) {
+        PositionMath::bemaniMode = on;
+        highway.getTrackRenderer().invalidate();
+        highway.rebuildTrack();
+        if (auto* parent = highway.getParentComponent())
+            parent->resized();
+        repaintEditor();
+    };
+
     tune.onHwyScaleChanged = [&highway, repaintEditor](float gtr, float drm) {
         highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();
         if (auto* parent = highway.getParentComponent())
             parent->resized();
+        repaintEditor();
+    };
+
+    tune.onBemaniTuningChanged = [repaintEditor]() {
         repaintEditor();
     };
 
