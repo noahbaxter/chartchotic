@@ -89,12 +89,13 @@ private:
     // Bezier column edge helper (mirrors SceneRenderer::getColumnEdge)
     PositionConstants::LaneCorners getColumnEdge(float position, const PositionConstants::NormalizedCoordinates& colCoords,
                                                   float sizeScale, float posEnd,
-                                                  float fretboardScale = 1.0f)
+                                                  float fretboardScale = 1.0f,
+                                                  int bemaniLaneIdx = -1)
     {
         bool isDrums = activePart == Part::DRUMS;
         return PositionMath::getColumnPosition(isDrums, position, cachedWidth, cachedHeight,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale);
+                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
     }
 
     uint cachedWidth = 0, cachedHeight = 0;

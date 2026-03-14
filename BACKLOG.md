@@ -15,6 +15,9 @@ Work from the top.
 - **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
 - **Solo sections** — Blue highway background during solo passages.
 - **Event marker rendering** — Backend wired (`TimeBasedEventMarker`, `populateEventMarkers`), rendering commented out in SceneRenderer. Enable for tempo/timesig changes, then extend for sections, lyrics, etc.
+- **Bemani: texture scroll snap** — Texture jumps/resets every few bars. Related to `scrollOffset` wrapping and float precision in `totalScroll` calculation. Need seamless continuous scroll.
+- **Bemani: sidebar edge lines hidden** — Edge lines render behind the opaque black sidebar masks in `paintBemaniSidebars`. Need to draw edge lines AFTER the black fill, or inset them slightly into the fretboard area.
+- **Suppress sustain trails in trill/tremolo regions** — MIDI 127 (trill) and 126 (tremolo) markers already detected as LANE_1/LANE_2 and create lane backgrounds. But individual note sustains within those regions still render at SUSTAIN_OPACITY (0.7), making trills look brighter than lanes. MidiInterpreter should suppress SustainType::SUSTAIN entries that fall within active trill/tremolo marker ranges.
 - **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
 - **Better mouse scrolling** — shift=faster, ctrl=precise.
 - **Save as default settings** — Persist user-preferred defaults to disk so new plugin instances start with custom settings instead of hardcoded defaults.

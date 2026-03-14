@@ -84,6 +84,18 @@ void HighwayComponent::paint(juce::Graphics& g)
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
+    // Bemani sidebar masks — drawn after notes/sustains to clip overflow.
+    // Must cover the full component height. In Bemani mode overflow=0 so h=totalH.
+    if (PositionMath::bemaniMode)
+    {
+        // Undo the overflow translation to draw in component coordinates
+        if (overflow > 0)
+            g.addTransform(juce::AffineTransform::translation(0.0f, -(float)overflow));
+        trackRenderer.paintBemaniSidebars(g, w, totalH);
+        if (overflow > 0)
+            g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
+    }
+
     // Disco ball indicator when disco flip is active at current playhead
     if (frameData.discoFlipActive)
     {
@@ -103,7 +115,15 @@ void HighwayComponent::paint(juce::Graphics& g)
 
 void HighwayComponent::resized()
 {
-    startTimer(rebuildDebounceMs);
+    if (PositionMath::bemaniMode)
+    {
+        // No baked assets in Bemani mode — rebuild immediately, no debounce
+        rebuildTrack();
+    }
+    else
+    {
+        startTimer(rebuildDebounceMs);
+    }
 }
 
 void HighwayComponent::timerCallback()

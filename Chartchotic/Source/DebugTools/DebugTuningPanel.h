@@ -180,22 +180,69 @@ private:
     SectionHeader bemaniHeader;
 
     // Bemani mode tunables
+    float bemaniStrikePosValue = BEMANI_STRIKELINE_POS;
+    float bemaniGemNudgeValue = BEMANI_GEM_NUDGE;
+    float bemaniBarNudgeValue = BEMANI_BAR_NUDGE;
+    float bemaniBarFitValue = BEMANI_BAR_FIT;
+    float bemaniCurvatureValue = BEMANI_CURVATURE;
+    float bemaniGemWValue = BEMANI_GEM_W;
+    float bemaniGemHValue = BEMANI_GEM_H;
+    float bemaniBarWValue = BEMANI_BAR_W;
+    float bemaniBarHValue = BEMANI_BAR_H;
+    float bemaniSustainWidthValue = BEMANI_SUSTAIN_WIDTH;
+    float bemaniBarSustainWidthValue = BEMANI_BAR_SUSTAIN_WIDTH;
+    float bemaniSustainCapValue = BEMANI_SUSTAIN_CAP;
+    float bemaniSustStartOffValue = BEMANI_SUST_START_OFF;
+    float bemaniSustEndOffValue = BEMANI_SUST_END_OFF;
+    float bemaniLaneStartOffValue = BEMANI_LANE_START_OFF;
+    float bemaniLaneEndOffValue = BEMANI_LANE_END_OFF;
+    float bemaniLaneFillWValue = BEMANI_LANE_FILL_W;
+    float bemaniBarLaneFillWValue = BEMANI_BAR_LANE_FILL_W;
+    float bemaniLaneCapValue = BEMANI_LANE_CAP;
+    float bemaniBarCapValue = BEMANI_BAR_CAP;
+    float bemaniLaneDivWValue = BEMANI_LANE_DIV_W;
+    float bemaniBarLaneWValue = BEMANI_BAR_LANE_W;
+    float bemaniTexSpeedValue = 1.0f;
     float bemaniGridBoostValue = BEMANI_GRIDLINE_BOOST;
-    float bemaniNoteYValue = BEMANI_NOTE_Y_OFFSET;
     float bemaniLaneOpValue = BEMANI_LANE_OPACITY;
     float bemaniStrikeOpValue = BEMANI_STRIKELINE_OPACITY;
-    float bemaniBarFitValue = BEMANI_BAR_FIT;
-    float bemaniGemYValue = BEMANI_GEM_Y_NUDGE;
-    float bemaniStrikePosValue = BEMANI_STRIKELINE_POS;
-    float bemaniTexSpeedValue = BEMANI_TEX_SPEED;
+
+    // Position group
+    ScrollableLabel bemaniStrikePosLabel;
+    ScrollableLabel bemaniGemNudgeLabel;
+    ScrollableLabel bemaniBarNudgeLabel;
+    ScrollableLabel bemaniBarFitLabel;
+    ScrollableLabel bemaniCurvatureLabel;
+    ScrollableLabel bemaniGemWLabel;
+    ScrollableLabel bemaniGemHLabel;
+    ScrollableLabel bemaniBarWLabel;
+    ScrollableLabel bemaniBarHLabel;
+
+    // Sustain group
+    ScrollableLabel bemaniSustainWidthLabel;
+    ScrollableLabel bemaniBarSustainWidthLabel;
+    ScrollableLabel bemaniSustainCapLabel;
+    ScrollableLabel bemaniSustStartOffLabel;
+    ScrollableLabel bemaniSustEndOffLabel;
+    ScrollableLabel bemaniLaneStartOffLabel;
+    ScrollableLabel bemaniLaneEndOffLabel;
+    ScrollableLabel bemaniLaneFillWLabel;
+    ScrollableLabel bemaniBarLaneFillWLabel;
+    ScrollableLabel bemaniLaneCapLabel;
+    ScrollableLabel bemaniBarCapLabel;
+    ScrollableLabel bemaniLaneDivWLabel;
+    ScrollableLabel bemaniBarLaneWLabel;
+
+    // Visual group
+    ScrollableLabel bemaniTexSpeedLabel;
     ScrollableLabel bemaniGridBoostLabel;
-    ScrollableLabel bemaniNoteYLabel;
     ScrollableLabel bemaniLaneOpLabel;
     ScrollableLabel bemaniStrikeOpLabel;
-    ScrollableLabel bemaniBarFitLabel;
-    ScrollableLabel bemaniGemYLabel;
-    ScrollableLabel bemaniStrikePosLabel;
-    ScrollableLabel bemaniTexSpeedLabel;
+
+    // Sub-headers
+    juce::Label bemaniPosSubHeader;
+    juce::Label bemaniSustSubHeader;
+    juce::Label bemaniVisSubHeader;
 
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;

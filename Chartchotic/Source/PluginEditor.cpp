@@ -367,10 +367,12 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         PositionMath::bemaniMode = on;
         PositionMath::bemaniHwyScale = 1.0f;
         state.setProperty("bemaniMode", on, nullptr);
+        updateDisplaySizeFromSpeedSlider();
+        // resized() sets correct renderWidth/renderHeight for the new mode
+        resized();
+        // Force immediate rebuild with correct dimensions (skip debounce)
         highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();
-        updateDisplaySizeFromSpeedSlider();
-        resized();
     };
 
     toolbar.onHighwayTextureChanged = [this](const juce::String& textureName) {
@@ -686,15 +688,24 @@ void ChartchoticAudioProcessorEditor::resized()
     state.setProperty("editorWidth", getWidth(), nullptr);
     state.setProperty("editorHeight", getHeight(), nullptr);
 
-    // Virtual scene dimensions — aspect ratio depends on mode
-    double activeAspect = PositionMath::bemaniMode ? bemaniAspectRatio : sceneAspectRatio;
+    // Virtual scene dimensions
     sceneWidth = getWidth();
-    sceneHeight = juce::roundToInt(sceneWidth / activeAspect);
+    int tbHeight = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
+    if (PositionMath::bemaniMode)
+    {
+        // Bemani: minimum 1:2 aspect, but grow taller to fill available space
+        int minH = sceneWidth * 2;
+        int available = getHeight() - tbHeight;
+        sceneHeight = std::max(minH, available);
+    }
+    else
+    {
+        sceneHeight = juce::roundToInt(sceneWidth / sceneAspectRatio);
+    }
 
     const int margin = 10;
 
     // Toolbar at top — scales with editor width
-    int tbHeight = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
     // Highway component — fills all space below toolbar, paint() handles scaling

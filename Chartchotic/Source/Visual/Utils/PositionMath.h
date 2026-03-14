@@ -52,7 +52,8 @@ public:
         bool isDrums, float position, uint width, uint height,
         float posStart, float posEnd,
         const PositionConstants::NormalizedCoordinates& colCoords,
-        float sizeScale, float fretboardScale = 1.0f);
+        float sizeScale, float fretboardScale = 1.0f,
+        int bemaniLaneIdx = -1);
 
 
 private:

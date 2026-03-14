@@ -95,6 +95,31 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
         endOffset = SUSTAIN_END_OFFSET;
     }
 
+    // In Bemani mode, lanes and sustains get separate offsets
+    if (PositionMath::bemaniMode)
+    {
+        if (sustain.sustainType == SustainType::LANE)
+        {
+#ifdef DEBUG
+            startOffset = debugBemaniLaneStartOff;
+            endOffset = debugBemaniLaneEndOff;
+#else
+            startOffset = BEMANI_LANE_START_OFF;
+            endOffset = BEMANI_LANE_END_OFF;
+#endif
+        }
+        else
+        {
+#ifdef DEBUG
+            startOffset = debugBemaniSustStartOff;
+            endOffset = debugBemaniSustEndOff;
+#else
+            startOffset = BEMANI_SUST_START_OFF;
+            endOffset = BEMANI_SUST_END_OFF;
+#endif
+        }
+    }
+
     float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan) + startOffset;
     float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan) + endOffset;
 
@@ -137,17 +162,102 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
     // Look up lane coords
     NormalizedCoordinates colCoords;
     float laneScale;
+    int bemaniIdx = -1;
     if (isDrums) {
         bool isKick = isDrumKick(gemColumn);
-        colCoords = laneCoordsDrums[drumColumnIndex(gemColumn)];
+        uint dIdx = drumColumnIndex(gemColumn);
+        colCoords = laneCoordsDrums[dIdx];
         laneScale = isKick ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+        bemaniIdx = (int)dIdx - 1;
     } else {
         colCoords = laneCoordsGuitar[gemColumn];
         laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+        bemaniIdx = (int)gemColumn - 1;
     }
 
-    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE);
-    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE);
+    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
+    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
+
+    // Bemani mode: simple shapes, no perspective geometry
+    if (PositionMath::bemaniMode)
+    {
+#ifdef DEBUG
+        float bSustW = debugBemaniSustainWidth;
+        float bBarSustW = debugBemaniBarSustainWidth;
+        float capFrac = debugBemaniSustainCap;
+#else
+        float bSustW = BEMANI_SUSTAIN_WIDTH;
+        float bBarSustW = BEMANI_BAR_SUSTAIN_WIDTH;
+        float capFrac = BEMANI_SUSTAIN_CAP;
+#endif
+
+        float laneWidth = startLane.rightX - startLane.leftX;
+        float centerX = (startLane.leftX + startLane.rightX) * 0.5f;
+        float topY = std::min(startLane.centerY, endLane.centerY);
+        float botY = std::max(startLane.centerY, endLane.centerY);
+
+        if (isBar)
+        {
+            auto fb = PositionMath::getFretboardEdge(isDrums, startPosition, width, height,
+                PositionConstants::HIGHWAY_POS_START, posEnd);
+            centerX = (fb.leftX + fb.rightX) * 0.5f;
+            laneWidth = fb.rightX - fb.leftX;
+        }
+
+        if (isLane)
+        {
+            // Lanes: wider fill with caps on both ends
+#ifdef DEBUG
+            float w = isBar ? laneWidth * debugBemaniBarLaneFillW : laneWidth * debugBemaniLaneFillW;
+#else
+            float w = isBar ? laneWidth * BEMANI_BAR_LANE_FILL_W : laneWidth * BEMANI_LANE_FILL_W;
+#endif
+            float lx = centerX - w * 0.5f;
+#ifdef DEBUG
+            float laneCapFrac = isBar ? debugBemaniBarCap : debugBemaniLaneCap;
+#else
+            float laneCapFrac = isBar ? BEMANI_BAR_CAP : BEMANI_LANE_CAP;
+#endif
+            float capH = laneCapFrac * w;
+
+            g.setColour(colour.withAlpha(opacity));
+            juce::Path path;
+            path.startNewSubPath(lx, topY);
+            path.quadraticTo(centerX, topY - capH, lx + w, topY);
+            path.lineTo(lx + w, botY);
+            path.quadraticTo(centerX, botY + capH, lx, botY);
+            path.closeSubPath();
+            g.fillPath(path);
+        }
+        else
+        {
+            // Sustains: narrower, no front cap, small back cap (bar sustains get less cap)
+            float w = isBar ? laneWidth * bBarSustW * 0.6f : laneWidth * bSustW;
+            float lx = centerX - w * 0.5f;
+#ifdef DEBUG
+            float sustCapFrac = isBar ? debugBemaniBarCap : capFrac;
+#else
+            float sustCapFrac = isBar ? BEMANI_BAR_CAP : capFrac;
+#endif
+            float backCapH = sustCapFrac * w * 0.3f;
+
+            g.setColour(colour.withAlpha(opacity));
+            juce::Path path;
+            // Top (far end) — small back cap
+            path.startNewSubPath(lx, topY);
+            if (backCapH > 0.5f)
+                path.quadraticTo(centerX, topY - backCapH, lx + w, topY);
+            else
+                path.lineTo(lx + w, topY);
+            // Right side down
+            path.lineTo(lx + w, botY);
+            // Bottom (strikeline end) — flat, no cap
+            path.lineTo(lx, botY);
+            path.closeSubPath();
+            g.fillPath(path);
+        }
+        return;
+    }
 
     float startWidth = (startLane.rightX - startLane.leftX) * sustainWidth;
     float endWidth = (endLane.rightX - endLane.leftX) * sustainWidth;

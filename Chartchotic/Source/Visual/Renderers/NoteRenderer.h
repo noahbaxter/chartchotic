@@ -70,12 +70,13 @@ private:
     using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
 
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f)
+                              float sizeScale, float fretboardScale = 1.0f,
+                              int bemaniLaneIdx = -1)
     {
         bool isDrums = activePart == Part::DRUMS;
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale);
+                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
     }
 
     float calculateOpacity(float position)

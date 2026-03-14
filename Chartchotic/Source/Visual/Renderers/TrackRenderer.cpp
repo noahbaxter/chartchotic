@@ -26,13 +26,15 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
 {
     if (PositionMath::bemaniMode)
     {
-        bool isDrums = activePart == Part::DRUMS;
-        auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
-                        HIGHWAY_POS_START, cached.posEnd);
-
-        // Dark highway rectangle — full height of viewport
-        g.setColour(juce::Colour(0xFF111111));
-        g.fillRect(edge.leftX, 0.0f, edge.rightX - edge.leftX, (float)viewportHeight);
+        bool showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
+        if (showTrack)
+        {
+            bool isDrums = activePart == Part::DRUMS;
+            auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                            HIGHWAY_POS_START, cached.posEnd);
+            g.setColour(juce::Colour(0xFF111111));
+            g.fillRect(edge.leftX, 0.0f, edge.rightX - edge.leftX, (float)viewportHeight);
+        }
         return;
     }
 
@@ -58,31 +60,33 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
     float fbWidth = rightX - leftX;
     float h = (float)viewportHeight;
 
-    // Sidebars — thicker gradient lines at edges
-    {
-        float sidebarW = std::max(2.0f, fbWidth * 0.012f);
-        g.setColour(juce::Colours::white.withAlpha(0.35f));
-        g.fillRect(leftX - sidebarW * 0.5f, 0.0f, sidebarW, h);
-        g.fillRect(rightX - sidebarW * 0.5f, 0.0f, sidebarW, h);
-    }
+    // Lane dividers
+    bool showLaneSeps = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
+    bool showStrike = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
 
-    // Lane dividers — evenly spaced
+    if (showLaneSeps)
     {
-        int numCols = isDrums ? 4 : 5;  // non-bar columns
+        int numCols = isDrums ? 4 : 5;
 #ifdef DEBUG
         float laneAlpha = debugBemaniLaneOpacity;
 #else
         float laneAlpha = BEMANI_LANE_OPACITY;
 #endif
         g.setColour(juce::Colours::white.withAlpha(laneAlpha));
+#ifdef DEBUG
+        float divW = std::max(1.0f, debugBemaniLaneDivW);
+#else
+        float divW = std::max(1.0f, BEMANI_LANE_DIV_W);
+#endif
         for (int i = 1; i < numCols; i++)
         {
-            float cx = leftX + (float)i / (float)numCols * fbWidth;
-            g.drawVerticalLine((int)cx, 0.0f, h);
+            float cx = leftX + ((float)i / (float)numCols) * fbWidth;
+            g.fillRect(cx - divW * 0.5f, 0.0f, divW, h);
         }
     }
 
     // Strikeline — colored rounded squares per lane
+    if (showStrike)
     {
 #ifdef DEBUG
         float strikeAlpha = debugBemaniStrikelineOpacity;
@@ -112,7 +116,7 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
 
         for (int i = 0; i < numCols; i++)
         {
-            float cx = leftX + ((float)i + 0.5f) * colW;
+            float cx = leftX + ((float)i + 0.5f) / (float)numCols * fbWidth;
             float pw = colW - inset * 2.0f;
             auto padRect = juce::Rectangle<float>(cx - pw * 0.5f, padY, pw, padH);
 
@@ -135,6 +139,30 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
         g.setColour(juce::Colours::white.withAlpha(strikeAlpha * 0.3f));
         g.drawHorizontalLine((int)strikeY, leftX, rightX);
     }
+
+}
+
+void TrackRenderer::paintBemaniSidebars(juce::Graphics& g, int viewportWidth, int viewportHeight)
+{
+    if (!PositionMath::bemaniMode) return;
+
+    bool isDrums = activePart == Part::DRUMS;
+    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                    HIGHWAY_POS_START, cached.posEnd);
+    float leftX = edge.leftX;
+    float rightX = edge.rightX;
+    float h = (float)viewportHeight;
+    float viewW = (float)viewportWidth;
+
+    // Opaque black masks outside the fretboard (extend far to cover scaled area)
+    g.setColour(juce::Colours::black);
+    g.fillRect(-viewW, -h, leftX + viewW, h * 3.0f);
+    g.fillRect(rightX, -h, viewW * 2.0f, h * 3.0f);
+
+    // Bright edge lines (2px wide for visibility)
+    g.setColour(juce::Colours::white.withAlpha(0.35f));
+    g.fillRect(leftX, 0.0f, 2.0f, h);
+    g.fillRect(rightX - 1.0f, 0.0f, 2.0f, h);
 }
 
 void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targetW, int targetH)
@@ -160,16 +188,18 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
         // to the actual note travel distance in tiles. Integer = no snap on wrap.
 #ifdef DEBUG
         float strikeFrac = debugBemaniStrikelinePos;
-        float texSpeed = debugBemaniTexSpeed;
 #else
         float strikeFrac = BEMANI_STRIKELINE_POS;
-        float texSpeed = BEMANI_TEX_SPEED;
 #endif
-        float noteTravel = strikeFrac * (float)targetH;
-        int tilesPerCycle = std::max(1, (int)std::round(noteTravel / tileH * texSpeed));
-        // Scroll offset: seamless tile-aligned cycling
-        float rawOffset = scrollOffset * (float)tilesPerCycle * tileH;
-        float offset = rawOffset - std::floor(rawOffset / tileH) * tileH;
+#ifdef DEBUG
+        float texSpeed = debugBemaniTexSpeed;
+#else
+        float texSpeed = 1.0f;
+#endif
+        // Continuous float math — responds instantly to speed changes.
+        float noteTravel = strikeFrac * (float)targetH * texSpeed;
+        float totalScroll = scrollOffset * noteTravel;
+        float offset = totalScroll - std::floor(totalScroll / tileH) * tileH;
 
         // Tile from bottom to top, covering entire viewport
         g.saveState();

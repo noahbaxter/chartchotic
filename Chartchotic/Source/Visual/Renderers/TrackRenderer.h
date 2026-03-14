@@ -32,8 +32,11 @@ public:
     /** Paint the scrolling highway texture overlay. Call between track and scene rendering. */
     void paintTexture(juce::Graphics& g, float scrollOffset, int targetWidth, int targetHeight);
 
-    /** Paint Bemani mode overlays (sidebars, lane dividers, strikeline). Call AFTER paintTexture. */
+    /** Paint Bemani mode overlays (lane dividers, strikeline). Call AFTER paintTexture. */
     void paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int viewportHeight);
+
+    /** Paint Bemani sidebar masks. Call AFTER scene renderer to clip sustain/note overflow. */
+    void paintBemaniSidebars(juce::Graphics& g, int viewportWidth, int viewportHeight);
 
     /** Rebuild the cached faded track image. Call on resize, instrument change, or highway length change.
         overflow = extra pixels above the viewport (for extended VP Y). Bitmaps are (width, height+overflow). */

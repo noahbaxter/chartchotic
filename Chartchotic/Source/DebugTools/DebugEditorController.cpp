@@ -114,10 +114,13 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
 
     tune.onBemaniToggled = [&highway, repaintEditor](bool on) {
         PositionMath::bemaniMode = on;
-        highway.getTrackRenderer().invalidate();
-        highway.rebuildTrack();
+        PositionMath::bemaniHwyScale = 1.0f;
+        // resized() sets correct dimensions for the new mode
         if (auto* parent = highway.getParentComponent())
             parent->resized();
+        // Force immediate rebuild with correct dimensions
+        highway.getTrackRenderer().invalidate();
+        highway.rebuildTrack();
         repaintEditor();
     };
 

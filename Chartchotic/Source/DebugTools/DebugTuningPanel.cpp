@@ -155,77 +155,59 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     // --- Bemani section ---
     setupSectionHeader(bemaniHeader, "Bemani");
 
-    setupScrollLabel(bemaniGridBoostLabel);
-    bemaniGridBoostLabel.setText("B Grid: " + juce::String(bemaniGridBoostValue, 1), juce::dontSendNotification);
-    bemaniGridBoostLabel.onScroll = [this](int delta) {
-        bemaniGridBoostValue = juce::jlimit(0.5f, 5.0f, bemaniGridBoostValue + delta * 0.1f);
-        bemaniGridBoostLabel.setText("B Grid: " + juce::String(bemaniGridBoostValue, 1), juce::dontSendNotification);
-        debugBemaniGridlineBoost = bemaniGridBoostValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
+    auto setupSubHeader = [](juce::Label& lbl, const juce::String& text) {
+        lbl.setText(text, juce::dontSendNotification);
+        lbl.setJustificationType(juce::Justification::centredLeft);
+        lbl.setColour(juce::Label::textColourId, juce::Colour(0xFFFF6B6B));
+        lbl.setFont(juce::Font(12.0f, juce::Font::bold));
+    };
+    setupSubHeader(bemaniPosSubHeader, "Position");
+    setupSubHeader(bemaniSustSubHeader, "Sustains");
+    setupSubHeader(bemaniVisSubHeader, "Visual");
+
+    auto initSlider = [this](ScrollableLabel& lbl, const juce::String& name, float& val, float* dbg,
+                              float lo, float hi, float step, int dec) {
+        setupScrollLabel(lbl);
+        lbl.setText(name + ": " + juce::String(val, dec), juce::dontSendNotification);
+        lbl.onScroll = [this, &lbl, &val, dbg, name, lo, hi, step, dec](int delta) {
+            val = juce::jlimit(lo, hi, val + delta * step);
+            lbl.setText(name + ": " + juce::String(val, dec), juce::dontSendNotification);
+            if (dbg) *dbg = val;
+            if (onBemaniTuningChanged) onBemaniTuningChanged();
+        };
     };
 
-    setupScrollLabel(bemaniNoteYLabel);
-    bemaniNoteYLabel.setText("B NoteY: " + juce::String(bemaniNoteYValue, 3), juce::dontSendNotification);
-    bemaniNoteYLabel.onScroll = [this](int delta) {
-        bemaniNoteYValue = juce::jlimit(-0.1f, 0.1f, bemaniNoteYValue + delta * 0.005f);
-        bemaniNoteYLabel.setText("B NoteY: " + juce::String(bemaniNoteYValue, 3), juce::dontSendNotification);
-        debugBemaniNoteYOffset = bemaniNoteYValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
-    };
+    // Position
+    initSlider(bemaniStrikePosLabel, "Strike Y",   bemaniStrikePosValue,  &debugBemaniStrikelinePos, 0.70f, 0.99f, 0.01f, 2);
+    initSlider(bemaniGemNudgeLabel,  "Gem Nudge",  bemaniGemNudgeValue,   &debugBemaniGemNudge,     -0.50f, 1.00f, 0.02f, 2);
+    initSlider(bemaniBarNudgeLabel,  "Bar Nudge",  bemaniBarNudgeValue,   &debugBemaniBarNudge,     -0.50f, 0.50f, 0.02f, 2);
+    initSlider(bemaniBarFitLabel,    "Bar Fit",    bemaniBarFitValue,     &debugBemaniBarFit,        0.50f, 1.50f, 0.01f, 2);
+    initSlider(bemaniCurvatureLabel, "Curvature",  bemaniCurvatureValue,  &debugBemaniCurvature,     0.00f, 1.00f, 0.05f, 2);
+    initSlider(bemaniGemWLabel,      "Gem W",      bemaniGemWValue,       &debugBemaniGemW,          0.20f, 2.00f, 0.02f, 2);
+    initSlider(bemaniGemHLabel,      "Gem H",      bemaniGemHValue,       &debugBemaniGemH,          0.20f, 2.00f, 0.02f, 2);
+    initSlider(bemaniBarWLabel,      "Bar W",      bemaniBarWValue,       &debugBemaniBarW,          0.20f, 2.00f, 0.02f, 2);
+    initSlider(bemaniBarHLabel,      "Bar H",      bemaniBarHValue,       &debugBemaniBarH,          0.10f, 2.00f, 0.02f, 2);
 
-    setupScrollLabel(bemaniLaneOpLabel);
-    bemaniLaneOpLabel.setText("B Lane: " + juce::String(bemaniLaneOpValue, 2), juce::dontSendNotification);
-    bemaniLaneOpLabel.onScroll = [this](int delta) {
-        bemaniLaneOpValue = juce::jlimit(0.0f, 1.0f, bemaniLaneOpValue + delta * 0.02f);
-        bemaniLaneOpLabel.setText("B Lane: " + juce::String(bemaniLaneOpValue, 2), juce::dontSendNotification);
-        debugBemaniLaneOpacity = bemaniLaneOpValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
-    };
+    // Sustains
+    initSlider(bemaniSustainWidthLabel,    "Sust W",     bemaniSustainWidthValue,    &debugBemaniSustainWidth,    0.10f, 1.50f, 0.05f, 2);
+    initSlider(bemaniBarSustainWidthLabel, "Bar Sust W", bemaniBarSustainWidthValue, &debugBemaniBarSustainWidth, 0.30f, 1.00f, 0.05f, 2);
+    initSlider(bemaniSustainCapLabel,      "Sust Cap",     bemaniSustainCapValue,      &debugBemaniSustainCap,      0.00f, 0.50f, 0.01f, 2);
+    initSlider(bemaniSustStartOffLabel,   "Sust Start",  bemaniSustStartOffValue,    &debugBemaniSustStartOff,   -0.10f, 0.05f, 0.005f, 3);
+    initSlider(bemaniSustEndOffLabel,     "Sust End",    bemaniSustEndOffValue,      &debugBemaniSustEndOff,     -0.05f, 0.10f, 0.005f, 3);
+    initSlider(bemaniLaneStartOffLabel,   "Lane Start",  bemaniLaneStartOffValue,    &debugBemaniLaneStartOff,   -0.10f, 0.05f, 0.005f, 3);
+    initSlider(bemaniLaneEndOffLabel,     "Lane End",    bemaniLaneEndOffValue,      &debugBemaniLaneEndOff,     -0.05f, 0.10f, 0.005f, 3);
+    initSlider(bemaniLaneFillWLabel,      "Lane Fill W",    bemaniLaneFillWValue,       &debugBemaniLaneFillW,       0.20f, 1.50f, 0.02f, 2);
+    initSlider(bemaniBarLaneFillWLabel, "Bar Fill W",     bemaniBarLaneFillWValue,    &debugBemaniBarLaneFillW,    0.30f, 1.00f, 0.02f, 2);
+    initSlider(bemaniLaneCapLabel,        "Lane Cap",    bemaniLaneCapValue,         &debugBemaniLaneCap,         0.00f, 0.50f, 0.01f, 2);
+    initSlider(bemaniBarCapLabel,         "Bar Cap",     bemaniBarCapValue,          &debugBemaniBarCap,          0.00f, 0.20f, 0.005f, 3);
+    initSlider(bemaniLaneDivWLabel,        "Lane Div W", bemaniLaneDivWValue,        &debugBemaniLaneDivW,        0.20f, 3.00f, 0.05f, 2);
+    initSlider(bemaniBarLaneWLabel,        "Bar Lane W", bemaniBarLaneWValue,        &debugBemaniBarLaneW,        0.20f, 3.00f, 0.05f, 2);
 
-    setupScrollLabel(bemaniStrikeOpLabel);
-    bemaniStrikeOpLabel.setText("B Strike: " + juce::String(bemaniStrikeOpValue, 2), juce::dontSendNotification);
-    bemaniStrikeOpLabel.onScroll = [this](int delta) {
-        bemaniStrikeOpValue = juce::jlimit(0.0f, 1.0f, bemaniStrikeOpValue + delta * 0.02f);
-        bemaniStrikeOpLabel.setText("B Strike: " + juce::String(bemaniStrikeOpValue, 2), juce::dontSendNotification);
-        debugBemaniStrikelineOpacity = bemaniStrikeOpValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
-    };
-
-    setupScrollLabel(bemaniBarFitLabel);
-    bemaniBarFitLabel.setText("B BarFit: " + juce::String(bemaniBarFitValue, 2), juce::dontSendNotification);
-    bemaniBarFitLabel.onScroll = [this](int delta) {
-        bemaniBarFitValue = juce::jlimit(0.50f, 1.50f, bemaniBarFitValue + delta * 0.01f);
-        bemaniBarFitLabel.setText("B BarFit: " + juce::String(bemaniBarFitValue, 2), juce::dontSendNotification);
-        debugBemaniBarFit = bemaniBarFitValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
-    };
-
-    setupScrollLabel(bemaniGemYLabel);
-    bemaniGemYLabel.setText("B GemY: " + juce::String(bemaniGemYValue, 2), juce::dontSendNotification);
-    bemaniGemYLabel.onScroll = [this](int delta) {
-        bemaniGemYValue = juce::jlimit(-0.50f, 1.00f, bemaniGemYValue + delta * 0.02f);
-        bemaniGemYLabel.setText("B GemY: " + juce::String(bemaniGemYValue, 2), juce::dontSendNotification);
-        debugBemaniGemYNudge = bemaniGemYValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
-    };
-
-    setupScrollLabel(bemaniStrikePosLabel);
-    bemaniStrikePosLabel.setText("B StrikePos: " + juce::String(bemaniStrikePosValue, 2), juce::dontSendNotification);
-    bemaniStrikePosLabel.onScroll = [this](int delta) {
-        bemaniStrikePosValue = juce::jlimit(0.70f, 0.99f, bemaniStrikePosValue + delta * 0.01f);
-        bemaniStrikePosLabel.setText("B StrikePos: " + juce::String(bemaniStrikePosValue, 2), juce::dontSendNotification);
-        debugBemaniStrikelinePos = bemaniStrikePosValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
-    };
-
-    setupScrollLabel(bemaniTexSpeedLabel);
-    bemaniTexSpeedLabel.setText("B TexSpd: " + juce::String(bemaniTexSpeedValue, 2), juce::dontSendNotification);
-    bemaniTexSpeedLabel.onScroll = [this](int delta) {
-        bemaniTexSpeedValue = juce::jlimit(0.50f, 3.00f, bemaniTexSpeedValue + delta * 0.05f);
-        bemaniTexSpeedLabel.setText("B TexSpd: " + juce::String(bemaniTexSpeedValue, 2), juce::dontSendNotification);
-        debugBemaniTexSpeed = bemaniTexSpeedValue;
-        if (onBemaniTuningChanged) onBemaniTuningChanged();
-    };
+    // Visual
+    initSlider(bemaniTexSpeedLabel,  "Tex Speed",    bemaniTexSpeedValue,  &debugBemaniTexSpeed,           0.50f, 3.00f, 0.005f, 3);
+    initSlider(bemaniGridBoostLabel, "Grid Boost",   bemaniGridBoostValue, &debugBemaniGridlineBoost,      0.50f, 5.00f, 0.10f, 1);
+    initSlider(bemaniLaneOpLabel,    "Lane Alpha",   bemaniLaneOpValue,    &debugBemaniLaneOpacity,        0.00f, 1.00f, 0.02f, 2);
+    initSlider(bemaniStrikeOpLabel,  "Strike Alpha", bemaniStrikeOpValue,  &debugBemaniStrikelineOpacity,  0.00f, 1.00f, 0.02f, 2);
 
     setupScrollLabel(logoPadLabel);
     logoPadLabel.setText("LogoGap: " + juce::String(logoPadValue, 3), juce::dontSendNotification);
@@ -744,14 +726,35 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&gridPosLabel);
 
     tuningButton.addPanelChild(&bemaniHeader);
+    tuningButton.addPanelChild(&bemaniPosSubHeader);
     tuningButton.addPanelChild(&bemaniStrikePosLabel);
-    tuningButton.addPanelChild(&bemaniNoteYLabel);
-    tuningButton.addPanelChild(&bemaniGemYLabel);
+    tuningButton.addPanelChild(&bemaniGemNudgeLabel);
+    tuningButton.addPanelChild(&bemaniBarNudgeLabel);
     tuningButton.addPanelChild(&bemaniBarFitLabel);
+    tuningButton.addPanelChild(&bemaniCurvatureLabel);
+    tuningButton.addPanelChild(&bemaniGemWLabel);
+    tuningButton.addPanelChild(&bemaniGemHLabel);
+    tuningButton.addPanelChild(&bemaniBarWLabel);
+    tuningButton.addPanelChild(&bemaniBarHLabel);
+    tuningButton.addPanelChild(&bemaniSustSubHeader);
+    tuningButton.addPanelChild(&bemaniSustainWidthLabel);
+    tuningButton.addPanelChild(&bemaniBarSustainWidthLabel);
+    tuningButton.addPanelChild(&bemaniSustainCapLabel);
+    tuningButton.addPanelChild(&bemaniSustStartOffLabel);
+    tuningButton.addPanelChild(&bemaniSustEndOffLabel);
+    tuningButton.addPanelChild(&bemaniLaneStartOffLabel);
+    tuningButton.addPanelChild(&bemaniLaneEndOffLabel);
+    tuningButton.addPanelChild(&bemaniLaneFillWLabel);
+    tuningButton.addPanelChild(&bemaniBarLaneFillWLabel);
+    tuningButton.addPanelChild(&bemaniLaneCapLabel);
+    tuningButton.addPanelChild(&bemaniBarCapLabel);
+    tuningButton.addPanelChild(&bemaniLaneDivWLabel);
+    tuningButton.addPanelChild(&bemaniBarLaneWLabel);
+    tuningButton.addPanelChild(&bemaniVisSubHeader);
+    tuningButton.addPanelChild(&bemaniTexSpeedLabel);
     tuningButton.addPanelChild(&bemaniGridBoostLabel);
     tuningButton.addPanelChild(&bemaniLaneOpLabel);
     tuningButton.addPanelChild(&bemaniStrikeOpLabel);
-    tuningButton.addPanelChild(&bemaniTexSpeedLabel);
 
     tuningButton.addPanelChild(&curvatureHeader);
     tuningButton.addPanelChild(&guitarCurvLabel);
@@ -1271,25 +1274,69 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     y += rowHeight + gap;
     if (bemaniHeader.expanded)
     {
+        layoutRow(bemaniPosSubHeader, true);
         layoutRow(bemaniStrikePosLabel, true);
-        layoutRow(bemaniNoteYLabel, true);
-        layoutRow(bemaniGemYLabel, true);
+        layoutRow(bemaniGemNudgeLabel, true);
+        layoutRow(bemaniBarNudgeLabel, true);
         layoutRow(bemaniBarFitLabel, true);
+        layoutRow(bemaniCurvatureLabel, true);
+        layoutRow(bemaniGemWLabel, true);
+        layoutRow(bemaniGemHLabel, true);
+        layoutRow(bemaniBarWLabel, true);
+        layoutRow(bemaniBarHLabel, true);
+
+        layoutRow(bemaniSustSubHeader, true);
+        layoutRow(bemaniSustainWidthLabel, true);
+        layoutRow(bemaniBarSustainWidthLabel, true);
+        layoutRow(bemaniSustainCapLabel, true);
+        layoutRow(bemaniSustStartOffLabel, true);
+        layoutRow(bemaniSustEndOffLabel, true);
+        layoutRow(bemaniLaneStartOffLabel, true);
+        layoutRow(bemaniLaneEndOffLabel, true);
+        layoutRow(bemaniLaneFillWLabel, true);
+        layoutRow(bemaniBarLaneFillWLabel, true);
+        layoutRow(bemaniLaneCapLabel, true);
+        layoutRow(bemaniBarCapLabel, true);
+        layoutRow(bemaniLaneDivWLabel, true);
+        layoutRow(bemaniBarLaneWLabel, true);
+
+        layoutRow(bemaniVisSubHeader, true);
+        layoutRow(bemaniTexSpeedLabel, true);
         layoutRow(bemaniGridBoostLabel, true);
         layoutRow(bemaniLaneOpLabel, true);
         layoutRow(bemaniStrikeOpLabel, true);
-        layoutRow(bemaniTexSpeedLabel, true);
     }
     else
     {
+        bemaniPosSubHeader.setVisible(false);
         bemaniStrikePosLabel.setVisible(false);
-        bemaniNoteYLabel.setVisible(false);
-        bemaniGemYLabel.setVisible(false);
+        bemaniGemNudgeLabel.setVisible(false);
+        bemaniBarNudgeLabel.setVisible(false);
         bemaniBarFitLabel.setVisible(false);
+        bemaniCurvatureLabel.setVisible(false);
+        bemaniGemWLabel.setVisible(false);
+        bemaniGemHLabel.setVisible(false);
+        bemaniBarWLabel.setVisible(false);
+        bemaniBarHLabel.setVisible(false);
+        bemaniSustSubHeader.setVisible(false);
+        bemaniSustainWidthLabel.setVisible(false);
+        bemaniBarSustainWidthLabel.setVisible(false);
+        bemaniSustainCapLabel.setVisible(false);
+        bemaniSustStartOffLabel.setVisible(false);
+        bemaniSustEndOffLabel.setVisible(false);
+        bemaniLaneStartOffLabel.setVisible(false);
+        bemaniLaneEndOffLabel.setVisible(false);
+        bemaniLaneFillWLabel.setVisible(false);
+        bemaniBarLaneFillWLabel.setVisible(false);
+        bemaniLaneCapLabel.setVisible(false);
+        bemaniBarCapLabel.setVisible(false);
+        bemaniLaneDivWLabel.setVisible(false);
+        bemaniBarLaneWLabel.setVisible(false);
+        bemaniVisSubHeader.setVisible(false);
+        bemaniTexSpeedLabel.setVisible(false);
         bemaniGridBoostLabel.setVisible(false);
         bemaniLaneOpLabel.setVisible(false);
         bemaniStrikeOpLabel.setVisible(false);
-        bemaniTexSpeedLabel.setVisible(false);
     }
     y += headerGap;
 

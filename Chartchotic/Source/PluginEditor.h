@@ -106,7 +106,6 @@ private:
     static constexpr int minWidth = 400;
     static constexpr int minHeight = 200;
     static constexpr double sceneAspectRatio = 4.0 / 3.0;
-    static constexpr double bemaniAspectRatio = 1.0 / 2.0;  // Tall and narrow
 
     // Virtual scene dimensions (maintain internal 4:3 ratio)
     int sceneWidth = defaultWidth;

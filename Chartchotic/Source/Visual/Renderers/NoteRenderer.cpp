@@ -130,9 +130,9 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
                                                       PositionConstants::HIGHWAY_POS_START, posEnd);
         float fbWidth = fbEdge.rightX - fbEdge.leftX;
 #ifdef DEBUG
-        float barFit = PositionMath::bemaniMode ? debugBemaniBarFit : BAR_FRETBOARD_FIT;
+        float barFit = PositionMath::bemaniMode ? debugBemaniBarFit * debugBemaniBarLaneW : BAR_FRETBOARD_FIT;
 #else
-        float barFit = PositionMath::bemaniMode ? BEMANI_BAR_FIT : BAR_FRETBOARD_FIT;
+        float barFit = PositionMath::bemaniMode ? BEMANI_BAR_FIT * BEMANI_BAR_LANE_W : BAR_FRETBOARD_FIT;
 #endif
         float colWidth = fbWidth * barFit * sizeScale;
         float colHeight = (colWidth / imageAspect) * foreshorten;
@@ -143,9 +143,9 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     {
         int idx = (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1;
         const auto& colCoords = laneCoordsGuitar[idx];
-        // Position from lane (sizeScale=1), then scale the drawn rect for gem art
+        int bemaniIdx = idx - 1;  // skip open (0) → green=0, red=1, yel=2, blu=3, org=4
         auto edge = getColumnEdge(adjustedPosition, colCoords, 1.0f,
-                                  PositionConstants::FRETBOARD_SCALE);
+                                  PositionConstants::FRETBOARD_SCALE, bemaniIdx);
         float laneWidth = edge.rightX - edge.leftX;
         float colWidth = laneWidth * sizeScale;
         float colHeight = (colWidth / imageAspect) * foreshorten;
@@ -156,8 +156,9 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     {
         uint drumIdx = drumColumnIndex(gemColumn);
         const auto& colCoords = laneCoordsDrums[drumIdx];
+        int bemaniIdx = (int)drumIdx - 1;  // skip kick (0) → red=0, yel=1, blu=2, grn=3
         auto edge = getColumnEdge(adjustedPosition, colCoords, 1.0f,
-                                  PositionConstants::FRETBOARD_SCALE);
+                                  PositionConstants::FRETBOARD_SCALE, bemaniIdx);
         float laneWidth = edge.rightX - edge.leftX;
         float colWidth = laneWidth * sizeScale;
         float colHeight = (colWidth / imageAspect) * foreshorten;
@@ -178,29 +179,39 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
     }
 
-    // Bemani mode: nudge gems down so they sit on bar notes
-    if (PositionMath::bemaniMode && !barNote)
+    // Bemani mode: nudge gems/bars
+    if (PositionMath::bemaniMode)
     {
 #ifdef DEBUG
-        glyphRect.translate(0.0f, glyphRect.getHeight() * debugBemaniGemYNudge);
+        float nudge = barNote ? debugBemaniBarNudge : debugBemaniGemNudge;
 #else
-        glyphRect.translate(0.0f, glyphRect.getHeight() * BEMANI_GEM_Y_NUDGE);
+        float nudge = barNote ? BEMANI_BAR_NUDGE : BEMANI_GEM_NUDGE;
 #endif
+        glyphRect.translate(0.0f, glyphRect.getHeight() * nudge);
     }
 
     float opacity = calculateOpacity(position);
     bool isDrums = activePart == Part::DRUMS;
     float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
     float baseCurv = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
-    float curvature = PositionMath::bemaniMode ? baseCurv * 0.4f : baseCurv;
+#ifdef DEBUG
+    float curvature = PositionMath::bemaniMode ? baseCurv * debugBemaniCurvature : baseCurv;
+#else
+    float curvature = PositionMath::bemaniMode ? baseCurv * BEMANI_CURVATURE : baseCurv;
+#endif
 
     // Debug scale factors (separate note vs bar)
     const auto& baseScale = barNote ? barScale : gemScale;
     float baseW, baseH;
     if (PositionMath::bemaniMode)
     {
-        baseW = barNote ? 1.02f : 0.95f;
-        baseH = barNote ? 0.50f : 0.90f;
+#ifdef DEBUG
+        baseW = barNote ? debugBemaniBarW : debugBemaniGemW;
+        baseH = barNote ? debugBemaniBarH : debugBemaniGemH;
+#else
+        baseW = barNote ? BEMANI_BAR_W : BEMANI_GEM_W;
+        baseH = barNote ? BEMANI_BAR_H : BEMANI_GEM_H;
+#endif
     }
     else
     {

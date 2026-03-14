@@ -193,8 +193,18 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
             ? laneCoordsDrums[colIdx]
             : laneCoordsGuitar[colIdx];
 
-        auto edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
-                                   posEnd, PositionConstants::FRETBOARD_SCALE);
+        // Kick/open = bar note — in Bemani mode use full fretboard width
+        PositionConstants::LaneCorners edge;
+        if (PositionMath::bemaniMode)
+        {
+            edge = PositionMath::getFretboardEdge(isDrums, strikelinePosition, cachedWidth, cachedHeight,
+                       PositionConstants::HIGHWAY_POS_START, posEnd);
+        }
+        else
+        {
+            edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
+                                 posEnd, PositionConstants::FRETBOARD_SCALE, -1);
+        }
         auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
         float colWidth = edge.rightX - edge.leftX;
         float colHeight = colWidth / perspParams.barNoteHeightRatio;
@@ -253,8 +263,9 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         : laneCoordsGuitar[colIdx];
 
     float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    int bemaniIdx = barNote ? -1 : ((int)colIdx - 1);
     auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
-                               posEnd, PositionConstants::FRETBOARD_SCALE);
+                               posEnd, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
     auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
