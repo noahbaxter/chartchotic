@@ -40,6 +40,7 @@ public:
     std::function<void()> onPolyShadeChanged;
     std::function<void(bool)> onDebugColourChanged;
     std::function<void(bool)> onStretchChanged;
+    std::function<void(float, float)> onHwyScaleChanged;
     std::function<void(float gap, float nudge)> onLogoPadChanged;
 
     // Current tuning values (read by applyTo)
@@ -165,6 +166,12 @@ private:
     float dotNudgeValue = -0.04f;
     ScrollableLabel logoPadLabel;
     ScrollableLabel dotNudgeLabel;
+
+    // Highway scale per instrument
+    float hwyScaleGuitarValue = HWY_SCALE_GUITAR;
+    float hwyScaleDrumsValue = HWY_SCALE_DRUMS;
+    ScrollableLabel hwyScaleGuitarLabel;
+    ScrollableLabel hwyScaleDrumsLabel;
 
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;

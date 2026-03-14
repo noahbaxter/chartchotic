@@ -129,6 +129,24 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (onStretchChanged) onStretchChanged(stretchToggle.getToggleState());
     };
 
+    setupScrollLabel(hwyScaleGuitarLabel);
+    hwyScaleGuitarLabel.setText("Hwy Gtr: " + juce::String(hwyScaleGuitarValue, 2), juce::dontSendNotification);
+    hwyScaleGuitarLabel.onScroll = [this](int delta) {
+        hwyScaleGuitarValue = juce::jlimit(0.50f, 2.00f, hwyScaleGuitarValue + delta * 0.02f);
+        hwyScaleGuitarLabel.setText("Hwy Gtr: " + juce::String(hwyScaleGuitarValue, 2), juce::dontSendNotification);
+        debugHwyScaleGuitar = hwyScaleGuitarValue;
+        if (onHwyScaleChanged) onHwyScaleChanged(hwyScaleGuitarValue, hwyScaleDrumsValue);
+    };
+
+    setupScrollLabel(hwyScaleDrumsLabel);
+    hwyScaleDrumsLabel.setText("Hwy Drm: " + juce::String(hwyScaleDrumsValue, 2), juce::dontSendNotification);
+    hwyScaleDrumsLabel.onScroll = [this](int delta) {
+        hwyScaleDrumsValue = juce::jlimit(0.50f, 2.00f, hwyScaleDrumsValue + delta * 0.02f);
+        hwyScaleDrumsLabel.setText("Hwy Drm: " + juce::String(hwyScaleDrumsValue, 2), juce::dontSendNotification);
+        debugHwyScaleDrums = hwyScaleDrumsValue;
+        if (onHwyScaleChanged) onHwyScaleChanged(hwyScaleGuitarValue, hwyScaleDrumsValue);
+    };
+
     setupScrollLabel(logoPadLabel);
     logoPadLabel.setText("LogoGap: " + juce::String(logoPadValue, 3), juce::dontSendNotification);
     logoPadLabel.onScroll = [this](int delta) {
@@ -1121,6 +1139,8 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         layoutRow(polyShadeToggle, true);
         layoutRow(debugColourToggle, true);
         layoutRow(stretchToggle, true);
+        layoutRow(hwyScaleGuitarLabel, true);
+        layoutRow(hwyScaleDrumsLabel, true);
         layoutRow(logoPadLabel, true);
         layoutRow(dotNudgeLabel, true);
         layoutRow(gridPosLabel, true);
@@ -1135,6 +1155,8 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         polyShadeToggle.setVisible(false);
         debugColourToggle.setVisible(false);
         stretchToggle.setVisible(false);
+        hwyScaleGuitarLabel.setVisible(false);
+        hwyScaleDrumsLabel.setVisible(false);
         logoPadLabel.setVisible(false);
         dotNudgeLabel.setVisible(false);
         gridPosLabel.setVisible(false);

@@ -57,10 +57,16 @@ constexpr float FAR_FADE_CURVE   = 1.0f;      // Fade exponent (1=linear)
 // Per-instrument highway scale: farFadeEnd = userLength * scale.
 // Compensates for different perspective geometry so both instruments
 // appear visually equivalent at the same slider setting.
-constexpr float HWY_SCALE_GUITAR = 0.86f;     // 5.0 * 0.86 = 4.30
-constexpr float HWY_SCALE_DRUMS  = 1.00f;     // 5.0 * 1.00 = 5.00
+constexpr float HWY_SCALE_GUITAR = 1.00f;
+constexpr float HWY_SCALE_DRUMS  = 1.00f;
 
+#ifdef DEBUG
+inline float debugHwyScaleGuitar = HWY_SCALE_GUITAR;
+inline float debugHwyScaleDrums  = HWY_SCALE_DRUMS;
+inline float getHwyScale(bool isDrums) { return isDrums ? debugHwyScaleDrums : debugHwyScaleGuitar; }
+#else
 inline float getHwyScale(bool isDrums) { return isDrums ? HWY_SCALE_DRUMS : HWY_SCALE_GUITAR; }
+#endif
 
 
 inline float calculateFarFade(float position, float fadeEnd, float fadeLen, float fadeCurve)

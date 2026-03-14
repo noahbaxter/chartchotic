@@ -112,6 +112,14 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
             parent->resized();
     };
 
+    tune.onHwyScaleChanged = [&highway, repaintEditor](float gtr, float drm) {
+        highway.getTrackRenderer().invalidate();
+        highway.rebuildTrack();
+        if (auto* parent = highway.getParentComponent())
+            parent->resized();
+        repaintEditor();
+    };
+
     tune.onLogoPadChanged = [&toolbar](float gap, float nudge) {
         toolbar.getLogo().logoGapRatio = gap;
         toolbar.getLogo().dotNudge = nudge;
