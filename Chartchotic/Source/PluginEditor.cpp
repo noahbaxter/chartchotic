@@ -992,10 +992,6 @@ void ChartchoticAudioProcessorEditor::loadHighwayTexture(const juce::String& fil
 
 float ChartchoticAudioProcessorEditor::computeScrollOffset()
 {
-    // Get current playhead position in PPQ and BPM
-    double ppq = 0.0;
-    double bpm = 120.0;
-
 #ifdef DEBUG
     {
         float debugOffset;
@@ -1003,24 +999,19 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
             return debugOffset;
     }
 #endif
+
+    // Use absolute time from the playhead — immune to BPM/time sig changes
+    double absoluteTime = 0.0;
+    if (auto* playHead = audioProcessor.getPlayHead())
     {
-        if (auto* playHead = audioProcessor.getPlayHead())
-        {
-            auto positionInfo = playHead->getPosition();
-            if (positionInfo.hasValue())
-            {
-                ppq = positionInfo->getPpqPosition().orFallback(0.0);
-                bpm = positionInfo->getBpm().orFallback(120.0);
-            }
-        }
+        auto positionInfo = playHead->getPosition();
+        if (positionInfo.hasValue())
+            absoluteTime = positionInfo->getTimeInSeconds().orFallback(0.0);
     }
 
     // Apply latency offset to match note rendering position
     int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
-    double latencyOffsetBeats = (latencyOffsetMs / 1000.0) * (bpm / 60.0);
-    ppq -= latencyOffsetBeats;
-
-    double absoluteTime = ppq * (60.0 / bpm);
+    absoluteTime -= latencyOffsetMs / 1000.0;
 
     // Scroll rate: one full highway length per displayWindowTimeSeconds
     double scrollRate = 1.0 / displayWindowTimeSeconds;
