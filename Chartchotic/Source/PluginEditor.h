@@ -10,8 +10,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-#include "Midi/Processing/MidiInterpreter.h"
-#include "Visual/HighwayComponent.h"
+#include "Visual/HighwaySlot.h"
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/Utils.h"
 #include "Utils/TimeConverter.h"
@@ -89,9 +88,11 @@ private:
     juce::ValueTree& state;
 
     ChartchoticAudioProcessor& audioProcessor;
-    MidiInterpreter midiInterpreter;
     AssetManager assetManager;
-    HighwayComponent highway;
+    std::vector<HighwaySlot> slots;
+
+    HighwayComponent& primaryHighway() { return *slots[0].highway; }
+    MidiInterpreter& primaryInterpreter() { return *slots[0].interpreter; }
 
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
@@ -192,7 +193,8 @@ private:
     // Compute farFadeEnd from user slider value × per-instrument scale
     float computeFarFadeEnd(float userLength) const
     {
-        bool isDrums = isPart(state, Part::DRUMS);
+        bool isDrums = slots.empty() ? isPart(state, Part::DRUMS)
+                                     : (slots[0].part == Part::DRUMS);
         return userLength * getHwyScale(isDrums);
     }
 
