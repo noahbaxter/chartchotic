@@ -201,12 +201,6 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
         {
             edge = PositionMath::getFretboardEdge(isDrums, strikelinePosition, cachedWidth, cachedHeight,
                        PositionConstants::HIGHWAY_POS_START, posEnd);
-            float fbWidth = edge.rightX - edge.leftX;
-#ifdef DEBUG
-            float barFit = debugBemaniBarFit * debugBemaniBarLaneW;
-#else
-            float barFit = BEMANI_BAR_FIT * BEMANI_BAR_LANE_W;
-#endif
             // Use the bar note glyph aspect ratio (not the animation frame aspect)
             // to match NoteRenderer sizing exactly
             juce::Image* noteGlyph = isDrums
@@ -215,33 +209,20 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
             float noteAspect = (noteGlyph && noteGlyph->getHeight() > 0)
                 ? (float)noteGlyph->getWidth() / (float)noteGlyph->getHeight()
                 : imageAspect;
-            float colWidth = fbWidth * barFit * PositionConstants::BAR_SIZE;
-            float colHeight = colWidth / noteAspect;
-            float cx = (edge.leftX + edge.rightX) * 0.5f;
-            juce::Rectangle<float> kickRect(cx - colWidth * 0.5f, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
+            auto kickRect = PositionMath::computeBemaniBarRect(
+                isDrums, strikelinePosition, cachedWidth, cachedHeight,
+                posEnd, PositionConstants::BAR_SIZE, noteAspect);
 
             // Match NoteRenderer: user barScale
             float userScale = state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f;
-#ifdef DEBUG
-            float bw = debugBemaniBarW;
-            float bh = debugBemaniBarH;
-            float nudge = debugBemaniBarNudge;
-#else
-            float bw = BEMANI_BAR_W;
-            float bh = BEMANI_BAR_H;
-            float nudge = BEMANI_BAR_NUDGE;
-#endif
+            float bw = bemaniConfig.barW;
+            float bh = bemaniConfig.barH;
+            float nudge = bemaniConfig.barNudge;
             kickRect = kickRect.withSizeKeepingCentre(
                 kickRect.getWidth() * bw * userScale * offset.widthScale,
                 kickRect.getHeight() * bh * userScale * offset.heightScale
             );
-#ifdef DEBUG
-            float hitBarZ = isDrums ? debugBemaniHitBarZDrums : debugBemaniHitBarZGuitar;
-            kickRect.translate(offset.xOffset, offset.yOffset + kickRect.getHeight() * nudge + hitBarZ);
-#else
-            float hitBarZ = isDrums ? BEMANI_HIT_BAR_Z_DRUMS : BEMANI_HIT_BAR_Z_GUITAR;
-            kickRect.translate(offset.xOffset, offset.yOffset + kickRect.getHeight() * nudge + hitBarZ);
-#endif
+            kickRect.translate(offset.xOffset, offset.yOffset + kickRect.getHeight() * nudge + bemaniConfig.hitBarZ(isDrums));
 
             g.setOpacity(1.0f);
             g.drawImage(*animFrame, kickRect);
@@ -372,15 +353,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 
     if (PositionMath::bemaniMode)
     {
-#ifdef DEBUG
-        float hitNoteZ = isDrums ? debugBemaniHitNoteZDrums : debugBemaniHitNoteZGuitar;
-        float hitBarZFret = isDrums ? debugBemaniHitBarZDrums : debugBemaniHitBarZGuitar;
-        hitRect.translate(0.0f, barNote ? hitBarZFret : hitNoteZ);
-#else
-        float hitNoteZ = isDrums ? BEMANI_HIT_NOTE_Z_DRUMS : BEMANI_HIT_NOTE_Z_GUITAR;
-        float hitBarZFret = isDrums ? BEMANI_HIT_BAR_Z_DRUMS : BEMANI_HIT_BAR_Z_GUITAR;
-        hitRect.translate(0.0f, barNote ? hitBarZFret : hitNoteZ);
-#endif
+        hitRect.translate(0.0f, barNote ? bemaniConfig.hitBarZ(isDrums) : bemaniConfig.hitNoteZ(isDrums));
     }
 
     if (hitFrame)
@@ -402,9 +375,9 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 void AnimationRenderer::advanceFrames(double deltaSeconds)
 {
 #ifdef DEBUG
-    if (debugBemaniHitZChanged)
+    if (bemaniConfig.hitZChanged)
     {
-        debugBemaniHitZChanged = false;
+        bemaniConfig.hitZChanged = false;
         debugFreezeHits(5.0f);
     }
     if (debugHitsFrozen)

@@ -67,21 +67,13 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
 
     if (PositionMath::bemaniMode)
     {
-#ifdef DEBUG
-        opacity = std::min(1.0f, opacity * debugBemaniGridlineBoost);
-#else
-        opacity = std::min(1.0f, opacity * BEMANI_GRIDLINE_BOOST);
-#endif
+        opacity = std::min(1.0f, opacity * bemaniConfig.gridlineBoost);
         // Flat horizontal line instead of marker image
         bool isDrums = activePart == Part::DRUMS;
         auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
                         PositionConstants::HIGHWAY_POS_START, posEnd);
         float lineH = std::max(1.0f, (float)width * 0.003f);
-#ifdef DEBUG
-        float lineY = edge.centerY - lineH * 0.5f + debugBemaniGridlineZ;
-#else
-        float lineY = edge.centerY - lineH * 0.5f + BEMANI_GRIDLINE_Z;
-#endif
+        float lineY = edge.centerY - lineH * 0.5f + bemaniConfig.gridlineZ;
 
         // Gradient: brighter at center, fades at edges
         juce::ColourGradient grad(

@@ -170,109 +170,16 @@ private:
     ScrollableLabel logoPadLabel;
     ScrollableLabel dotNudgeLabel;
 
-    // Highway scale per instrument
-    float hwyScaleGuitarValue = HWY_SCALE_GUITAR;
-    float hwyScaleDrumsValue = HWY_SCALE_DRUMS;
+    // Highway scale per instrument (backed by bemaniConfig)
+    float hwyScaleGuitarValue = bemaniConfig.hwyScaleGuitar;
+    float hwyScaleDrumsValue = bemaniConfig.hwyScaleDrums;
     ScrollableLabel hwyScaleGuitarLabel;
     ScrollableLabel hwyScaleDrumsLabel;
 
-    // --- Bemani section ---
+    // --- Bemani section (data-driven from BemaniConfig.h) ---
     SectionHeader bemaniHeader;
-
-    // Bemani mode tunables
-    float bemaniStrikePosValue = BEMANI_STRIKELINE_POS;
-    float bemaniGemNudgeGuitarValue = BEMANI_GEM_NUDGE_GUITAR;
-    float bemaniGemNudgeDrumsValue = BEMANI_GEM_NUDGE_DRUMS;
-    float bemaniBarNudgeValue = BEMANI_BAR_NUDGE;
-    float bemaniBarFitValue = BEMANI_BAR_FIT;
-    float bemaniCurvatureValue = BEMANI_CURVATURE;
-    float bemaniGemWValue = BEMANI_GEM_W;
-    float bemaniGemHValue = BEMANI_GEM_H;
-    float bemaniBarWValue = BEMANI_BAR_W;
-    float bemaniBarHValue = BEMANI_BAR_H;
-    float bemaniSustainWidthValue = BEMANI_SUSTAIN_WIDTH;
-    float bemaniBarSustainWidthValue = BEMANI_BAR_SUSTAIN_WIDTH;
-    float bemaniSustainCapValue = BEMANI_SUSTAIN_CAP;
-    float bemaniSustStartOffValue = BEMANI_SUST_START_OFF;
-    float bemaniSustEndOffValue = BEMANI_SUST_END_OFF;
-    float bemaniLaneStartOffValue = BEMANI_LANE_START_OFF;
-    float bemaniLaneEndOffValue = BEMANI_LANE_END_OFF;
-    float bemaniLaneFillWValue = BEMANI_LANE_FILL_W;
-    float bemaniBarLaneFillWValue = BEMANI_BAR_LANE_FILL_W;
-    float bemaniLaneCapValue = BEMANI_LANE_CAP;
-    float bemaniBarCapValue = BEMANI_BAR_CAP;
-    float bemaniLaneDivWValue = BEMANI_LANE_DIV_W;
-    float bemaniBarLaneWValue = BEMANI_BAR_LANE_W;
-    float bemaniTexSpeedValue = 1.0f;
-    float bemaniGridBoostValue = BEMANI_GRIDLINE_BOOST;
-    float bemaniLaneOpValue = BEMANI_LANE_OPACITY;
-    float bemaniStrikeOpValue = BEMANI_STRIKELINE_OPACITY;
-    float bemaniRailInsetValue = -0.006f;
-    float bemaniLaneZValue = BEMANI_LANE_Z;
-    float bemaniSustainZValue = BEMANI_SUSTAIN_Z;
-    float bemaniGridlineZValue = BEMANI_GRIDLINE_Z;
-    float bemaniHitNoteZGuitarValue = BEMANI_HIT_NOTE_Z_GUITAR;
-    float bemaniHitNoteZDrumsValue = BEMANI_HIT_NOTE_Z_DRUMS;
-    float bemaniHitBarZGuitarValue = BEMANI_HIT_BAR_Z_GUITAR;
-    float bemaniHitBarZDrumsValue = BEMANI_HIT_BAR_Z_DRUMS;
-    float bemaniLaneStartPxValue = BEMANI_LANE_START_PX;
-    float bemaniLaneEndPxGuitarValue = BEMANI_LANE_END_PX_GUITAR;
-    float bemaniLaneEndPxDrumsValue = BEMANI_LANE_END_PX_DRUMS;
-    float bemaniBarLaneStartPxValue = BEMANI_BAR_LANE_START_PX;
-    float bemaniBarLaneEndPxGuitarValue = BEMANI_BAR_LANE_END_PX_GUITAR;
-    float bemaniBarLaneEndPxDrumsValue = BEMANI_BAR_LANE_END_PX_DRUMS;
-
-    // Position group
-    ScrollableLabel bemaniStrikePosLabel;
-    ScrollableLabel bemaniGemNudgeGuitarLabel;
-    ScrollableLabel bemaniGemNudgeDrumsLabel;
-    ScrollableLabel bemaniBarNudgeLabel;
-    ScrollableLabel bemaniBarFitLabel;
-    ScrollableLabel bemaniCurvatureLabel;
-    ScrollableLabel bemaniGemWLabel;
-    ScrollableLabel bemaniGemHLabel;
-    ScrollableLabel bemaniBarWLabel;
-    ScrollableLabel bemaniBarHLabel;
-
-    // Sustain group
-    ScrollableLabel bemaniSustainWidthLabel;
-    ScrollableLabel bemaniBarSustainWidthLabel;
-    ScrollableLabel bemaniSustainCapLabel;
-    ScrollableLabel bemaniSustStartOffLabel;
-    ScrollableLabel bemaniSustEndOffLabel;
-    ScrollableLabel bemaniLaneStartOffLabel;
-    ScrollableLabel bemaniLaneEndOffLabel;
-    ScrollableLabel bemaniLaneFillWLabel;
-    ScrollableLabel bemaniBarLaneFillWLabel;
-    ScrollableLabel bemaniLaneCapLabel;
-    ScrollableLabel bemaniBarCapLabel;
-    ScrollableLabel bemaniLaneDivWLabel;
-    ScrollableLabel bemaniBarLaneWLabel;
-
-    // Visual group
-    ScrollableLabel bemaniTexSpeedLabel;
-    ScrollableLabel bemaniGridBoostLabel;
-    ScrollableLabel bemaniLaneOpLabel;
-    ScrollableLabel bemaniStrikeOpLabel;
-    ScrollableLabel bemaniRailInsetLabel;
-    ScrollableLabel bemaniLaneZLabel;
-    ScrollableLabel bemaniSustainZLabel;
-    ScrollableLabel bemaniGridlineZLabel;
-    ScrollableLabel bemaniHitNoteZGuitarLabel;
-    ScrollableLabel bemaniHitNoteZDrumsLabel;
-    ScrollableLabel bemaniHitBarZGuitarLabel;
-    ScrollableLabel bemaniHitBarZDrumsLabel;
-    ScrollableLabel bemaniLaneStartPxLabel;
-    ScrollableLabel bemaniLaneEndPxGuitarLabel;
-    ScrollableLabel bemaniLaneEndPxDrumsLabel;
-    ScrollableLabel bemaniBarLaneStartPxLabel;
-    ScrollableLabel bemaniBarLaneEndPxGuitarLabel;
-    ScrollableLabel bemaniBarLaneEndPxDrumsLabel;
-
-    // Sub-headers
-    juce::Label bemaniPosSubHeader;
-    juce::Label bemaniSustSubHeader;
-    juce::Label bemaniVisSubHeader;
+    ScrollableLabel bemaniLabels[BEMANI_TUNABLE_COUNT];
+    juce::Label bemaniGroupHeaders[3]; // Position, Sustains, Visual
 
     // Gridline position offset
     float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;

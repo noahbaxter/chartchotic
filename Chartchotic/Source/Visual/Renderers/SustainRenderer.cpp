@@ -95,7 +95,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
         endOffset = SUSTAIN_END_OFFSET;
     }
 
-    // In Bemani mode, lanes use pixel-based padding (applied in drawPerspectiveSustainFlat),
+    // In Bemani mode, lanes use pixel-based padding (applied in drawSustainBody),
     // sustains still use position-space offsets
     if (PositionMath::bemaniMode)
     {
@@ -107,13 +107,8 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
         }
         else
         {
-#ifdef DEBUG
-            startOffset = debugBemaniSustStartOff;
-            endOffset = debugBemaniSustEndOff;
-#else
-            startOffset = BEMANI_SUST_START_OFF;
-            endOffset = BEMANI_SUST_END_OFF;
-#endif
+            startOffset = bemaniConfig.sustStartOff;
+            endOffset = bemaniConfig.sustEndOff;
         }
     }
 
@@ -147,11 +142,11 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     }
 
     (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][sustain.gemColumn].push_back([=](juce::Graphics& g) {
-        this->drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
+        this->drawSustainBody(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
 }
 
-void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
+void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
     bool isDrums = activePart == Part::DRUMS;
     bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
@@ -178,45 +173,25 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
     // Bemani mode: simple shapes, no perspective geometry
     if (PositionMath::bemaniMode)
     {
-#ifdef DEBUG
-        float bSustW = debugBemaniSustainWidth;
-        float bBarSustW = debugBemaniBarSustainWidth;
-        float capFrac = debugBemaniSustainCap;
-#else
-        float bSustW = BEMANI_SUSTAIN_WIDTH;
-        float bBarSustW = BEMANI_BAR_SUSTAIN_WIDTH;
-        float capFrac = BEMANI_SUSTAIN_CAP;
-#endif
+        float bSustW = bemaniConfig.sustainWidth;
+        float bBarSustW = bemaniConfig.barSustainWidth;
+        float capFrac = bemaniConfig.sustainCap;
 
         float laneWidth = startLane.rightX - startLane.leftX;
         float centerX = (startLane.leftX + startLane.rightX) * 0.5f;
         float topY = std::min(startLane.centerY, endLane.centerY);
         float botY = std::max(startLane.centerY, endLane.centerY);
 
-#ifdef DEBUG
-        float zNudge = isLane ? debugBemaniLaneZ : debugBemaniSustainZ;
-#else
-        float zNudge = isLane ? BEMANI_LANE_Z : BEMANI_SUSTAIN_Z;
-#endif
+        float zNudge = isLane ? bemaniConfig.laneZ : bemaniConfig.sustainZ;
         topY += zNudge;
         botY += zNudge;
 
         // Pixel-based lane padding — extends lane past note edges by fixed pixels
         if (isLane)
         {
-#ifdef DEBUG
-            float laneEndPx = isDrums
-                ? (isBar ? debugBemaniBarLaneEndPxDrums : debugBemaniLaneEndPxDrums)
-                : (isBar ? debugBemaniBarLaneEndPxGuitar : debugBemaniLaneEndPxGuitar);
-            topY -= laneEndPx;
-            botY += isBar ? debugBemaniBarLaneStartPx : debugBemaniLaneStartPx;
-#else
-            float laneEndPx = isDrums
-                ? (isBar ? BEMANI_BAR_LANE_END_PX_DRUMS : BEMANI_LANE_END_PX_DRUMS)
-                : (isBar ? BEMANI_BAR_LANE_END_PX_GUITAR : BEMANI_LANE_END_PX_GUITAR);
-            topY -= laneEndPx;
-            botY += isBar ? BEMANI_BAR_LANE_START_PX : BEMANI_LANE_START_PX;
-#endif
+            float laneEndPxVal = isBar ? bemaniConfig.barLaneEndPx(isDrums) : bemaniConfig.laneEndPx(isDrums);
+            topY -= laneEndPxVal;
+            botY += isBar ? bemaniConfig.barLaneStartPx : bemaniConfig.laneStartPx;
         }
 
         if (isBar)
@@ -230,17 +205,9 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
         if (isLane)
         {
             // Lanes: wider fill with caps on both ends
-#ifdef DEBUG
-            float w = isBar ? laneWidth * debugBemaniBarLaneFillW : laneWidth * debugBemaniLaneFillW;
-#else
-            float w = isBar ? laneWidth * BEMANI_BAR_LANE_FILL_W : laneWidth * BEMANI_LANE_FILL_W;
-#endif
+            float w = isBar ? laneWidth * bemaniConfig.barLaneFillW : laneWidth * bemaniConfig.laneFillW;
             float lx = centerX - w * 0.5f;
-#ifdef DEBUG
-            float laneCapFrac = isBar ? debugBemaniBarCap : debugBemaniLaneCap;
-#else
-            float laneCapFrac = isBar ? BEMANI_BAR_CAP : BEMANI_LANE_CAP;
-#endif
+            float laneCapFrac = isBar ? bemaniConfig.barCap : bemaniConfig.laneCap;
             float capH = laneCapFrac * w;
 
             g.setColour(colour.withAlpha(opacity));
@@ -257,11 +224,7 @@ void SustainRenderer::drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColu
             // Sustains: narrower, no front cap, small back cap (bar sustains get less cap)
             float w = isBar ? laneWidth * bBarSustW * 0.6f : laneWidth * bSustW;
             float lx = centerX - w * 0.5f;
-#ifdef DEBUG
-            float sustCapFrac = isBar ? debugBemaniBarCap : capFrac;
-#else
-            float sustCapFrac = isBar ? BEMANI_BAR_CAP : capFrac;
-#endif
+            float sustCapFrac = isBar ? bemaniConfig.barCap : capFrac;
             float backCapH = sustCapFrac * w * 0.3f;
 
             g.setColour(colour.withAlpha(opacity));

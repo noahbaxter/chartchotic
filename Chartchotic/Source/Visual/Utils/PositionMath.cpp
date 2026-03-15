@@ -47,12 +47,8 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
         float adjX = fbCenter - adjW * 0.5f;
 
         // Position 0 = strikeline, positive = toward top of viewport
-#ifdef DEBUG
-        float strikeY = debugBemaniStrikelinePos;
-#else
-        float strikeY = BEMANI_STRIKELINE_POS;
-#endif
-        float noteYOff = BEMANI_NOTE_Y_OFFSET;
+        float strikeY = bemaniConfig.strikelinePos;
+        float noteYOff = bemaniConfig.noteYOffset;
         float scaledPos = position / std::max(0.1f, bemaniHwyScale);
         float yPos = (float)height * (strikeY - scaledPos * strikeY + noteYOff);
 

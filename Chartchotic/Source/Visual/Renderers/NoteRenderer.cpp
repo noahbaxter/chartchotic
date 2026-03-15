@@ -126,18 +126,22 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     {
         // Bar notes span the full fretboard polygon (no FRETBOARD_SCALE)
         bool isDrums = activePart == Part::DRUMS;
-        auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
-                                                      PositionConstants::HIGHWAY_POS_START, posEnd);
-        float fbWidth = fbEdge.rightX - fbEdge.leftX;
-#ifdef DEBUG
-        float barFit = PositionMath::bemaniMode ? debugBemaniBarFit * debugBemaniBarLaneW : BAR_FRETBOARD_FIT;
-#else
-        float barFit = PositionMath::bemaniMode ? BEMANI_BAR_FIT * BEMANI_BAR_LANE_W : BAR_FRETBOARD_FIT;
-#endif
-        float colWidth = fbWidth * barFit * sizeScale;
-        float colHeight = (colWidth / imageAspect) * foreshorten;
-        float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
-        glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
+        if (PositionMath::bemaniMode)
+        {
+            glyphRect = PositionMath::computeBemaniBarRect(
+                isDrums, adjustedPosition, width, height, posEnd,
+                sizeScale, imageAspect, foreshorten);
+        }
+        else
+        {
+            auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
+                                                          PositionConstants::HIGHWAY_POS_START, posEnd);
+            float fbWidth = fbEdge.rightX - fbEdge.leftX;
+            float colWidth = fbWidth * BAR_FRETBOARD_FIT * sizeScale;
+            float colHeight = (colWidth / imageAspect) * foreshorten;
+            float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
+            glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
+        }
     }
     else if (activePart == Part::GUITAR)
     {
@@ -182,15 +186,8 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     // Bemani mode: nudge gems/bars
     if (PositionMath::bemaniMode)
     {
-#ifdef DEBUG
         bool isDrumsHere = activePart == Part::DRUMS;
-        float gemNudge = isDrumsHere ? debugBemaniGemNudgeDrums : debugBemaniGemNudgeGuitar;
-        float nudge = barNote ? debugBemaniBarNudge : gemNudge;
-#else
-        bool isDrumsHere = activePart == Part::DRUMS;
-        float gemNudge = isDrumsHere ? BEMANI_GEM_NUDGE_DRUMS : BEMANI_GEM_NUDGE_GUITAR;
-        float nudge = barNote ? BEMANI_BAR_NUDGE : gemNudge;
-#endif
+        float nudge = barNote ? bemaniConfig.barNudge : bemaniConfig.gemNudge(isDrumsHere);
         glyphRect.translate(0.0f, glyphRect.getHeight() * nudge);
     }
 
@@ -198,24 +195,15 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     bool isDrums = activePart == Part::DRUMS;
     float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
     float baseCurv = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
-#ifdef DEBUG
-    float curvature = PositionMath::bemaniMode ? baseCurv * debugBemaniCurvature : baseCurv;
-#else
-    float curvature = PositionMath::bemaniMode ? baseCurv * BEMANI_CURVATURE : baseCurv;
-#endif
+    float curvature = PositionMath::bemaniMode ? baseCurv * bemaniConfig.curvature : baseCurv;
 
     // Debug scale factors (separate note vs bar)
     const auto& baseScale = barNote ? barScale : gemScale;
     float baseW, baseH;
     if (PositionMath::bemaniMode)
     {
-#ifdef DEBUG
-        baseW = barNote ? debugBemaniBarW : debugBemaniGemW;
-        baseH = barNote ? debugBemaniBarH : debugBemaniGemH;
-#else
-        baseW = barNote ? BEMANI_BAR_W : BEMANI_GEM_W;
-        baseH = barNote ? BEMANI_BAR_H : BEMANI_GEM_H;
-#endif
+        baseW = barNote ? bemaniConfig.barW : bemaniConfig.gemW;
+        baseH = barNote ? bemaniConfig.barH : bemaniConfig.gemH;
     }
     else
     {

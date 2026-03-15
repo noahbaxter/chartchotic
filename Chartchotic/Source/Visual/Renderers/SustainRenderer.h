@@ -69,6 +69,6 @@ private:
     }
 
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
-    void drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
-                                     float opacity, float sustainWidth, juce::Colour colour, bool isLane);
+    void drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
+                         float opacity, float sustainWidth, juce::Colour colour, bool isLane);
 };

@@ -67,17 +67,9 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
     if (showLaneSeps)
     {
         int numCols = isDrums ? 4 : 5;
-#ifdef DEBUG
-        float laneAlpha = debugBemaniLaneOpacity;
-#else
-        float laneAlpha = BEMANI_LANE_OPACITY;
-#endif
+        float laneAlpha = bemaniConfig.laneOpacity;
         g.setColour(juce::Colours::white.withAlpha(laneAlpha));
-#ifdef DEBUG
-        float divW = std::max(1.0f, debugBemaniLaneDivW);
-#else
-        float divW = std::max(1.0f, BEMANI_LANE_DIV_W);
-#endif
+        float divW = std::max(1.0f, bemaniConfig.laneDivW);
         for (int i = 1; i < numCols; i++)
         {
             float cx = leftX + ((float)i / (float)numCols) * fbWidth;
@@ -88,13 +80,8 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
     // Strikeline — colored rounded squares per lane
     if (showStrike)
     {
-#ifdef DEBUG
-        float strikeAlpha = debugBemaniStrikelineOpacity;
-        float strikeFrac = debugBemaniStrikelinePos;
-#else
-        float strikeAlpha = BEMANI_STRIKELINE_OPACITY;
-        float strikeFrac = BEMANI_STRIKELINE_POS;
-#endif
+        float strikeAlpha = bemaniConfig.strikelineOpacity;
+        float strikeFrac = bemaniConfig.strikelinePos;
         int numCols = isDrums ? 4 : 5;
         float colW = fbWidth / (float)numCols;
         float strikeY = h * strikeFrac;
@@ -179,11 +166,7 @@ void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int v
 
     // Sidebar rails — outer grey (narrow), black (wide), inner grey (wider)
     float fbW = rightX - leftX;
-#ifdef DEBUG
-    float railInset = debugBemaniRailInset * fbW;
-#else
-    float railInset = 0.0f;
-#endif
+    float railInset = bemaniConfig.railInset * fbW;
     float outerGreyW = std::max(1.0f, fbW * 0.004f);
     float blackW     = std::max(2.0f, fbW * 0.012f);
     float innerGreyW = std::max(1.5f, fbW * 0.006f);
@@ -241,13 +224,8 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
 
         // scrollOffset = how many viewport-heights of notes have scrolled by.
         // Convert to pixels: one full scrollOffset unit = strikeFrac * viewportH pixels of travel.
-#ifdef DEBUG
-        float strikeFrac = debugBemaniStrikelinePos;
-        float texSpeed = debugBemaniTexSpeed;
-#else
-        float strikeFrac = BEMANI_STRIKELINE_POS;
-        float texSpeed = 1.0f;
-#endif
+        float strikeFrac = bemaniConfig.strikelinePos;
+        float texSpeed = bemaniConfig.texSpeed;
         // Total pixels scrolled (continuous, never wraps)
         float totalPx = scrollOffset * strikeFrac * (float)targetH * texSpeed;
         // Modulo against tile height for seamless repeat

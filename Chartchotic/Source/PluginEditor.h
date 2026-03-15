@@ -52,12 +52,6 @@ public:
             return true;
 #endif
 
-        if (key == juce::KeyPress::tabKey)
-        {
-            toolbar.toggleBemaniMode();
-            return true;
-        }
-
         return false;
     }
 

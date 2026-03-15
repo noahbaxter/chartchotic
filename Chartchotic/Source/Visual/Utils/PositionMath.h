@@ -16,6 +16,7 @@
 
 #include <JuceHeader.h>
 #include "PositionConstants.h"
+#include "BemaniConfig.h"
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
@@ -55,6 +56,21 @@ public:
         float sizeScale, float fretboardScale = 1.0f,
         int bemaniLaneIdx = -1);
 
+    // Compute a Bemani bar rectangle centered on the fretboard at a given position.
+    // sizeScale = BAR_SIZE, imageAspect = glyph width/height, foreshorten = 1.0 for flat.
+    static juce::Rectangle<float> computeBemaniBarRect(
+        bool isDrums, float position, uint width, uint height,
+        float posEnd, float sizeScale, float imageAspect, float foreshorten = 1.0f)
+    {
+        auto fbEdge = getFretboardEdge(isDrums, position, width, height,
+                                        PositionConstants::HIGHWAY_POS_START, posEnd);
+        float fbWidth = fbEdge.rightX - fbEdge.leftX;
+        float barFit = bemaniConfig.barFit * bemaniConfig.barLaneW;
+        float colWidth = fbWidth * barFit * sizeScale;
+        float colHeight = (colWidth / imageAspect) * foreshorten;
+        float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
+        return juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
+    }
 
 private:
     //==============================================================================
