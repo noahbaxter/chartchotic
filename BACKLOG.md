@@ -6,23 +6,32 @@ Work from the top.
 
 ## Up Next
 
-- **Multi-highway split view** — WIP on `refactor/multi-highway`. Renderer decoupling done (`activePart` members, `InstrumentSlot`, parameterized `MidiInterpreter`). Remaining: wire PluginEditor slots to UI trigger, debug controller multi-instrument loading, split view layout/resize, non-standalone mode support.
+- **Save/load presets + default state** — Persist user settings to disk. "Save as default" makes all new plugin instances start with custom settings. Presets for game-specific profiles (GH, RB, etc.). Foundation for everything downstream.
+- **Performance profiling** — Bemani mode feels less performant (more visible notes, full-viewport texture tiling). Also: user report of 5 instances at native FPS (170) causing 1-2s input lag. Profile before optimizing — find the bottleneck.
+- **Multi-highway split view** — WIP on `refactor/multi-highway`. Renderer decoupling done (`activePart` members, `InstrumentSlot`, parameterized `MidiInterpreter`). Remaining: wire PluginEditor slots to UI trigger, debug controller multi-instrument loading, split view layout/resize, non-standalone mode support. Solves "5 instances open" problem.
+- **SysEx marker support** — Read Phase Shift SysEx events for open/tap note markers. The open note marker turns ALL notes into opens, not just greens. See [chart format spec](https://thenathannator.github.io/GuitarGame_ChartFormats/Chart-File-Formats/mid-format/Format-Overview/#phase-shift-sysex-event-specification).
+- **Audio playback** — Metronome click, guitar note sounds, drum hit sounds for listening back to charts. Assets mostly ready. Needs audio output from plugin + sync.
+- **Standalone chart loading** — Open a chart file/folder and play it back without REAPER. Debug standalone already has playback; needs file open UI, chart format parsing, tempo map from file. Pairs with audio playback.
+- **Section borders + event markers** — EVENTS track parsing, blue measure lines, section name overlay. Backend partially wired (`TimeBasedEventMarker`, `populateEventMarkers`). Enable for tempo/timesig, then extend for sections, lyrics.
 - **Ratio-agnostic window resizing** — Proper resize support. Fixes "too much space below strikeline" tuning and REAPER fullscreen restore white gap / ~98% size bug.
 - **Update banner: show changelog** — `releaseNotes` already fetched from GitHub release body (release channel). Need: display in overlay card (taller/scrollable), strip markdown to plaintext, also fetch for dev channel.
-- ~~**Disco flip (Pro Drums)**~~ — ✅ Done. Text event infrastructure + DiscoFlipState + red↔yellow swap in MidiInterpreter. REAPER + standalone pipelines wired.
-- ~~**Disco flip highway markers**~~ — ✅ Done. Force field markers at disco start/end positions.
-- **Disco ball animation upgrade** — Replace static disco ball JPG with rotating disco ball (quarter-turn loop), "DISCO FLIP" text underneath in disco/rainbow colors. Fun polish.
-- **Section borders** — EVENTS track parsing, blue measure lines, section name overlay. Unlocks autodetection and section-aware features downstream.
 - **Solo sections** — Blue highway background during solo passages.
-- **Event marker rendering** — Backend wired (`TimeBasedEventMarker`, `populateEventMarkers`), rendering commented out in SceneRenderer. Enable for tempo/timesig changes, then extend for sections, lyrics, etc.
-- **Bemani: texture scroll snap** — Texture jumps/resets every few bars. Related to `scrollOffset` wrapping and float precision in `totalScroll` calculation. Need seamless continuous scroll.
-- **Bemani: disco flip force field markers** — Force field markers at disco start/end render with perspective geometry in Bemani mode. Need flat horizontal markers matching the Bemani gridline style.
-- **Bemani: sidebar edge lines hidden** — Edge lines render behind the opaque black sidebar masks in `paintBemaniSidebars`. Need to draw edge lines AFTER the black fill, or inset them slightly into the fretboard area.
-- **Suppress sustain trails in trill/tremolo regions** — MIDI 127 (trill) and 126 (tremolo) markers already detected as LANE_1/LANE_2 and create lane backgrounds. But individual note sustains within those regions still render at SUSTAIN_OPACITY (0.7), making trills look brighter than lanes. MidiInterpreter should suppress SustainType::SUSTAIN entries that fall within active trill/tremolo marker ranges.
 - **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
 - **Better mouse scrolling** — shift=faster, ctrl=precise.
-- **Save as default settings** — Persist user-preferred defaults to disk so new plugin instances start with custom settings instead of hardcoded defaults.
 - **Info display** — BPM, time sig, measure, beat position.
+- **Disco ball animation upgrade** — Replace static disco ball JPG with rotating disco ball (quarter-turn loop), "DISCO FLIP" text underneath in disco/rainbow colors. Fun polish.
+
+### Done (1.2 cycle)
+
+- ~~**Bemani mode**~~ — Flat scrolling viewport, sidebar rails, per-instrument tuning, data-driven debug panel, BemaniConfig refactor.
+- ~~**Bemani: texture scroll snap**~~ — Fixed. Removed fmod wrapping from scroll offset (both REAPER and standalone paths).
+- ~~**Bemani: disco flip force field markers**~~ — Fixed. Flat horizontal markers in Bemani mode.
+- ~~**Bemani: sidebar edge lines hidden**~~ — Fixed. Sidebar rails via DrawCallMap at TRACK_SIDEBARS draw order.
+- ~~**Disco flip (Pro Drums)**~~ — Done. Text event infrastructure + DiscoFlipState + red↔yellow swap.
+- ~~**Disco flip highway markers**~~ — Done. Force field markers at disco start/end positions.
+- ~~**Unified note speed**~~ — Both modes share 2-20 range, Bemani applies internal 1.7x ratio.
+- ~~**Update overlay improvements**~~ — ESC dismisses, resizes with window.
+- ~~**Lane/sustain draw order**~~ — SUSTAIN before BAR (bars render on top).
 
 ---
 
@@ -30,7 +39,6 @@ Work from the top.
 
 Do between features or when touching related code.
 
-- **Bemani performance** — Flat mode may be heavier than perspective due to more visible notes, full-viewport texture tiling, and per-frame sidebar rail rendering via DrawCallMap. Profile and optimize if framerate drops on lower-end systems.
 - **NoteStateStore wrapper** — `InstrumentSlot` bundles array+lock but doesn't enforce locking via API yet. Wrap into class with scoped-lock accessors. Eliminates race condition footgun.
 - **Audio-thread hygiene** — Remove std::function, preallocated vectors. DrawCallMap done, remaining allocations TBD.
 - **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.
@@ -58,9 +66,6 @@ Unordered. Pull into Up Next when the time comes.
 - Moonscraper-style note placement, grid snapping, note eraser
 - INI generation/export
 - 2D pitch-based karaoke display, lyrics with rhythm timing
-
-**Standalone:**
-- Standalone chart player — open a chart file/folder and play it back like a DAW session (no REAPER needed). Debug standalone already has playback; needs file open UI, chart format parsing, and tempo map from file.
 
 **DAW Integration:**
 - Max4Live wrapper for Ableton — use Ableton LOM to expose REAPER-equivalent features (text events, timeline access) via Max4Live device. Would enable disco flip, sections, etc. in Ableton.
@@ -92,3 +97,4 @@ Blocked or no clear path forward.
 
 - **Moonscraper overlap**: Community consensus is Chartchotic is for preview, not charting.
 - **Key dependency chain**: EVENTS parsing -> section detection -> autodetection -> Real Drums MIDI refactor -> generic gem system
+- **Community feedback source**: Discord #chartchotic channel
