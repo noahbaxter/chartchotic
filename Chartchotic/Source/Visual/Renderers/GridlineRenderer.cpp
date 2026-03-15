@@ -77,7 +77,11 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
         auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
                         PositionConstants::HIGHWAY_POS_START, posEnd);
         float lineH = std::max(1.0f, (float)width * 0.003f);
-        float lineY = edge.centerY - lineH * 0.5f;
+#ifdef DEBUG
+        float lineY = edge.centerY - lineH * 0.5f + debugBemaniGridlineZ;
+#else
+        float lineY = edge.centerY - lineH * 0.5f + BEMANI_GRIDLINE_Z;
+#endif
 
         // Gradient: brighter at center, fades at edges
         juce::ColourGradient grad(

@@ -191,6 +191,13 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         });
     }
 
+    // Inject custom draw calls (e.g. bemani sidebar rails)
+    for (auto& [order, fn] : customDrawCalls)
+    {
+        if (fn)
+            drawCallMap[static_cast<int>(order)][0].push_back([fn](juce::Graphics& g) { fn(g); });
+    }
+
     // Draw layer by layer, then column by column within each layer
     {
         ScopedPhaseMeasure m(lastPhaseTiming.execute_us, collectPhaseTiming);

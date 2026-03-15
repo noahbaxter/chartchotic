@@ -193,40 +193,96 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
             ? laneCoordsDrums[colIdx]
             : laneCoordsGuitar[colIdx];
 
-        // Kick/open = bar note — in Bemani mode use full fretboard width
+        // Kick/open = bar note — match NoteRenderer sizing exactly
         PositionConstants::LaneCorners edge;
+        float imageAspect = (float)animFrame->getWidth() / (float)animFrame->getHeight();
+
         if (PositionMath::bemaniMode)
         {
             edge = PositionMath::getFretboardEdge(isDrums, strikelinePosition, cachedWidth, cachedHeight,
                        PositionConstants::HIGHWAY_POS_START, posEnd);
+            float fbWidth = edge.rightX - edge.leftX;
+#ifdef DEBUG
+            float barFit = debugBemaniBarFit * debugBemaniBarLaneW;
+#else
+            float barFit = BEMANI_BAR_FIT * BEMANI_BAR_LANE_W;
+#endif
+            // Use the bar note glyph aspect ratio (not the animation frame aspect)
+            // to match NoteRenderer sizing exactly
+            juce::Image* noteGlyph = isDrums
+                ? assetManager.getDrumGlyphImage(GemWrapper(Gem::NOTE, false), 0, false)
+                : assetManager.getGuitarGlyphImage(GemWrapper(Gem::NOTE, false), 0, false);
+            float noteAspect = (noteGlyph && noteGlyph->getHeight() > 0)
+                ? (float)noteGlyph->getWidth() / (float)noteGlyph->getHeight()
+                : imageAspect;
+            float colWidth = fbWidth * barFit * PositionConstants::BAR_SIZE;
+            float colHeight = colWidth / noteAspect;
+            float cx = (edge.leftX + edge.rightX) * 0.5f;
+            juce::Rectangle<float> kickRect(cx - colWidth * 0.5f, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
+
+            // Match NoteRenderer: user barScale
+            float userScale = state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f;
+#ifdef DEBUG
+            float bw = debugBemaniBarW;
+            float bh = debugBemaniBarH;
+            float nudge = debugBemaniBarNudge;
+#else
+            float bw = BEMANI_BAR_W;
+            float bh = BEMANI_BAR_H;
+            float nudge = BEMANI_BAR_NUDGE;
+#endif
+            kickRect = kickRect.withSizeKeepingCentre(
+                kickRect.getWidth() * bw * userScale * offset.widthScale,
+                kickRect.getHeight() * bh * userScale * offset.heightScale
+            );
+#ifdef DEBUG
+            float hitBarZ = isDrums ? debugBemaniHitBarZDrums : debugBemaniHitBarZGuitar;
+            kickRect.translate(offset.xOffset, offset.yOffset + kickRect.getHeight() * nudge + hitBarZ);
+#else
+            float hitBarZ = isDrums ? BEMANI_HIT_BAR_Z_DRUMS : BEMANI_HIT_BAR_Z_GUITAR;
+            kickRect.translate(offset.xOffset, offset.yOffset + kickRect.getHeight() * nudge + hitBarZ);
+#endif
+
+            g.setOpacity(1.0f);
+            g.drawImage(*animFrame, kickRect);
+
+            if (useWhiteSP)
+            {
+                auto* flareImage = assetManager.getHitFlareWhiteImage();
+                if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
+                {
+                    g.setOpacity(HIT_FLARE_OPACITY);
+                    g.drawImage(*flareImage, kickRect);
+                }
+            }
         }
         else
         {
             edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
                                  posEnd, PositionConstants::FRETBOARD_SCALE, -1);
-        }
-        auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
-        float colWidth = edge.rightX - edge.leftX;
-        float colHeight = colWidth / perspParams.barNoteHeightRatio;
-        juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
+            auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
+            float colWidth = edge.rightX - edge.leftX;
+            float colHeight = colWidth / perspParams.barNoteHeightRatio;
+            juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
 
-        // Apply hit bar scale + animation offset
-        kickRect = kickRect.withSizeKeepingCentre(
-            kickRect.getWidth() * hitBarScale.scale * hitBarScale.width * offset.widthScale,
-            kickRect.getHeight() * hitBarScale.scale * hitBarScale.height * offset.heightScale
-        ).translated(offset.xOffset, offset.yOffset);
+            // Apply hit bar scale + animation offset
+            kickRect = kickRect.withSizeKeepingCentre(
+                kickRect.getWidth() * hitBarScale.scale * hitBarScale.width * offset.widthScale,
+                kickRect.getHeight() * hitBarScale.scale * hitBarScale.height * offset.heightScale
+            ).translated(offset.xOffset, offset.yOffset);
 
-        g.setOpacity(1.0f);
-        g.drawImage(*animFrame, kickRect);
+            g.setOpacity(1.0f);
+            g.drawImage(*animFrame, kickRect);
 
-        // White SP flare for bar hits
-        if (useWhiteSP)
-        {
-            auto* flareImage = assetManager.getHitFlareWhiteImage();
-            if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
+            // White SP flare for bar hits
+            if (useWhiteSP)
             {
-                g.setOpacity(HIT_FLARE_OPACITY);
-                g.drawImage(*flareImage, kickRect);
+                auto* flareImage = assetManager.getHitFlareWhiteImage();
+                if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
+                {
+                    g.setOpacity(HIT_FLARE_OPACITY);
+                    g.drawImage(*flareImage, kickRect);
+                }
             }
         }
     }
@@ -314,6 +370,19 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         hitRect.getHeight() * hs.scale * hs.height * dynScale * offset.heightScale
     ).translated(offset.xOffset, offset.yOffset);
 
+    if (PositionMath::bemaniMode)
+    {
+#ifdef DEBUG
+        float hitNoteZ = isDrums ? debugBemaniHitNoteZDrums : debugBemaniHitNoteZGuitar;
+        float hitBarZFret = isDrums ? debugBemaniHitBarZDrums : debugBemaniHitBarZGuitar;
+        hitRect.translate(0.0f, barNote ? hitBarZFret : hitNoteZ);
+#else
+        float hitNoteZ = isDrums ? BEMANI_HIT_NOTE_Z_DRUMS : BEMANI_HIT_NOTE_Z_GUITAR;
+        float hitBarZFret = isDrums ? BEMANI_HIT_BAR_Z_DRUMS : BEMANI_HIT_BAR_Z_GUITAR;
+        hitRect.translate(0.0f, barNote ? hitBarZFret : hitNoteZ);
+#endif
+    }
+
     if (hitFrame)
     {
         g.setOpacity(HIT_FLASH_OPACITY);
@@ -332,8 +401,35 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 
 void AnimationRenderer::advanceFrames(double deltaSeconds)
 {
+#ifdef DEBUG
+    if (debugBemaniHitZChanged)
+    {
+        debugBemaniHitZChanged = false;
+        debugFreezeHits(5.0f);
+    }
+    if (debugHitsFrozen)
+    {
+        debugFreezeTimer -= (float)deltaSeconds;
+        if (debugFreezeTimer <= 0.0f)
+            debugHitsFrozen = false;
+        return; // Don't advance frames while frozen
+    }
+#endif
     animationManager.advanceAllFrames(deltaSeconds);
 }
+
+#ifdef DEBUG
+void AnimationRenderer::debugFreezeHits(float durationSeconds)
+{
+    bool isDrums = activePart == Part::DRUMS;
+    // Trigger hit on all lanes
+    int numLanes = isDrums ? 5 : 6;
+    for (int i = 0; i < numLanes; i++)
+        animationManager.triggerHit(i, isDrums);
+    debugHitsFrozen = true;
+    debugFreezeTimer = durationSeconds;
+}
+#endif
 
 void AnimationRenderer::reset()
 {

@@ -181,7 +181,8 @@ private:
 
     // Bemani mode tunables
     float bemaniStrikePosValue = BEMANI_STRIKELINE_POS;
-    float bemaniGemNudgeValue = BEMANI_GEM_NUDGE;
+    float bemaniGemNudgeGuitarValue = BEMANI_GEM_NUDGE_GUITAR;
+    float bemaniGemNudgeDrumsValue = BEMANI_GEM_NUDGE_DRUMS;
     float bemaniBarNudgeValue = BEMANI_BAR_NUDGE;
     float bemaniBarFitValue = BEMANI_BAR_FIT;
     float bemaniCurvatureValue = BEMANI_CURVATURE;
@@ -206,10 +207,25 @@ private:
     float bemaniGridBoostValue = BEMANI_GRIDLINE_BOOST;
     float bemaniLaneOpValue = BEMANI_LANE_OPACITY;
     float bemaniStrikeOpValue = BEMANI_STRIKELINE_OPACITY;
+    float bemaniRailInsetValue = -0.006f;
+    float bemaniLaneZValue = BEMANI_LANE_Z;
+    float bemaniSustainZValue = BEMANI_SUSTAIN_Z;
+    float bemaniGridlineZValue = BEMANI_GRIDLINE_Z;
+    float bemaniHitNoteZGuitarValue = BEMANI_HIT_NOTE_Z_GUITAR;
+    float bemaniHitNoteZDrumsValue = BEMANI_HIT_NOTE_Z_DRUMS;
+    float bemaniHitBarZGuitarValue = BEMANI_HIT_BAR_Z_GUITAR;
+    float bemaniHitBarZDrumsValue = BEMANI_HIT_BAR_Z_DRUMS;
+    float bemaniLaneStartPxValue = BEMANI_LANE_START_PX;
+    float bemaniLaneEndPxGuitarValue = BEMANI_LANE_END_PX_GUITAR;
+    float bemaniLaneEndPxDrumsValue = BEMANI_LANE_END_PX_DRUMS;
+    float bemaniBarLaneStartPxValue = BEMANI_BAR_LANE_START_PX;
+    float bemaniBarLaneEndPxGuitarValue = BEMANI_BAR_LANE_END_PX_GUITAR;
+    float bemaniBarLaneEndPxDrumsValue = BEMANI_BAR_LANE_END_PX_DRUMS;
 
     // Position group
     ScrollableLabel bemaniStrikePosLabel;
-    ScrollableLabel bemaniGemNudgeLabel;
+    ScrollableLabel bemaniGemNudgeGuitarLabel;
+    ScrollableLabel bemaniGemNudgeDrumsLabel;
     ScrollableLabel bemaniBarNudgeLabel;
     ScrollableLabel bemaniBarFitLabel;
     ScrollableLabel bemaniCurvatureLabel;
@@ -238,6 +254,20 @@ private:
     ScrollableLabel bemaniGridBoostLabel;
     ScrollableLabel bemaniLaneOpLabel;
     ScrollableLabel bemaniStrikeOpLabel;
+    ScrollableLabel bemaniRailInsetLabel;
+    ScrollableLabel bemaniLaneZLabel;
+    ScrollableLabel bemaniSustainZLabel;
+    ScrollableLabel bemaniGridlineZLabel;
+    ScrollableLabel bemaniHitNoteZGuitarLabel;
+    ScrollableLabel bemaniHitNoteZDrumsLabel;
+    ScrollableLabel bemaniHitBarZGuitarLabel;
+    ScrollableLabel bemaniHitBarZDrumsLabel;
+    ScrollableLabel bemaniLaneStartPxLabel;
+    ScrollableLabel bemaniLaneEndPxGuitarLabel;
+    ScrollableLabel bemaniLaneEndPxDrumsLabel;
+    ScrollableLabel bemaniBarLaneStartPxLabel;
+    ScrollableLabel bemaniBarLaneEndPxGuitarLabel;
+    ScrollableLabel bemaniBarLaneEndPxDrumsLabel;
 
     // Sub-headers
     juce::Label bemaniPosSubHeader;

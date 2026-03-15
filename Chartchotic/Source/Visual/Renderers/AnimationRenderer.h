@@ -75,6 +75,13 @@ public:
      */
     void reset();
 
+#ifdef DEBUG
+    /** Trigger hits on all lanes and freeze at frame 0 for duration seconds. */
+    void debugFreezeHits(float durationSeconds = 5.0f);
+    bool debugHitsFrozen = false;
+    float debugFreezeTimer = 0.0f;
+#endif
+
 private:
     juce::ValueTree &state;
     AnimationManager animationManager;

@@ -149,10 +149,12 @@ class SceneRenderer
             The image is drawn at (0, -overlayYOffset) with full opacity. Call before paint(). */
         void setOverlay(DrawOrder order, const juce::Image* img) { overlays[order] = img; }
         void clearOverlays() { overlays.clear(); }
+        void setCustomDrawCall(DrawOrder order, std::function<void(juce::Graphics&)> fn) { customDrawCalls[order] = std::move(fn); }
 
         /** Y offset for overlay images (pixels above viewport origin to cover overflow area). */
         int overlayYOffset = 0;
 
     private:
         std::map<DrawOrder, const juce::Image*> overlays;
+        std::map<DrawOrder, std::function<void(juce::Graphics&)>> customDrawCalls;
 };

@@ -154,15 +154,70 @@ void TrackRenderer::paintBemaniSidebars(juce::Graphics& g, int viewportWidth, in
     float h = (float)viewportHeight;
     float viewW = (float)viewportWidth;
 
-    // Opaque black masks outside the fretboard (extend far to cover scaled area)
-    g.setColour(juce::Colours::black);
-    g.fillRect(-viewW, -h, leftX + viewW, h * 3.0f);
-    g.fillRect(rightX, -h, viewW * 2.0f, h * 3.0f);
+    // Padding lets note glyphs bleed slightly past the fretboard edge
+    float pad = (rightX - leftX) * 0.06f;
+    float maskL = leftX - pad;
+    float maskR = rightX + pad;
 
-    // Bright edge lines (2px wide for visibility)
-    g.setColour(juce::Colours::white.withAlpha(0.35f));
-    g.fillRect(leftX, 0.0f, 2.0f, h);
-    g.fillRect(rightX - 1.0f, 0.0f, 2.0f, h);
+    // Opaque black masks outside the padded fretboard (extend far to cover scaled area)
+    g.setColour(juce::Colours::black);
+    g.fillRect(-viewW, -h, maskL + viewW, h * 3.0f);
+    g.fillRect(maskR, -h, viewW * 2.0f, h * 3.0f);
+
+}
+
+void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int viewportHeight)
+{
+    if (!PositionMath::bemaniMode) return;
+
+    bool isDrums = activePart == Part::DRUMS;
+    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                    HIGHWAY_POS_START, cached.posEnd);
+    float leftX = edge.leftX;
+    float rightX = edge.rightX;
+    float h = (float)viewportHeight;
+
+    // Sidebar rails — outer grey (narrow), black (wide), inner grey (wider)
+    float fbW = rightX - leftX;
+#ifdef DEBUG
+    float railInset = debugBemaniRailInset * fbW;
+#else
+    float railInset = 0.0f;
+#endif
+    float outerGreyW = std::max(1.0f, fbW * 0.004f);
+    float blackW     = std::max(2.0f, fbW * 0.012f);
+    float innerGreyW = std::max(1.5f, fbW * 0.006f);
+    float totalRailW = outerGreyW + blackW + innerGreyW;
+
+    auto innerGrey = juce::Colour(0xff8c8c8c);
+    auto outerGrey = juce::Colour(0xff606060);
+    auto darkCol   = juce::Colour(0xff1a1a1a);
+
+    // Left rail (outer→inner = left→right)
+    {
+        float x = leftX + railInset - totalRailW + innerGreyW;
+        g.setColour(outerGrey);
+        g.fillRect(x, 0.0f, outerGreyW, h);
+        x += outerGreyW;
+        g.setColour(darkCol);
+        g.fillRect(x, 0.0f, blackW, h);
+        x += blackW;
+        g.setColour(innerGrey);
+        g.fillRect(x, 0.0f, innerGreyW, h);
+    }
+
+    // Right rail (inner→outer = left→right, mirrored)
+    {
+        float x = rightX - railInset - innerGreyW;
+        g.setColour(innerGrey);
+        g.fillRect(x, 0.0f, innerGreyW, h);
+        x += innerGreyW;
+        g.setColour(darkCol);
+        g.fillRect(x, 0.0f, blackW, h);
+        x += blackW;
+        g.setColour(outerGrey);
+        g.fillRect(x, 0.0f, outerGreyW, h);
+    }
 }
 
 void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targetW, int targetH)

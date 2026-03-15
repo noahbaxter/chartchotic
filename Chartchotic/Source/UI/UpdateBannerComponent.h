@@ -54,7 +54,9 @@ public:
         };
         editor->addAndMakeVisible(overlay);
         overlay->setBounds(editor->getLocalBounds());
+        overlay->setWantsKeyboardFocus(true);
         overlay->toFront(true);
+        overlay->grabKeyboardFocus();
     }
 
     void resized() override
@@ -204,6 +206,22 @@ private:
             dismissBtn.setBounds((int)buttonArea.getX(), btnY, btnW, btnH);
             downloadBtn.setButtonText("Download");
             downloadBtn.setBounds((int)buttonArea.getX() + btnW + btnGap, btnY, btnW, btnH);
+        }
+
+        bool keyPressed(const juce::KeyPress& key) override
+        {
+            if (key == juce::KeyPress::escapeKey)
+            {
+                if (onDismiss) onDismiss();
+                return true;
+            }
+            return false;
+        }
+
+        void parentSizeChanged() override
+        {
+            if (auto* p = getParentComponent())
+                setBounds(p->getLocalBounds());
         }
 
         void mouseDown(const juce::MouseEvent& e) override

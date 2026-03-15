@@ -183,9 +183,13 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     if (PositionMath::bemaniMode)
     {
 #ifdef DEBUG
-        float nudge = barNote ? debugBemaniBarNudge : debugBemaniGemNudge;
+        bool isDrumsHere = activePart == Part::DRUMS;
+        float gemNudge = isDrumsHere ? debugBemaniGemNudgeDrums : debugBemaniGemNudgeGuitar;
+        float nudge = barNote ? debugBemaniBarNudge : gemNudge;
 #else
-        float nudge = barNote ? BEMANI_BAR_NUDGE : BEMANI_GEM_NUDGE;
+        bool isDrumsHere = activePart == Part::DRUMS;
+        float gemNudge = isDrumsHere ? BEMANI_GEM_NUDGE_DRUMS : BEMANI_GEM_NUDGE_GUITAR;
+        float nudge = barNote ? BEMANI_BAR_NUDGE : gemNudge;
 #endif
         glyphRect.translate(0.0f, glyphRect.getHeight() * nudge);
     }

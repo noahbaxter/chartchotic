@@ -73,6 +73,7 @@ public:
     std::function<void(float length)> onHighwayLengthChanged;
     std::function<void(bool)> onStretchChanged;
     std::function<void(bool)> onBemaniModeChanged;
+    void toggleBemaniMode() { bemaniModeToggle.setToggleState(!bemaniModeToggle.getToggleState(), juce::sendNotification); }
     std::function<void(bool)> onShowFpsChanged;
     std::function<void(bool)> onShowBackgroundChanged;
     std::function<void()> onOpenBackgroundFolder;

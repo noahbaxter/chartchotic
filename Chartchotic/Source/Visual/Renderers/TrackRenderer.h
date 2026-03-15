@@ -38,6 +38,9 @@ public:
     /** Paint Bemani sidebar masks. Call AFTER scene renderer to clip sustain/note overflow. */
     void paintBemaniSidebars(juce::Graphics& g, int viewportWidth, int viewportHeight);
 
+    /** Paint Bemani sidebar rails (decorative). Intended for DrawCallMap injection at TRACK_SIDEBARS. */
+    void paintBemaniRails(juce::Graphics& g, int viewportWidth, int viewportHeight);
+
     /** Rebuild the cached faded track image. Call on resize, instrument change, or highway length change.
         overflow = extra pixels above the viewport (for extended VP Y). Bitmaps are (width, height+overflow). */
     void rebuild(int width, int height, int overflow,

@@ -10,6 +10,7 @@
 
 #include "MidiInterpreter.h"
 #include "../Utils/MidiConstants.h"
+#include "../../Visual/Utils/PositionMath.h"
 
 MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock)
     : noteStateMapArray(noteStateMapArray),
@@ -144,7 +145,10 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
                 if (pitch == (uint)Drums::LANE_1 || pitch == (uint)Drums::LANE_2 ||
                     pitch == (uint)Guitar::LANE_1 || pitch == (uint)Guitar::LANE_2) {
                     // Extend lane start time slightly earlier for better visibility
-                    PPQ extendedStartPPQ = notePPQ - MIDI_LANE_EXTENSION_TIME;
+                    // In Bemani mode, skip time-based extension — pixel padding handles it
+                    PPQ extendedStartPPQ = PositionMath::bemaniMode
+                        ? notePPQ
+                        : notePPQ - MIDI_LANE_EXTENSION_TIME;
                     
                     // Use lane detection logic to determine which columns to create lanes for
                     auto lanes = LaneDetector::detectLanes(pitch, extendedStartPPQ, noteOffPPQ,

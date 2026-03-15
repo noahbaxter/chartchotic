@@ -179,8 +179,9 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
 
     // Position
     initSlider(bemaniStrikePosLabel, "Strike Y",   bemaniStrikePosValue,  &debugBemaniStrikelinePos, 0.70f, 0.99f, 0.01f, 2);
-    initSlider(bemaniGemNudgeLabel,  "Gem Nudge",  bemaniGemNudgeValue,   &debugBemaniGemNudge,     -0.50f, 1.00f, 0.02f, 2);
-    initSlider(bemaniBarNudgeLabel,  "Bar Nudge",  bemaniBarNudgeValue,   &debugBemaniBarNudge,     -0.50f, 0.50f, 0.02f, 2);
+    initSlider(bemaniGemNudgeGuitarLabel, "Note Z Gtr", bemaniGemNudgeGuitarValue, &debugBemaniGemNudgeGuitar, -0.50f, 1.00f, 0.02f, 2);
+    initSlider(bemaniGemNudgeDrumsLabel, "Note Z Drm", bemaniGemNudgeDrumsValue, &debugBemaniGemNudgeDrums, -0.50f, 1.00f, 0.02f, 2);
+    initSlider(bemaniBarNudgeLabel,  "Bar Z",      bemaniBarNudgeValue,   &debugBemaniBarNudge,     -0.50f, 0.50f, 0.02f, 2);
     initSlider(bemaniBarFitLabel,    "Bar Fit",    bemaniBarFitValue,     &debugBemaniBarFit,        0.50f, 1.50f, 0.01f, 2);
     initSlider(bemaniCurvatureLabel, "Curvature",  bemaniCurvatureValue,  &debugBemaniCurvature,     0.00f, 1.00f, 0.05f, 2);
     initSlider(bemaniGemWLabel,      "Gem W",      bemaniGemWValue,       &debugBemaniGemW,          0.20f, 2.00f, 0.02f, 2);
@@ -208,6 +209,32 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     initSlider(bemaniGridBoostLabel, "Grid Boost",   bemaniGridBoostValue, &debugBemaniGridlineBoost,      0.50f, 5.00f, 0.10f, 1);
     initSlider(bemaniLaneOpLabel,    "Lane Alpha",   bemaniLaneOpValue,    &debugBemaniLaneOpacity,        0.00f, 1.00f, 0.02f, 2);
     initSlider(bemaniStrikeOpLabel,  "Strike Alpha", bemaniStrikeOpValue,  &debugBemaniStrikelineOpacity,  0.00f, 1.00f, 0.02f, 2);
+    initSlider(bemaniRailInsetLabel, "Rail Inset",   bemaniRailInsetValue, &debugBemaniRailInset,          -0.02f, 0.05f, 0.001f, 3);
+    initSlider(bemaniLaneZLabel,    "Lane Z",       bemaniLaneZValue,     &debugBemaniLaneZ,             -20.0f, 20.0f, 0.5f,   1);
+    initSlider(bemaniSustainZLabel, "Sustain Z",    bemaniSustainZValue,  &debugBemaniSustainZ,          -20.0f, 20.0f, 0.5f,   1);
+    initSlider(bemaniGridlineZLabel,"Grid Z",       bemaniGridlineZValue, &debugBemaniGridlineZ,         -20.0f, 20.0f, 0.5f,   1);
+    initSlider(bemaniHitNoteZGuitarLabel, "HitNote Gtr", bemaniHitNoteZGuitarValue, &debugBemaniHitNoteZGuitar, -120.0f, 120.0f, 1.0f, 0);
+    initSlider(bemaniHitNoteZDrumsLabel,  "HitNote Drm", bemaniHitNoteZDrumsValue,  &debugBemaniHitNoteZDrums,  -120.0f, 120.0f, 1.0f, 0);
+    initSlider(bemaniHitBarZGuitarLabel,    "HitBar Gtr",  bemaniHitBarZGuitarValue,   &debugBemaniHitBarZGuitar,  -200.0f, 200.0f, 1.0f, 0);
+    initSlider(bemaniHitBarZDrumsLabel,     "HitBar Drm",  bemaniHitBarZDrumsValue,    &debugBemaniHitBarZDrums,   -200.0f, 200.0f, 1.0f, 0);
+    // Wrap hit Z sliders to trigger freeze on change
+    auto wrapHitZ = [](ScrollableLabel& lbl) {
+        auto origScroll = lbl.onScroll;
+        lbl.onScroll = [origScroll](int delta) {
+            if (origScroll) origScroll(delta);
+            debugBemaniHitZChanged = true;
+        };
+    };
+    wrapHitZ(bemaniHitNoteZGuitarLabel);
+    wrapHitZ(bemaniHitNoteZDrumsLabel);
+    wrapHitZ(bemaniHitBarZGuitarLabel);
+    wrapHitZ(bemaniHitBarZDrumsLabel);
+    initSlider(bemaniLaneStartPxLabel, "Lane Start Px", bemaniLaneStartPxValue, &debugBemaniLaneStartPx,  -40.0f, 80.0f, 1.0f, 0);
+    initSlider(bemaniLaneEndPxGuitarLabel, "Ln End Px Gtr", bemaniLaneEndPxGuitarValue, &debugBemaniLaneEndPxGuitar, -40.0f, 80.0f, 1.0f, 0);
+    initSlider(bemaniLaneEndPxDrumsLabel,  "Ln End Px Drm", bemaniLaneEndPxDrumsValue,  &debugBemaniLaneEndPxDrums,  -40.0f, 80.0f, 1.0f, 0);
+    initSlider(bemaniBarLaneStartPxLabel, "Bar Ln Start Px", bemaniBarLaneStartPxValue, &debugBemaniBarLaneStartPx, -40.0f, 80.0f, 1.0f, 0);
+    initSlider(bemaniBarLaneEndPxGuitarLabel, "BrLnEnd Gtr", bemaniBarLaneEndPxGuitarValue, &debugBemaniBarLaneEndPxGuitar, -40.0f, 80.0f, 1.0f, 0);
+    initSlider(bemaniBarLaneEndPxDrumsLabel,  "BrLnEnd Drm", bemaniBarLaneEndPxDrumsValue,  &debugBemaniBarLaneEndPxDrums,  -40.0f, 80.0f, 1.0f, 0);
 
     setupScrollLabel(logoPadLabel);
     logoPadLabel.setText("LogoGap: " + juce::String(logoPadValue, 3), juce::dontSendNotification);
@@ -728,7 +755,8 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&bemaniHeader);
     tuningButton.addPanelChild(&bemaniPosSubHeader);
     tuningButton.addPanelChild(&bemaniStrikePosLabel);
-    tuningButton.addPanelChild(&bemaniGemNudgeLabel);
+    tuningButton.addPanelChild(&bemaniGemNudgeGuitarLabel);
+    tuningButton.addPanelChild(&bemaniGemNudgeDrumsLabel);
     tuningButton.addPanelChild(&bemaniBarNudgeLabel);
     tuningButton.addPanelChild(&bemaniBarFitLabel);
     tuningButton.addPanelChild(&bemaniCurvatureLabel);
@@ -755,6 +783,20 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&bemaniGridBoostLabel);
     tuningButton.addPanelChild(&bemaniLaneOpLabel);
     tuningButton.addPanelChild(&bemaniStrikeOpLabel);
+    tuningButton.addPanelChild(&bemaniRailInsetLabel);
+    tuningButton.addPanelChild(&bemaniLaneZLabel);
+    tuningButton.addPanelChild(&bemaniSustainZLabel);
+    tuningButton.addPanelChild(&bemaniGridlineZLabel);
+    tuningButton.addPanelChild(&bemaniHitNoteZGuitarLabel);
+    tuningButton.addPanelChild(&bemaniHitNoteZDrumsLabel);
+    tuningButton.addPanelChild(&bemaniHitBarZGuitarLabel);
+    tuningButton.addPanelChild(&bemaniHitBarZDrumsLabel);
+    tuningButton.addPanelChild(&bemaniLaneStartPxLabel);
+    tuningButton.addPanelChild(&bemaniLaneEndPxGuitarLabel);
+    tuningButton.addPanelChild(&bemaniLaneEndPxDrumsLabel);
+    tuningButton.addPanelChild(&bemaniBarLaneStartPxLabel);
+    tuningButton.addPanelChild(&bemaniBarLaneEndPxGuitarLabel);
+    tuningButton.addPanelChild(&bemaniBarLaneEndPxDrumsLabel);
 
     tuningButton.addPanelChild(&curvatureHeader);
     tuningButton.addPanelChild(&guitarCurvLabel);
@@ -1276,7 +1318,8 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     {
         layoutRow(bemaniPosSubHeader, true);
         layoutRow(bemaniStrikePosLabel, true);
-        layoutRow(bemaniGemNudgeLabel, true);
+        layoutRow(bemaniGemNudgeGuitarLabel, true);
+        layoutRow(bemaniGemNudgeDrumsLabel, true);
         layoutRow(bemaniBarNudgeLabel, true);
         layoutRow(bemaniBarFitLabel, true);
         layoutRow(bemaniCurvatureLabel, true);
@@ -1305,12 +1348,27 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         layoutRow(bemaniGridBoostLabel, true);
         layoutRow(bemaniLaneOpLabel, true);
         layoutRow(bemaniStrikeOpLabel, true);
+        layoutRow(bemaniRailInsetLabel, true);
+        layoutRow(bemaniLaneZLabel, true);
+        layoutRow(bemaniSustainZLabel, true);
+        layoutRow(bemaniGridlineZLabel, true);
+        layoutRow(bemaniHitNoteZGuitarLabel, true);
+        layoutRow(bemaniHitNoteZDrumsLabel, true);
+        layoutRow(bemaniHitBarZGuitarLabel, true);
+        layoutRow(bemaniHitBarZDrumsLabel, true);
+        layoutRow(bemaniLaneStartPxLabel, true);
+        layoutRow(bemaniLaneEndPxGuitarLabel, true);
+        layoutRow(bemaniLaneEndPxDrumsLabel, true);
+        layoutRow(bemaniBarLaneStartPxLabel, true);
+        layoutRow(bemaniBarLaneEndPxGuitarLabel, true);
+        layoutRow(bemaniBarLaneEndPxDrumsLabel, true);
     }
     else
     {
         bemaniPosSubHeader.setVisible(false);
         bemaniStrikePosLabel.setVisible(false);
-        bemaniGemNudgeLabel.setVisible(false);
+        bemaniGemNudgeGuitarLabel.setVisible(false);
+        bemaniGemNudgeDrumsLabel.setVisible(false);
         bemaniBarNudgeLabel.setVisible(false);
         bemaniBarFitLabel.setVisible(false);
         bemaniCurvatureLabel.setVisible(false);
@@ -1337,6 +1395,20 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         bemaniGridBoostLabel.setVisible(false);
         bemaniLaneOpLabel.setVisible(false);
         bemaniStrikeOpLabel.setVisible(false);
+        bemaniRailInsetLabel.setVisible(false);
+        bemaniLaneZLabel.setVisible(false);
+        bemaniSustainZLabel.setVisible(false);
+        bemaniGridlineZLabel.setVisible(false);
+        bemaniHitNoteZGuitarLabel.setVisible(false);
+        bemaniHitNoteZDrumsLabel.setVisible(false);
+        bemaniHitBarZGuitarLabel.setVisible(false);
+        bemaniHitBarZDrumsLabel.setVisible(false);
+        bemaniLaneStartPxLabel.setVisible(false);
+        bemaniLaneEndPxGuitarLabel.setVisible(false);
+        bemaniLaneEndPxDrumsLabel.setVisible(false);
+        bemaniBarLaneStartPxLabel.setVisible(false);
+        bemaniBarLaneEndPxGuitarLabel.setVisible(false);
+        bemaniBarLaneEndPxDrumsLabel.setVisible(false);
     }
     y += headerGap;
 

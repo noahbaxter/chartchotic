@@ -71,8 +71,10 @@ void HighwayComponent::paint(juce::Graphics& g)
     {
         trackRenderer.paint(g, w, totalH);
         trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH);
-        trackRenderer.paintBemaniOverlay(g, w, totalH);
     }
+    // Bemani overlay (lane dividers, strikeline) always draws — independent of highway texture toggle
+    if (showHighway || PositionMath::bemaniMode)
+        trackRenderer.paintBemaniOverlay(g, w, totalH);
 
     // Translate so scene renderer (notes, gridlines, etc.) sees viewport coordinates.
     // Overlay images are drawn at (0, -overlayYOffset) to extend into the overflow area.
@@ -174,7 +176,14 @@ void HighwayComponent::rebuildTrack()
 
     // Always reset overlays — Bemani mode uses programmatic drawing, perspective uses baked images
     sceneRenderer.clearOverlays();
-    if (!PositionMath::bemaniMode)
+    if (PositionMath::bemaniMode)
+    {
+        // Inject rail draw call into the scene's draw order so it layers correctly
+        int rw = w, rh = h + topOverflow;
+        sceneRenderer.setCustomDrawCall(DrawOrder::TRACK_SIDEBARS,
+            [this, rw, rh](juce::Graphics& g) { trackRenderer.paintBemaniRails(g, rw, rh); });
+    }
+    else
     {
         sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
         sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
