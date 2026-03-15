@@ -370,6 +370,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         updateDisplaySizeFromSpeedSlider();
         // resized() sets correct renderWidth/renderHeight for the new mode
         resized();
+        // Force toolbar relayout (setBounds won't trigger resized if bounds unchanged)
+        toolbar.resized();
         // Force immediate rebuild with correct dimensions (skip debounce)
         highway.getTrackRenderer().invalidate();
         highway.rebuildTrack();
@@ -755,16 +757,12 @@ void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
     // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
     int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
 
+    // Same formula for both modes; Bemani applies ratio so same speed value feels equivalent.
+    // Flat viewport has no foreshortening, so it needs a longer time window to match
+    // the readable note density of perspective mode.
+    displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
     if (PositionMath::bemaniMode)
-    {
-        // Bemani range: 0-30 (31 steps). 0 → 15s (very slow), 30 → 0.3s (fast). Exponential.
-        double t = (double)(noteSpeed - NOTE_SPEED_BEMANI_MIN) / (double)(NOTE_SPEED_BEMANI_MAX - NOTE_SPEED_BEMANI_MIN);
-        displayWindowTimeSeconds = 15.0 * std::pow(0.3 / 15.0, t);
-    }
-    else
-    {
-        displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
-    }
+        displayWindowTimeSeconds *= (double)NOTE_SPEED_BEMANI_RATIO;
 
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
     // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.

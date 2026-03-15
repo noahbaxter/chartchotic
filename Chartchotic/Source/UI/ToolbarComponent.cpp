@@ -71,26 +71,12 @@ void ToolbarComponent::initTopBar()
     noteSpeedStepper.setLabelRatio(0.0f);
     noteSpeedStepper.setTooltip("Note Speed");
     noteSpeedStepper.onStep = [this](int delta) {
-        if (bemaniModeToggle.getToggleState())
-        {
-            noteSpeed = juce::jlimit(NOTE_SPEED_BEMANI_MIN, NOTE_SPEED_BEMANI_MAX, noteSpeed + delta);
-        }
-        else
-        {
-            noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + delta);
-        }
+        noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + delta);
         noteSpeedStepper.setDisplayValue(noteSpeed);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     noteSpeedStepper.onValueEdited = [this](const juce::String& text) {
-        if (bemaniModeToggle.getToggleState())
-        {
-            noteSpeed = juce::jlimit(NOTE_SPEED_BEMANI_MIN, NOTE_SPEED_BEMANI_MAX, text.getIntValue());
-        }
-        else
-        {
-            noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, text.getIntValue());
-        }
+        noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, text.getIntValue());
         noteSpeedStepper.setDisplayValue(noteSpeed);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
@@ -381,10 +367,7 @@ void ToolbarComponent::initSettingsPanel()
     bemaniModeToggle.onClick = [this]() {
         bool on = bemaniModeToggle.getToggleState();
         state.setProperty("bemaniMode", on, nullptr);
-        // Switch speed to appropriate default for the mode
-        noteSpeed = on ? NOTE_SPEED_BEMANI_DEFAULT : NOTE_SPEED_DEFAULT;
-        noteSpeedStepper.setDisplayValue(noteSpeed);
-        state.setProperty("noteSpeed", noteSpeed, nullptr);
+        // Speed stays the same — internal ratio handles the visual equivalence
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
         if (onBemaniModeChanged) onBemaniModeChanged(on);
     };
