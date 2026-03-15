@@ -281,6 +281,10 @@ private:
     juce::Label dcolLaneRowLabels[DRUM_LANES];
     ScrollableLabel dcolLaneParams[DRUM_LANES][COL_LANE_COLS];
 
+    // --- Lane Width sliders (above Lane Shape) ---
+    ScrollableLabel laneWidthLabel;
+    ScrollableLabel laneOpenWidthLabel;
+
     // --- Lane Shape section (2 rows x 3 cols: Offset, Inner, Outer) ---
     SectionHeader laneShapeHeader;
     static constexpr int LANE_SHAPE_ROWS = 2;

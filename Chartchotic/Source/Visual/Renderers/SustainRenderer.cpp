@@ -167,8 +167,9 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
         bemaniIdx = (int)gemColumn - 1;
     }
 
-    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
-    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
+    int laneIdx = PositionMath::bemaniMode ? bemaniIdx : -1;
+    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
+    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
 
     // Bemani mode: simple shapes, no perspective geometry
     if (PositionMath::bemaniMode)

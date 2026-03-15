@@ -569,6 +569,23 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
+    // --- Lane Width sliders ---
+    setupScrollLabel(laneWidthLabel);
+    laneWidthLabel.setText(">>> LANE W: " + juce::String(PositionConstants::LANE_WIDTH, 2), juce::dontSendNotification);
+    laneWidthLabel.onScroll = [this](int delta) {
+        PositionConstants::LANE_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_WIDTH + delta * 0.02f);
+        laneWidthLabel.setText(">>> LANE W: " + juce::String(PositionConstants::LANE_WIDTH, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(laneOpenWidthLabel);
+    laneOpenWidthLabel.setText(">>> LANE OPEN W: " + juce::String(PositionConstants::LANE_OPEN_WIDTH, 2), juce::dontSendNotification);
+    laneOpenWidthLabel.onScroll = [this](int delta) {
+        PositionConstants::LANE_OPEN_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_OPEN_WIDTH + delta * 0.02f);
+        laneOpenWidthLabel.setText(">>> LANE OPEN W: " + juce::String(PositionConstants::LANE_OPEN_WIDTH, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
     // --- Lane Shape section ---
     setupSectionHeader(laneShapeHeader, "Lane Shape");
     for (int c = 0; c < LANE_SHAPE_COLS; c++)
@@ -776,6 +793,10 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         for (int c = 0; c < COL_LANE_COLS; c++)
             tuningButton.addPanelChild(&dcolLaneParams[r][c]);
     }
+
+    // Lane Width
+    tuningButton.addPanelChild(&laneWidthLabel);
+    tuningButton.addPanelChild(&laneOpenWidthLabel);
 
     // Lane Shape table
     tuningButton.addPanelChild(&laneShapeHeader);
@@ -1310,6 +1331,10 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         hideTable(dcolLaneHdrLabels, COL_LANE_COLS, dcolLaneRowLabels, &dcolLaneParams[0][0], DRUM_LANES, COL_LANE_COLS);
     }
     y += headerGap;
+
+    // Lane Width sliders (always visible)
+    layoutRow(laneWidthLabel, true);
+    layoutRow(laneOpenWidthLabel, true);
 
     // Lane Shape (table layout)
     laneShapeHeader.setBounds(margin, y, w, rowHeight);
