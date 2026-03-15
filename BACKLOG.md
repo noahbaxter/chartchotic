@@ -30,6 +30,7 @@ Work from the top.
 
 Do between features or when touching related code.
 
+- **Bemani performance** — Flat mode may be heavier than perspective due to more visible notes, full-viewport texture tiling, and per-frame sidebar rail rendering via DrawCallMap. Profile and optimize if framerate drops on lower-end systems.
 - **NoteStateStore wrapper** — `InstrumentSlot` bundles array+lock but doesn't enforce locking via API yet. Wrap into class with scoped-lock accessors. Eliminates race condition footgun.
 - **Audio-thread hygiene** — Remove std::function, preallocated vectors. DrawCallMap done, remaining allocations TBD.
 - **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.

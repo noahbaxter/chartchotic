@@ -239,31 +239,28 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
         float tileH = tileW / texAspect * textureScale;
         if (tileH < 1.0f) return;
 
-        // Seamless tiling: scroll N tiles per cycle where N is the integer closest
-        // to the actual note travel distance in tiles. Integer = no snap on wrap.
+        // scrollOffset = how many viewport-heights of notes have scrolled by.
+        // Convert to pixels: one full scrollOffset unit = strikeFrac * viewportH pixels of travel.
 #ifdef DEBUG
         float strikeFrac = debugBemaniStrikelinePos;
-#else
-        float strikeFrac = BEMANI_STRIKELINE_POS;
-#endif
-#ifdef DEBUG
         float texSpeed = debugBemaniTexSpeed;
 #else
+        float strikeFrac = BEMANI_STRIKELINE_POS;
         float texSpeed = 1.0f;
 #endif
-        // Continuous float math — responds instantly to speed changes.
-        float noteTravel = strikeFrac * (float)targetH * texSpeed;
-        float totalScroll = scrollOffset * noteTravel;
-        float offset = totalScroll - std::floor(totalScroll / tileH) * tileH;
+        // Total pixels scrolled (continuous, never wraps)
+        float totalPx = scrollOffset * strikeFrac * (float)targetH * texSpeed;
+        // Modulo against tile height for seamless repeat
+        float offset = std::fmod(totalPx, tileH);
+        if (offset < 0.0f) offset += tileH;
 
         // Tile from bottom to top, covering entire viewport
         g.saveState();
         g.reduceClipRegion((int)leftX, 0, (int)std::ceil(hwyW), targetH);
         g.setOpacity(textureOpacity);
-        // Start below bottom edge (for scroll offset) and tile all the way past top
-        float startY = (float)targetH + tileH - offset;
+        float startY = (float)targetH - offset;
         for (float y = startY; y > -tileH; y -= tileH)
-            g.drawImage(sourceTexture, leftX, y - tileH, tileW, tileH,
+            g.drawImage(sourceTexture, leftX, y, tileW, tileH,
                         0, 0, sourceTexture.getWidth(), sourceTexture.getHeight());
         g.restoreState();
         return;

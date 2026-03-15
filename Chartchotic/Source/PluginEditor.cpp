@@ -1012,10 +1012,10 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
     int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
     absoluteTime -= latencyOffsetMs / 1000.0;
 
-    // Scroll rate: one full highway length per displayWindowTimeSeconds
+    // Raw continuous scroll value — consumers do their own modulo against tile size.
+    // No wrapping here avoids double-modulo precision snaps.
     double scrollRate = 1.0 / displayWindowTimeSeconds;
-    double raw = std::fmod(-absoluteTime * scrollRate, 1.0);
-    return (float)(raw < 0.0 ? raw + 1.0 : raw);
+    return (float)(-absoluteTime * scrollRate);
 }
 
 void ChartchoticAudioProcessorEditor::drawFpsOverlay(juce::Graphics& g)

@@ -298,8 +298,7 @@ bool DebugEditorController::computeScrollOffset(float& outOffset, double display
 
     double absoluteTime = ppq * (60.0 / bpm);
     double scrollRate = 1.0 / displayWindowTimeSeconds;
-    double raw = std::fmod(-absoluteTime * scrollRate, 1.0);
-    outOffset = (float)(raw < 0.0 ? raw + 1.0 : raw);
+    outOffset = (float)(-absoluteTime * scrollRate);
     return true;
 }
 
