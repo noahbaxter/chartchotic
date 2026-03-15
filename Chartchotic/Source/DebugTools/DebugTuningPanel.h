@@ -13,6 +13,15 @@
 
 class SceneRenderer;
 
+// Universal descriptor for a single debug tuning slider
+struct DebugTunable
+{
+    const char* name;
+    float* value;          // direct pointer to the backing float
+    float min, max, step;
+    int decimals;
+};
+
 class DebugTuningPanel
 {
 public:
@@ -50,11 +59,11 @@ public:
     float drumCurvature = PositionConstants::NOTE_CURVATURE;
     float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
 
-    // Base note/bar scale (ElementScale table: 2 rows × 2 cols)
+    // Base note/bar scale (ElementScale table: 2 rows x 2 cols)
     PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
     PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
 
-    // Hit animation scale (HitScale table: 2 rows × 3 cols)
+    // Hit animation scale (HitScale table: 2 rows x 3 cols)
     PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
     PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
 
@@ -64,7 +73,7 @@ public:
     // Per-gem-type scales
     PositionConstants::GemTypeScales gemTypeScales;
 
-    // Per-instrument offsets (Z + strike positions, table: 5+2 rows × 2 cols)
+    // Per-instrument offsets (Z + strike positions, table: 5+2 rows x 2 cols)
     PositionConstants::InstrumentOffsets guitarOffsets = PositionConstants::GUITAR_OFFSETS;
     PositionConstants::InstrumentOffsets drumOffsets = PositionConstants::DRUM_OFFSETS;
 
@@ -125,10 +134,19 @@ private:
         static constexpr int dragPixelsPerStep = 3;
     };
 
+    // --- Helper: init a range of ScrollableLabels from a DebugTunable array ---
+    void initTunableSliders(ScrollableLabel* labels, const DebugTunable* tunables,
+                            int count, std::function<void()> onChange);
+    void addTunableChildren(ScrollableLabel* labels, int count);
+    void layoutTunableRows(ScrollableLabel* labels, int count, bool visible,
+                           int margin, int w, int rowHeight, int gap, int& y);
+    void refreshTunableLabels(ScrollableLabel* labels, const DebugTunable* tunables, int count);
+
     // --- Perspective section ---
     SectionHeader perspectiveHeader;
     static constexpr int PERSP_COUNT = 7;
     ScrollableLabel perspLabels[PERSP_COUNT];
+    DebugTunable perspTunables[PERSP_COUNT];
 
     // --- Track section (layers table + tiling) ---
     SectionHeader trackHeader;
@@ -148,51 +166,42 @@ private:
     juce::Label layerRowLabels[NUM_DISPLAY_LAYERS];
     ScrollableLabel layerParams[NUM_DISPLAY_LAYERS][LAYER_COLS];
 
+    // Track section individual sliders (data-driven)
     float tileStepValue = 0.80f;
     float tileScaleStepValue = 0.50f;
-    ScrollableLabel tileStepLabel;
-    ScrollableLabel tileScaleStepLabel;
-
-    // Texture controls (read by DebugEditorController)
     float textureScaleValue = 1.0f;
     float textureOpacityValue = TEXTURE_OPACITY_DEFAULT;
-    ScrollableLabel textureScaleLabel;
-    ScrollableLabel textureOpacityLabel;
+    float hwyScaleGuitarValue = bemaniConfig.hwyScaleGuitar;
+    float hwyScaleDrumsValue = bemaniConfig.hwyScaleDrums;
+    float logoPadValue = 0.1f;
+    float dotNudgeValue = -0.04f;
+    float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
+
+    static constexpr int TRACK_SLIDER_COUNT = 9;
+    ScrollableLabel trackSliderLabels[TRACK_SLIDER_COUNT];
+    DebugTunable trackSliderTunables[TRACK_SLIDER_COUNT];
+
     // Debug visualization toggles
     juce::ToggleButton polyShadeToggle;
     juce::ToggleButton debugColourToggle;
     juce::ToggleButton stretchToggle;
     juce::ToggleButton bemaniToggle;
 
-    // Logo padding slider
-    float logoPadValue = 0.1f;
-    float dotNudgeValue = -0.04f;
-    ScrollableLabel logoPadLabel;
-    ScrollableLabel dotNudgeLabel;
-
-    // Highway scale per instrument (backed by bemaniConfig)
-    float hwyScaleGuitarValue = bemaniConfig.hwyScaleGuitar;
-    float hwyScaleDrumsValue = bemaniConfig.hwyScaleDrums;
-    ScrollableLabel hwyScaleGuitarLabel;
-    ScrollableLabel hwyScaleDrumsLabel;
-
     // --- Bemani section (data-driven from BemaniConfig.h) ---
     SectionHeader bemaniHeader;
     ScrollableLabel bemaniLabels[BEMANI_TUNABLE_COUNT];
     juce::Label bemaniGroupHeaders[3]; // Position, Sustains, Visual
-
-    // Gridline position offset
-    float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
-    ScrollableLabel gridPosLabel;
 
     void fireLayer(int idx);
     void refreshTrackLabels();
 
     // --- Curvature section ---
     SectionHeader curvatureHeader;
-    ScrollableLabel guitarCurvLabel, drumCurvLabel, depthForeshortenLabel;
+    static constexpr int CURVATURE_COUNT = 3;
+    ScrollableLabel curvatureLabels[CURVATURE_COUNT];
+    DebugTunable curvatureTunables[CURVATURE_COUNT];
 
-    // --- Base Scale table (2 rows × 2 cols: W, H) ---
+    // --- Base Scale table (2 rows x 2 cols: W, H) ---
     SectionHeader baseScaleHeader;
     static constexpr int BASE_SCALE_ROWS = 2;
     static constexpr int BASE_SCALE_COLS = 2;
@@ -202,11 +211,12 @@ private:
     juce::Label baseScaleRowLabels[BASE_SCALE_ROWS];
     ScrollableLabel baseScaleParams[BASE_SCALE_ROWS][BASE_SCALE_COLS];
 
-    // --- Gem type scale labels (backed by gemTypeScales struct) ---
+    // --- Gem type scale (data-driven, backed by gemTypeScales struct) ---
     static constexpr int GEM_TYPE_COUNT = 10;
-    ScrollableLabel gemTypeScaleLabels[GEM_TYPE_COUNT];
+    ScrollableLabel gemTypeLabels[GEM_TYPE_COUNT];
+    DebugTunable gemTypeTunables[GEM_TYPE_COUNT];
 
-    // --- Hit Scale table (2 rows × 3 cols: S, W, H) ---
+    // --- Hit Scale table (2 rows x 3 cols: S, W, H) ---
     SectionHeader hitScaleHeader;
     static constexpr int HIT_SCALE_ROWS = 2;
     static constexpr int HIT_SCALE_COLS = 3;
@@ -216,13 +226,14 @@ private:
     juce::Label hitScaleRowLabels[HIT_SCALE_ROWS];
     ScrollableLabel hitScaleParams[HIT_SCALE_ROWS][HIT_SCALE_COLS];
 
-    // --- Hit type scale labels (backed by hitTypeConfig struct) ---
+    // --- Hit type scale (data-driven, backed by hitTypeConfig struct) ---
     static constexpr int HIT_TYPE_FLOAT_COUNT = 5;
     static constexpr int HIT_TYPE_BOOL_COUNT = 2;
-    ScrollableLabel hitTypeScaleLabels[HIT_TYPE_FLOAT_COUNT];
+    ScrollableLabel hitTypeLabels[HIT_TYPE_FLOAT_COUNT];
+    DebugTunable hitTypeTunables[HIT_TYPE_FLOAT_COUNT];
     ScrollableLabel hitTypeBoolLabels[HIT_TYPE_BOOL_COUNT];
 
-    // --- Z Offsets table (5 rows × 2 cols: Guitar, Drums) ---
+    // --- Z Offsets table (5 rows x 2 cols: Guitar, Drums) ---
     SectionHeader zOffsetsHeader;
     static constexpr int Z_ROWS = 5;
     static constexpr int Z_COLS = 2;
@@ -232,7 +243,7 @@ private:
     juce::Label zRowLabels[Z_ROWS];
     ScrollableLabel zParams[Z_ROWS][Z_COLS];
 
-    // --- Strike Position table (2 rows × 2 cols: Guitar, Drums) ---
+    // --- Strike Position table (2 rows x 2 cols: Guitar, Drums) ---
     SectionHeader strikeHeader;
     static constexpr int STRIKE_ROWS = 2;
     static constexpr int STRIKE_COLS = 2;
@@ -270,7 +281,7 @@ private:
     juce::Label dcolLaneRowLabels[DRUM_LANES];
     ScrollableLabel dcolLaneParams[DRUM_LANES][COL_LANE_COLS];
 
-    // --- Lane Shape section (2 rows × 3 cols: Offset, Inner, Outer) ---
+    // --- Lane Shape section (2 rows x 3 cols: Offset, Inner, Outer) ---
     SectionHeader laneShapeHeader;
     static constexpr int LANE_SHAPE_ROWS = 2;
     static constexpr int LANE_SHAPE_COLS = 3;

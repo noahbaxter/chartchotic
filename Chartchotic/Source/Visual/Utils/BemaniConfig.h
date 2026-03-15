@@ -57,17 +57,14 @@ struct BemaniConfig
     float laneZ              = 0.0f;
     float sustainZ           = 0.0f;
     float gridlineZ          = 0.0f;
-    float hitNoteZGuitar     = 15.0f;
-    float hitNoteZDrums      = 40.0f;
-    float hitBarZGuitar      = 90.0f;
-    float hitBarZDrums       = 130.0f;
+    float hitBarNudgeGuitar  = 0.0f;    // Bar hit Y nudge guitar (fraction of hit height)
+    float hitBarNudgeDrums   = 0.10f;   // Bar hit Y nudge drums
+
+    float hitBarNudge(bool isDrums) const { return isDrums ? hitBarNudgeDrums : hitBarNudgeGuitar; }
 
     // Highway scale (used in perspective mode too)
     float hwyScaleGuitar     = 1.00f;
     float hwyScaleDrums      = 1.00f;
-
-    // Flag — set by hit Z sliders, consumed by AnimationRenderer
-    bool hitZChanged         = false;
 
     // Non-tunable (no slider)
     float noteYOffset        = -0.015f;
@@ -76,8 +73,6 @@ struct BemaniConfig
     float gemNudge(bool isDrums) const { return isDrums ? gemNudgeDrums : gemNudgeGuitar; }
     float laneEndPx(bool isDrums) const { return isDrums ? laneEndPxDrums : laneEndPxGuitar; }
     float barLaneEndPx(bool isDrums) const { return isDrums ? barLaneEndPxDrums : barLaneEndPxGuitar; }
-    float hitNoteZ(bool isDrums) const { return isDrums ? hitNoteZDrums : hitNoteZGuitar; }
-    float hitBarZ(bool isDrums) const { return isDrums ? hitBarZDrums : hitBarZGuitar; }
     float hwyScale(bool isDrums) const { return isDrums ? hwyScaleDrums : hwyScaleGuitar; }
 };
 
@@ -93,7 +88,6 @@ struct BemaniTunable
     float BemaniConfig::* field;
     float min, max, step;
     int decimals;
-    bool triggersHitZChanged = false;
 };
 
 inline constexpr BemaniTunable bemaniTunables[] = {
@@ -133,10 +127,8 @@ inline constexpr BemaniTunable bemaniTunables[] = {
     {"Lane Z",         "Visual",   &BemaniConfig::laneZ,            -20.0f, 20.0f,  0.5f,   1},
     {"Sustain Z",      "Visual",   &BemaniConfig::sustainZ,         -20.0f, 20.0f,  0.5f,   1},
     {"Grid Z",         "Visual",   &BemaniConfig::gridlineZ,        -20.0f, 20.0f,  0.5f,   1},
-    {"HitNote Gtr",    "Visual",   &BemaniConfig::hitNoteZGuitar,  -120.0f, 120.0f, 1.0f,   0, true},
-    {"HitNote Drm",    "Visual",   &BemaniConfig::hitNoteZDrums,   -120.0f, 120.0f, 1.0f,   0, true},
-    {"HitBar Gtr",     "Visual",   &BemaniConfig::hitBarZGuitar,   -200.0f, 200.0f, 1.0f,   0, true},
-    {"HitBar Drm",     "Visual",   &BemaniConfig::hitBarZDrums,    -200.0f, 200.0f, 1.0f,   0, true},
+    {"HitBar Ndg Gtr", "Visual",   &BemaniConfig::hitBarNudgeGuitar, -0.50f, 0.50f, 0.01f, 2},
+    {"HitBar Ndg Drm", "Visual",   &BemaniConfig::hitBarNudgeDrums,  -0.50f, 0.50f, 0.01f, 2},
     {"Lane Start Px",  "Visual",   &BemaniConfig::laneStartPx,     -40.0f,  80.0f,  1.0f,   0},
     {"Ln End Px Gtr",  "Visual",   &BemaniConfig::laneEndPxGuitar, -40.0f,  80.0f,  1.0f,   0},
     {"Ln End Px Drm",  "Visual",   &BemaniConfig::laneEndPxDrums,  -40.0f,  80.0f,  1.0f,   0},

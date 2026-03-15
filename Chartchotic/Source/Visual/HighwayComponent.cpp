@@ -46,16 +46,17 @@ void HighwayComponent::paint(juce::Graphics& g)
     int overflow = debouncing ? bakedOverflow  : topOverflow;
     int totalH   = h + overflow;
 
-    if (stretchToFill)
+    if (stretchToFill && !PositionMath::bemaniMode)
     {
-        // Non-uniform stretch to fill all available space
+        // Non-uniform stretch to fill all available space (perspective only)
         float sx = (float)getWidth()  / (float)w;
         float sy = (float)getHeight() / (float)totalH;
         g.addTransform(juce::AffineTransform::scale(sx, sy));
     }
     else
     {
-        // Uniform scale to maximize height, centered horizontally, bottom-anchored
+        // Uniform scale to maximize height, centered horizontally, bottom-anchored.
+        // Bemani always uses uniform scale to avoid aspect ratio distortion.
         float scale = std::min((float)getWidth() / (float)w,
                                (float)getHeight() / (float)totalH);
         float scaledW = (float)w * scale;

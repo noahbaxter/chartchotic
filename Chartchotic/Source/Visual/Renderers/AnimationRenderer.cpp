@@ -222,7 +222,9 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
                 kickRect.getWidth() * bw * userScale * offset.widthScale,
                 kickRect.getHeight() * bh * userScale * offset.heightScale
             );
-            kickRect.translate(offset.xOffset, offset.yOffset + kickRect.getHeight() * nudge + bemaniConfig.hitBarZ(isDrums));
+            // Center on the strikeline pad, then apply hit bar nudge
+            float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
+            kickRect.translate(offset.xOffset, offset.yOffset + (padY - kickRect.getCentreY()) + kickRect.getHeight() * bemaniConfig.hitBarNudge(isDrums));
 
             g.setOpacity(1.0f);
             g.drawImage(*animFrame, kickRect);
@@ -353,7 +355,10 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 
     if (PositionMath::bemaniMode)
     {
-        hitRect.translate(0.0f, barNote ? bemaniConfig.hitBarZ(isDrums) : bemaniConfig.hitNoteZ(isDrums));
+        // Center on the strikeline pad (same Y as TrackRenderer::paintBemaniOverlay)
+        float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
+        float currentCenterY = hitRect.getCentreY();
+        hitRect.translate(0.0f, padY - currentCenterY);
     }
 
     if (hitFrame)
@@ -374,35 +379,8 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 
 void AnimationRenderer::advanceFrames(double deltaSeconds)
 {
-#ifdef DEBUG
-    if (bemaniConfig.hitZChanged)
-    {
-        bemaniConfig.hitZChanged = false;
-        debugFreezeHits(5.0f);
-    }
-    if (debugHitsFrozen)
-    {
-        debugFreezeTimer -= (float)deltaSeconds;
-        if (debugFreezeTimer <= 0.0f)
-            debugHitsFrozen = false;
-        return; // Don't advance frames while frozen
-    }
-#endif
     animationManager.advanceAllFrames(deltaSeconds);
 }
-
-#ifdef DEBUG
-void AnimationRenderer::debugFreezeHits(float durationSeconds)
-{
-    bool isDrums = activePart == Part::DRUMS;
-    // Trigger hit on all lanes
-    int numLanes = isDrums ? 5 : 6;
-    for (int i = 0; i < numLanes; i++)
-        animationManager.triggerHit(i, isDrums);
-    debugHitsFrozen = true;
-    debugFreezeTimer = durationSeconds;
-}
-#endif
 
 void AnimationRenderer::reset()
 {
