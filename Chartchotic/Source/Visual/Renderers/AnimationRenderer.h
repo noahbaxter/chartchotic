@@ -22,6 +22,7 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "../../UI/ControlConstants.h"
 
 class AnimationRenderer
 {
@@ -92,7 +93,7 @@ private:
                                                   float fretboardScale = 1.0f,
                                                   int bemaniLaneIdx = -1)
     {
-        bool isDrums = activePart == Part::DRUMS;
+        bool isDrums = isDrumLike(activePart);
         return PositionMath::getColumnPosition(isDrums, position, cachedWidth, cachedHeight,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale, bemaniLaneIdx);

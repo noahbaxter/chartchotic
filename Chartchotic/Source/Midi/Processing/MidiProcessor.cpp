@@ -144,7 +144,7 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
         processNoteMessage(noteMsg.message, noteMsg.position);
 
         // If this guitar note forms a chord, mark position for fixing after all notes processed
-        if (noteMsg.message.isNoteOn() && isPart(state, Part::GUITAR)) {
+        if (noteMsg.message.isNoteOn() && isGuitarLike(getPartFromState(state))) {
             positionsNeedingChordFix.insert(noteMsg.position);
         }
     }
@@ -170,9 +170,9 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
     // Calculate the final Gem type at MIDI processing time
     Gem gemType = Gem::NONE;
     if (velocity > 0) {
-        if (isPart(state, Part::GUITAR)) {
+        if (isGuitarLike(getPartFromState(state))) {
             gemType = getGuitarGemType(noteNumber, messagePPQ);
-        } else if (isPart(state, Part::DRUMS)) {
+        } else if (isDrumLike(getPartFromState(state))) {
             Dynamic dynamic = (Dynamic)velocity;
             gemType = getDrumGemType(noteNumber, messagePPQ, dynamic);
         }
@@ -272,9 +272,9 @@ void MidiProcessor::refreshMidiDisplay()
             if (noteData.velocity > 0)
             {
                 // Recalculate the gem type with current settings
-                if (isPart(state, Part::GUITAR)) {
+                if (isGuitarLike(getPartFromState(state))) {
                     noteData.gemType = getGuitarGemType(pitch, position);
-                } else if (isPart(state, Part::DRUMS)) {
+                } else if (isDrumLike(getPartFromState(state))) {
                     Dynamic dynamic = (Dynamic)noteData.velocity;
                     noteData.gemType = getDrumGemType(pitch, position, dynamic);
                 }

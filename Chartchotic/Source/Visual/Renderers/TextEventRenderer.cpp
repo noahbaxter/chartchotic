@@ -86,7 +86,7 @@ void TextEventRenderer::populateEventMarkers(DrawCallMap& drawCallMap,
 void TextEventRenderer::drawMarker(juce::Graphics& g, float position, const juce::String& label,
                                    float fadeOpacity)
 {
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
 
     if (PositionMath::bemaniMode)
     {

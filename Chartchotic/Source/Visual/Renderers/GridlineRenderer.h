@@ -18,6 +18,7 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "../../UI/ControlConstants.h"
 
 class GridlineRenderer
 {
@@ -47,7 +48,7 @@ private:
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                               float sizeScale, float fretboardScale = 1.0f)
     {
-        bool isDrums = activePart == Part::DRUMS;
+        bool isDrums = isDrumLike(activePart);
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);

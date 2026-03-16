@@ -31,7 +31,7 @@ AnimationRenderer::~AnimationRenderer()
 
 void AnimationRenderer::triggerAnimationForColumn(uint gemColumn, Gem gemType, bool starPower)
 {
-    bool isDrums = activePart != Part::GUITAR;
+    bool isDrums = isDrumLike(activePart);
     bool is2xKick = isDrums && gemColumn == 6;
     animationManager.triggerHit(gemColumn, isDrums, is2xKick, gemType, starPower);
 }
@@ -133,7 +133,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
     cachedHeight = height;
 
     const auto& animations = animationManager.getActiveAnimations();
-    bool isGuitar = activePart == Part::GUITAR;
+    bool isGuitar = isGuitarLike(activePart);
     float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
 
     for (const auto& anim : animations)
@@ -172,7 +172,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
                                              float posEnd, float strikePos)
 {
     float strikelinePosition = strikePos;
-    bool isGuitar = activePart == Part::GUITAR;
+    bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
 
     bool useWhiteSP = anim.starPower && hitTypeConfig.spWhiteFlare;
@@ -275,7 +275,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
                                              float posEnd, float strikePos)
 {
     float strikelinePosition = strikePos;
-    bool isGuitar = activePart == Part::GUITAR;
+    bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
     Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
 

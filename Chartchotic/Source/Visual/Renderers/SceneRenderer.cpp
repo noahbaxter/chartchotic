@@ -38,7 +38,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     width = viewportWidth;
     height = viewportHeight;
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
 
     // Propagate activePart to sub-renderers
     noteRenderer.activePart = activePart;

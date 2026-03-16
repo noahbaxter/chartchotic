@@ -29,7 +29,7 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
         bool showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
         if (showTrack)
         {
-            bool isDrums = activePart == Part::DRUMS;
+            bool isDrums = isDrumLike(activePart);
             auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
                             HIGHWAY_POS_START, cached.posEnd);
             g.setColour(juce::Colour(0xFF111111));
@@ -52,7 +52,7 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
 {
     if (!PositionMath::bemaniMode) return;
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
@@ -133,7 +133,7 @@ void TrackRenderer::paintBemaniSidebars(juce::Graphics& g, int viewportWidth, in
 {
     if (!PositionMath::bemaniMode) return;
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
@@ -157,7 +157,7 @@ void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int v
 {
     if (!PositionMath::bemaniMode) return;
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
@@ -209,7 +209,7 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
     {
         if (!textureEnabled || !sourceTexture.isValid()) return;
 
-        bool isDrums = activePart == Part::DRUMS;
+        bool isDrums = isDrumLike(activePart);
         auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, targetW, targetH,
                         HIGHWAY_POS_START, cached.posEnd);
         float leftX = edge.leftX;
@@ -389,10 +389,10 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
-        (activePart == Part::DRUMS) == cached.isDrums)
+        (isDrumLike(activePart)) == cached.isDrums)
         return;
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     int totalH = height + overflow;
 
     if (PositionMath::bemaniMode)

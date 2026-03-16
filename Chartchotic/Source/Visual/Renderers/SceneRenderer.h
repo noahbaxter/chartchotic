@@ -136,7 +136,7 @@ class SceneRenderer
         LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                                   float sizeScale, float fretboardScale = 1.0f)
         {
-            bool isDrums = activePart == Part::DRUMS;
+            bool isDrums = isDrumLike(activePart);
             return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                    PositionConstants::HIGHWAY_POS_START, highwayPosEnd,
                                                    colCoords, sizeScale, fretboardScale);

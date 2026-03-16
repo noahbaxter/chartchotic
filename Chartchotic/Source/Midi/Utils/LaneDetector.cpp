@@ -18,11 +18,11 @@ std::vector<SustainEvent> LaneDetector::detectLanes(uint laneType, PPQ startPPQ,
 
     // Get pitches for current instrument and skill level
     std::vector<uint> instrumentPitches;
-    if (isPart(state, Part::GUITAR))
+    if (isGuitarLike(getPartFromState(state)))
     {
         instrumentPitches = InstrumentMapper::getGuitarPitchesForSkill(skill);
     }
-    else if (isPart(state, Part::DRUMS) || isPart(state, Part::REAL_DRUMS))
+    else if (isDrumLike(getPartFromState(state)))
     {
         instrumentPitches = InstrumentMapper::getDrumPitchesForSkill(skill);
     }
@@ -47,8 +47,8 @@ std::vector<SustainEvent> LaneDetector::detectLanes(uint laneType, PPQ startPPQ,
         {
             if (it->second.velocity > 0)
             { // Note-on event
-                uint column = isPart(state, Part::GUITAR) ? InstrumentMapper::getGuitarColumn(pitch, skill)
-                                                          : InstrumentMapper::getDrumColumn(pitch, skill, (bool)state.getProperty("kick2x"));
+                uint column = isGuitarLike(getPartFromState(state)) ? InstrumentMapper::getGuitarColumn(pitch, skill)
+                                                                   : InstrumentMapper::getDrumColumn(pitch, skill, (bool)state.getProperty("kick2x"));
                 if (column < LANE_COUNT)
                 { // Valid column
                     noteEvents.push_back({it->first, pitch});
@@ -65,8 +65,8 @@ std::vector<SustainEvent> LaneDetector::detectLanes(uint laneType, PPQ startPPQ,
     uint maxNotes = (laneType == (uint)Drums::LANE_2) ? 2 : 1;
     for (size_t i = 0; i < noteEvents.size() && laneColumns.size() < maxNotes; ++i)
     {
-        uint column = isPart(state, Part::GUITAR) ? InstrumentMapper::getGuitarColumn(noteEvents[i].second, skill)
-                                                   : InstrumentMapper::getDrumColumn(noteEvents[i].second, skill, (bool)state.getProperty("kick2x"));
+        uint column = isGuitarLike(getPartFromState(state)) ? InstrumentMapper::getGuitarColumn(noteEvents[i].second, skill)
+                                                          : InstrumentMapper::getDrumColumn(noteEvents[i].second, skill, (bool)state.getProperty("kick2x"));
         laneColumns.push_back(column);
     }
 

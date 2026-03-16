@@ -111,12 +111,12 @@ void ReaperIntegration::processReaperTimelineMidi(
     std::vector<uint> validPlayablePitches;
     std::vector<uint> validModifierPitches;
 
-    if (isPart(state, Part::DRUMS))
+    if (isDrumLike(getPartFromState(state)))
     {
         validPlayablePitches = InstrumentMapper::getDrumPitchesForSkill(currentSkill);
         validModifierPitches = InstrumentMapper::getDrumModifierPitches();
     }
-    else if (isPart(state, Part::GUITAR))
+    else if (isGuitarLike(getPartFromState(state)))
     {
         validPlayablePitches = InstrumentMapper::getGuitarPitchesForSkill(currentSkill);
         validModifierPitches = InstrumentMapper::getGuitarModifierPitchesForSkill(currentSkill);
@@ -178,16 +178,16 @@ void ReaperIntegration::processReaperTimelineMidi(
 
         Gem gemType = Gem::NONE;
         if (velocity > 0) {
-            if (isPart(state, Part::GUITAR)) {
+            if (isGuitarLike(getPartFromState(state))) {
                 gemType = midiProcessor.getGuitarGemType(noteNumber, noteStartPPQ);
-            } else if (isPart(state, Part::DRUMS)) {
+            } else if (isDrumLike(getPartFromState(state))) {
                 Dynamic dynamic = (Dynamic)velocity;
                 gemType = midiProcessor.getDrumGemType(noteNumber, noteStartPPQ, dynamic);
             }
         }
 
         // Debug logging for Expert difficulty
-        if (shouldLog && currentSkill == SkillLevel::EXPERT && isPart(state, Part::DRUMS) && notesProcessed <= 10)
+        if (shouldLog && currentSkill == SkillLevel::EXPERT && isDrumLike(getPartFromState(state)) && notesProcessed <= 10)
         {
             juce::String gemTypeName;
             switch (gemType)

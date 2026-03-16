@@ -64,7 +64,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     }
     else if (hitAnimationsOn)
     {
-        clipPos = isBarNote(sustain.gemColumn, activePart == Part::GUITAR ? Part::GUITAR : Part::DRUMS)
+        clipPos = isBarNote(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS)
             ? BAR_SUSTAIN_CLIP : SUSTAIN_CLIP;
     }
     else
@@ -84,7 +84,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
         startOffset = laneShape.startOffset;
         endOffset = laneShape.endOffset;
     }
-    else if (isBarNote(sustain.gemColumn, activePart == Part::GUITAR ? Part::GUITAR : Part::DRUMS))
+    else if (isBarNote(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS))
     {
         startOffset = BAR_SUSTAIN_START_OFFSET;
         endOffset = BAR_SUSTAIN_END_OFFSET;
@@ -122,7 +122,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = assetManager.getLaneColour(sustain.gemColumn, activePart == Part::GUITAR ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
+    auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
 
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
@@ -148,7 +148,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
 void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
 
     // Look up lane coords

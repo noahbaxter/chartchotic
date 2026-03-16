@@ -69,7 +69,7 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
     {
         opacity = std::min(1.0f, opacity * bemaniConfig.gridlineBoost);
         // Flat horizontal line instead of marker image
-        bool isDrums = activePart == Part::DRUMS;
+        bool isDrums = isDrumLike(activePart);
         auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
                         PositionConstants::HIGHWAY_POS_START, posEnd);
         float lineH = std::max(1.0f, (float)width * 0.003f);
@@ -87,12 +87,12 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
         return;
     }
 
-    const auto& fbCoords = activePart == Part::DRUMS
+    const auto& fbCoords = isDrumLike(activePart)
         ? PositionConstants::drumFretboardCoords
         : PositionConstants::guitarFretboardCoords;
     auto edge = getColumnEdge(position, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
     float gridWidth = edge.rightX - edge.leftX;
-    auto perspParams = PositionConstants::getPerspectiveParams(activePart == Part::DRUMS);
+    auto perspParams = PositionConstants::getPerspectiveParams(isDrumLike(activePart));
     float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
 
     // Scale Z offset by perspective (ratio of current width to strikeline width)
