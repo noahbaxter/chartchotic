@@ -94,6 +94,13 @@ private:
     HighwayComponent& primaryHighway() { return *slots[0].highway; }
     MidiInterpreter& primaryInterpreter() { return *slots[0].interpreter; }
 
+    template <typename Fn>
+    void forEachHighway(Fn&& fn)
+    {
+        for (auto& slot : slots)
+            fn(*slot.highway);
+    }
+
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
 
@@ -164,12 +171,16 @@ private:
     void initToolbarCallbacks();
     void initBottomBar();
     void loadState();
+#ifdef DEBUG
+    void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
+#endif
+    void refreshNoteData();
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
 
 
-    void buildReaperFrameData(HighwayFrameData& out);
-    void buildStandardFrameData(HighwayFrameData& out);
+    void buildReaperFrameData(HighwayFrameData& out, MidiInterpreter& interpreter);
+    void buildStandardFrameData(HighwayFrameData& out, MidiInterpreter& interpreter);
 
     // Highway texture overlay
     juce::StringArray highwayTextureNames;
@@ -193,9 +204,9 @@ private:
     // Compute farFadeEnd from user slider value × per-instrument scale
     float computeFarFadeEnd(float userLength) const
     {
-        bool isDrums = slots.empty() ? isPart(state, Part::DRUMS)
-                                     : (slots[0].part == Part::DRUMS);
-        return userLength * getHwyScale(isDrums);
+        bool drums = slots.empty() ? isDrumLike(getPartFromState(state))
+                                   : isDrumLike(slots[0].part);
+        return userLength * getHwyScale(drums);
     }
 
     // VBlank-synced rendering

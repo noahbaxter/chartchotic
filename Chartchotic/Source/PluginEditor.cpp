@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Midi/Pipelines/ReaperMidiPipeline.h"
+#include "Midi/Processing/NoteProcessor.h"
 #include "Utils/TempoTimeSignatureEventHelper.h"
 
 // CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
@@ -29,10 +30,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
       toolbar(state),
       assetManager()
 {
-    // Create the primary highway slot
+    // Create the default single highway slot
     {
         HighwaySlot slot;
-        slot.part = isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR;
+        slot.part = getPartFromState(state);
         slot.interpreter = std::make_unique<MidiInterpreter>(
             state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
         slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
@@ -58,6 +59,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
 #ifdef DEBUG
     bool isStandalone = juce::PluginHostType::getPluginLoadedAs() == AudioProcessor::wrapperType_Standalone;
+    debugController.onChartLoaded = [this](const DebugMidiFilePlayer::LoadedChart& chart) {
+        rebuildSlots(chart);
+    };
     debugController.init(*this, audioProcessor, state, isStandalone);
 #endif
 
@@ -65,9 +69,14 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
-    primaryHighway().onOverflowChanged = [this]() { resized(); };
-
-    addAndMakeVisible(*slots[0].highway);
+    // Wire and add highway slots to component tree.
+    // In standalone debug mode, rebuildSlots may have already replaced
+    // the default slot during init — just re-wire to be safe.
+    for (auto& slot : slots)
+    {
+        slot.highway->onOverflowChanged = [this]() { resized(); };
+        addAndMakeVisible(*slot.highway);
+    }
     addAndMakeVisible(toolbar);
     initBottomBar();
 
@@ -160,14 +169,17 @@ void ChartchoticAudioProcessorEditor::onFrame()
     debugController.onFrame(lastKnownPosition, lastPlayingState);
 #endif
 
-    // Build frame data and push to highway
-    HighwayFrameData frameData;
-    if (isReaperMode)
-        buildReaperFrameData(frameData);
-    else
-        buildStandardFrameData(frameData);
-    primaryHighway().setFrameData(frameData);
-    primaryHighway().repaint();
+    // Build frame data and push to each highway slot
+    for (auto& slot : slots)
+    {
+        HighwayFrameData frameData;
+        if (isReaperMode)
+            buildReaperFrameData(frameData, *slot.interpreter);
+        else
+            buildStandardFrameData(frameData, *slot.interpreter);
+        slot.highway->setFrameData(frameData);
+        slot.highway->repaint();
+    }
 
     repaint();
 }
@@ -188,84 +200,83 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 {
     toolbar.onSkillChanged = [this](int id) {
         state.setProperty("skillLevel", id, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
 
     toolbar.onPartChanged = [this](int id) {
         state.setProperty("part", id, nullptr);
-        primaryInterpreter().instrumentPart = isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR;
-        audioProcessor.refreshMidiDisplay();
+        Part newPart = getPartFromState(state);
+        primaryInterpreter().instrumentPart = newPart;
+        slots[0].part = newPart;
 
         // Recompute farFadeEnd with new instrument scale (slider value unchanged)
         if (!PositionMath::bemaniMode)
         {
             float userLength = state.hasProperty("highwayLength")
                 ? (float)state["highwayLength"] : FAR_FADE_DEFAULT;
-            primaryHighway().setHighwayLength(computeFarFadeEnd(userLength));
+            forEachHighway([this, userLength](auto& hw) { hw.setHighwayLength(computeFarFadeEnd(userLength)); });
         }
         updateDisplaySizeFromSpeedSlider();
 
-        primaryHighway().onInstrumentChanged();
+        forEachHighway([](auto& hw) { hw.onInstrumentChanged(); });
 #ifdef DEBUG
-        toolbar.getTuningPanel().setDrums(isPart(state, Part::DRUMS));
-        // Reload debug chart from the correct instrument track
-        if (debugController.isStandalone())
-            debugController.reloadCurrentChart();
+        toolbar.getTuningPanel().setDrums(isDrumLike(getPartFromState(state)));
 #endif
+        refreshNoteData();
     };
 
     toolbar.onDrumTypeChanged = [this](int id) {
         state.setProperty("drumType", id, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
 
     toolbar.onAutoHopoChanged = [this](bool enabled) {
         state.setProperty("autoHopo", enabled, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
     toolbar.onHopoThresholdChanged = [this](int thresholdIndex) {
         state.setProperty("hopoThreshold", thresholdIndex, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
 
     toolbar.onGemsChanged = [this](bool on) {
         state.setProperty("showGems", on, nullptr);
-        primaryHighway().setShowGems(on);
+        forEachHighway([on](auto& hw) { hw.setShowGems(on); });
     };
 
     toolbar.onBarsChanged = [this](bool on) {
         state.setProperty("showBars", on, nullptr);
-        primaryHighway().setShowBars(on);
+        forEachHighway([on](auto& hw) { hw.setShowBars(on); });
     };
 
     toolbar.onSustainsChanged = [this](bool on) {
         state.setProperty("showSustains", on, nullptr);
-        primaryHighway().setShowSustains(on);
+        forEachHighway([on](auto& hw) { hw.setShowSustains(on); });
     };
 
     toolbar.onLanesChanged = [this](bool on) {
         state.setProperty("showLanes", on, nullptr);
-        primaryHighway().setShowLanes(on);
+        forEachHighway([on](auto& hw) { hw.setShowLanes(on); });
     };
 
     toolbar.onGridlinesChanged = [this](bool on) {
         state.setProperty("showGridlines", on, nullptr);
-        primaryHighway().setShowGridlines(on);
+        forEachHighway([on](auto& hw) { hw.setShowGridlines(on); });
     };
 
     toolbar.onHitIndicatorsChanged = [this](bool on) {
         state.setProperty("hitIndicators", on, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
 
     toolbar.onStarPowerChanged = [this](bool on) {
         state.setProperty("starPower", on, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
 
     toolbar.onKick2xChanged = [this](bool on) {
         state.setProperty("kick2x", on, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
 
     toolbar.onDiscoFlipChanged = [this](bool on) {
@@ -274,27 +285,27 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onDynamicsChanged = [this](bool on) {
         state.setProperty("dynamics", on, nullptr);
-        audioProcessor.refreshMidiDisplay();
+        refreshNoteData();
     };
 
     toolbar.onTrackChanged = [this](bool on) {
         state.setProperty("showTrack", on, nullptr);
-        primaryHighway().setShowTrack(on);
+        forEachHighway([on](auto& hw) { hw.setShowTrack(on); });
     };
 
     toolbar.onLaneSeparatorsChanged = [this](bool on) {
         state.setProperty("showLaneSeparators", on, nullptr);
-        primaryHighway().setShowLaneSeparators(on);
+        forEachHighway([on](auto& hw) { hw.setShowLaneSeparators(on); });
     };
 
     toolbar.onStrikelineChanged = [this](bool on) {
         state.setProperty("showStrikeline", on, nullptr);
-        primaryHighway().setShowStrikeline(on);
+        forEachHighway([on](auto& hw) { hw.setShowStrikeline(on); });
     };
 
     toolbar.onHighwayChanged = [this](bool on) {
         state.setProperty("showHighway", on, nullptr);
-        primaryHighway().setShowHighway(on);
+        forEachHighway([on](auto& hw) { hw.setShowHighway(on); });
     };
 
     toolbar.onNoteSpeedChanged = [this](int speed) {
@@ -349,23 +360,23 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onGemScaleChanged = [this](float scale) {
         state.setProperty("gemScale", scale, nullptr);
-        primaryHighway().setGemScale(scale);
+        forEachHighway([scale](auto& hw) { hw.setGemScale(scale); });
     };
 
     toolbar.onBarScaleChanged = [this](float scale) {
         state.setProperty("barScale", scale, nullptr);
-        primaryHighway().setBarScale(scale);
+        forEachHighway([scale](auto& hw) { hw.setBarScale(scale); });
     };
 
     toolbar.onHighwayLengthChanged = [this](float length) {
         state.setProperty("highwayLength", length, nullptr);
         if (!PositionMath::bemaniMode)
-            primaryHighway().setHighwayLength(computeFarFadeEnd(length));
+            forEachHighway([this, length](auto& hw) { hw.setHighwayLength(computeFarFadeEnd(length)); });
         updateDisplaySizeFromSpeedSlider();
     };
 
     toolbar.onStretchChanged = [this](bool on) {
-        primaryHighway().stretchToFill = on;
+        forEachHighway([on](auto& hw) { hw.stretchToFill = on; });
         state.setProperty("stretchToFill", on, nullptr);
         resized();
     };
@@ -375,19 +386,18 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         PositionMath::bemaniHwyScale = 1.0f;
         state.setProperty("bemaniMode", on, nullptr);
         updateDisplaySizeFromSpeedSlider();
-        // resized() sets correct renderWidth/renderHeight for the new mode
         resized();
-        // Force toolbar relayout (setBounds won't trigger resized if bounds unchanged)
         toolbar.resized();
-        // Force immediate rebuild with correct dimensions (skip debounce)
-        primaryHighway().getTrackRenderer().invalidate();
-        primaryHighway().rebuildTrack();
+        forEachHighway([](auto& hw) {
+            hw.getTrackRenderer().invalidate();
+            hw.rebuildTrack();
+        });
     };
 
     toolbar.onHighwayTextureChanged = [this](const juce::String& textureName) {
         state.setProperty("highwayTexture", textureName, nullptr);
         if (textureName.isEmpty())
-            primaryHighway().clearTexture();
+            forEachHighway([](auto& hw) { hw.clearTexture(); });
         else
             loadHighwayTexture(textureName);
         repaint();
@@ -395,12 +405,12 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onTextureScaleChanged = [this](float scale) {
         state.setProperty("textureScale", scale, nullptr);
-        primaryHighway().setTextureScale(scale);
+        forEachHighway([scale](auto& hw) { hw.setTextureScale(scale); });
     };
 
     toolbar.onTextureOpacityChanged = [this](float opacity) {
         state.setProperty("textureOpacity", opacity, nullptr);
-        primaryHighway().setTextureOpacity(opacity);
+        forEachHighway([opacity](auto& hw) { hw.setTextureOpacity(opacity); });
     };
 
     toolbar.onOpenBackgroundFolder = [this]() {
@@ -479,7 +489,7 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 #endif
 }
 
-void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out)
+void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out, MidiInterpreter& interpreter)
 {
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
@@ -511,9 +521,9 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     // Wire disco flip state from REAPER pipeline
     auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(audioProcessor.getMidiPipeline());
     if (reaperPipeline)
-        primaryInterpreter().setDiscoFlipState(reaperPipeline->getDiscoFlipState());
+        interpreter.setDiscoFlipState(reaperPipeline->getDiscoFlipState());
     else
-        primaryInterpreter().setDiscoFlipState(nullptr);
+        interpreter.setDiscoFlipState(nullptr);
 
     // Generate PPQ-based windows from MidiInterpreter
     TrackWindow ppqTrackWindow;
@@ -522,8 +532,8 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
 #ifdef DEBUG
         ScopedPhaseMeasure lm(debugController.lockWait_us, primaryHighway().getSceneRenderer().collectPhaseTiming);
 #endif
-        ppqTrackWindow = primaryInterpreter().generateTrackWindow(extendedStart, trackWindowEndPPQ);
-        ppqSustainWindow = primaryInterpreter().generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+        ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+        ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     }
 
     // Create a lambda that uses REAPER's timeline conversion (handles ALL tempo changes)
@@ -584,7 +594,7 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     }
 }
 
-void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& out)
+void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& out, MidiInterpreter& interpreter)
 {
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
@@ -592,7 +602,7 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
 #ifdef DEBUG
     if (debugController.isStandalone() && debugController.isNotesActive())
     {
-        debugController.buildStandaloneFrameData(out, primaryHighway().getSceneRenderer(), primaryInterpreter(),
+        debugController.buildStandaloneFrameData(out, primaryHighway().getSceneRenderer(), interpreter,
                                                   displaySizeInPPQ.toDouble(), displayWindowTimeSeconds);
         out.scrollOffset = computeScrollOffset();
         return;
@@ -652,8 +662,8 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
 #ifdef DEBUG
         ScopedPhaseMeasure lm(debugController.lockWait_us, primaryHighway().getSceneRenderer().collectPhaseTiming);
 #endif
-        ppqTrackWindow = primaryInterpreter().generateTrackWindow(extendedStart, trackWindowEndPPQ);
-        ppqSustainWindow = primaryInterpreter().generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+        ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+        ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     }
 
     // Simple constant BPM conversion for non-REAPER mode
@@ -717,13 +727,70 @@ void ChartchoticAudioProcessorEditor::resized()
     // Toolbar at top — scales with editor width
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Highway component — fills all space below toolbar, paint() handles scaling
+    // Layout highway slots below toolbar
     if (!slots.empty())
     {
-        primaryHighway().renderWidth = sceneWidth;
-        primaryHighway().renderHeight = sceneHeight;
-        primaryHighway().updateOverflow();
-        primaryHighway().setBounds(0, tbHeight, getWidth(), getHeight() - tbHeight);
+        int contentW = getWidth();
+        int contentH = getHeight() - tbHeight;
+        int numSlots = (int)slots.size();
+
+        if (numSlots == 1)
+        {
+            auto& hw = *slots[0].highway;
+            hw.renderWidth = sceneWidth;
+            hw.renderHeight = sceneHeight;
+            hw.updateOverflow();
+            hw.setBounds(0, tbHeight, contentW, contentH);
+        }
+        else
+        {
+            // Determine grid layout based on aspect ratio and slot count
+            //   wide  (aspect > 1.5): single row
+            //   tall  (aspect < 0.7): single column
+            //   square-ish:           grid (2x2 for 3-4 slots, row for 2)
+            float aspect = (float)contentW / (float)std::max(1, contentH);
+            int cols, rows;
+
+            if (numSlots <= 2)
+            {
+                if (aspect > 1.0f) { cols = numSlots; rows = 1; }
+                else               { cols = 1; rows = numSlots; }
+            }
+            else
+            {
+                // 3-4 slots
+                if (aspect > 1.5f)      { cols = numSlots; rows = 1; }
+                else if (aspect < 0.7f) { cols = 1; rows = numSlots; }
+                else                    { cols = 2; rows = (numSlots + 1) / 2; }
+            }
+
+            for (int i = 0; i < numSlots; ++i)
+            {
+                auto& hw = *slots[i].highway;
+                int col = i % cols;
+                int row = i / cols;
+                int slotW = contentW / cols;
+                int slotH = contentH / rows;
+                int slotX = col * slotW;
+                int slotY = tbHeight + row * slotH;
+
+                // Each slot gets its own scene dimensions based on its bounds
+                if (PositionMath::bemaniMode)
+                {
+                    hw.renderWidth = slotW;
+                    int minH = slotW * 2;
+                    hw.renderHeight = std::max(minH, slotH);
+                }
+                else
+                {
+                    hw.renderWidth = slotW;
+                    hw.renderHeight = juce::roundToInt(slotW / sceneAspectRatio);
+                }
+
+                hw.updateOverflow();
+                hw.setBounds(slotX, slotY, slotW, slotH);
+            }
+        }
     }
 
     // Version label + update badge (bottom-left) — same scale as toolbar
@@ -809,15 +876,29 @@ void ChartchoticAudioProcessorEditor::loadState()
     toolbar.loadState();
 
     // Restore render toggle flags (default ON if property missing from saved state)
-    primaryHighway().getSceneRenderer().showGems = !state.hasProperty("showGems") || (bool)state["showGems"];
-    primaryHighway().getSceneRenderer().showBars = !state.hasProperty("showBars") || (bool)state["showBars"];
-    primaryHighway().getSceneRenderer().showSustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
-    primaryHighway().getSceneRenderer().showLanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
-    primaryHighway().getSceneRenderer().showGridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
-    primaryHighway().getSceneRenderer().showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
-    primaryHighway().getSceneRenderer().showLaneSeparators = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
-    primaryHighway().getSceneRenderer().showStrikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
-    primaryHighway().showHighway = !state.hasProperty("showHighway") || (bool)state["showHighway"];
+    {
+        bool gems = !state.hasProperty("showGems") || (bool)state["showGems"];
+        bool bars = !state.hasProperty("showBars") || (bool)state["showBars"];
+        bool sustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
+        bool lanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
+        bool gridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
+        bool track = !state.hasProperty("showTrack") || (bool)state["showTrack"];
+        bool laneSeps = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
+        bool strikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
+        bool hwy = !state.hasProperty("showHighway") || (bool)state["showHighway"];
+
+        forEachHighway([=](auto& hw) {
+            hw.getSceneRenderer().showGems = gems;
+            hw.getSceneRenderer().showBars = bars;
+            hw.getSceneRenderer().showSustains = sustains;
+            hw.getSceneRenderer().showLanes = lanes;
+            hw.getSceneRenderer().showGridlines = gridlines;
+            hw.getSceneRenderer().showTrack = track;
+            hw.getSceneRenderer().showLaneSeparators = laneSeps;
+            hw.getSceneRenderer().showStrikeline = strikeline;
+            hw.showHighway = hwy;
+        });
+    }
 
     // Restore highway length (apply per-instrument scale)
     {
@@ -825,7 +906,9 @@ void ChartchoticAudioProcessorEditor::loadState()
             ? juce::jlimit(FAR_FADE_MIN, FAR_FADE_MAX, (float)state["highwayLength"])
             : FAR_FADE_DEFAULT;
         float scaledLength = computeFarFadeEnd(userLength);
-        primaryHighway().getSceneRenderer().farFadeEnd = scaledLength;
+        forEachHighway([scaledLength](auto& hw) {
+            hw.getSceneRenderer().farFadeEnd = scaledLength;
+        });
         PositionMath::bemaniHwyScale = scaledLength;
     }
 
@@ -836,9 +919,15 @@ void ChartchoticAudioProcessorEditor::loadState()
 
     // Restore texture parameters
     if (state.hasProperty("textureScale"))
-        primaryHighway().getTrackRenderer().textureScale = (float)state["textureScale"];
+    {
+        float ts = (float)state["textureScale"];
+        forEachHighway([ts](auto& hw) { hw.getTrackRenderer().textureScale = ts; });
+    }
     if (state.hasProperty("textureOpacity"))
-        primaryHighway().getTrackRenderer().textureOpacity = juce::jlimit(0.05f, 1.0f, (float)state["textureOpacity"]);
+    {
+        float to = juce::jlimit(0.05f, 1.0f, (float)state["textureOpacity"]);
+        forEachHighway([to](auto& hw) { hw.getTrackRenderer().textureOpacity = to; });
+    }
 
     // Apply side-effects that listeners would normally do
     applyLatencySetting((int)state["latency"]);
@@ -853,14 +942,121 @@ void ChartchoticAudioProcessorEditor::loadState()
     showFps = (bool)state.getProperty("showFps", false);
 
     // Restore stretch mode
-    primaryHighway().stretchToFill = state.hasProperty("stretchToFill") && (bool)state["stretchToFill"];
+    {
+        bool stretch = state.hasProperty("stretchToFill") && (bool)state["stretchToFill"];
+        forEachHighway([stretch](auto& hw) { hw.stretchToFill = stretch; });
+    }
 
     // Restore Bemani mode
     PositionMath::bemaniMode = state.hasProperty("bemaniMode") && (bool)state["bemaniMode"];
     PositionMath::bemaniHwyScale = 1.0f;
 
     updateDisplaySizeFromSpeedSlider();
-    primaryHighway().rebuildTrack();
+    forEachHighway([](auto& hw) { hw.rebuildTrack(); });
+}
+
+#ifdef DEBUG
+void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart)
+{
+    // Map Part enum to MIDI track name
+    auto trackNameForPart = [](Part p) -> juce::String {
+        switch (p) {
+            case Part::GUITAR:     return "PART GUITAR";
+            case Part::BASS:       return "PART BASS";
+            case Part::KEYS:       return "PART KEYS";
+            case Part::DRUMS:      return "PART DRUMS";
+            case Part::VOCALS:     return "PART VOCALS";
+            default:               return "PART GUITAR";
+        }
+    };
+
+    // Remove old highway components
+    for (auto& slot : slots)
+        removeChildComponent(slot.highway.get());
+    slots.clear();
+
+    // If no parts found, create a single default slot
+    if (chart.foundParts.empty())
+    {
+        HighwaySlot slot;
+        slot.part = getPartFromState(state);
+        slot.interpreter = std::make_unique<MidiInterpreter>(
+            state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
+        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
+        slot.highway->onOverflowChanged = [this]() { resized(); };
+        slots.push_back(std::move(slot));
+
+        for (auto& s : slots)
+            addAndMakeVisible(*s.highway);
+        resized();
+        loadState();
+        return;
+    }
+
+    // Create one slot per discovered part, each with its own NoteStateMapArray
+    for (Part part : chart.foundParts)
+    {
+        HighwaySlot slot;
+        slot.part = part;
+
+        // Process this instrument's notes into the slot's own NoteStateMapArray
+        juce::String tName = trackNameForPart(part);
+        auto notesIt = chart.trackNotes.find(tName);
+        if (notesIt != chart.trackNotes.end())
+        {
+            const juce::ScopedLock lock(*slot.noteStateMapLock);
+            for (auto& map : *slot.noteStateMapArray)
+                map.clear();
+
+            // Temporarily set state's part so NoteProcessor filters correctly
+            int savedPart = (int)state.getProperty("part");
+            state.setProperty("part", (int)part, nullptr);
+
+            NoteProcessor noteProcessor;
+            noteProcessor.processModifierNotes(notesIt->second, *slot.noteStateMapArray,
+                                                *slot.noteStateMapLock, state);
+            noteProcessor.processPlayableNotes(notesIt->second, *slot.noteStateMapArray,
+                                                *slot.noteStateMapLock, audioProcessor.getMidiProcessor(),
+                                                state, chart.initialBPM, 44100.0);
+
+            state.setProperty("part", savedPart, nullptr);
+        }
+
+        slot.interpreter = std::make_unique<MidiInterpreter>(
+            part, state, *slot.noteStateMapArray, *slot.noteStateMapLock);
+        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
+        slot.highway->setActivePart(part);
+        slot.highway->onOverflowChanged = [this]() { resized(); };
+        slots.push_back(std::move(slot));
+    }
+
+    // Multi-highway mode: show part labels and all toolbar options
+    bool multiSlot = slots.size() > 1;
+    forEachHighway([multiSlot](auto& hw) { hw.showPartLabel = multiSlot; });
+    toolbar.setMultiInstrumentMode(multiSlot);
+
+    // Add to component tree and size before loadState,
+    // so rebuildTrack() has valid renderWidth/renderHeight
+    for (auto& slot : slots)
+        addAndMakeVisible(*slot.highway);
+    resized();
+
+    // Now apply visual state (triggers rebuildTrack with valid dimensions)
+    loadState();
+}
+#endif
+
+void ChartchoticAudioProcessorEditor::refreshNoteData()
+{
+#ifdef DEBUG
+    // In standalone multi-slot mode, toggle changes need to reprocess per-slot note data
+    if (debugController.isStandalone() && slots.size() > 1)
+    {
+        debugController.reloadCurrentChart();
+        return;
+    }
+#endif
+    audioProcessor.refreshMidiDisplay();
 }
 
 void ChartchoticAudioProcessorEditor::applyLatencySetting(int latencyValue)
@@ -987,15 +1183,15 @@ void ChartchoticAudioProcessorEditor::loadHighwayTexture(const juce::String& fil
     auto file = highwayTextureDirectory.getChildFile(filename + ".png");
     if (!file.existsAsFile())
     {
-        primaryHighway().clearTexture();
+        forEachHighway([](auto& hw) { hw.clearTexture(); });
         return;
     }
 
     auto img = juce::ImageFileFormat::loadFrom(file);
     if (img.isValid())
-        primaryHighway().setTexture(img);
+        forEachHighway([&img](auto& hw) { hw.setTexture(img); });
     else
-        primaryHighway().clearTexture();
+        forEachHighway([](auto& hw) { hw.clearTexture(); });
 }
 
 float ChartchoticAudioProcessorEditor::computeScrollOffset()

@@ -37,6 +37,7 @@ public:
     void loadState();
     void updateVisibility();
     void setReaperMode(bool isReaper);
+    void setMultiInstrumentMode(bool multi) { multiInstrumentMode = multi; }
 
     //==============================================================================
     // Callbacks — the editor wires these
@@ -115,6 +116,7 @@ public:
 private:
     juce::ValueTree& state;
     bool reaperMode = false;
+    bool multiInstrumentMode = false;
 
     //==============================================================================
     // Top bar — always visible

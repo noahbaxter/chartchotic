@@ -10,6 +10,7 @@
 #include "NoteProcessor.h"
 #include "../Utils/InstrumentMapper.h"
 #include "../Utils/ChordAnalyzer.h"
+#include "../Utils/GemCalculator.h"
 
 void NoteProcessor::processModifierNotes(
     const std::vector<MidiCache::CachedNote>& notes,
@@ -20,11 +21,12 @@ void NoteProcessor::processModifierNotes(
     SkillLevel currentSkill = (SkillLevel)((int)state.getProperty("skillLevel"));
     std::vector<uint> validModifierPitches;
 
-    if (isPart(state, Part::DRUMS))
+    Part part = (Part)(int)state.getProperty("part");
+    if (isDrumLike(part))
     {
         validModifierPitches = InstrumentMapper::getDrumModifierPitches();
     }
-    else if (isPart(state, Part::GUITAR))
+    else if (isGuitarLike(part))
     {
         validModifierPitches = InstrumentMapper::getGuitarModifierPitchesForSkill(currentSkill);
     }
@@ -56,16 +58,17 @@ void NoteProcessor::processPlayableNotes(
     SkillLevel currentSkill = (SkillLevel)((int)state.getProperty("skillLevel"));
     std::vector<uint> validPlayablePitches;
 
-    if (isPart(state, Part::DRUMS))
+    Part part = (Part)(int)state.getProperty("part");
+    if (isDrumLike(part))
     {
         validPlayablePitches = InstrumentMapper::getDrumPitchesForSkill(currentSkill);
     }
-    else if (isPart(state, Part::GUITAR))
+    else if (isGuitarLike(part))
     {
         validPlayablePitches = InstrumentMapper::getGuitarPitchesForSkill(currentSkill);
     }
 
-    // Track guitar note positions for chord fixing
+    // Track guitar-like note positions for chord fixing
     std::set<PPQ> guitarNotePositions;
 
     const juce::ScopedLock lock(noteStateMapLock);
@@ -83,15 +86,17 @@ void NoteProcessor::processPlayableNotes(
         Gem gemType = Gem::NONE;
         if (note.velocity > 0)
         {
-            if (isPart(state, Part::GUITAR))
+            if (isGuitarLike(part))
             {
-                gemType = midiProcessor.getGuitarGemType(note.pitch, note.startPPQ);
+                gemType = GemCalculator::getGuitarGemType(note.pitch, note.startPPQ, state,
+                                                           noteStateMapArray, noteStateMapLock);
                 guitarNotePositions.insert(note.startPPQ);
             }
-            else if (isPart(state, Part::DRUMS))
+            else if (isDrumLike(part))
             {
                 Dynamic dynamic = (Dynamic)note.velocity;
-                gemType = midiProcessor.getDrumGemType(note.pitch, note.startPPQ, dynamic);
+                gemType = GemCalculator::getDrumGemType(note.pitch, note.startPPQ, dynamic, state,
+                                                        noteStateMapArray, noteStateMapLock);
             }
         }
 
@@ -99,8 +104,8 @@ void NoteProcessor::processPlayableNotes(
         addNoteToMap(noteStateMapArray, note.pitch, note.startPPQ, note.endPPQ, NoteData(note.velocity, gemType));
     }
 
-    // Fix chord HOPOs for guitar (after all notes are added, but still holding lock)
-    if (isPart(state, Part::GUITAR) && !guitarNotePositions.empty())
+    // Fix chord HOPOs for guitar-like instruments
+    if (isGuitarLike(part) && !guitarNotePositions.empty())
     {
         std::vector<PPQ> positions(guitarNotePositions.begin(), guitarNotePositions.end());
         ChordAnalyzer::fixChordHOPOs(positions, currentSkill, noteStateMapArray, noteStateMapLock);
@@ -113,7 +118,7 @@ void NoteProcessor::addNoteToMap(NoteStateMapArray& noteStateMapArray, uint pitc
     {
         noteStateMapArray[pitch][startPPQ] = data;
         // startPPQ + 1 handles 0 length notes
-        // endPPQ - 1 ensures we don't overwrite the next note's start 
+        // endPPQ - 1 ensures we don't overwrite the next note's start
         noteStateMapArray[pitch][std::max(startPPQ + PPQ(1), endPPQ - PPQ(1))] = NoteData(0, Gem::NONE);
     }
 }

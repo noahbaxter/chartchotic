@@ -43,6 +43,7 @@ public:
     Part getActivePart() const { return activePart; }
 
     void paint(juce::Graphics& g) override;
+    void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
     void timerCallback() override;
 
@@ -68,7 +69,9 @@ public:
     void setGemScale(float)             { repaint(); }
     void setBarScale(float)             { repaint(); }
 
-    void onInstrumentChanged()          { setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR); trackRenderer.invalidate(); rebuildTrack(); repaint(); }
+    bool showPartLabel = false;
+
+    void onInstrumentChanged()          { setActivePart(getPartFromState(state)); trackRenderer.invalidate(); rebuildTrack(); repaint(); }
 
     // Accessors for debug wiring
     SceneRenderer& getSceneRenderer()   { return sceneRenderer; }

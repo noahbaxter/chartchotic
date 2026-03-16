@@ -54,6 +54,9 @@ public:
     bool isNotesActive() const { return playbackController.isNotesActive(); }
     const DiscoFlipState* getDiscoFlipState() const { return &discoFlipState; }
 
+    // Callback when chart load discovers instrument parts — provides parts + per-track notes
+    std::function<void(const DebugMidiFilePlayer::LoadedChart&)> onChartLoaded;
+
     // Reload current chart (e.g. after instrument switch)
     void reloadCurrentChart() { loadDebugChart(playbackController.getChartIndex()); }
 

@@ -70,7 +70,7 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
     tune.initDefaults(highway.getTrackRenderer());
 
     tune.onLayerChanged = [this, &highway](int layer, float scale, float x, float y) {
-        bool isDrums = isPart(*statePtr, Part::DRUMS);
+        bool isDrums = isDrumLike(getPartFromState(*statePtr));
         auto* layers = isDrums ? highway.getTrackRenderer().layersDrums : highway.getTrackRenderer().layersGuitar;
         layers[layer] = {scale, x, y};
         highway.getTrackRenderer().invalidate();
@@ -236,8 +236,9 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
 {
     if (!standalone || !playbackController.isNotesActive()) return;
 
-    // Wire disco flip state to interpreter each frame (lightweight pointer set)
-    midiInterpreter.setDiscoFlipState(discoFlipState.hasRegions() ? &discoFlipState : nullptr);
+    // Wire disco flip state to drum interpreters only
+    bool isDrumSlot = midiInterpreter.instrumentPart == Part::DRUMS;
+    midiInterpreter.setDiscoFlipState(isDrumSlot && discoFlipState.hasRegions() ? &discoFlipState : nullptr);
 
     PPQ trackWindowStartPPQ = playbackController.getCurrentPPQ();
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + PPQ(displaySizeInPPQ);
@@ -268,11 +269,11 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
 
     bool isProDrums = (int)statePtr->getProperty("drumType") == 2;
     bool discoEnabled = (bool)statePtr->getProperty("discoFlip");
-    out.discoFlipActive = isProDrums && discoEnabled
+    out.discoFlipActive = isDrumSlot && isProDrums && discoEnabled
                           && discoFlipState.isFlipped(trackWindowStartPPQ);
 
-    // Convert flip region boundaries to time-relative for highway markers
-    if (isProDrums && discoEnabled && discoFlipState.hasRegions())
+    // Convert flip region boundaries to time-relative for highway markers (drums only)
+    if (isDrumSlot && isProDrums && discoEnabled && discoFlipState.hasRegions())
     {
         double cursorTime = ppqToTime(cursorPPQ.toDouble());
         for (const auto& r : discoFlipState.getRegions())
@@ -355,37 +356,42 @@ void DebugEditorController::loadDebugChart(int index)
 {
     if (index <= 0 || index >= (int)chartEntries.size() || !chartEntries[index].file.existsAsFile())
     {
-        {
-            const juce::ScopedLock lock(processorPtr->getNoteStateMapLock());
-            for (auto& map : processorPtr->getNoteStateMapArray())
-                map.clear();
-        }
         debugMidiTempoMap.clear();
+        // Notify with empty chart to clear highways
+        if (onChartLoaded)
+        {
+            DebugMidiFilePlayer::LoadedChart empty;
+            onChartLoaded(empty);
+        }
         return;
     }
 
     juce::MemoryBlock data;
     chartEntries[index].file.loadFileAsData(data);
 
-    bool isDrums = isPart(*statePtr, Part::DRUMS);
-
     auto result = DebugMidiFilePlayer::loadMidiFile(
-        (const char*)data.getData(), (int)data.getSize(),
-        isDrums,
-        processorPtr->getNoteStateMapArray(),
-        processorPtr->getNoteStateMapLock(),
-        processorPtr->getMidiProcessor(),
-        *statePtr);
+        (const char*)data.getData(), (int)data.getSize());
 
     debugMidiTempoMap = result.tempoMap;
     debugChartLengthInBeats = result.lengthInBeats;
     playbackController.setBPM(result.initialBPM);
 
-    // Build disco flip state from text events (drums only)
-    if (isDrums)
-        discoFlipState.buildFromTextEvents(result.textEvents);
+    // Update MidiProcessor's tempo map (global, shared)
+    {
+        const juce::ScopedLock tempoLock(processorPtr->getMidiProcessor().tempoTimeSignatureMapLock);
+        processorPtr->getMidiProcessor().tempoTimeSignatureMap = result.tempoMap;
+    }
+
+    // Build disco flip state from PART DRUMS text events only
+    auto drumTextIt = result.trackTextEvents.find("PART DRUMS");
+    if (drumTextIt != result.trackTextEvents.end())
+        discoFlipState.buildFromTextEvents(drumTextIt->second);
     else
         discoFlipState = DiscoFlipState();
+
+    // Notify editor with full chart data — each slot processes its own track
+    if (onChartLoaded)
+        onChartLoaded(result);
 }
 
 #endif

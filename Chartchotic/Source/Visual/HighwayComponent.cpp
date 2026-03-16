@@ -8,6 +8,7 @@
 */
 
 #include "HighwayComponent.h"
+#include "../UI/Theme.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -16,7 +17,7 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
       trackRenderer(state)
 {
     // Sync activePart from state
-    setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR);
+    setActivePart(getPartFromState(state));
 #ifdef DEBUG
     debugColour = juce::Colour::fromHSV(
         juce::Random::getSystemRandom().nextFloat(), 0.4f, 0.4f, 1.0f);
@@ -116,6 +117,113 @@ void HighwayComponent::paint(juce::Graphics& g)
     }
 }
 
+void HighwayComponent::paintOverChildren(juce::Graphics& g)
+{
+    if (!showPartLabel) return;
+
+    const char* imgData = nullptr;
+    int imgSize = 0;
+    juce::String label;
+
+    // Pick icon + label per instrument (reuse guitar icon for guitar-like, drums for drum-like)
+    switch (activePart)
+    {
+        case Part::BASS:
+            imgData = BinaryData::icon_guitar_png;
+            imgSize = BinaryData::icon_guitar_pngSize;
+            label = "Bass";
+            break;
+        case Part::KEYS:
+            imgData = BinaryData::icon_guitar_png;
+            imgSize = BinaryData::icon_guitar_pngSize;
+            label = "Keys";
+            break;
+        case Part::GHL_GUITAR:
+            imgData = BinaryData::icon_guitar_png;
+            imgSize = BinaryData::icon_guitar_pngSize;
+            label = "GHL Guitar";
+            break;
+        case Part::GHL_BASS:
+            imgData = BinaryData::icon_guitar_png;
+            imgSize = BinaryData::icon_guitar_pngSize;
+            label = "GHL Bass";
+            break;
+        case Part::DRUMS:
+            imgData = BinaryData::icon_drums_png;
+            imgSize = BinaryData::icon_drums_pngSize;
+            label = "Drums";
+            break;
+        case Part::VOCALS:
+            label = "Vocals";
+            break;
+        case Part::HARMONIES:
+            label = "Harmonies";
+            break;
+        case Part::PRO_GUITAR:
+            imgData = BinaryData::icon_guitar_png;
+            imgSize = BinaryData::icon_guitar_pngSize;
+            label = "Pro Guitar";
+            break;
+        case Part::PRO_BASS:
+            imgData = BinaryData::icon_guitar_png;
+            imgSize = BinaryData::icon_guitar_pngSize;
+            label = "Pro Bass";
+            break;
+        case Part::PRO_KEYS:
+            label = "Pro Keys";
+            break;
+        case Part::GUITAR:
+        default:
+            imgData = BinaryData::icon_guitar_png;
+            imgSize = BinaryData::icon_guitar_pngSize;
+            label = "Guitar";
+            break;
+    }
+
+    juce::Image icon;
+    if (imgData != nullptr)
+        icon = juce::ImageCache::getFromMemory(imgData, imgSize);
+    bool hasIcon = icon.isValid();
+
+    float s = (float)getWidth() / 600.0f;
+    int iconSize = hasIcon ? juce::roundToInt(40.0f * s) : 0;
+    int pad = juce::roundToInt(10.0f * s);
+    float fontSize = 18.0f * s;
+    auto font = Theme::getUIFont(fontSize);
+    int textW = (int)font.getStringWidthFloat(label);
+    int totalW = (hasIcon ? iconSize + pad : 0) + textW + pad * 2;
+    int totalH = juce::jmax(iconSize, juce::roundToInt(fontSize * 1.5f)) + pad * 2;
+
+    // Centered at bottom
+    int x = (getWidth() - totalW) / 2;
+    int y = getHeight() - totalH - pad;
+
+    auto pillBounds = juce::Rectangle<float>((float)x, (float)y, (float)totalW, (float)totalH);
+    g.setColour(juce::Colours::black.withAlpha(0.55f));
+    g.fillRoundedRectangle(pillBounds, 6.0f * s);
+
+    float textX = pillBounds.getX() + pad;
+
+    if (hasIcon)
+    {
+        auto iconBounds = juce::Rectangle<float>(
+            pillBounds.getX() + pad, pillBounds.getCentreY() - iconSize * 0.5f,
+            (float)iconSize, (float)iconSize);
+        g.setOpacity(0.9f);
+        g.drawImage(icon, iconBounds);
+        g.setOpacity(1.0f);
+        textX += iconSize + pad * 0.5f;
+    }
+
+    g.setColour(juce::Colours::white.withAlpha(0.9f));
+    g.setFont(font);
+    auto textBounds = juce::Rectangle<float>(
+        textX, pillBounds.getY(),
+        pillBounds.getRight() - textX - pad,
+        (float)totalH);
+    g.drawText(label, textBounds, hasIcon ? juce::Justification::centredLeft : juce::Justification::centred);
+}
+
 void HighwayComponent::resized()
 {
     if (PositionMath::bemaniMode)
@@ -144,7 +252,7 @@ void HighwayComponent::updateOverflow()
 {
     if (renderWidth <= 0 || renderHeight <= 0) return;
     if (PositionMath::bemaniMode) { topOverflow = 0; return; }
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     auto farEdge = PositionMath::getFretboardEdge(
         isDrums, sceneRenderer.farFadeEnd, renderWidth, renderHeight,
         PositionConstants::HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
@@ -161,7 +269,7 @@ void HighwayComponent::rebuildTrack()
     int prevOverflow = topOverflow;
     updateOverflow();
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;

@@ -679,7 +679,8 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
     int w = panel->getWidth() - margin * 2;
     int col2 = w / 2;
     int pillW = col2 - juce::roundToInt(2.0f * s);
-    bool isDrums = isPart(state, Part::DRUMS);
+    bool isDrums = isDrumLike(getPartFromState(state));
+    bool showAll = multiInstrumentMode;
 
     // --- Modifiers ---
     modifiersHeader.setBounds(margin, y, w, headerH);
@@ -687,7 +688,7 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
 
     starPowerToggle.setBounds(margin, y, pillW, pillH);
 
-    if (isDrums)
+    if (isDrums || showAll)
     {
         cymbalsToggle.setBounds(margin + col2, y, pillW, pillH);
         cymbalsToggle.setVisible(true);
@@ -703,9 +704,6 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         discoFlipToggle.setVisible(true);
         discoFlipToggle.setDisabled(!cymbalsToggle.getToggleState());
         y += pillH + gap;
-
-        autoHopoToggle.setVisible(false);
-        hopoThresholdStepper.setVisible(false);
     }
     else
     {
@@ -713,7 +711,10 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         dynamicsToggle.setVisible(false);
         kick2xToggle.setVisible(false);
         discoFlipToggle.setVisible(false);
+    }
 
+    if (!isDrums || showAll)
+    {
         autoHopoToggle.setBounds(margin + col2, y, pillW, pillH);
         autoHopoToggle.setVisible(true);
         y += pillH + gap;
@@ -728,6 +729,11 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         {
             hopoThresholdStepper.setVisible(false);
         }
+    }
+    else
+    {
+        autoHopoToggle.setVisible(false);
+        hopoThresholdStepper.setVisible(false);
     }
 
     y += sectionGap - gap;
