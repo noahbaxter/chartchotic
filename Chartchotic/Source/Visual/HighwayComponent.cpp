@@ -117,72 +117,39 @@ void HighwayComponent::paint(juce::Graphics& g)
     }
 }
 
+// Part label overlay data — icon + display name per instrument
+struct PartLabelInfo {
+    const char* imgData;
+    int imgSize;
+    const char* label;
+};
+
+static PartLabelInfo getPartLabelInfo(Part part)
+{
+    switch (part)
+    {
+        case Part::DRUMS:       return { BinaryData::icon_drums_png,  BinaryData::icon_drums_pngSize,  "Drums" };
+        case Part::BASS:        return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize,   "Bass" };
+        case Part::GHL_BASS:    return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize,   "GHL Bass" };
+        case Part::PRO_BASS:    return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize,   "Pro Bass" };
+        case Part::KEYS:        return { BinaryData::icon_keys_png,   BinaryData::icon_keys_pngSize,   "Keys" };
+        case Part::GHL_GUITAR:  return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize, "GHL Guitar" };
+        case Part::PRO_GUITAR:  return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize, "Pro Guitar" };
+        case Part::GUITAR:
+        default:                return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize, "Guitar" };
+    }
+}
+
 void HighwayComponent::paintOverChildren(juce::Graphics& g)
 {
     if (!showPartLabel) return;
 
-    const char* imgData = nullptr;
-    int imgSize = 0;
-    juce::String label;
-
-    // Pick icon + label per instrument (reuse guitar icon for guitar-like, drums for drum-like)
-    switch (activePart)
-    {
-        case Part::BASS:
-            imgData = BinaryData::icon_guitar_png;
-            imgSize = BinaryData::icon_guitar_pngSize;
-            label = "Bass";
-            break;
-        case Part::KEYS:
-            imgData = BinaryData::icon_guitar_png;
-            imgSize = BinaryData::icon_guitar_pngSize;
-            label = "Keys";
-            break;
-        case Part::GHL_GUITAR:
-            imgData = BinaryData::icon_guitar_png;
-            imgSize = BinaryData::icon_guitar_pngSize;
-            label = "GHL Guitar";
-            break;
-        case Part::GHL_BASS:
-            imgData = BinaryData::icon_guitar_png;
-            imgSize = BinaryData::icon_guitar_pngSize;
-            label = "GHL Bass";
-            break;
-        case Part::DRUMS:
-            imgData = BinaryData::icon_drums_png;
-            imgSize = BinaryData::icon_drums_pngSize;
-            label = "Drums";
-            break;
-        case Part::VOCALS:
-            label = "Vocals";
-            break;
-        case Part::HARMONIES:
-            label = "Harmonies";
-            break;
-        case Part::PRO_GUITAR:
-            imgData = BinaryData::icon_guitar_png;
-            imgSize = BinaryData::icon_guitar_pngSize;
-            label = "Pro Guitar";
-            break;
-        case Part::PRO_BASS:
-            imgData = BinaryData::icon_guitar_png;
-            imgSize = BinaryData::icon_guitar_pngSize;
-            label = "Pro Bass";
-            break;
-        case Part::PRO_KEYS:
-            label = "Pro Keys";
-            break;
-        case Part::GUITAR:
-        default:
-            imgData = BinaryData::icon_guitar_png;
-            imgSize = BinaryData::icon_guitar_pngSize;
-            label = "Guitar";
-            break;
-    }
+    auto info = getPartLabelInfo(activePart);
+    juce::String label = info.label;
 
     juce::Image icon;
-    if (imgData != nullptr)
-        icon = juce::ImageCache::getFromMemory(imgData, imgSize);
+    if (info.imgData != nullptr)
+        icon = juce::ImageCache::getFromMemory(info.imgData, info.imgSize);
     bool hasIcon = icon.isValid();
 
     float s = (float)getWidth() / 600.0f;
@@ -194,7 +161,6 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
     int totalW = (hasIcon ? iconSize + pad : 0) + textW + pad * 2;
     int totalH = juce::jmax(iconSize, juce::roundToInt(fontSize * 1.5f)) + pad * 2;
 
-    // Centered at bottom
     int x = (getWidth() - totalW) / 2;
     int y = getHeight() - totalH - pad;
 

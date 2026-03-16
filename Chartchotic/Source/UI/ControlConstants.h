@@ -148,6 +148,9 @@ inline RenderType getRenderType(Part p)
 inline bool isGuitarLike(Part p) { return getRenderType(p) == RenderType::FIVE_FRET; }
 inline bool isDrumLike(Part p)   { auto r = getRenderType(p); return r == RenderType::FOUR_LANE_DRUMS || r == RenderType::FIVE_LANE_DRUMS || r == RenderType::ELITE_DRUMS; }
 
+// Can this Part be rendered as a scrolling highway? (Vocals, Pro Keys etc. need different rendering)
+inline bool isHighwayRenderable(Part p) { return isGuitarLike(p) || isDrumLike(p); }
+
 // Drum track type — variants within PART DRUMS, distinguished by heuristics / song.ini
 enum class DrumType { NORMAL = 1, PRO, FIVE_LANE };
 enum class SkillLevel { EASY = 1, MEDIUM, HARD, EXPERT };

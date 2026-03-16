@@ -207,6 +207,9 @@ juce_add_binary_data(ChartchoticData
         assets/static/backgrounds/background.png
         assets/static/backgrounds/background_red.jpg
         assets/static/icons/icon_guitar.png
+        assets/static/icons/icon_bass.png
+        assets/static/icons/icon_keys.png
+        assets/static/icons/icon_vocals.png
         assets/static/icons/icon_drums.png
         assets/static/icons/discoball.jpg
         assets/static/logo-reaper.svg
