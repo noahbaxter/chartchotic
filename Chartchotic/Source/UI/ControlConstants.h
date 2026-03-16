@@ -85,6 +85,69 @@ constexpr bool DEFAULT_DISCO_FLIP       = true;
 //==============================================================================
 // Menu Enums (1-based, matching state storage)
 
-enum class Part { GUITAR = 1, DRUMS, REAL_DRUMS };
-enum class DrumType { NORMAL = 1, PRO };
+// Instrument types — organized by input family.
+// Values are 1-based to match state storage.
+enum class Part
+{
+    // 5-fret family (same MIDI pitch layout: 60-100 across 4 difficulties)
+    GUITAR = 1,         // PART GUITAR (also covers PART GUITAR COOP, PART RHYTHM)
+    BASS,               // PART BASS
+    KEYS,               // PART KEYS (5-lane keys, uses guitar pitch mapping)
+
+    // 6-fret / Guitar Hero Live (3 black + 3 white frets, different pitch layout)
+    GHL_GUITAR,         // PART GUITAR GHL (also covers PART GUITAR COOP GHL, PART RHYTHM GHL)
+    GHL_BASS,           // PART BASS GHL
+
+    // Drums
+    DRUMS,              // PART DRUMS (4-lane, 5-lane, Pro — variant via DrumType)
+    ELITE_DRUMS,        // PART ELITE_DRUMS (separate track, 8-lane, 2 octaves/difficulty)
+
+    // Vocals (pitch-based, not fret-based — completely different rendering)
+    VOCALS,             // PART VOCALS
+    HARMONIES,          // PART HARM1, PART HARM2, PART HARM3
+
+    // Pro instruments (dedicated pitch layouts, not yet parseable)
+    PRO_GUITAR,         // PART REAL_GUITAR, PART REAL_GUITAR_22
+    PRO_BASS,           // PART REAL_BASS, PART REAL_BASS_22
+    PRO_KEYS,           // PART REAL_KEYS_X/H/M/E (separate track per difficulty)
+};
+
+// How a Part renders on the highway — determines interpreter, lane count, gem style
+enum class RenderType
+{
+    FIVE_FRET,          // 5-fret guitar/bass/keys (6 lanes: open + 5 frets)
+    SIX_FRET,           // 6-fret GHL (3 black + 3 white)
+    FOUR_LANE_DRUMS,    // Standard/Pro drums (kick + 4 pads/cymbals)
+    FIVE_LANE_DRUMS,    // GH-style drums (kick + 3 pads + 2 cymbals)
+    ELITE_DRUMS,        // 8-lane e-kit (kick + snare + 3 toms + 3 cymbals + pedal)
+    VOCALS,             // Pitch-based vocal track
+    PRO_GUITAR,         // 17/22-fret pro guitar/bass
+    PRO_KEYS,           // 25-key two-octave keyboard
+};
+
+inline RenderType getRenderType(Part p)
+{
+    switch (p) {
+        case Part::GUITAR:
+        case Part::BASS:
+        case Part::KEYS:         return RenderType::FIVE_FRET;
+        case Part::GHL_GUITAR:
+        case Part::GHL_BASS:     return RenderType::SIX_FRET;
+        case Part::DRUMS:        return RenderType::FOUR_LANE_DRUMS;
+        case Part::ELITE_DRUMS:  return RenderType::ELITE_DRUMS;
+        case Part::VOCALS:
+        case Part::HARMONIES:    return RenderType::VOCALS;
+        case Part::PRO_GUITAR:
+        case Part::PRO_BASS:     return RenderType::PRO_GUITAR;
+        case Part::PRO_KEYS:     return RenderType::PRO_KEYS;
+        default:                 return RenderType::FIVE_FRET;
+    }
+}
+
+// Convenience — most code just needs "guitar-like or drum-like"
+inline bool isGuitarLike(Part p) { return getRenderType(p) == RenderType::FIVE_FRET; }
+inline bool isDrumLike(Part p)   { auto r = getRenderType(p); return r == RenderType::FOUR_LANE_DRUMS || r == RenderType::FIVE_LANE_DRUMS || r == RenderType::ELITE_DRUMS; }
+
+// Drum track type — variants within PART DRUMS, distinguished by heuristics / song.ini
+enum class DrumType { NORMAL = 1, PRO, FIVE_LANE };
 enum class SkillLevel { EASY = 1, MEDIUM, HARD, EXPERT };
