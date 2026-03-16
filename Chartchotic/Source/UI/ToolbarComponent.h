@@ -78,6 +78,7 @@ public:
     std::function<void(bool)> onShowBackgroundChanged;
     std::function<void()> onOpenBackgroundFolder;
     std::function<void()> onOpenTextureFolder;
+    std::function<void(int viewModeId)> onViewModeChanged;  // 0=Auto, 1=Global, 2=Local
 
     void setHighwayTextureList(const juce::StringArray& names)
     {
@@ -173,6 +174,10 @@ private:
     ValueStepper textureOpacityStepper{"Opacity", "%"};
     ValueStepper gemScaleStepper{"Gem Size", "%"};
     ValueStepper barScaleStepper{"Bar Size", "%"};
+
+    // REAPER view mode (only visible in REAPER mode)
+    PanelSectionHeader reaperHeader{"REAPER"};
+    SegmentedButtons viewModeButtons;
 
     PanelSectionHeader syncHeader{"Sync"};
     ValueStepper syncOffsetStepper{"Calibration", " ms"};

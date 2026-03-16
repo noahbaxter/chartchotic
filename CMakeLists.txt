@@ -90,6 +90,17 @@ target_sources(Chartchotic
         # Midi
         Chartchotic/Source/Midi/ChartTextEvent.h
         Chartchotic/Source/Midi/InstrumentSlot.h
+        Chartchotic/Source/Midi/InstrumentSession.cpp
+        Chartchotic/Source/Midi/InstrumentSession.h
+        # Midi / Discovery
+        Chartchotic/Source/Midi/Discovery/TrackDiscovery.h
+        Chartchotic/Source/Midi/Discovery/ReaperGlobalDiscovery.h
+        Chartchotic/Source/Midi/Discovery/ReaperLocalDiscovery.h
+        Chartchotic/Source/Midi/Discovery/ManualDiscovery.h
+        # Midi / Providers (DAW-agnostic)
+        Chartchotic/Source/Midi/Providers/TrackNoteProvider.h
+        Chartchotic/Source/Midi/Providers/ReaperTrackNoteProvider.h
+        Chartchotic/Source/Midi/Providers/MidiFileNoteProvider.h
         # Midi / Processing
         Chartchotic/Source/Midi/Processing/MidiInterpreter.cpp
         Chartchotic/Source/Midi/Processing/MidiInterpreter.h

@@ -397,7 +397,17 @@ void ToolbarComponent::initSettingsPanel()
         if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
     };
 
+    // --- REAPER view mode ---
+    viewModeButtons.setItems({ "Global", "Local" });
+    viewModeButtons.setSelectedIndex(0);
+    viewModeButtons.onSelectionChanged = [this](int index) {
+        // 1=GLOBAL, 2=LOCAL (offset by 1 from 0-based index)
+        if (onViewModeChanged) onViewModeChanged(index + 1);
+    };
+
     // Register all children
+    settingsButton.addPanelChild(&reaperHeader);
+    settingsButton.addPanelChild(&viewModeButtons);
     settingsButton.addPanelChild(&displayHeader);
     settingsButton.addPanelChild(&framerateButtons);
     settingsButton.addPanelChild(&showFpsToggle);
@@ -566,6 +576,14 @@ void ToolbarComponent::loadState()
 
     // Bemani mode
     bemaniModeToggle.setToggleState(state.hasProperty("bemaniMode") && (bool)state["bemaniMode"]);
+
+    // REAPER view mode (1=GLOBAL→index 0, 2=LOCAL→index 1)
+    if (state.hasProperty("reaperViewMode"))
+    {
+        int savedMode = (int)state["reaperViewMode"];
+        // AUTO(0) and GLOBAL(1) both map to index 0, LOCAL(2) maps to index 1
+        viewModeButtons.setSelectedIndex((savedMode == 2) ? 1 : 0);
+    }
 
     // Background
     if (backgroundNames.isEmpty())
@@ -783,6 +801,23 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     int sectionGap = juce::roundToInt(6.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
+
+    // --- REAPER (only visible in REAPER mode) ---
+    if (reaperMode)
+    {
+        reaperHeader.setBounds(margin, y, w, headerH);
+        reaperHeader.setVisible(true);
+        y += headerH + gap;
+
+        viewModeButtons.setBounds(margin, y, w, stepperH);
+        viewModeButtons.setVisible(true);
+        y += stepperH + sectionGap;
+    }
+    else
+    {
+        reaperHeader.setVisible(false);
+        viewModeButtons.setVisible(false);
+    }
 
     // --- Display ---
     displayHeader.setBounds(margin, y, w, headerH);

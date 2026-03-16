@@ -171,6 +171,7 @@ private:
     void initToolbarCallbacks();
     void initBottomBar();
     void loadState();
+    void rebuildSlotsFromSession(InstrumentSession& session);
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif

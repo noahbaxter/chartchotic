@@ -119,6 +119,14 @@ void ChartchoticAudioProcessorEditor::onFrame()
     toolbar.setReaperMode(isReaperMode);
     toolbar.updateVisibility();
 
+    // Create InstrumentSession on first REAPER detection
+    if (isReaperMode && !audioProcessor.getInstrumentSession())
+    {
+        audioProcessor.createInstrumentSession();
+        if (auto* session = audioProcessor.getInstrumentSession())
+            rebuildSlotsFromSession(*session);
+    }
+
     // Track position changes for render logic
     if (auto* playHead = audioProcessor.getPlayHead()) {
         auto positionInfo = playHead->getPosition();
@@ -140,6 +148,13 @@ void ChartchoticAudioProcessorEditor::onFrame()
                 {
                     lastCacheInvalidationTicks = now;
                     audioProcessor.invalidateReaperCache();
+
+                    // Poll InstrumentSession for changes (re-fetch affected tracks)
+                    if (auto* session = audioProcessor.getInstrumentSession())
+                    {
+                        if (session->pollForChanges())
+                            rebuildSlotsFromSession(*session);
+                    }
                 }
             }
             else
@@ -306,6 +321,16 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onHighwayChanged = [this](bool on) {
         state.setProperty("showHighway", on, nullptr);
         forEachHighway([on](auto& hw) { hw.setShowHighway(on); });
+    };
+
+    toolbar.onViewModeChanged = [this](int viewModeId) {
+        auto mode = static_cast<ChartchoticAudioProcessor::ReaperViewMode>(viewModeId);
+        audioProcessor.setReaperViewMode(mode);
+        // Destroy and recreate session with new discovery strategy
+        audioProcessor.destroyInstrumentSession();
+        audioProcessor.createInstrumentSession();
+        if (auto* session = audioProcessor.getInstrumentSession())
+            rebuildSlotsFromSession(*session);
     };
 
     toolbar.onNoteSpeedChanged = [this](int speed) {
@@ -518,12 +543,21 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     // Extend window for notes behind cursor
     PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
 
-    // Wire disco flip state from REAPER pipeline
+    // Wire disco flip state — prefer InstrumentSession (multi-track), fall back to pipeline (single-track)
+    const DiscoFlipState* flipState = nullptr;
     auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(audioProcessor.getMidiPipeline());
-    if (reaperPipeline)
-        interpreter.setDiscoFlipState(reaperPipeline->getDiscoFlipState());
+    if (!audioProcessor.getInstrumentSession())
+    {
+        // Local mode without session: use pipeline's disco flip
+        if (reaperPipeline)
+            flipState = reaperPipeline->getDiscoFlipState();
+        interpreter.setDiscoFlipState(flipState);
+    }
     else
-        interpreter.setDiscoFlipState(nullptr);
+    {
+        // Session mode: disco flip already set per-slot in rebuildSlotsFromSession
+        flipState = interpreter.getDiscoFlipState();
+    }
 
     // Generate PPQ-based windows from MidiInterpreter
     TrackWindow ppqTrackWindow;
@@ -568,25 +602,20 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     out.scrollOffset = computeScrollOffset();
 
     // Disco flip indicator + region markers
-    if (reaperPipeline)
     {
-        auto* flip = reaperPipeline->getDiscoFlipState();
         bool isProDrums = (int)state.getProperty("drumType") == 2;
         bool discoEnabled = (bool)state.getProperty("discoFlip");
-        out.discoFlipActive = flip != nullptr && isProDrums && discoEnabled
-                              && flip->isFlipped(trackWindowStartPPQ);
+        out.discoFlipActive = flipState != nullptr && isProDrums && discoEnabled
+                              && flipState->isFlipped(trackWindowStartPPQ);
 
         // Convert flip region boundaries to time-relative for highway markers
-        if (flip != nullptr && isProDrums && discoEnabled)
+        if (flipState != nullptr && isProDrums && discoEnabled)
         {
             double cursorTime = ppqToTime(cursorPPQ.toDouble());
-            for (const auto& r : flip->getRegions())
+            for (const auto& r : flipState->getRegions())
             {
                 double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
                 double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
-                // Include if either marker could still be on-screen.
-                // End markers scroll past strikeline, so allow negative endTime.
-                // Renderer clips at farFadeEnd (upper) and off-screen (lower).
                 if (startTime > 0.0 || endTime > -displayWindowTimeSeconds)
                     out.flipRegions.push_back({startTime, endTime});
             }
@@ -955,6 +984,89 @@ void ChartchoticAudioProcessorEditor::loadState()
     forEachHighway([](auto& hw) { hw.rebuildTrack(); });
 }
 
+void ChartchoticAudioProcessorEditor::rebuildSlotsFromSession(InstrumentSession& session)
+{
+    // Remove old highway components
+    for (auto& slot : slots)
+        removeChildComponent(slot.highway.get());
+    slots.clear();
+
+    if (session.isEmpty())
+    {
+        // Fallback: single default slot
+        HighwaySlot slot;
+        slot.part = getPartFromState(state);
+        slot.interpreter = std::make_unique<MidiInterpreter>(
+            state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
+        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
+        slot.highway->onOverflowChanged = [this]() { resized(); };
+        slots.push_back(std::move(slot));
+
+        for (auto& s : slots)
+            addAndMakeVisible(*s.highway);
+        resized();
+        loadState();
+        return;
+    }
+
+    const auto& tracks = session.getTracks();
+
+    for (int i = 0; i < (int)tracks.size(); ++i)
+    {
+        Part part = tracks[i].part;
+
+        // Skip non-highway parts (vocals, pro keys, etc.)
+        if (!isHighwayRenderable(part))
+            continue;
+
+        HighwaySlot slot;
+        slot.part = part;
+
+        // Process this instrument's notes into the slot's own NoteStateMapArray
+        // Use a temporary state copy to avoid mutating the shared state (which fires listeners)
+        const auto& notes = session.getNotes(i);
+        if (!notes.empty())
+        {
+            const juce::ScopedLock lock(*slot.noteStateMapLock);
+            for (auto& map : *slot.noteStateMapArray)
+                map.clear();
+
+            juce::ValueTree tempState = state.createCopy();
+            tempState.setProperty("part", (int)part, nullptr);
+
+            NoteProcessor noteProcessor;
+            noteProcessor.processModifierNotes(notes, *slot.noteStateMapArray,
+                                                *slot.noteStateMapLock, tempState);
+            noteProcessor.processPlayableNotes(notes, *slot.noteStateMapArray,
+                                                *slot.noteStateMapLock, audioProcessor.getMidiProcessor(),
+                                                tempState, 120.0, 44100.0);
+        }
+
+        slot.interpreter = std::make_unique<MidiInterpreter>(
+            part, state, *slot.noteStateMapArray, *slot.noteStateMapLock);
+
+        // Wire disco flip state from session
+        const auto& discoFlip = session.getDiscoFlipState(i);
+        if (discoFlip.hasRegions())
+            slot.interpreter->setDiscoFlipState(&discoFlip);
+
+        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
+        slot.highway->setActivePart(part);
+        slot.highway->onOverflowChanged = [this]() { resized(); };
+        slots.push_back(std::move(slot));
+    }
+
+    // Multi-highway mode: show part labels and all toolbar options
+    bool multiSlot = slots.size() > 1;
+    forEachHighway([multiSlot](auto& hw) { hw.showPartLabel = multiSlot; });
+    toolbar.setMultiInstrumentMode(multiSlot);
+
+    for (auto& slot : slots)
+        addAndMakeVisible(*slot.highway);
+    resized();
+    loadState();
+}
+
 #ifdef DEBUG
 void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart)
 {
@@ -1008,18 +1120,16 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
             for (auto& map : *slot.noteStateMapArray)
                 map.clear();
 
-            // Temporarily set state's part so NoteProcessor filters correctly
-            int savedPart = (int)state.getProperty("part");
-            state.setProperty("part", (int)part, nullptr);
+            // Use a temporary state copy to avoid mutating the shared state (which fires listeners)
+            juce::ValueTree tempState = state.createCopy();
+            tempState.setProperty("part", (int)part, nullptr);
 
             NoteProcessor noteProcessor;
             noteProcessor.processModifierNotes(notesIt->second, *slot.noteStateMapArray,
-                                                *slot.noteStateMapLock, state);
+                                                *slot.noteStateMapLock, tempState);
             noteProcessor.processPlayableNotes(notesIt->second, *slot.noteStateMapArray,
                                                 *slot.noteStateMapLock, audioProcessor.getMidiProcessor(),
-                                                state, chart.initialBPM, 44100.0);
-
-            state.setProperty("part", savedPart, nullptr);
+                                                tempState, chart.initialBPM, 44100.0);
         }
 
         slot.interpreter = std::make_unique<MidiInterpreter>(

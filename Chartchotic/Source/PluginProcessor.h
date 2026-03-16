@@ -12,6 +12,7 @@
 #include <memory>
 #include "Midi/Processing/MidiProcessor.h"
 #include "Midi/Providers/REAPER/ReaperMidiProvider.h"
+#include "Midi/InstrumentSession.h"
 #include "DebugTools/Logger.h"
 
 // Forward declarations
@@ -108,6 +109,16 @@ public:
     // Get the current MIDI pipeline
     MidiPipeline* getMidiPipeline() { return midiPipeline.get(); }
 
+    // Multi-instrument session (REAPER Global mode + standalone debug)
+    InstrumentSession* getInstrumentSession() { return instrumentSession.get(); }
+    void createInstrumentSession();
+    void destroyInstrumentSession() { instrumentSession.reset(); }
+
+    // View mode: 0=AUTO, 1=GLOBAL, 2=LOCAL
+    enum class ReaperViewMode { AUTO = 0, GLOBAL = 1, LOCAL = 2 };
+    ReaperViewMode getReaperViewMode() const;
+    void setReaperViewMode(ReaperViewMode mode);
+
     // Set display window size (called from editor)
     void setDisplayWindowSize(PPQ size) { displayWindowSize = size; }
     PPQ getDisplayWindowSize() const { return displayWindowSize; }
@@ -131,6 +142,9 @@ public:
 
     // MIDI processing pipeline (created based on host)
     std::unique_ptr<MidiPipeline> midiPipeline;
+
+    // Multi-instrument session (owns discovery + provider)
+    std::unique_ptr<InstrumentSession> instrumentSession;
 
     // Display window size (set by editor, used by pipeline)
     PPQ displayWindowSize = PPQ(4.0);

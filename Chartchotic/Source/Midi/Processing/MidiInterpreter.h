@@ -29,6 +29,7 @@ class MidiInterpreter
 		~MidiInterpreter();
 
 		void setDiscoFlipState(const DiscoFlipState* flipState) { discoFlip = flipState; }
+		const DiscoFlipState* getDiscoFlipState() const { return discoFlip; }
 
 		NoteStateMapArray &noteStateMapArray;
 		juce::CriticalSection &noteStateMapLock;
