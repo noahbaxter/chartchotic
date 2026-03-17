@@ -199,6 +199,7 @@ struct PartIconData {
 
 inline PartIconData getPartIcon(Part p)
 {
+#if JUCE_TARGET_HAS_BINARY_DATA
     switch (p) {
         case Part::DRUMS:
         case Part::ELITE_DRUMS: return { BinaryData::icon_drums_png,  BinaryData::icon_drums_pngSize };
@@ -209,6 +210,10 @@ inline PartIconData getPartIcon(Part p)
         case Part::PRO_KEYS:    return { BinaryData::icon_keys_png,   BinaryData::icon_keys_pngSize };
         default:                return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize };
     }
+#else
+    juce::ignoreUnused(p);
+    return { nullptr, 0 };
+#endif
 }
 
 // Drum track type — variants within PART DRUMS, distinguished by heuristics / song.ini

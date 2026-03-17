@@ -14,12 +14,14 @@ using namespace PositionConstants;
 TrackRenderer::TrackRenderer(juce::ValueTree& state)
     : state(state)
 {
+#ifndef CHARTCHOTIC_NO_BINARY_DATA
     // Load layer images from BinaryData
     sidebarsImage = juce::ImageCache::getFromMemory(BinaryData::sidebars_png, BinaryData::sidebars_pngSize);
     strikelineGuitarImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_guitar_png, BinaryData::strikeline_guitar_pngSize);
     strikelineDrumsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_drums_png, BinaryData::strikeline_drums_pngSize);
     strikelineConnectorsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_connectors_png, BinaryData::strikeline_connectors_pngSize);
     kickSmashersImage = juce::ImageCache::getFromMemory(BinaryData::kick_smashers_png, BinaryData::kick_smashers_pngSize);
+#endif
 }
 
 void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeight)

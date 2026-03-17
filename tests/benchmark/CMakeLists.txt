@@ -144,3 +144,63 @@ if(APPLE)
         "-framework Cocoa"
     )
 endif()
+
+#==============================================================================
+# Pipeline benchmark (MIDI processing, NoteProcessor, GemCalculator, MidiInterpreter)
+
+juce_add_console_app(bench_pipeline PRODUCT_NAME "Chartchotic Pipeline Benchmark")
+
+target_sources(bench_pipeline PRIVATE
+    bench_pipeline.cpp
+    ${SOURCE_ROOT}/Midi/Processing/NoteProcessor.cpp
+    ${SOURCE_ROOT}/Midi/Processing/MidiProcessor.cpp
+    ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp
+    ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
+    ${SOURCE_ROOT}/Midi/Utils/ChordAnalyzer.cpp
+    ${SOURCE_ROOT}/Midi/Utils/LaneDetector.cpp
+    ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/SceneRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/AnimationRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/NoteRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/SustainRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/TrackRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
+    ${SOURCE_ROOT}/Visual/HighwayComponent.cpp
+    ${SOURCE_ROOT}/UI/LookAndFeel/ChartchoticLookAndFeel.cpp
+)
+
+target_include_directories(bench_pipeline PRIVATE
+    ${SOURCE_ROOT}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+juce_generate_juce_header(bench_pipeline)
+
+target_compile_definitions(bench_pipeline PRIVATE
+    JUCE_STANDALONE_APPLICATION=1
+    JUCE_USE_CURL=0
+    JUCE_WEB_BROWSER=0
+    JucePlugin_Name="Chartchotic"
+    JucePlugin_Build_VST3=0
+    JucePlugin_Build_AU=0
+    CHARTCHOTIC_MIDI_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../assets/midi"
+    CHARTCHOTIC_NO_BINARY_DATA=1
+)
+
+target_link_libraries(bench_pipeline PRIVATE
+    juce::juce_audio_basics
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_events
+    juce::juce_graphics
+    juce::juce_gui_basics
+)
+
+if(APPLE)
+    target_link_libraries(bench_pipeline PRIVATE
+        "-framework Foundation"
+        "-framework Cocoa"
+    )
+endif()

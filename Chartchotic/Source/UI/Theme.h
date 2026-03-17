@@ -43,9 +43,11 @@ public:
     static inline juce::Typeface::Ptr& getUITypefaceRef()
     {
         static juce::Typeface::Ptr tf;
+#ifndef CHARTCHOTIC_NO_BINARY_DATA
         if (tf == nullptr)
             tf = juce::Typeface::createSystemTypefaceFor(
                 BinaryData::ChakraPetchMedium_ttf, BinaryData::ChakraPetchMedium_ttfSize);
+#endif
         return tf;
     }
 
