@@ -8,7 +8,9 @@ Work from the top.
 
 - **Save/load presets + default state** — Persist user settings to disk. "Save as default" makes all new plugin instances start with custom settings. Presets for game-specific profiles (GH, RB, etc.). Foundation for everything downstream.
 - **Performance profiling** — Bemani mode feels less performant (more visible notes, full-viewport texture tiling). Also: user report of 5 instances at native FPS (170) causing 1-2s input lag. Profile before optimizing — find the bottleneck.
-- **Multi-highway split view** — WIP on `refactor/multi-highway`. Renderer decoupling done (`activePart` members, `InstrumentSlot`, parameterized `MidiInterpreter`). Remaining: wire PluginEditor slots to UI trigger, debug controller multi-instrument loading, split view layout/resize, non-standalone mode support. Solves "5 instances open" problem.
+- **Multi-highway: missing track types** — Discovery currently handles GUITAR, BASS, KEYS, DRUMS, GHL_GUITAR, GHL_BASS. Missing 5-fret tracks (priority): `PART GUITAR COOP`, `PART RHYTHM`. Missing 6-fret: `PART RHYTHM GHL`, `PART GUITAR COOP GHL`, `PART KEYS GHL`. Need new Part enum values for GUITAR_COOP and RHYTHM, plus "Guitar 1"/"Guitar 2" badge on the highway label when both are present (instead of a separate icon).
+- **Multi-highway: track re-discovery** — `pollForChanges()` only detects note edits on existing tracks. If user adds/removes a REAPER track, session is stale until plugin reopen or view mode toggle. Should periodically re-run discovery or check track count.
+- **Multi-highway: ReaperMidiPipeline slimming** — `fetchAllNoteEvents()`, `fetchAllTextEvents()`, `processCachedNotesIntoState()` are duplicated between pipeline and InstrumentSession. Can remove from pipeline once session fully replaces it for note fetching.
 - **SysEx marker support** — Read Phase Shift SysEx events for open/tap note markers. The open note marker turns ALL notes into opens, not just greens. See [chart format spec](https://thenathannator.github.io/GuitarGame_ChartFormats/Chart-File-Formats/mid-format/Format-Overview/#phase-shift-sysex-event-specification).
 - **Audio playback** — Metronome click, guitar note sounds, drum hit sounds for listening back to charts. Assets mostly ready. Needs audio output from plugin + sync.
 - **Standalone chart loading** — Open a chart file/folder and play it back without REAPER. Debug standalone already has playback; needs file open UI, chart format parsing, tempo map from file. Pairs with audio playback.
@@ -40,6 +42,7 @@ Work from the top.
 Do between features or when touching related code.
 
 - **Stretch + Bemani mode interaction** — Stretch-to-fill doesn't work when Bemani mode is active. `onBemaniModeChanged` doesn't account for stretch state, and `resized()` computes `sceneHeight` differently in Bemani mode regardless. Preexisting.
+- **Deferred gem type calculation** — Gem types (cymbal/tom, HOPO, dynamics) are currently baked into NoteStateMapArray at load time by NoteProcessor. Toggle changes (drumType, autoHopo, dynamics) require full reprocessing. Should separate raw note storage from gem type computation — store raw MIDI data in the array, compute gem types at render time in MidiInterpreter from raw data + current state. Makes toggles instant, eliminates the reprocess-on-toggle stutter in multi-highway mode.
 - **NoteStateStore wrapper** — `InstrumentSlot` bundles array+lock but doesn't enforce locking via API yet. Wrap into class with scoped-lock accessors. Eliminates race condition footgun.
 - **Audio-thread hygiene** — Remove std::function, preallocated vectors. DrawCallMap done, remaining allocations TBD.
 - **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.
