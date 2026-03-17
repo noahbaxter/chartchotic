@@ -269,14 +269,15 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
 
     bool isProDrums = (int)statePtr->getProperty("drumType") == 2;
     bool discoEnabled = (bool)statePtr->getProperty("discoFlip");
+    int midiDiff = (int)statePtr->getProperty("skillLevel") - 1;
     out.discoFlipActive = isDrumSlot && isProDrums && discoEnabled
-                          && discoFlipState.isFlipped(trackWindowStartPPQ);
+                          && discoFlipState.isFlipped(trackWindowStartPPQ, midiDiff);
 
     // Convert flip region boundaries to time-relative for highway markers (drums only)
     if (isDrumSlot && isProDrums && discoEnabled && discoFlipState.hasRegions())
     {
         double cursorTime = ppqToTime(cursorPPQ.toDouble());
-        for (const auto& r : discoFlipState.getRegions())
+        for (const auto& r : discoFlipState.getRegions(midiDiff))
         {
             double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
             double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;

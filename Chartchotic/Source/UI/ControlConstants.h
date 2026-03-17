@@ -151,6 +151,66 @@ inline bool isDrumLike(Part p)   { auto r = getRenderType(p); return r == Render
 // Can this Part be rendered as a scrolling highway? (Vocals, Pro Keys etc. need different rendering)
 inline bool isHighwayRenderable(Part p) { return isGuitarLike(p) || isDrumLike(p); }
 
+// Sort order: Guitar, guitar alts (GHL, Pro), Bass, bass alts, Keys, Drums, Vocals
+inline int getPartSortOrder(Part p)
+{
+    switch (p) {
+        case Part::GUITAR:      return 0;
+        case Part::GHL_GUITAR:  return 1;
+        case Part::PRO_GUITAR:  return 2;
+        case Part::BASS:        return 3;
+        case Part::GHL_BASS:    return 4;
+        case Part::PRO_BASS:    return 5;
+        case Part::KEYS:        return 6;
+        case Part::PRO_KEYS:    return 7;
+        case Part::DRUMS:       return 8;
+        case Part::ELITE_DRUMS: return 9;
+        case Part::VOCALS:      return 10;
+        case Part::HARMONIES:   return 11;
+        default:                return 99;
+    }
+}
+
+// Short display name for Part (used in toggle labels, badges)
+inline juce::String getPartDisplayName(Part p)
+{
+    switch (p) {
+        case Part::GUITAR:      return "Guitar";
+        case Part::BASS:        return "Bass";
+        case Part::KEYS:        return "Keys";
+        case Part::GHL_GUITAR:  return "GHL";
+        case Part::GHL_BASS:    return "GHL Bass";
+        case Part::DRUMS:       return "Drums";
+        case Part::ELITE_DRUMS: return "E-Drums";
+        case Part::VOCALS:      return "Vocals";
+        case Part::HARMONIES:   return "Harmony";
+        case Part::PRO_GUITAR:  return "Pro Gtr";
+        case Part::PRO_BASS:    return "Pro Bass";
+        case Part::PRO_KEYS:    return "Pro Keys";
+        default:                return "Unknown";
+    }
+}
+
+// Per-instrument icon (BinaryData pointer + size)
+struct PartIconData {
+    const char* data;
+    int size;
+};
+
+inline PartIconData getPartIcon(Part p)
+{
+    switch (p) {
+        case Part::DRUMS:
+        case Part::ELITE_DRUMS: return { BinaryData::icon_drums_png,  BinaryData::icon_drums_pngSize };
+        case Part::BASS:
+        case Part::GHL_BASS:
+        case Part::PRO_BASS:    return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize };
+        case Part::KEYS:
+        case Part::PRO_KEYS:    return { BinaryData::icon_keys_png,   BinaryData::icon_keys_pngSize };
+        default:                return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize };
+    }
+}
+
 // Drum track type — variants within PART DRUMS, distinguished by heuristics / song.ini
 enum class DrumType { NORMAL = 1, PRO, FIVE_LANE };
 enum class SkillLevel { EASY = 1, MEDIUM, HARD, EXPERT };

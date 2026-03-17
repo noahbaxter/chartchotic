@@ -1,5 +1,6 @@
 #pragma once
 
+#include <set>
 #include <JuceHeader.h>
 #include "ChartchoticLogo.h"
 #include "Controls/CircleIconSelector.h"
@@ -39,9 +40,19 @@ public:
     void setReaperMode(bool isReaper);
     void setMultiInstrumentMode(bool multi) { multiInstrumentMode = multi; }
 
+    // Multi-select instrument/difficulty (Global mode)
+    void setDiscoveredParts(const std::vector<Part>& parts);
+    void setEnabledParts(const std::set<Part>& parts);
+    void setEnabledDifficulties(const std::set<SkillLevel>& diffs);
+    void enableMultiDifficultyMode(bool enabled);
+
     //==============================================================================
     // Callbacks — the editor wires these
 
+    std::function<void(Part part, bool modifierHeld)> onInstrumentClicked;
+    std::function<void()> onAllInstrumentsClicked;
+    std::function<void(SkillLevel skill, bool modifierHeld)> onDifficultyClicked;
+    std::function<void()> onAllDifficultiesClicked;
     std::function<void(int skillId)> onSkillChanged;
     std::function<void(int partId)> onPartChanged;
     std::function<void(int drumTypeId)> onDrumTypeChanged;
@@ -126,6 +137,11 @@ private:
     CircleIconSelector instrumentSelector;
     CircleIconSelector difficultySelector;
     ValueStepper noteSpeedStepper{"Speed"};
+
+    // Multi-select instrument state (Global mode with 2+ parts)
+    std::vector<Part> discoveredParts;
+    bool showMultiInstrument = false;
+    bool showMultiDifficulty = false;
 
     //==============================================================================
     // View panel — Modifiers (contextual per instrument)

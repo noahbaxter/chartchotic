@@ -8,6 +8,7 @@
 */
 
 #include "HighwayComponent.h"
+#include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
@@ -117,77 +118,116 @@ void HighwayComponent::paint(juce::Graphics& g)
     }
 }
 
-// Part label overlay data — icon + display name per instrument
-struct PartLabelInfo {
-    const char* imgData;
-    int imgSize;
-    const char* label;
-};
-
-static PartLabelInfo getPartLabelInfo(Part part)
-{
-    switch (part)
-    {
-        case Part::DRUMS:       return { BinaryData::icon_drums_png,  BinaryData::icon_drums_pngSize,  "Drums" };
-        case Part::BASS:        return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize,   "Bass" };
-        case Part::GHL_BASS:    return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize,   "GHL Bass" };
-        case Part::PRO_BASS:    return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize,   "Pro Bass" };
-        case Part::KEYS:        return { BinaryData::icon_keys_png,   BinaryData::icon_keys_pngSize,   "Keys" };
-        case Part::GHL_GUITAR:  return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize, "GHL Guitar" };
-        case Part::PRO_GUITAR:  return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize, "Pro Guitar" };
-        case Part::GUITAR:
-        default:                return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize, "Guitar" };
-    }
-}
-
 void HighwayComponent::paintOverChildren(juce::Graphics& g)
 {
-    if (!showPartLabel) return;
-
-    auto info = getPartLabelInfo(activePart);
-    juce::String label = info.label;
-
-    juce::Image icon;
-    if (info.imgData != nullptr)
-        icon = juce::ImageCache::getFromMemory(info.imgData, info.imgSize);
-    bool hasIcon = icon.isValid();
-
-    float s = (float)getWidth() / 600.0f;
-    int iconSize = hasIcon ? juce::roundToInt(40.0f * s) : 0;
-    int pad = juce::roundToInt(10.0f * s);
-    float fontSize = 18.0f * s;
-    auto font = Theme::getUIFont(fontSize);
-    int textW = (int)font.getStringWidthFloat(label);
-    int totalW = (hasIcon ? iconSize + pad : 0) + textW + pad * 2;
-    int totalH = juce::jmax(iconSize, juce::roundToInt(fontSize * 1.5f)) + pad * 2;
-
-    int x = (getWidth() - totalW) / 2;
-    int y = getHeight() - totalH - pad;
-
-    auto pillBounds = juce::Rectangle<float>((float)x, (float)y, (float)totalW, (float)totalH);
-    g.setColour(juce::Colours::black.withAlpha(0.55f));
-    g.fillRoundedRectangle(pillBounds, 6.0f * s);
-
-    float textX = pillBounds.getX() + pad;
-
-    if (hasIcon)
+    if (showPartLabel)
     {
-        auto iconBounds = juce::Rectangle<float>(
-            pillBounds.getX() + pad, pillBounds.getCentreY() - iconSize * 0.5f,
-            (float)iconSize, (float)iconSize);
-        g.setOpacity(0.9f);
-        g.drawImage(icon, iconBounds);
-        g.setOpacity(1.0f);
-        textX += iconSize + pad * 0.5f;
+        auto iconData = getPartIcon(activePart);
+        juce::String label = getPartDisplayName(activePart);
+
+        juce::Image icon;
+        if (iconData.data != nullptr)
+            icon = juce::ImageCache::getFromMemory(iconData.data, iconData.size);
+        bool hasIcon = icon.isValid();
+
+        float s = (float)getWidth() / 600.0f;
+        int iconSize = hasIcon ? juce::roundToInt(labelIconSize * s) : 0;
+        int pad = juce::roundToInt(10.0f * s);
+        float fontSize = 18.0f * s;
+        auto font = Theme::getUIFont(fontSize);
+        int textW = (int)font.getStringWidthFloat(label);
+        int totalW = (hasIcon ? iconSize + pad : 0) + textW + pad * 2;
+        int totalH = juce::jmax(iconSize, juce::roundToInt(fontSize * 1.5f)) + pad * 2;
+
+        int x = (getWidth() - totalW) / 2;
+        int y = getHeight() - totalH - pad;
+
+        auto pillBounds = juce::Rectangle<float>((float)x, (float)y, (float)totalW, (float)totalH);
+        g.setColour(juce::Colours::black.withAlpha(0.55f));
+        g.fillRoundedRectangle(pillBounds, 6.0f * s);
+
+        float textX = pillBounds.getX() + pad;
+
+        if (hasIcon)
+        {
+            auto iconBounds = juce::Rectangle<float>(
+                pillBounds.getX() + pad, pillBounds.getCentreY() - iconSize * 0.5f,
+                (float)iconSize, (float)iconSize);
+            g.setOpacity(0.9f);
+            g.drawImage(icon, iconBounds);
+            g.setOpacity(1.0f);
+            textX += iconSize + pad * 0.5f;
+        }
+
+        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.setFont(font);
+        auto textBounds = juce::Rectangle<float>(
+            textX, pillBounds.getY(),
+            pillBounds.getRight() - textX - pad,
+            (float)totalH);
+        g.drawText(label, textBounds, hasIcon ? juce::Justification::centredLeft : juce::Justification::centred);
     }
 
-    g.setColour(juce::Colours::white.withAlpha(0.9f));
-    g.setFont(font);
-    auto textBounds = juce::Rectangle<float>(
-        textX, pillBounds.getY(),
-        pillBounds.getRight() - textX - pad,
-        (float)totalH);
-    g.drawText(label, textBounds, hasIcon ? juce::Justification::centredLeft : juce::Justification::centred);
+    if (showDifficultyLabel)
+    {
+        juce::uint32 badgeColor;
+        juce::String diffName;
+        switch (displaySkillLevel)
+        {
+            case SkillLevel::EXPERT: badgeColor = Theme::red;    diffName = "Expert"; break;
+            case SkillLevel::HARD:   badgeColor = Theme::orange;  diffName = "Hard"; break;
+            case SkillLevel::MEDIUM: badgeColor = Theme::yellow;  diffName = "Medium"; break;
+            case SkillLevel::EASY:   badgeColor = Theme::green;   diffName = "Easy"; break;
+            default:                 badgeColor = Theme::textDim; diffName = "?"; break;
+        }
+
+        float s = (float)getWidth() / 600.0f;
+        int circleSize = juce::roundToInt(labelIconSize * s);
+        int pad = juce::roundToInt(10.0f * s);
+        float fontSize = 18.0f * s;
+        auto font = Theme::getUIFont(fontSize);
+        int textW = (int)font.getStringWidthFloat(diffName);
+        int totalW = circleSize + pad + textW + pad * 2;
+        int totalH = juce::jmax(circleSize, juce::roundToInt(fontSize * 1.5f)) + pad * 2;
+
+        int x = (getWidth() - totalW) / 2;
+        int y = getHeight() - totalH - pad;
+
+        auto pillBounds = juce::Rectangle<float>((float)x, (float)y, (float)totalW, (float)totalH);
+        g.setColour(juce::Colours::black.withAlpha(0.55f));
+        g.fillRoundedRectangle(pillBounds, 6.0f * s);
+
+        // Colored circle
+        auto circleBounds = juce::Rectangle<float>(
+            pillBounds.getX() + pad, pillBounds.getCentreY() - circleSize * 0.5f,
+            (float)circleSize, (float)circleSize);
+        g.setColour(juce::Colour(badgeColor));
+        g.fillEllipse(circleBounds);
+
+        // Difficulty letter inside circle
+        juce::String letter;
+        switch (displaySkillLevel)
+        {
+            case SkillLevel::EXPERT: letter = "X"; break;
+            case SkillLevel::HARD:   letter = "H"; break;
+            case SkillLevel::MEDIUM: letter = "M"; break;
+            case SkillLevel::EASY:   letter = "E"; break;
+            default:                 letter = "?"; break;
+        }
+        g.setColour(juce::Colours::white);
+        g.setFont(Theme::getUIFont(20.0f * s));
+        g.drawText(letter, circleBounds.toNearestInt(), juce::Justification::centred);
+
+        // Difficulty name text
+        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.setFont(font);
+        float textX = circleBounds.getRight() + pad * 0.5f;
+        auto textBounds = juce::Rectangle<float>(
+            textX, pillBounds.getY(),
+            pillBounds.getRight() - textX - pad,
+            (float)totalH);
+        g.drawText(diffName, textBounds, juce::Justification::centredLeft);
+    }
 }
 
 void HighwayComponent::resized()

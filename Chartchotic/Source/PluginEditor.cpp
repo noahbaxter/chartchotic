@@ -215,10 +215,91 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 {
     toolbar.onSkillChanged = [this](int id) {
         state.setProperty("skillLevel", id, nullptr);
+        // Session mode: rebuild slots with new difficulty
+        if (hasActiveSession)
+        {
+            enabledDifficulties = { (SkillLevel)id };
+            toolbar.setEnabledDifficulties(enabledDifficulties);
+            rebuildVisibleSlots();
+            return;
+        }
         refreshNoteData();
     };
 
+    toolbar.onDifficultyClicked = [this](SkillLevel skill, bool modifierHeld) {
+        if (!hasActiveSession) return;
+
+        if (modifierHeld)
+        {
+            if (enabledDifficulties.count(skill))
+                enabledDifficulties.erase(skill);
+            else
+                enabledDifficulties.insert(skill);
+        }
+        else
+        {
+            enabledDifficulties.clear();
+            enabledDifficulties.insert(skill);
+        }
+
+        if (enabledDifficulties.size() > 1)
+            forceSingleInstrument();
+
+        if (!enabledDifficulties.empty())
+            state.setProperty("skillLevel", (int)*enabledDifficulties.begin(), nullptr);
+
+        toolbar.setEnabledDifficulties(enabledDifficulties);
+        rebuildVisibleSlots();
+    };
+
+    toolbar.onAllDifficultiesClicked = [this]() {
+        if (!hasActiveSession) return;
+        enabledDifficulties = { SkillLevel::EASY, SkillLevel::MEDIUM,
+                                SkillLevel::HARD, SkillLevel::EXPERT };
+
+        forceSingleInstrument();
+
+        toolbar.setEnabledDifficulties(enabledDifficulties);
+        rebuildVisibleSlots();
+    };
+
+    toolbar.onInstrumentClicked = [this](Part part, bool modifierHeld) {
+        if (!hasActiveSession) return;
+
+        if (modifierHeld)
+        {
+            if (enabledParts.count(part))
+                enabledParts.erase(part);
+            else
+                enabledParts.insert(part);
+        }
+        else
+        {
+            enabledParts.clear();
+            enabledParts.insert(part);
+        }
+
+        if (enabledParts.size() > 1)
+            forceSingleDifficulty();
+
+        toolbar.setEnabledParts(enabledParts);
+        rebuildVisibleSlots();
+    };
+
+    toolbar.onAllInstrumentsClicked = [this]() {
+        if (!hasActiveSession) return;
+        enabledParts.clear();
+        for (auto p : discoveredParts)
+            enabledParts.insert(p);
+
+        forceSingleDifficulty();
+
+        toolbar.setEnabledParts(enabledParts);
+        rebuildVisibleSlots();
+    };
+
     toolbar.onPartChanged = [this](int id) {
+        if (slots.empty()) return;
         state.setProperty("part", id, nullptr);
         Part newPart = getPartFromState(state);
         primaryInterpreter().instrumentPart = newPart;
@@ -296,6 +377,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onDiscoFlipChanged = [this](bool on) {
         state.setProperty("discoFlip", on, nullptr);
+        propagateToSlots("discoFlip", on);
     };
 
     toolbar.onDynamicsChanged = [this](bool on) {
@@ -305,21 +387,25 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onTrackChanged = [this](bool on) {
         state.setProperty("showTrack", on, nullptr);
+        propagateToSlots("showTrack", on);
         forEachHighway([on](auto& hw) { hw.setShowTrack(on); });
     };
 
     toolbar.onLaneSeparatorsChanged = [this](bool on) {
         state.setProperty("showLaneSeparators", on, nullptr);
+        propagateToSlots("showLaneSeparators", on);
         forEachHighway([on](auto& hw) { hw.setShowLaneSeparators(on); });
     };
 
     toolbar.onStrikelineChanged = [this](bool on) {
         state.setProperty("showStrikeline", on, nullptr);
+        propagateToSlots("showStrikeline", on);
         forEachHighway([on](auto& hw) { hw.setShowStrikeline(on); });
     };
 
     toolbar.onHighwayChanged = [this](bool on) {
         state.setProperty("showHighway", on, nullptr);
+        propagateToSlots("showHighway", on);
         forEachHighway([on](auto& hw) { hw.setShowHighway(on); });
     };
 
@@ -385,11 +471,13 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onGemScaleChanged = [this](float scale) {
         state.setProperty("gemScale", scale, nullptr);
+        propagateToSlots("gemScale", scale);
         forEachHighway([scale](auto& hw) { hw.setGemScale(scale); });
     };
 
     toolbar.onBarScaleChanged = [this](float scale) {
         state.setProperty("barScale", scale, nullptr);
+        propagateToSlots("barScale", scale);
         forEachHighway([scale](auto& hw) { hw.setBarScale(scale); });
     };
 
@@ -505,11 +593,24 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 {
+    // "Nothing selected" placeholder
+    if (hasActiveSession && slots.empty())
+    {
+        int tbHeight = toolbar.getHeight();
+        auto area = getLocalBounds().withTrimmedTop(tbHeight);
+        g.setColour(juce::Colours::white.withAlpha(0.4f));
+        g.setFont(Theme::getUIFont(16.0f));
+        juce::String msg = enabledParts.empty() ? "Select an instrument"
+                         : enabledDifficulties.empty() ? "Select a difficulty"
+                         : "No data";
+        g.drawText(msg, area, juce::Justification::centred);
+    }
+
     if (showFps)
         drawFpsOverlay(g);
 
 #ifdef DEBUG
-    if (primaryHighway().getSceneRenderer().collectPhaseTiming)
+    if (!slots.empty() && primaryHighway().getSceneRenderer().collectPhaseTiming)
         debugController.drawProfilerOverlay(g, primaryHighway().getSceneRenderer());
 #endif
 }
@@ -603,16 +704,18 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
 
     // Disco flip indicator + region markers
     {
-        bool isProDrums = (int)state.getProperty("drumType") == 2;
-        bool discoEnabled = (bool)state.getProperty("discoFlip");
+        const auto& interpState = interpreter.getState();
+        bool isProDrums = (int)interpState.getProperty("drumType") == 2;
+        bool discoEnabled = (bool)interpState.getProperty("discoFlip");
+        int midiDiff = (int)interpState.getProperty("skillLevel") - 1;
         out.discoFlipActive = flipState != nullptr && isProDrums && discoEnabled
-                              && flipState->isFlipped(trackWindowStartPPQ);
+                              && flipState->isFlipped(trackWindowStartPPQ, midiDiff);
 
         // Convert flip region boundaries to time-relative for highway markers
         if (flipState != nullptr && isProDrums && discoEnabled)
         {
             double cursorTime = ppqToTime(cursorPPQ.toDouble());
-            for (const auto& r : flipState->getRegions())
+            for (const auto& r : flipState->getRegions(midiDiff))
             {
                 double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
                 double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
@@ -793,15 +896,29 @@ void ChartchoticAudioProcessorEditor::resized()
                 else                    { cols = 2; rows = (numSlots + 1) / 2; }
             }
 
+            int pad = highwayGridPadding;
             for (int i = 0; i < numSlots; ++i)
             {
                 auto& hw = *slots[i].highway;
                 int col = i % cols;
                 int row = i / cols;
-                int slotW = contentW / cols;
-                int slotH = contentH / rows;
-                int slotX = col * slotW;
-                int slotY = tbHeight + row * slotH;
+
+                // Full cell size
+                int cellW = contentW / cols;
+                int cellH = contentH / rows;
+                int cellX = col * cellW;
+                int cellY = tbHeight + row * cellH;
+
+                // Apply padding (half on each side, so adjacent slots share the gap)
+                int padL = (col > 0)        ? pad / 2 : 0;
+                int padR = (col < cols - 1) ? pad / 2 : 0;
+                int padT = (row > 0)        ? pad / 2 : 0;
+                int padB = (row < rows - 1) ? pad / 2 : 0;
+
+                int slotX = cellX + padL;
+                int slotY = cellY + padT;
+                int slotW = cellW - padL - padR;
+                int slotH = cellH - padT - padB;
 
                 // Each slot gets its own scene dimensions based on its bounds
                 if (PositionMath::bemaniMode)
@@ -872,7 +989,7 @@ void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
     // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.
     const double BASE_PPQ_WINDOW = 30.0;
-    double hwScale = std::max(1.0, (double)primaryHighway().getSceneRenderer().farFadeEnd);
+    double hwScale = slots.empty() ? 1.0 : std::max(1.0, (double)primaryHighway().getSceneRenderer().farFadeEnd);
     displaySizeInPPQ = PPQ(BASE_PPQ_WINDOW * hwScale);
 
     // Sync the display size to the processor so processBlock can use it
@@ -986,12 +1103,135 @@ void ChartchoticAudioProcessorEditor::loadState()
 
 void ChartchoticAudioProcessorEditor::rebuildSlotsFromSession(InstrumentSession& session)
 {
+    updateSessionData(session);
+    rebuildVisibleSlots();
+}
+
+void ChartchoticAudioProcessorEditor::updateSessionData(InstrumentSession& session)
+{
+    sessionSlotCache.clear();
+    discoveredParts.clear();
+    hasActiveSession = !session.isEmpty();
+
+    if (!hasActiveSession)
+        return;
+
+    const auto& tracks = session.getTracks();
+
+    for (int i = 0; i < (int)tracks.size(); ++i)
+    {
+        Part part = tracks[i].part;
+        if (!isHighwayRenderable(part))
+            continue;
+
+        SessionSlotData data;
+        data.part = part;
+        data.trackIdx = i;
+
+        const auto& notes = session.getNotes(i);
+
+        // Process all 4 difficulties separately — each gets correct modifier context
+        for (auto skill : { SkillLevel::EASY, SkillLevel::MEDIUM, SkillLevel::HARD, SkillLevel::EXPERT })
+        {
+            DifficultyData dd;
+
+            if (!notes.empty())
+            {
+                const juce::ScopedLock lock(*dd.noteStateMapLock);
+                for (auto& map : *dd.noteStateMapArray)
+                    map.clear();
+
+                juce::ValueTree tempState = state.createCopy();
+                tempState.setProperty("part", (int)part, nullptr);
+                tempState.setProperty("skillLevel", (int)skill, nullptr);
+
+                NoteProcessor noteProcessor;
+                noteProcessor.processModifierNotes(notes, *dd.noteStateMapArray,
+                                                    *dd.noteStateMapLock, tempState);
+                noteProcessor.processPlayableNotes(notes, *dd.noteStateMapArray,
+                                                    *dd.noteStateMapLock, audioProcessor.getMidiProcessor(),
+                                                    tempState, 120.0, 44100.0);
+            }
+
+            data.difficulties[skill] = std::move(dd);
+        }
+
+        const auto& discoFlip = session.getDiscoFlipState(i);
+        data.discoFlipState = discoFlip.hasRegions() ? &discoFlip : nullptr;
+
+        if (std::find(discoveredParts.begin(), discoveredParts.end(), part) == discoveredParts.end())
+            discoveredParts.push_back(part);
+
+        sessionSlotCache.push_back(std::move(data));
+    }
+
+    // Sort discovered parts: Guitar, guitar alts, Bass, Keys, Drums, Vocals
+    std::sort(discoveredParts.begin(), discoveredParts.end(),
+              [](Part a, Part b) { return getPartSortOrder(a) < getPartSortOrder(b); });
+
+    // First discovery: enable all parts
+    if (enabledParts.empty())
+    {
+        for (auto p : discoveredParts)
+            enabledParts.insert(p);
+    }
+    else
+    {
+        // Remove enabled parts that are no longer discovered
+        for (auto it = enabledParts.begin(); it != enabledParts.end(); )
+        {
+            if (std::find(discoveredParts.begin(), discoveredParts.end(), *it) == discoveredParts.end())
+                it = enabledParts.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    // Update toolbar toggles
+    // Default to current skill level if no difficulties enabled yet
+    if (enabledDifficulties.empty())
+    {
+        SkillLevel current = (SkillLevel)((int)state.getProperty("skillLevel"));
+        enabledDifficulties.insert(current);
+    }
+
+    // Enable multi-select mode for difficulty in any session mode
+    toolbar.enableMultiDifficultyMode(true);
+
+    toolbar.setDiscoveredParts(discoveredParts);
+    toolbar.setEnabledParts(enabledParts);
+    toolbar.setEnabledDifficulties(enabledDifficulties);
+}
+
+void ChartchoticAudioProcessorEditor::forceSingleInstrument()
+{
+    if (enabledParts.size() <= 1) return;
+    Part first = discoveredParts.empty() ? *enabledParts.begin() : discoveredParts[0];
+    for (auto p : discoveredParts)
+        if (enabledParts.count(p)) { first = p; break; }
+    enabledParts.clear();
+    enabledParts.insert(first);
+    toolbar.setEnabledParts(enabledParts);
+}
+
+void ChartchoticAudioProcessorEditor::forceSingleDifficulty()
+{
+    if (enabledDifficulties.size() <= 1) return;
+    SkillLevel first = *enabledDifficulties.begin();
+    enabledDifficulties.clear();
+    enabledDifficulties.insert(first);
+    toolbar.setEnabledDifficulties(enabledDifficulties);
+    state.setProperty("skillLevel", (int)first, nullptr);
+}
+
+void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
+{
     // Remove old highway components
     for (auto& slot : slots)
         removeChildComponent(slot.highway.get());
     slots.clear();
 
-    if (session.isEmpty())
+    if (!hasActiveSession || sessionSlotCache.empty())
     {
         // Fallback: single default slot
         HighwaySlot slot;
@@ -1009,57 +1249,59 @@ void ChartchoticAudioProcessorEditor::rebuildSlotsFromSession(InstrumentSession&
         return;
     }
 
-    const auto& tracks = session.getTracks();
+    // Difficulty order for consistent grid layout (E/M/H/X = top-left → bottom-right)
+    static const SkillLevel diffOrder[] = { SkillLevel::EASY, SkillLevel::MEDIUM,
+                                             SkillLevel::HARD, SkillLevel::EXPERT };
 
-    for (int i = 0; i < (int)tracks.size(); ++i)
+    // Build one slot per (enabled instrument × enabled difficulty)
+    for (auto& cached : sessionSlotCache)
     {
-        Part part = tracks[i].part;
-
-        // Skip non-highway parts (vocals, pro keys, etc.)
-        if (!isHighwayRenderable(part))
+        if (enabledParts.count(cached.part) == 0)
             continue;
 
-        HighwaySlot slot;
-        slot.part = part;
-
-        // Process this instrument's notes into the slot's own NoteStateMapArray
-        // Use a temporary state copy to avoid mutating the shared state (which fires listeners)
-        const auto& notes = session.getNotes(i);
-        if (!notes.empty())
+        for (auto level : diffOrder)
         {
-            const juce::ScopedLock lock(*slot.noteStateMapLock);
-            for (auto& map : *slot.noteStateMapArray)
-                map.clear();
+            if (enabledDifficulties.count(level) == 0)
+                continue;
 
-            juce::ValueTree tempState = state.createCopy();
-            tempState.setProperty("part", (int)part, nullptr);
+            auto it = cached.difficulties.find(level);
+            if (it == cached.difficulties.end()) continue;
 
-            NoteProcessor noteProcessor;
-            noteProcessor.processModifierNotes(notes, *slot.noteStateMapArray,
-                                                *slot.noteStateMapLock, tempState);
-            noteProcessor.processPlayableNotes(notes, *slot.noteStateMapArray,
-                                                *slot.noteStateMapLock, audioProcessor.getMidiProcessor(),
-                                                tempState, 120.0, 44100.0);
+            HighwaySlot slot;
+            slot.part = cached.part;
+            slot.skillLevel = level;
+
+            // Per-slot state with baked skillLevel for interpreter
+            slot.ownedState = std::make_unique<juce::ValueTree>(state.createCopy());
+            slot.ownedState->setProperty("part", (int)cached.part, nullptr);
+            slot.ownedState->setProperty("skillLevel", (int)level, nullptr);
+
+            slot.noteStateMapArray = it->second.noteStateMapArray;
+            slot.noteStateMapLock = it->second.noteStateMapLock;
+
+            slot.interpreter = std::make_unique<MidiInterpreter>(
+                cached.part, *slot.ownedState, *slot.noteStateMapArray, *slot.noteStateMapLock);
+
+            if (cached.discoFlipState)
+                slot.interpreter->setDiscoFlipState(cached.discoFlipState);
+
+            slot.highway = std::make_unique<HighwayComponent>(*slot.ownedState, assetManager);
+            slot.highway->setActivePart(cached.part);
+            slot.highway->onOverflowChanged = [this]() { resized(); };
+            slots.push_back(std::move(slot));
         }
-
-        slot.interpreter = std::make_unique<MidiInterpreter>(
-            part, state, *slot.noteStateMapArray, *slot.noteStateMapLock);
-
-        // Wire disco flip state from session
-        const auto& discoFlip = session.getDiscoFlipState(i);
-        if (discoFlip.hasRegions())
-            slot.interpreter->setDiscoFlipState(&discoFlip);
-
-        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
-        slot.highway->setActivePart(part);
-        slot.highway->onOverflowChanged = [this]() { resized(); };
-        slots.push_back(std::move(slot));
     }
 
-    // Multi-highway mode: show part labels and all toolbar options
-    bool multiSlot = slots.size() > 1;
-    forEachHighway([multiSlot](auto& hw) { hw.showPartLabel = multiSlot; });
-    toolbar.setMultiInstrumentMode(multiSlot);
+    // Multi-slot labels — show part labels when multiple instruments, difficulty when multiple difficulties
+    bool multiInst = enabledParts.size() > 1;
+    bool multiDiff = enabledDifficulties.size() > 1;
+    for (auto& slot : slots)
+    {
+        slot.highway->showPartLabel = multiInst;
+        slot.highway->showDifficultyLabel = multiDiff;
+        slot.highway->displaySkillLevel = slot.skillLevel;
+    }
+    toolbar.setMultiInstrumentMode(slots.size() > 1);
 
     for (auto& slot : slots)
         addAndMakeVisible(*slot.highway);
@@ -1166,6 +1408,16 @@ void ChartchoticAudioProcessorEditor::refreshNoteData()
         return;
     }
 #endif
+
+    // Session mode: reprocess all difficulties then rebuild slots
+    if (hasActiveSession)
+    {
+        if (auto* session = audioProcessor.getInstrumentSession())
+            updateSessionData(*session);
+        rebuildVisibleSlots();
+        return;
+    }
+
     audioProcessor.refreshMidiDisplay();
 }
 

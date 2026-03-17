@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <map>
+#include <set>
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Visual/HighwaySlot.h"
@@ -101,6 +103,13 @@ private:
             fn(*slot.highway);
     }
 
+    void propagateToSlots(const juce::Identifier& prop, const juce::var& value)
+    {
+        for (auto& slot : slots)
+            if (slot.ownedState)
+                slot.ownedState->setProperty(prop, value, nullptr);
+    }
+
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
 
@@ -114,6 +123,7 @@ private:
     static constexpr int minWidth = 400;
     static constexpr int minHeight = 200;
     static constexpr double sceneAspectRatio = 4.0 / 3.0;
+    static constexpr int highwayGridPadding = 4; // px between highways in multi-slot grid
 
     // Virtual scene dimensions (maintain internal 4:3 ratio)
     int sceneWidth = defaultWidth;
@@ -172,12 +182,35 @@ private:
     void initBottomBar();
     void loadState();
     void rebuildSlotsFromSession(InstrumentSession& session);
+    void updateSessionData(InstrumentSession& session);
+    void rebuildVisibleSlots();
+    void forceSingleInstrument();
+    void forceSingleDifficulty();
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif
     void refreshNoteData();
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
+
+    // Per-difficulty processed note data
+    struct DifficultyData {
+        std::shared_ptr<NoteStateMapArray> noteStateMapArray = std::make_shared<NoteStateMapArray>();
+        std::shared_ptr<juce::CriticalSection> noteStateMapLock = std::make_shared<juce::CriticalSection>();
+    };
+
+    // Session slot cache — processed note data per discovered track, per difficulty
+    struct SessionSlotData {
+        Part part = Part::GUITAR;
+        int trackIdx = 0;
+        std::map<SkillLevel, DifficultyData> difficulties;
+        const DiscoFlipState* discoFlipState = nullptr;
+    };
+    std::vector<SessionSlotData> sessionSlotCache;
+    std::vector<Part> discoveredParts;
+    std::set<Part> enabledParts;
+    std::set<SkillLevel> enabledDifficulties;
+    bool hasActiveSession = false;
 
 
     void buildReaperFrameData(HighwayFrameData& out, MidiInterpreter& interpreter);

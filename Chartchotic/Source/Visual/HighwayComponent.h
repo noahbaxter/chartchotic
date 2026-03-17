@@ -69,7 +69,11 @@ public:
     void setGemScale(float)             { repaint(); }
     void setBarScale(float)             { repaint(); }
 
+    static constexpr float labelIconSize = 40.0f;
+
     bool showPartLabel = false;
+    bool showDifficultyLabel = false;
+    SkillLevel displaySkillLevel = SkillLevel::EXPERT;
 
     void onInstrumentChanged()          { setActivePart(getPartFromState(state)); trackRenderer.invalidate(); rebuildTrack(); repaint(); }
 

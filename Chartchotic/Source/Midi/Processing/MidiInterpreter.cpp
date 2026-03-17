@@ -251,7 +251,8 @@ void MidiInterpreter::addDrumEventToFrame(TrackFrame &frame, PPQ position, uint 
         // Disco flip: swap red (column 1) <-> yellow (column 2)
         // Only applies in Pro Drums — in Legacy mode, notes are already charted swapped
         bool isProDrums = (int)state.getProperty("drumType") == 2;
-        if (discoFlip != nullptr && isProDrums && (bool)state.getProperty("discoFlip") && discoFlip->isFlipped(position))
+        int midiDiff = (int)state.getProperty("skillLevel") - 1; // SkillLevel is 1-based, MIDI diff is 0-based
+        if (discoFlip != nullptr && isProDrums && (bool)state.getProperty("discoFlip") && discoFlip->isFlipped(position, midiDiff))
         {
             if (gemColumn == 1)
             {
