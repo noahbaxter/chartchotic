@@ -23,7 +23,6 @@
 #include "UI/UpdateBannerComponent.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
-#include "DebugTools/FrameProfileLogger.h"
 #endif
 
 //==============================================================================
@@ -50,7 +49,7 @@ public:
     bool keyPressed(const juce::KeyPress& key) override
     {
 #ifdef DEBUG
-        if (debugController.keyPressed(key, toolbar))
+        if (debug.keyPressed(key, toolbar))
             return true;
 #endif
 
@@ -61,7 +60,7 @@ public:
     {
 
 #ifdef DEBUG
-        if (debugController.mouseWheelMove(wheel, event.mods.isShiftDown(),
+        if (debug.mouseWheelMove(wheel, event.mods.isShiftDown(),
                                             SCROLL_NORMAL_BEATS, SCROLL_SHIFT_BEATS))
             return;
 #endif
@@ -266,8 +265,7 @@ private:
     static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
 
 #ifdef DEBUG
-    DebugEditorController debugController;
-    FrameProfileLogger frameProfileLogger;
+    DebugEditorController debug;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartchoticAudioProcessorEditor)
@@ -319,8 +317,8 @@ private:
         if (!audioProcessor.debugText.isEmpty())
         {
 #ifdef DEBUG
-            debugController.getConsole().moveCaretToEnd();
-            debugController.getConsole().insertTextAtCaret(audioProcessor.debugText);
+            debug.getConsole().moveCaretToEnd();
+            debug.getConsole().insertTextAtCaret(audioProcessor.debugText);
 #endif
             audioProcessor.debugText.clear();
         }

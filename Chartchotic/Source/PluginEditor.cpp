@@ -12,6 +12,12 @@
 #include "Midi/Processing/NoteProcessor.h"
 #include "Utils/TempoTimeSignatureEventHelper.h"
 
+#ifdef DEBUG
+  #define DEBUG_MEASURE_LOCK_WAIT auto _lm = debug.measureLockWait()
+#else
+  #define DEBUG_MEASURE_LOCK_WAIT
+#endif
+
 // CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
 #ifdef CHARTCHOTIC_VERSION_STRING
@@ -59,11 +65,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
 #ifdef DEBUG
     bool isStandalone = juce::PluginHostType::getPluginLoadedAs() == AudioProcessor::wrapperType_Standalone;
-    debugController.onChartLoaded = [this](const DebugMidiFilePlayer::LoadedChart& chart) {
+    debug.onChartLoaded = [this](const DebugMidiFilePlayer::LoadedChart& chart) {
         rebuildSlots(chart);
     };
-    debugController.init(*this, audioProcessor, state, isStandalone);
-    frameProfileLogger.start();
+    debug.init(*this, audioProcessor, state, isStandalone);
 #endif
 
     initAssets();
@@ -89,9 +94,6 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
 ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
 {
-#ifdef DEBUG
-    frameProfileLogger.stop();
-#endif
     setLookAndFeel(nullptr);
 
     // Clear static typeface refs so JUCE leak detector doesn't fire on shutdown.
@@ -119,8 +121,23 @@ void ChartchoticAudioProcessorEditor::onFrame()
 
     printCallback();
 
+    // Frame delta tracking (used by FPS overlay and debug profiler)
+    double frameDelta_us_local = 0.0;
+    {
+        double now = juce::Time::getHighResolutionTicks()
+            / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        if (lastFrameTimestamp > 0.0)
+        {
+            frameDelta_us_local = (now - lastFrameTimestamp) * 1000000.0;
+            fpsRing[fpsRingIndex] = frameDelta_us_local;
+            fpsRingIndex = (fpsRingIndex + 1) % FPS_RING_SIZE;
+        }
+        lastFrameTimestamp = now;
+    }
+
 #ifdef DEBUG
-    frameProfileLogger.beginFrame();
+    debug.beginFrame(frameDelta_us_local);
+    debug.onFrame(lastKnownPosition, lastPlayingState);
 #endif
 
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
@@ -172,30 +189,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
         }
     }
 
-    // Frame delta tracking (used by FPS overlay and debug profiler)
-    {
-        double now = juce::Time::getHighResolutionTicks()
-            / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
-        if (lastFrameTimestamp > 0.0)
-        {
-            double delta_us = (now - lastFrameTimestamp) * 1000000.0;
-            fpsRing[fpsRingIndex] = delta_us;
-            fpsRingIndex = (fpsRingIndex + 1) % FPS_RING_SIZE;
-#ifdef DEBUG
-            debugController.frameDelta_us = delta_us;
-#endif
-        }
-        lastFrameTimestamp = now;
-    }
-
-#ifdef DEBUG
-    debugController.onFrame(lastKnownPosition, lastPlayingState);
-#endif
-
     // Build frame data and push to each highway slot
-#ifdef DEBUG
-    int debugTrackWinSize = 0, debugSustainWinSize = 0, debugGridCount = 0;
-#endif
+    HighwayFrameData primaryFrameData;
     for (auto& slot : slots)
     {
         HighwayFrameData frameData;
@@ -203,14 +198,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
             buildReaperFrameData(frameData, *slot.interpreter);
         else
             buildStandardFrameData(frameData, *slot.interpreter);
-#ifdef DEBUG
         if (&slot == &slots[0])
-        {
-            debugTrackWinSize = (int)frameData.trackWindow.size();
-            debugSustainWinSize = (int)frameData.sustainWindow.size();
-            debugGridCount = (int)frameData.gridlines.size();
-        }
-#endif
+            primaryFrameData = frameData;
         slot.highway->setFrameData(frameData);
         slot.highway->repaint();
     }
@@ -221,10 +210,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
         Part part = slots.empty() ? getPartFromState(state) : primaryHighway().getActivePart();
         int vpW = slots.empty() ? 0 : primaryHighway().renderWidth;
         int vpH = slots.empty() ? 0 : primaryHighway().renderHeight;
-        frameProfileLogger.recordFrameData(
-            debugController.frameDelta_us,
-            debugController.lockWait_us,
-            debugTrackWinSize, debugSustainWinSize, debugGridCount,
+        debug.recordFrameData(primaryFrameData,
             (int)slots.size(), part, skill, vpW, vpH, lastPlayingState);
     }
 #endif
@@ -568,7 +554,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     };
 
 #ifdef DEBUG
-    debugController.wireCallbacks(toolbar, primaryHighway(),
+    debug.wireCallbacks(toolbar, primaryHighway(),
         [this]() { repaint(); });
 #endif
 }
@@ -643,22 +629,8 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
         drawFpsOverlay(g);
 
 #ifdef DEBUG
-    if (!slots.empty() && debugController.showProfilerOverlay)
-        debugController.drawProfilerOverlay(g, primaryHighway().getSceneRenderer());
-
-    if (!slots.empty())
-    {
-        frameProfileLogger.recordPaintData(
-            primaryHighway().getSceneRenderer().lastPhaseTiming,
-            primaryHighway().debugTrackRender_us,
-            debugController.textureRender_us,
-            primaryHighway().debugHighwayPaint_us);
-    }
-    else
-    {
-        PhaseTiming empty;
-        frameProfileLogger.recordPaintData(empty, 0.0, 0.0, 0.0);
-    }
+    debug.paintOverChildren(g,
+        slots.empty() ? nullptr : &primaryHighway(), !slots.empty());
 #endif
 }
 
@@ -711,9 +683,7 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     TrackWindow ppqTrackWindow;
     SustainWindow ppqSustainWindow;
     {
-#ifdef DEBUG
-        ScopedPhaseMeasure lm(debugController.lockWait_us, true);
-#endif
+        DEBUG_MEASURE_LOCK_WAIT;
         ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
         ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     }
@@ -779,9 +749,9 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
     PPQ trackWindowStartPPQ = lastKnownPosition;
 
 #ifdef DEBUG
-    if (debugController.isStandalone() && debugController.isNotesActive())
+    if (debug.isStandalone() && debug.isNotesActive())
     {
-        debugController.buildStandaloneFrameData(out, primaryHighway().getSceneRenderer(), interpreter,
+        debug.buildStandaloneFrameData(out, primaryHighway().getSceneRenderer(), interpreter,
                                                   displaySizeInPPQ.toDouble(), displayWindowTimeSeconds);
         out.scrollOffset = computeScrollOffset();
         return;
@@ -838,9 +808,7 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
     TrackWindow ppqTrackWindow;
     SustainWindow ppqSustainWindow;
     {
-#ifdef DEBUG
-        ScopedPhaseMeasure lm(debugController.lockWait_us, true);
-#endif
+        DEBUG_MEASURE_LOCK_WAIT;
         ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
         ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     }
@@ -1014,8 +982,8 @@ void ChartchoticAudioProcessorEditor::resized()
 
     #ifdef DEBUG
     int stripH = toolbar.getStripHeight();
-    debugController.getClearButton().setBounds(margin, stripH + 4, 100, 20);
-    debugController.getConsole().setBounds(margin, stripH + 28, getWidth() - (2 * margin), getHeight() - stripH - 38);
+    debug.getClearButton().setBounds(margin, stripH + 4, 100, 20);
+    debug.getConsole().setBounds(margin, stripH + 28, getWidth() - (2 * margin), getHeight() - stripH - 38);
     #endif
 
 }
@@ -1449,9 +1417,9 @@ void ChartchoticAudioProcessorEditor::refreshNoteData()
 {
 #ifdef DEBUG
     // In standalone multi-slot mode, toggle changes need to reprocess per-slot note data
-    if (debugController.isStandalone() && slots.size() > 1)
+    if (debug.isStandalone() && slots.size() > 1)
     {
-        debugController.reloadCurrentChart();
+        debug.reloadCurrentChart();
         return;
     }
 #endif
@@ -1608,7 +1576,7 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
 #ifdef DEBUG
     {
         float debugOffset;
-        if (debugController.computeScrollOffset(debugOffset, displayWindowTimeSeconds))
+        if (debug.computeScrollOffset(debugOffset, displayWindowTimeSeconds))
             return debugOffset;
     }
 #endif

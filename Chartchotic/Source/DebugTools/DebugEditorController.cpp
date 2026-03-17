@@ -13,6 +13,11 @@
 
 DebugEditorController::DebugEditorController() {}
 
+DebugEditorController::~DebugEditorController()
+{
+    frameProfileLogger.stop();
+}
+
 void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProcessor& processor,
                                   juce::ValueTree& state, bool isStandalone)
 {
@@ -35,6 +40,8 @@ void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProces
         consoleOutput.clear();
     };
     parent.addChildComponent(clearLogsButton);
+
+    frameProfileLogger.start();
 }
 
 void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
@@ -159,6 +166,12 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
     };
 }
 
+void DebugEditorController::beginFrame(double delta_us)
+{
+    frameDelta_us = delta_us;
+    frameProfileLogger.beginFrame();
+}
+
 void DebugEditorController::onFrame(PPQ& lastKnownPosition, bool& lastPlayingState)
 {
     if (!standalone) return;
@@ -169,6 +182,38 @@ void DebugEditorController::onFrame(PPQ& lastKnownPosition, bool& lastPlayingSta
     lastKnownPosition = playbackController.getCurrentPPQ();
     if (playbackController.isPlaying())
         lastPlayingState = true;
+}
+
+void DebugEditorController::recordFrameData(const HighwayFrameData& primaryFrameData,
+                                             int slotCount, Part activePart, SkillLevel skill,
+                                             int viewportW, int viewportH, bool isPlaying)
+{
+    frameProfileLogger.recordFrameData(
+        frameDelta_us, lockWait_us,
+        (int)primaryFrameData.trackWindow.size(),
+        (int)primaryFrameData.sustainWindow.size(),
+        (int)primaryFrameData.gridlines.size(),
+        slotCount, activePart, skill, viewportW, viewportH, isPlaying);
+}
+
+void DebugEditorController::paintOverChildren(juce::Graphics& g, HighwayComponent* primaryHighway, bool hasSlotsVisible)
+{
+    if (hasSlotsVisible && primaryHighway)
+    {
+        if (showProfilerOverlay)
+            drawProfilerOverlay(g, primaryHighway->getSceneRenderer());
+
+        frameProfileLogger.recordPaintData(
+            primaryHighway->getSceneRenderer().lastPhaseTiming,
+            primaryHighway->debugTrackRender_us,
+            textureRender_us,
+            primaryHighway->debugHighwayPaint_us);
+    }
+    else
+    {
+        PhaseTiming empty;
+        frameProfileLogger.recordPaintData(empty, 0.0, 0.0, 0.0);
+    }
 }
 
 void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer)
