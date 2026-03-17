@@ -120,6 +120,9 @@ __pycache__/
 # Benchmark baselines (machine-specific)
 tests/benchmark/baseline.json
 
+# Profiler
+logs/
+
 # AI stuff
 sessions/
 .claude/

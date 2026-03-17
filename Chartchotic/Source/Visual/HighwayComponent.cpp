@@ -36,6 +36,7 @@ void HighwayComponent::paint(juce::Graphics& g)
 {
 #ifdef DEBUG
     if (showDebugColour && debugColour != juce::Colour()) g.fillAll(debugColour);
+    ScopedPhaseMeasure _hwPaintMeasure(debugHighwayPaint_us, sceneRenderer.collectPhaseTiming);
 #endif
 
     // During resize debounce, render at baked dimensions and scale to fit.
@@ -72,7 +73,14 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Draw them in component coordinates (no translation needed).
     if (showHighway)
     {
+#ifdef DEBUG
+        {
+            ScopedPhaseMeasure _trackMeasure(debugTrackRender_us, sceneRenderer.collectPhaseTiming);
+            trackRenderer.paint(g, w, totalH);
+        }
+#else
         trackRenderer.paint(g, w, totalH);
+#endif
         trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH);
     }
     // Bemani overlay (lane dividers, strikeline) always draws — independent of highway texture toggle

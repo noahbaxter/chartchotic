@@ -63,6 +63,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         rebuildSlots(chart);
     };
     debugController.init(*this, audioProcessor, state, isStandalone);
+    frameProfileLogger.start();
 #endif
 
     initAssets();
@@ -88,6 +89,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
 ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
 {
+#ifdef DEBUG
+    frameProfileLogger.stop();
+#endif
     setLookAndFeel(nullptr);
 
     // Clear static typeface refs so JUCE leak detector doesn't fire on shutdown.
@@ -114,6 +118,10 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
 
     printCallback();
+
+#ifdef DEBUG
+    frameProfileLogger.beginFrame();
+#endif
 
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
     toolbar.setReaperMode(isReaperMode);
@@ -185,6 +193,9 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #endif
 
     // Build frame data and push to each highway slot
+#ifdef DEBUG
+    int debugTrackWinSize = 0, debugSustainWinSize = 0, debugGridCount = 0;
+#endif
     for (auto& slot : slots)
     {
         HighwayFrameData frameData;
@@ -192,9 +203,31 @@ void ChartchoticAudioProcessorEditor::onFrame()
             buildReaperFrameData(frameData, *slot.interpreter);
         else
             buildStandardFrameData(frameData, *slot.interpreter);
+#ifdef DEBUG
+        if (&slot == &slots[0])
+        {
+            debugTrackWinSize = (int)frameData.trackWindow.size();
+            debugSustainWinSize = (int)frameData.sustainWindow.size();
+            debugGridCount = (int)frameData.gridlines.size();
+        }
+#endif
         slot.highway->setFrameData(frameData);
         slot.highway->repaint();
     }
+
+#ifdef DEBUG
+    {
+        SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
+        Part part = slots.empty() ? getPartFromState(state) : primaryHighway().getActivePart();
+        int vpW = slots.empty() ? 0 : primaryHighway().renderWidth;
+        int vpH = slots.empty() ? 0 : primaryHighway().renderHeight;
+        frameProfileLogger.recordFrameData(
+            debugController.frameDelta_us,
+            debugController.lockWait_us,
+            debugTrackWinSize, debugSustainWinSize, debugGridCount,
+            (int)slots.size(), part, skill, vpW, vpH, lastPlayingState);
+    }
+#endif
 
     repaint();
 }
@@ -610,8 +643,22 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
         drawFpsOverlay(g);
 
 #ifdef DEBUG
-    if (!slots.empty() && primaryHighway().getSceneRenderer().collectPhaseTiming)
+    if (!slots.empty() && debugController.showProfilerOverlay)
         debugController.drawProfilerOverlay(g, primaryHighway().getSceneRenderer());
+
+    if (!slots.empty())
+    {
+        frameProfileLogger.recordPaintData(
+            primaryHighway().getSceneRenderer().lastPhaseTiming,
+            primaryHighway().debugTrackRender_us,
+            debugController.textureRender_us,
+            primaryHighway().debugHighwayPaint_us);
+    }
+    else
+    {
+        PhaseTiming empty;
+        frameProfileLogger.recordPaintData(empty, 0.0, 0.0, 0.0);
+    }
 #endif
 }
 
@@ -665,7 +712,7 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     SustainWindow ppqSustainWindow;
     {
 #ifdef DEBUG
-        ScopedPhaseMeasure lm(debugController.lockWait_us, primaryHighway().getSceneRenderer().collectPhaseTiming);
+        ScopedPhaseMeasure lm(debugController.lockWait_us, true);
 #endif
         ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
         ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
@@ -792,7 +839,7 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
     SustainWindow ppqSustainWindow;
     {
 #ifdef DEBUG
-        ScopedPhaseMeasure lm(debugController.lockWait_us, primaryHighway().getSceneRenderer().collectPhaseTiming);
+        ScopedPhaseMeasure lm(debugController.lockWait_us, true);
 #endif
         ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
         ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);

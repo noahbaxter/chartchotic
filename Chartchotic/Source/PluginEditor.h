@@ -23,6 +23,7 @@
 #include "UI/UpdateBannerComponent.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
+#include "DebugTools/FrameProfileLogger.h"
 #endif
 
 //==============================================================================
@@ -266,6 +267,7 @@ private:
 
 #ifdef DEBUG
     DebugEditorController debugController;
+    FrameProfileLogger frameProfileLogger;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartchoticAudioProcessorEditor)

@@ -79,6 +79,7 @@ target_sources(Chartchotic
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp
         Chartchotic/Source/DebugTools/DebugEditorController.h
+        Chartchotic/Source/DebugTools/FrameProfileLogger.h
         Chartchotic/Source/DebugTools/DebugMidiFilePlayer.h
         Chartchotic/Source/DebugTools/DebugPlaybackController.h
         Chartchotic/Source/DebugTools/DebugToolbarPanel.cpp

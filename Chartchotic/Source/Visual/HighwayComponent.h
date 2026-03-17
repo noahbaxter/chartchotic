@@ -113,6 +113,8 @@ private:
 #ifdef DEBUG
 public:
     bool showDebugColour = false;
+    double debugTrackRender_us = 0.0;
+    double debugHighwayPaint_us = 0.0;
 private:
     juce::Colour debugColour;
 #endif

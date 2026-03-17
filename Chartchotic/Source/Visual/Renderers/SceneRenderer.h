@@ -55,7 +55,11 @@ class SceneRenderer
         bool showLaneSeparators = true;
         bool showStrikeline = true;
 
+#ifdef DEBUG
+        bool collectPhaseTiming = true;
+#else
         bool collectPhaseTiming = false;
+#endif
         PhaseTiming lastPhaseTiming;
 
         float highwayPosEnd = PositionConstants::HIGHWAY_POS_END;

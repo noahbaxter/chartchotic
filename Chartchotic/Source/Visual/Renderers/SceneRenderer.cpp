@@ -192,10 +192,13 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     }
 
     // Inject custom draw calls (e.g. bemani sidebar rails)
-    for (auto& [order, fn] : customDrawCalls)
+    for (auto& entry : customDrawCalls)
     {
-        if (fn)
-            drawCallMap[static_cast<int>(order)][0].push_back([fn](juce::Graphics& g) { fn(g); });
+        if (entry.second)
+        {
+            auto& drawFn = entry.second;
+            drawCallMap[static_cast<int>(entry.first)][0].push_back([&drawFn](juce::Graphics& g) { drawFn(g); });
+        }
     }
 
     // Draw layer by layer, then column by column within each layer

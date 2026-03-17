@@ -68,7 +68,7 @@ public:
     double textureRender_us = 0.0;
     double frameDelta_us = 0.0;
     double lockWait_us = 0.0;
-    bool collectPhaseTiming() const;
+    bool showProfilerOverlay = false;
 
 private:
     bool standalone = false;

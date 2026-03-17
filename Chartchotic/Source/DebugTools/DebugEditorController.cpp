@@ -62,8 +62,8 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         consoleOutput.setVisible(show);
         clearLogsButton.setVisible(show);
     };
-    dbg.onProfilerChanged = [&highway](bool on) {
-        highway.getSceneRenderer().collectPhaseTiming = on;
+    dbg.onProfilerChanged = [this](bool on) {
+        showProfilerOverlay = on;
     };
 
     auto& tune = toolbar.getTuningPanel();
@@ -328,12 +328,6 @@ bool DebugEditorController::mouseWheelMove(const juce::MouseWheelDetails& wheel,
     return true;
 }
 
-bool DebugEditorController::collectPhaseTiming() const
-{
-    // Delegates to the profiler toggle state — but that's on SceneRenderer.
-    // This is just a convenience for the texture scoped measure.
-    return false; // Caller should check sceneRenderer.collectPhaseTiming directly
-}
 
 void DebugEditorController::scanMidiDirectory()
 {
