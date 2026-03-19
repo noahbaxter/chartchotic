@@ -73,9 +73,14 @@ target_sources(Chartchotic
         Chartchotic/Source/PluginProcessor.h
         Chartchotic/Source/PluginEditor.cpp
         Chartchotic/Source/PluginEditor.h
-        Chartchotic/Source/ReaperVST3.h
-        Chartchotic/Source/UpdateChecker.cpp
-        Chartchotic/Source/UpdateChecker.h
+        # Editor (PluginEditor delegates)
+        Chartchotic/Source/Editor/AssetController.cpp
+        Chartchotic/Source/Editor/AssetController.h
+        Chartchotic/Source/Editor/FrameDataBuilder.cpp
+        Chartchotic/Source/Editor/FrameDataBuilder.h
+        Chartchotic/Source/Editor/SessionController.cpp
+        Chartchotic/Source/Editor/SessionController.h
+        Chartchotic/Source/Host/ReaperVST3.h
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp
         Chartchotic/Source/DebugTools/DebugEditorController.h
@@ -134,17 +139,20 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Utils/InstrumentMapper.h
         Chartchotic/Source/Midi/Utils/MidiConstants.h
         Chartchotic/Source/Midi/Utils/MidiTypes.h
-        # REAPER
-        Chartchotic/Source/REAPER/ReaperIntegration.cpp
-        Chartchotic/Source/REAPER/ReaperIntegration.h
-        Chartchotic/Source/REAPER/ReaperTrackDetector.cpp
-        Chartchotic/Source/REAPER/ReaperTrackDetector.h
-        Chartchotic/Source/REAPER/ReaperVST2Extensions.cpp
-        Chartchotic/Source/REAPER/ReaperVST2Extensions.h
-        Chartchotic/Source/REAPER/ReaperVST3Extensions.cpp
-        Chartchotic/Source/REAPER/ReaperVST3Extensions.h
-        Chartchotic/Source/REAPER/TrackInfoListener.cpp
-        Chartchotic/Source/REAPER/TrackInfoListener.h
+        Chartchotic/Source/Midi/Utils/PPQ.h
+        Chartchotic/Source/Midi/Utils/TempoTimeSignatureEventHelper.h
+        Chartchotic/Source/Midi/Utils/TimeConverter.h
+        # Host (REAPER integration)
+        Chartchotic/Source/Host/ReaperIntegration.cpp
+        Chartchotic/Source/Host/ReaperIntegration.h
+        Chartchotic/Source/Host/ReaperTrackDetector.cpp
+        Chartchotic/Source/Host/ReaperTrackDetector.h
+        Chartchotic/Source/Host/ReaperVST2Extensions.cpp
+        Chartchotic/Source/Host/ReaperVST2Extensions.h
+        Chartchotic/Source/Host/ReaperVST3Extensions.cpp
+        Chartchotic/Source/Host/ReaperVST3Extensions.h
+        Chartchotic/Source/Host/TrackInfoListener.cpp
+        Chartchotic/Source/Host/TrackInfoListener.h
         # Visual / Renderers
         Chartchotic/Source/Visual/Renderers/AnimationRenderer.cpp
         Chartchotic/Source/Visual/Renderers/AnimationRenderer.h
@@ -195,12 +203,11 @@ target_sources(Chartchotic
         Chartchotic/Source/UI/ControlConstants.h
         Chartchotic/Source/UI/ToolbarComponent.cpp
         Chartchotic/Source/UI/ToolbarComponent.h
+        Chartchotic/Source/UI/UpdateChecker.cpp
+        Chartchotic/Source/UI/UpdateChecker.h
         # Utils
         Chartchotic/Source/Visual/Utils/LatencySmoother.h
-        Chartchotic/Source/Utils/PPQ.h
-        Chartchotic/Source/Utils/TempoTimeSignatureEventHelper.h
-        Chartchotic/Source/Utils/TimeConverter.h
-        Chartchotic/Source/Utils/Utils.h
+        Chartchotic/Source/Utils/ChartTypes.h
 )
 
 # Binary data (images + SVG)

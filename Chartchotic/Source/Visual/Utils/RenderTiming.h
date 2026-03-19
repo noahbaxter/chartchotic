@@ -14,7 +14,7 @@
 
 #include <algorithm>
 #include <chrono>
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 #include "DrawingConstants.h"
 
 struct PhaseTiming

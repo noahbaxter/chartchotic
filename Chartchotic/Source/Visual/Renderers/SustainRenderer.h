@@ -12,8 +12,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
-#include "../../Utils/TimeConverter.h"
+#include "../../Utils/ChartTypes.h"
+#include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"

@@ -5,7 +5,7 @@
 #include <JuceHeader.h>
 #include "../UI/Controls/PopupMenuButton.h"
 #include "../UI/SectionHeader.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/PositionConstants.h"
 #include "../Visual/Utils/PositionMath.h"
 #include "../Visual/Utils/DrawingConstants.h"

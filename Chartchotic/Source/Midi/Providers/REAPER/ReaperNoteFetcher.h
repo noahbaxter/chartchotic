@@ -15,7 +15,7 @@
 #include <JuceHeader.h>
 #include "ReaperMidiProvider.h"
 #include "ReaperApiHelpers.h"
-#include "../../../Utils/PPQ.h"
+#include "../../Utils/PPQ.h"
 #include "../../../DebugTools/Logger.h"
 #include "../../ChartTextEvent.h"
 

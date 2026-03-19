@@ -13,8 +13,8 @@
 
 #pragma once
 
-#include "Utils.h"
-#include "../Visual/Utils/DrawingConstants.h"
+#include "../../Utils/ChartTypes.h"
+#include "../../Visual/Utils/DrawingConstants.h"
 #include <map>
 #include <cmath>
 #include <functional>

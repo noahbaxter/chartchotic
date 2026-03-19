@@ -14,8 +14,8 @@
 #ifdef DEBUG
 
 #include <JuceHeader.h>
-#include "../Utils/Utils.h"
-#include "../Utils/PPQ.h"
+#include "../Utils/ChartTypes.h"
+#include "../Midi/Utils/PPQ.h"
 
 namespace DataGenerators
 {

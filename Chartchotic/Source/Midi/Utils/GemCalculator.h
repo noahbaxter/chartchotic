@@ -14,7 +14,7 @@
 #pragma once
 
 #include "MidiTypes.h"
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 
 class GemCalculator
 {

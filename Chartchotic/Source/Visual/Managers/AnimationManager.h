@@ -1,7 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 #include "../Utils/DrawingConstants.h"
 
 namespace AnimationConstants {

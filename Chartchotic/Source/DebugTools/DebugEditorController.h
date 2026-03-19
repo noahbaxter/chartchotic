@@ -10,7 +10,7 @@
 #include "../Visual/HighwayComponent.h"
 #include "../Visual/Utils/RenderTiming.h"
 #include "../Visual/Utils/DrawingConstants.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 
 class ChartchoticAudioProcessor;
 class MidiInterpreter;

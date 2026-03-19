@@ -11,7 +11,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 #include "../Utils/MidiTypes.h"
 #include "../Utils/InstrumentMapper.h"
 #include "../DiscoFlipState.h"

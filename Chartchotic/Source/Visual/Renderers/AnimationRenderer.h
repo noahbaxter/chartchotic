@@ -15,8 +15,8 @@
 
 #include <JuceHeader.h>
 #include <array>
-#include "../../Utils/Utils.h"
-#include "../../Utils/TimeConverter.h"
+#include "../../Utils/ChartTypes.h"
+#include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AnimationManager.h"
 #include "../Managers/AssetManager.h"
 #include "../Utils/PositionConstants.h"

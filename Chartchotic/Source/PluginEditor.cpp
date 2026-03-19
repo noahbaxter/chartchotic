@@ -8,16 +8,8 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include "Midi/Pipelines/ReaperMidiPipeline.h"
 #include "Midi/Processing/NoteProcessor.h"
-#include "Midi/Utils/MidiConstants.h"
-#include "Utils/TempoTimeSignatureEventHelper.h"
-
-#ifdef DEBUG
-  #define DEBUG_MEASURE_LOCK_WAIT auto _lm = debug.measureLockWait()
-#else
-  #define DEBUG_MEASURE_LOCK_WAIT
-#endif
+#include "Visual/Utils/PositionMath.h"
 
 // CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds
@@ -85,7 +77,16 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     debug.init(*this, audioProcessor, state, isStandalone);
 #endif
 
-    initAssets();
+    assets.init(toolbar, [this](auto fn) { forAllHighways(fn); });
+    session.init(state, toolbar, audioProcessor,
+                 slots.data(), MAX_HIGHWAY_SLOTS, activeSlotCount,
+                 {
+                     [this]() { resized(); },
+                     [this]() { loadState(); },
+                     [this](float v) { return computeFarFadeEnd(v); },
+                     [this](auto fn) { forEachHighway(fn); },
+                     [this](auto fn) { forAllHighways(fn); }
+                 });
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
@@ -165,8 +166,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
     if (isReaperMode && !audioProcessor.getInstrumentSession())
     {
         audioProcessor.createInstrumentSession();
-        if (auto* session = audioProcessor.getInstrumentSession())
-            rebuildSlotsFromSession(*session);
+        if (auto* instrSession = audioProcessor.getInstrumentSession())
+            session.rebuildFromSession(*instrSession);
     }
 
     // Track position changes for render logic
@@ -192,10 +193,10 @@ void ChartchoticAudioProcessorEditor::onFrame()
                     audioProcessor.invalidateReaperCache();
 
                     // Poll InstrumentSession for changes (re-fetch affected tracks)
-                    if (auto* session = audioProcessor.getInstrumentSession())
+                    if (auto* instrSession = audioProcessor.getInstrumentSession())
                     {
-                        if (session->pollForChanges())
-                            rebuildSlotsFromSession(*session);
+                        if (instrSession->pollForChanges())
+                            session.rebuildFromSession(*instrSession);
                     }
                 }
             }
@@ -210,10 +211,27 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #ifdef DEBUG
     auto dataBuildStart = std::chrono::high_resolution_clock::now();
 #endif
+    auto ctx = buildFrameContext();
     HighwayFrameData primaryFrameData;
+
+#ifdef DEBUG
+    // Standalone debug mode: bypass normal pipeline
+    if (!isReaperMode && debug.isStandalone() && debug.isNotesActive())
+    {
+        HighwayFrameData frameData;
+        debug.buildStandaloneFrameData(frameData, primaryHighway().getSceneRenderer(),
+                                       primaryInterpreter(), displaySizeInPPQ.toDouble(),
+                                       displayWindowTimeSeconds);
+        frameData.scrollOffset = computeScrollOffset();
+        primaryFrameData = frameData;
+        slots[0].highway->setFrameData(frameData);
+        slots[0].highway->repaint();
+    }
+    else
+#endif
     if (isReaperMode && activeSlotCount > 1)
     {
-        buildReaperFrameDataBatched(primaryFrameData);
+        FrameDataBuilder::buildReaperBatched(primaryFrameData, ctx);
     }
     else
     {
@@ -222,9 +240,9 @@ void ChartchoticAudioProcessorEditor::onFrame()
             auto& slot = slots[i];
             HighwayFrameData frameData;
             if (isReaperMode)
-                buildReaperFrameData(frameData, *slot.interpreter);
+                FrameDataBuilder::buildReaper(frameData, ctx, *slot.interpreter);
             else
-                buildStandardFrameData(frameData, *slot.interpreter);
+                FrameDataBuilder::buildStandard(frameData, ctx, *slot.interpreter);
             if (i == 0)
                 primaryFrameData = frameData;
             slot.highway->setFrameData(frameData);
@@ -247,101 +265,92 @@ void ChartchoticAudioProcessorEditor::onFrame()
     repaint();
 }
 
-void ChartchoticAudioProcessorEditor::initAssets()
-{
-    backgroundImageDefault = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
-    backgroundImageCurrent = backgroundImageDefault;
-
-    // Load REAPER logo SVG
-    reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
-
-    scanBackgrounds();
-    scanHighwayTextures();
-}
-
 void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 {
     toolbar.onSkillChanged = [this](int id) {
         state.setProperty("skillLevel", id, nullptr);
         propagateToSlots("skillLevel", id);
-        if (hasActiveSession)
+        if (session.isActive())
         {
-            enabledDifficulties = { (SkillLevel)id };
-            toolbar.setEnabledDifficulties(enabledDifficulties);
-            rebuildVisibleSlots();
+            session.getEnabledDifficulties() = { (SkillLevel)id };
+            toolbar.setEnabledDifficulties(session.getEnabledDifficulties());
+            session.rebuildVisibleSlots();
         }
     };
 
     toolbar.onDifficultyClicked = [this](SkillLevel skill, bool modifierHeld) {
-        if (!hasActiveSession) return;
+        if (!session.isActive()) return;
 
+        auto& diffs = session.getEnabledDifficulties();
         if (modifierHeld)
         {
-            if (enabledDifficulties.count(skill))
-                enabledDifficulties.erase(skill);
+            if (diffs.count(skill))
+                diffs.erase(skill);
             else
-                enabledDifficulties.insert(skill);
+                diffs.insert(skill);
         }
         else
         {
-            enabledDifficulties.clear();
-            enabledDifficulties.insert(skill);
+            diffs.clear();
+            diffs.insert(skill);
         }
 
-        if (enabledDifficulties.size() > 1)
-            forceSingleInstrument();
+        if (diffs.size() > 1)
+            session.forceSingleInstrument();
 
-        if (!enabledDifficulties.empty())
-            state.setProperty("skillLevel", (int)*enabledDifficulties.begin(), nullptr);
+        if (!diffs.empty())
+            state.setProperty("skillLevel", (int)*diffs.begin(), nullptr);
 
-        toolbar.setEnabledDifficulties(enabledDifficulties);
-        rebuildVisibleSlots();
+        toolbar.setEnabledDifficulties(diffs);
+        session.rebuildVisibleSlots();
     };
 
     toolbar.onAllDifficultiesClicked = [this]() {
-        if (!hasActiveSession) return;
-        enabledDifficulties = { SkillLevel::EASY, SkillLevel::MEDIUM,
+        if (!session.isActive()) return;
+        session.getEnabledDifficulties() = { SkillLevel::EASY, SkillLevel::MEDIUM,
                                 SkillLevel::HARD, SkillLevel::EXPERT };
 
-        forceSingleInstrument();
+        session.forceSingleInstrument();
 
-        toolbar.setEnabledDifficulties(enabledDifficulties);
-        rebuildVisibleSlots();
+        toolbar.setEnabledDifficulties(session.getEnabledDifficulties());
+        session.rebuildVisibleSlots();
     };
 
     toolbar.onInstrumentClicked = [this](Part part, bool modifierHeld) {
-        if (!hasActiveSession) return;
+        if (!session.isActive()) return;
 
+        auto& parts = session.getEnabledParts();
         if (modifierHeld)
         {
-            if (enabledParts.count(part))
-                enabledParts.erase(part);
+            if (parts.count(part))
+                parts.erase(part);
             else
-                enabledParts.insert(part);
+                parts.insert(part);
         }
         else
         {
-            enabledParts.clear();
-            enabledParts.insert(part);
+            parts.clear();
+            parts.insert(part);
         }
 
-        if (enabledParts.size() > 1)
-            forceSingleDifficulty();
+        if (parts.size() > 1)
+            session.forceSingleDifficulty();
 
-        toolbar.setEnabledParts(enabledParts);
-        rebuildVisibleSlots();
+        toolbar.setEnabledParts(parts);
+        session.rebuildVisibleSlots();
     };
 
     toolbar.onAllInstrumentsClicked = [this]() {
-        if (!hasActiveSession) return;
-        enabledParts.clear();
-        for (auto p : discoveredParts)
-            enabledParts.insert(p);
+        if (!session.isActive()) return;
+        auto& parts = session.getEnabledParts();
+        parts.clear();
+        for (auto p : session.getDiscoveredParts())
+            parts.insert(p);
 
-        forceSingleDifficulty();
+        session.forceSingleDifficulty();
 
-        toolbar.setEnabledParts(enabledParts);
-        rebuildVisibleSlots();
+        toolbar.setEnabledParts(parts);
+        session.rebuildVisibleSlots();
     };
 
     toolbar.onPartChanged = [this](int id) {
@@ -351,7 +360,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         primaryInterpreter().instrumentPart = newPart;
         slots[0].part = newPart;
 
-        // Recompute farFadeEnd with new instrument scale (slider value unchanged)
         if (!PositionMath::bemaniMode)
         {
             float userLength = state.hasProperty("highwayLength")
@@ -361,14 +369,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
                 hw.getSceneRenderer().farFadeEnd = scaledLength;
                 PositionMath::bemaniHwyScale = scaledLength;
             });
-            // Cache already has both guitar and drums baked — if scale changed,
-            // invalidate and rebake
             trackImageCache.invalidate();
             rebakeTrackCache();
         }
         updateDisplaySizeFromSpeedSlider();
 
-        // onInstrumentChanged swaps overlay pointers to correct cache entry
         forEachHighway([](auto& hw) { hw.onInstrumentChanged(); });
 #ifdef DEBUG
         toolbar.getTuningPanel().setDrums(isDrumLike(getPartFromState(state)));
@@ -390,151 +395,68 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         propagateToSlots("hopoThreshold", thresholdIndex);
     };
 
-    toolbar.onGemsChanged = [this](bool on) {
-        state.setProperty("showGems", on, nullptr);
-        forEachHighway([on](auto& hw) { hw.setShowGems(on); });
-    };
+    toolbar.onGemsChanged = [this](bool on) { state.setProperty("showGems", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowGems(on); }); };
+    toolbar.onBarsChanged = [this](bool on) { state.setProperty("showBars", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBars(on); }); };
+    toolbar.onSustainsChanged = [this](bool on) { state.setProperty("showSustains", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowSustains(on); }); };
+    toolbar.onLanesChanged = [this](bool on) { state.setProperty("showLanes", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowLanes(on); }); };
+    toolbar.onGridlinesChanged = [this](bool on) { state.setProperty("showGridlines", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowGridlines(on); }); };
 
-    toolbar.onBarsChanged = [this](bool on) {
-        state.setProperty("showBars", on, nullptr);
-        forEachHighway([on](auto& hw) { hw.setShowBars(on); });
-    };
+    toolbar.onHitIndicatorsChanged = [this](bool on) { state.setProperty("hitIndicators", on, nullptr); propagateToSlots("hitIndicators", on); };
+    toolbar.onStarPowerChanged = [this](bool on) { state.setProperty("starPower", on, nullptr); propagateToSlots("starPower", on); };
+    toolbar.onKick2xChanged = [this](bool on) { state.setProperty("kick2x", on, nullptr); propagateToSlots("kick2x", on); };
+    toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
+    toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };
 
-    toolbar.onSustainsChanged = [this](bool on) {
-        state.setProperty("showSustains", on, nullptr);
-        forEachHighway([on](auto& hw) { hw.setShowSustains(on); });
-    };
-
-    toolbar.onLanesChanged = [this](bool on) {
-        state.setProperty("showLanes", on, nullptr);
-        forEachHighway([on](auto& hw) { hw.setShowLanes(on); });
-    };
-
-    toolbar.onGridlinesChanged = [this](bool on) {
-        state.setProperty("showGridlines", on, nullptr);
-        forEachHighway([on](auto& hw) { hw.setShowGridlines(on); });
-    };
-
-    toolbar.onHitIndicatorsChanged = [this](bool on) {
-        state.setProperty("hitIndicators", on, nullptr);
-        propagateToSlots("hitIndicators", on);
-    };
-
-    toolbar.onStarPowerChanged = [this](bool on) {
-        state.setProperty("starPower", on, nullptr);
-        propagateToSlots("starPower", on);
-    };
-
-    toolbar.onKick2xChanged = [this](bool on) {
-        state.setProperty("kick2x", on, nullptr);
-        propagateToSlots("kick2x", on);
-    };
-
-    toolbar.onDiscoFlipChanged = [this](bool on) {
-        state.setProperty("discoFlip", on, nullptr);
-        propagateToSlots("discoFlip", on);
-    };
-
-    toolbar.onDynamicsChanged = [this](bool on) {
-        state.setProperty("dynamics", on, nullptr);
-        propagateToSlots("dynamics", on);
-    };
-
-    toolbar.onTrackChanged = [this](bool on) {
-        state.setProperty("showTrack", on, nullptr);
-        propagateToSlots("showTrack", on);
-        forEachHighway([on](auto& hw) { hw.setShowTrack(on); });
-    };
-
-    toolbar.onLaneSeparatorsChanged = [this](bool on) {
-        state.setProperty("showLaneSeparators", on, nullptr);
-        propagateToSlots("showLaneSeparators", on);
-        forEachHighway([on](auto& hw) { hw.setShowLaneSeparators(on); });
-    };
-
-    toolbar.onStrikelineChanged = [this](bool on) {
-        state.setProperty("showStrikeline", on, nullptr);
-        propagateToSlots("showStrikeline", on);
-        forEachHighway([on](auto& hw) { hw.setShowStrikeline(on); });
-    };
-
-    toolbar.onHighwayChanged = [this](bool on) {
-        state.setProperty("showHighway", on, nullptr);
-        propagateToSlots("showHighway", on);
-        forEachHighway([on](auto& hw) { hw.setShowHighway(on); });
-    };
+    toolbar.onTrackChanged = [this](bool on) { state.setProperty("showTrack", on, nullptr); propagateToSlots("showTrack", on); forEachHighway([on](auto& hw) { hw.setShowTrack(on); }); };
+    toolbar.onLaneSeparatorsChanged = [this](bool on) { state.setProperty("showLaneSeparators", on, nullptr); propagateToSlots("showLaneSeparators", on); forEachHighway([on](auto& hw) { hw.setShowLaneSeparators(on); }); };
+    toolbar.onStrikelineChanged = [this](bool on) { state.setProperty("showStrikeline", on, nullptr); propagateToSlots("showStrikeline", on); forEachHighway([on](auto& hw) { hw.setShowStrikeline(on); }); };
+    toolbar.onHighwayChanged = [this](bool on) { state.setProperty("showHighway", on, nullptr); propagateToSlots("showHighway", on); forEachHighway([on](auto& hw) { hw.setShowHighway(on); }); };
 
     toolbar.onViewModeChanged = [this](int viewModeId) {
         auto mode = static_cast<ChartchoticAudioProcessor::ReaperViewMode>(viewModeId);
         audioProcessor.setReaperViewMode(mode);
-        // Destroy and recreate session with new discovery strategy
         audioProcessor.destroyInstrumentSession();
         audioProcessor.createInstrumentSession();
-        if (auto* session = audioProcessor.getInstrumentSession())
-            rebuildSlotsFromSession(*session);
+        if (auto* instrSession = audioProcessor.getInstrumentSession())
+            session.rebuildFromSession(*instrSession);
     };
 
     toolbar.onNoteSpeedChanged = [this](int speed) {
         state.setProperty("noteSpeed", speed, nullptr);
         updateDisplaySizeFromSpeedSlider();
-
         if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
             audioProcessor.invalidateReaperCache();
     };
 
     toolbar.onFramerateChanged = [this](int id) {
         state.setProperty("framerate", id, nullptr);
-        switch (id)
-        {
+        switch (id) {
         case 1: targetFrameInterval = 1.0 / 15.0; break;
         case 2: targetFrameInterval = 1.0 / 30.0; break;
         case 3: targetFrameInterval = 1.0 / 60.0; break;
-        default: targetFrameInterval = 0.0; break;  // Native
+        default: targetFrameInterval = 0.0; break;
         }
     };
 
-    toolbar.onShowFpsChanged = [this](bool on) {
-        showFps = on;
-    };
+    toolbar.onShowFpsChanged = [this](bool on) { showFps = on; };
+    toolbar.onShowBackgroundChanged = [this](bool on) { assets.setBackgroundVisible(on); };
 
-    toolbar.onShowBackgroundChanged = [this](bool on) {
-        showBackground = on;
-    };
-
-    toolbar.onLatencyChanged = [this](int id) {
-        state.setProperty("latency", id, nullptr);
-        applyLatencySetting(id);
-    };
-
+    toolbar.onLatencyChanged = [this](int id) { state.setProperty("latency", id, nullptr); applyLatencySetting(id); };
     toolbar.onLatencyOffsetChanged = [this](int offsetMs) {
-        bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-        if (isReaperMode)
+        if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
             audioProcessor.invalidateReaperCache();
     };
 
-    toolbar.onBackgroundChanged = [this](const juce::String& bgName) {
-        state.setProperty("background", bgName, nullptr);
-        loadBackground(bgName);
-    };
+    toolbar.onBackgroundChanged = [this](const juce::String& bgName) { state.setProperty("background", bgName, nullptr); assets.loadBackground(bgName); };
 
-    toolbar.onGemScaleChanged = [this](float scale) {
-        state.setProperty("gemScale", scale, nullptr);
-        propagateToSlots("gemScale", scale);
-        forEachHighway([scale](auto& hw) { hw.setGemScale(scale); });
-    };
-
-    toolbar.onBarScaleChanged = [this](float scale) {
-        state.setProperty("barScale", scale, nullptr);
-        propagateToSlots("barScale", scale);
-        forEachHighway([scale](auto& hw) { hw.setBarScale(scale); });
-    };
+    toolbar.onGemScaleChanged = [this](float scale) { state.setProperty("gemScale", scale, nullptr); propagateToSlots("gemScale", scale); forEachHighway([scale](auto& hw) { hw.setGemScale(scale); }); };
+    toolbar.onBarScaleChanged = [this](float scale) { state.setProperty("barScale", scale, nullptr); propagateToSlots("barScale", scale); forEachHighway([scale](auto& hw) { hw.setBarScale(scale); }); };
 
     toolbar.onHighwayLengthChanged = [this](float length) {
         state.setProperty("highwayLength", length, nullptr);
         if (!PositionMath::bemaniMode)
         {
             float scaledLength = computeFarFadeEnd(length);
-            // Update farFadeEnd on all highways first (needed for rebake to use correct params)
             forEachHighway([scaledLength](auto& hw) {
                 hw.getSceneRenderer().farFadeEnd = scaledLength;
                 PositionMath::bemaniHwyScale = scaledLength;
@@ -549,11 +471,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         updateDisplaySizeFromSpeedSlider();
     };
 
-    toolbar.onStretchChanged = [this](bool on) {
-        forEachHighway([on](auto& hw) { hw.stretchToFill = on; });
-        state.setProperty("stretchToFill", on, nullptr);
-        resized();
-    };
+    toolbar.onStretchChanged = [this](bool on) { forEachHighway([on](auto& hw) { hw.stretchToFill = on; }); state.setProperty("stretchToFill", on, nullptr); resized(); };
 
     toolbar.onBemaniModeChanged = [this](bool on) {
         PositionMath::bemaniMode = on;
@@ -567,33 +485,18 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onHighwayTextureChanged = [this](const juce::String& textureName) {
         state.setProperty("highwayTexture", textureName, nullptr);
-        if (textureName.isEmpty())
-            forAllHighways([](auto& hw) { hw.clearTexture(); });
-        else
-            loadHighwayTexture(textureName);
+        if (textureName.isEmpty()) forAllHighways([](auto& hw) { hw.clearTexture(); });
+        else assets.loadHighwayTexture(textureName);
     };
 
-    toolbar.onTextureScaleChanged = [this](float scale) {
-        state.setProperty("textureScale", scale, nullptr);
-        forAllHighways([scale](auto& hw) { hw.setTextureScale(scale); });
-    };
+    toolbar.onTextureScaleChanged = [this](float scale) { state.setProperty("textureScale", scale, nullptr); forAllHighways([scale](auto& hw) { hw.setTextureScale(scale); }); };
+    toolbar.onTextureOpacityChanged = [this](float opacity) { state.setProperty("textureOpacity", opacity, nullptr); forAllHighways([opacity](auto& hw) { hw.setTextureOpacity(opacity); }); };
 
-    toolbar.onTextureOpacityChanged = [this](float opacity) {
-        state.setProperty("textureOpacity", opacity, nullptr);
-        forAllHighways([opacity](auto& hw) { hw.setTextureOpacity(opacity); });
-    };
-
-    toolbar.onOpenBackgroundFolder = [this]() {
-        backgroundDirectory.revealToUser();
-    };
-
-    toolbar.onOpenTextureFolder = [this]() {
-        highwayTextureDirectory.revealToUser();
-    };
+    toolbar.onOpenBackgroundFolder = [this]() { assets.getBackgroundDirectory().revealToUser(); };
+    toolbar.onOpenTextureFolder = [this]() { assets.getHighwayTextureDirectory().revealToUser(); };
 
 #ifdef DEBUG
-    debug.wireCallbacks(toolbar, primaryHighway(),
-        [this]() { repaint(); });
+    debug.wireCallbacks(toolbar, primaryHighway(), [this]() { repaint(); });
 #endif
 }
 
@@ -631,19 +534,19 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colours::black);
 
-    if (showBackground)
-        g.drawImage(backgroundImageCurrent, getLocalBounds().toFloat());
+    if (assets.isBackgroundVisible())
+        g.drawImage(assets.getCurrentBackground(), getLocalBounds().toFloat());
 
     if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
     {
-        if (reaperLogo)
+        if (auto* logo = assets.getReaperLogo())
         {
             float s = (float)getHeight() / (float)defaultHeight;
             int logoSize = juce::roundToInt(24.0f * s);
             int logoMargin = juce::roundToInt(10.0f * s);
             juce::Rectangle<float> logoBounds((float)logoMargin, (float)(getHeight() - logoSize - logoMargin),
                                               (float)logoSize, (float)logoSize);
-            reaperLogo->drawWithin(g, logoBounds, juce::RectanglePlacement::centred, 0.8f);
+            logo->drawWithin(g, logoBounds, juce::RectanglePlacement::centred, 0.8f);
         }
     }
 }
@@ -651,14 +554,14 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 {
     // "Nothing selected" placeholder
-    if (hasActiveSession && activeSlotCount == 0)
+    if (session.isActive() && activeSlotCount == 0)
     {
         int tbHeight = toolbar.getHeight();
         auto area = getLocalBounds().withTrimmedTop(tbHeight);
         g.setColour(juce::Colours::white.withAlpha(0.4f));
         g.setFont(Theme::getUIFont(16.0f));
-        juce::String msg = enabledParts.empty() ? "Select an instrument"
-                         : enabledDifficulties.empty() ? "Select a difficulty"
+        juce::String msg = session.getEnabledParts().empty() ? "Select an instrument"
+                         : session.getEnabledDifficulties().empty() ? "Select a difficulty"
                          : "No data";
         g.drawText(msg, area, juce::Justification::centred);
     }
@@ -677,375 +580,6 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
             hwPtrs, hwCount, activeSlotCount > 0);
     }
 #endif
-}
-
-void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out, MidiInterpreter& interpreter)
-{
-    // Use current position (cursor when paused, playhead when playing)
-    PPQ trackWindowStartPPQ = lastKnownPosition;
-
-    // Capture playhead once to avoid TOCTOU null dereference
-    auto* playHead = audioProcessor.getPlayHead();
-
-    // Apply latency offset (ms added to playhead time)
-    int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
-    if (playHead)
-    {
-        auto positionInfo = playHead->getPosition();
-        if (positionInfo.hasValue())
-        {
-            double bpm = positionInfo->getBpm().orFallback(120.0);
-            double latencyOffsetSeconds = latencyOffsetMs / 1000.0;
-            double latencyOffsetBeats = latencyOffsetSeconds * (bpm / 60.0);
-            // Subtract to shift display backward (positive offset = see more future notes)
-            trackWindowStartPPQ = trackWindowStartPPQ - PPQ(latencyOffsetBeats);
-        }
-    }
-
-    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
-    PPQ latencyBufferEnd = trackWindowStartPPQ; // No latency in REAPER mode
-
-    // Extend window for notes behind cursor
-    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
-
-    // Wire disco flip state — prefer InstrumentSession (multi-track), fall back to pipeline (single-track)
-    const DiscoFlipState* flipState = nullptr;
-    auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(audioProcessor.getMidiPipeline());
-    if (!audioProcessor.getInstrumentSession())
-    {
-        // Local mode without session: use pipeline's disco flip
-        if (reaperPipeline)
-            flipState = reaperPipeline->getDiscoFlipState();
-        interpreter.setDiscoFlipState(flipState);
-    }
-    else
-    {
-        // Session mode: disco flip already set per-slot in rebuildSlotsFromSession
-        flipState = interpreter.getDiscoFlipState();
-    }
-
-    // Resolve all 4 difficulties in one lock — extract the active one
-    PartWindow partWindow;
-    {
-        DEBUG_MEASURE_LOCK_WAIT;
-        partWindow = interpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
-    }
-    SkillLevel activeSkill = (SkillLevel)((int)interpreter.getState().getProperty("skillLevel"));
-    auto& diffWindow = partWindow.forSkill(activeSkill);
-    TrackWindow& ppqTrackWindow = diffWindow.trackWindow;
-    SustainWindow& ppqSustainWindow = diffWindow.sustainWindow;
-
-    // Create a lambda that uses REAPER's timeline conversion (handles ALL tempo changes)
-    auto& reaperProvider = audioProcessor.getReaperMidiProvider();
-    auto ppqToTime = [&reaperProvider](double ppq) { return reaperProvider.ppqToTime(ppq); };
-
-    // Get tempo/timesig map from MidiProcessor (make a copy to avoid holding lock)
-    TempoTimeSignatureMap tempoTimeSigMap;
-    {
-        const juce::ScopedLock lock(audioProcessor.getTempoLock());
-        tempoTimeSigMap = audioProcessor.getTempoTimeSignatureMap();
-    }
-
-    // Convert everything to time-based (seconds from cursor)
-    PPQ cursorPPQ = trackWindowStartPPQ;  // Cursor is at the strikeline
-    TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
-    TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
-
-    // Generate gridlines on-the-fly from tempo/timesig map
-    TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
-        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
-
-    out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
-        tempoTimeSigMap, cursorPPQ, ppqToTime);
-
-    out.trackWindow = timeTrackWindow;
-    out.sustainWindow = timeSustainWindow;
-    out.gridlines = timeGridlineMap;
-    out.windowStartTime = 0.0;
-    out.windowEndTime = displayWindowTimeSeconds;
-    out.isPlaying = audioProcessor.isPlaying;
-    out.scrollOffset = computeScrollOffset();
-
-    // Disco flip indicator + region markers
-    {
-        const auto& interpState = interpreter.getState();
-        bool isProDrums = (int)interpState.getProperty("drumType") == 2;
-        bool discoEnabled = (bool)interpState.getProperty("discoFlip");
-        int midiDiff = (int)interpState.getProperty("skillLevel") - 1;
-        out.discoFlipActive = flipState != nullptr && isProDrums && discoEnabled
-                              && flipState->isFlipped(trackWindowStartPPQ, midiDiff);
-
-        // Convert flip region boundaries to time-relative for highway markers
-        if (flipState != nullptr && isProDrums && discoEnabled)
-        {
-            double cursorTime = ppqToTime(cursorPPQ.toDouble());
-            for (const auto& r : flipState->getRegions(midiDiff))
-            {
-                double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
-                double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
-                if (startTime > 0.0 || endTime > -displayWindowTimeSeconds)
-                    out.flipRegions.push_back({startTime, endTime});
-            }
-        }
-    }
-}
-
-void ChartchoticAudioProcessorEditor::buildReaperFrameDataBatched(HighwayFrameData& primaryOut)
-{
-    // === Phase A: Frame-level shared data (computed once) ===
-
-    PPQ trackWindowStartPPQ = lastKnownPosition;
-
-    auto* playHead = audioProcessor.getPlayHead();
-    int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
-    if (playHead)
-    {
-        auto positionInfo = playHead->getPosition();
-        if (positionInfo.hasValue())
-        {
-            double bpm = positionInfo->getBpm().orFallback(120.0);
-            double latencyOffsetSeconds = latencyOffsetMs / 1000.0;
-            double latencyOffsetBeats = latencyOffsetSeconds * (bpm / 60.0);
-            trackWindowStartPPQ = trackWindowStartPPQ - PPQ(latencyOffsetBeats);
-        }
-    }
-
-    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
-    PPQ latencyBufferEnd = trackWindowStartPPQ;
-    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
-    PPQ cursorPPQ = trackWindowStartPPQ;
-
-    auto& reaperProvider = audioProcessor.getReaperMidiProvider();
-    auto ppqToTime = [&reaperProvider](double ppq) { return reaperProvider.ppqToTime(ppq); };
-
-    // Tempo map — one lock acquisition
-    TempoTimeSignatureMap tempoTimeSigMap;
-    {
-        const juce::ScopedLock lock(audioProcessor.getTempoLock());
-        tempoTimeSigMap = audioProcessor.getTempoTimeSignatureMap();
-    }
-
-    // Gridlines + event markers — computed once for all slots
-    TimeBasedGridlineMap sharedGridlines = GridlineGenerator::generateGridlines(
-        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
-
-    TimeBasedEventMarkers sharedMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
-        tempoTimeSigMap, cursorPPQ, ppqToTime);
-
-    float scrollOffset = computeScrollOffset();
-    bool isPlaying = audioProcessor.isPlaying;
-
-    // === Phase B: Group slots by lock pointer ===
-
-    std::unordered_map<juce::CriticalSection*, std::vector<int>> lockGroups;
-    for (int i = 0; i < activeSlotCount; i++)
-        lockGroups[&slots[i].interpreter->noteStateMapLock].push_back(i);
-
-    // === Phase C + D: Per group: extract once, resolve once, then per-slot distribute ===
-
-    for (auto& [lockPtr, slotIndices] : lockGroups)
-    {
-        // Use first slot's interpreter to build Config (shared across group — only skillLevel differs)
-        auto& firstInterp = *slots[slotIndices[0]].interpreter;
-
-        TrackResolver::Config cfg;
-        cfg.part = firstInterp.instrumentPart;
-        cfg.autoHopo = (bool)firstInterp.getState().getProperty("autoHopo", false);
-        cfg.dynamics = (bool)firstInterp.getState().getProperty("dynamics");
-        cfg.proDrums = (DrumType)((int)firstInterp.getState().getProperty("drumType")) == DrumType::PRO;
-        cfg.kick2x = (bool)firstInterp.getState().getProperty("kick2x");
-        cfg.discoFlip = (bool)firstInterp.getState().getProperty("discoFlip");
-        cfg.starPower = (bool)firstInterp.getState().getProperty("starPower");
-        cfg.bemaniMode = PositionMath::bemaniMode;
-        cfg.discoFlipState = firstInterp.getDiscoFlipState();
-
-        int thresholdIndex = (int)firstInterp.getState().getProperty("hopoThreshold", 2);
-        if (cfg.autoHopo)
-        {
-            switch (thresholdIndex)
-            {
-                case 0: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH;     break;
-                case 1: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH_DOT; break;
-                case 2: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170;   break;
-                case 3: cfg.hopoThreshold = MIDI_HOPO_EIGHTH;        break;
-            }
-            cfg.hopoThreshold += MIDI_HOPO_THRESHOLD_BUFFER;
-        }
-
-        // ONE lock acquisition, ONE extract
-        SharedWindow shared;
-        {
-            DEBUG_MEASURE_LOCK_WAIT;
-            const juce::ScopedLock lock(*lockPtr);
-            shared = TrackResolver::extract(firstInterp.noteStateMapArray,
-                                            extendedStart, trackWindowEndPPQ, latencyBufferEnd,
-                                            cfg.bemaniMode);
-        }
-
-        // ONE resolve → all 4 difficulties
-        PartWindow partWindow = TrackResolver::resolve(shared, cfg);
-
-        // Per-slot: pick difficulty, convert, populate
-        for (int idx : slotIndices)
-        {
-            auto& slot = slots[idx];
-            auto& interp = *slot.interpreter;
-
-            SkillLevel activeSkill = (SkillLevel)((int)interp.getState().getProperty("skillLevel"));
-            auto& diffWindow = partWindow.forSkill(activeSkill);
-
-            TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(
-                diffWindow.trackWindow, cursorPPQ, ppqToTime);
-            TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(
-                diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-
-            HighwayFrameData frameData;
-            frameData.trackWindow = timeTrackWindow;
-            frameData.sustainWindow = timeSustainWindow;
-            frameData.gridlines = sharedGridlines;
-            frameData.eventMarkers = sharedMarkers;
-            frameData.windowStartTime = 0.0;
-            frameData.windowEndTime = displayWindowTimeSeconds;
-            frameData.isPlaying = isPlaying;
-            frameData.scrollOffset = scrollOffset;
-
-            // Disco flip indicator + region markers (per-slot: reads per-interpreter state)
-            {
-                const DiscoFlipState* flipState = interp.getDiscoFlipState();
-                const auto& interpState = interp.getState();
-                bool isProDrums = (int)interpState.getProperty("drumType") == 2;
-                bool discoEnabled = (bool)interpState.getProperty("discoFlip");
-                int midiDiff = (int)interpState.getProperty("skillLevel") - 1;
-                frameData.discoFlipActive = flipState != nullptr && isProDrums && discoEnabled
-                                            && flipState->isFlipped(trackWindowStartPPQ, midiDiff);
-
-                if (flipState != nullptr && isProDrums && discoEnabled)
-                {
-                    double cursorTime = ppqToTime(cursorPPQ.toDouble());
-                    for (const auto& r : flipState->getRegions(midiDiff))
-                    {
-                        double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
-                        double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
-                        if (startTime > 0.0 || endTime > -displayWindowTimeSeconds)
-                            frameData.flipRegions.push_back({startTime, endTime});
-                    }
-                }
-            }
-
-            if (idx == 0)
-                primaryOut = frameData;
-            slot.highway->setFrameData(frameData);
-            slot.highway->repaint();
-        }
-    }
-}
-
-void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& out, MidiInterpreter& interpreter)
-{
-    // Use current position (cursor when paused, playhead when playing)
-    PPQ trackWindowStartPPQ = lastKnownPosition;
-
-#ifdef DEBUG
-    if (debug.isStandalone() && debug.isNotesActive())
-    {
-        debug.buildStandaloneFrameData(out, primaryHighway().getSceneRenderer(), interpreter,
-                                                  displaySizeInPPQ.toDouble(), displayWindowTimeSeconds);
-        out.scrollOffset = computeScrollOffset();
-        return;
-    }
-#endif
-
-    // Apply latency compensation when playing
-    if (audioProcessor.isPlaying)
-    {
-        // Use smoothed tempo-aware latency to prevent jitter during tempo changes
-        PPQ smoothedLatency = smoothedLatencyInPPQ();
-        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
-    }
-
-    // Capture playhead once to avoid TOCTOU null dereference
-    auto* playHead = audioProcessor.getPlayHead();
-
-    // Apply latency offset (ms added to playhead time)
-    int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
-    if (playHead)
-    {
-        auto positionInfo = playHead->getPosition();
-        if (positionInfo.hasValue())
-        {
-            double bpm = positionInfo->getBpm().orFallback(120.0);
-            double latencyOffsetSeconds = latencyOffsetMs / 1000.0;
-            double latencyOffsetBeats = latencyOffsetSeconds * (bpm / 60.0);
-            // Subtract to shift display backward (positive offset = see more future notes)
-            trackWindowStartPPQ = trackWindowStartPPQ - PPQ(latencyOffsetBeats);
-        }
-    }
-
-    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
-    PPQ latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
-
-    // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
-    audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
-
-    // In non-REAPER mode, use current BPM from playhead (no tempo map available)
-    double currentBPM = 120.0;
-    if (playHead)
-    {
-        auto positionInfo = playHead->getPosition();
-        if (positionInfo.hasValue())
-        {
-            currentBPM = positionInfo->getBpm().orFallback(120.0);
-        }
-    }
-
-    // Extend window for notes behind cursor
-    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
-
-    // Resolve all 4 difficulties in one lock — extract the active one
-    PartWindow partWindow;
-    {
-        DEBUG_MEASURE_LOCK_WAIT;
-        partWindow = interpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
-    }
-    SkillLevel activeSkill = (SkillLevel)((int)interpreter.getState().getProperty("skillLevel"));
-    auto& diffWindow = partWindow.forSkill(activeSkill);
-    TrackWindow& ppqTrackWindow = diffWindow.trackWindow;
-    SustainWindow& ppqSustainWindow = diffWindow.sustainWindow;
-
-    // Simple constant BPM conversion for non-REAPER mode
-    auto ppqToTime = [currentBPM](double ppq) { return ppq * (60.0 / currentBPM); };
-
-    // Create a simple tempo/timesig map for standard mode (default 120 BPM, 4/4)
-    TempoTimeSignatureMap tempoTimeSigMap;
-    {
-        const juce::ScopedLock lock(audioProcessor.getTempoLock());
-        tempoTimeSigMap = audioProcessor.getTempoTimeSignatureMap();
-
-        // If empty, add a default 4/4, currentBPM event at the start
-        if (tempoTimeSigMap.empty()) {
-            tempoTimeSigMap[PPQ(0.0)] = TempoTimeSignatureEvent(PPQ(0.0), currentBPM, 4, 4);
-        }
-    }
-
-    // Convert everything to time-based (seconds from cursor)
-    PPQ cursorPPQ = trackWindowStartPPQ;
-    TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
-    TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
-
-    // Generate gridlines on-the-fly from tempo/timesig map
-    TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
-        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
-
-    out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
-        tempoTimeSigMap, cursorPPQ, ppqToTime);
-
-    out.trackWindow = timeTrackWindow;
-    out.sustainWindow = timeSustainWindow;
-    out.gridlines = timeGridlineMap;
-    out.windowStartTime = 0.0;
-    out.windowEndTime = displayWindowTimeSeconds;
-    out.isPlaying = audioProcessor.isPlaying;
-    out.scrollOffset = computeScrollOffset();
 }
 
 void ChartchoticAudioProcessorEditor::resized()
@@ -1224,22 +758,22 @@ void ChartchoticAudioProcessorEditor::loadState()
     // Migrate old redBackground bool to new background string
     if (state.hasProperty("redBackground") && !state.hasProperty("background"))
     {
-        if ((bool)state["redBackground"] && backgroundNames.contains("background_red"))
+        if ((bool)state["redBackground"] && assets.getBackgroundNames().contains("background_red"))
             state.setProperty("background", "background_red", nullptr);
         state.removeProperty("redBackground", nullptr);
     }
 
     // Background visibility (default off)
-    showBackground = state.hasProperty("showBackground") && (bool)state["showBackground"];
+    assets.setBackgroundVisible(state.hasProperty("showBackground") && (bool)state["showBackground"]);
 
     // Load saved background image
     {
         juce::String savedBg = state.getProperty("background").toString();
-        loadBackground(savedBg);
+        assets.loadBackground(savedBg);
     }
 
     // Default to gothic if no saved preference (first launch only)
-    if (!state.hasProperty("highwayTexture") && highwayTextureNames.contains("kanaizo_gothic"))
+    if (!state.hasProperty("highwayTexture") && assets.getHighwayTextureNames().contains("kanaizo_gothic"))
         state.setProperty("highwayTexture", "kanaizo_gothic", nullptr);
 
     toolbar.loadState();
@@ -1283,8 +817,8 @@ void ChartchoticAudioProcessorEditor::loadState()
 
     // Load highway texture
     juce::String savedTexture = state.getProperty("highwayTexture").toString();
-    if (savedTexture.isNotEmpty() && highwayTextureNames.contains(savedTexture))
-        loadHighwayTexture(savedTexture);
+    if (savedTexture.isNotEmpty() && assets.getHighwayTextureNames().contains(savedTexture))
+        assets.loadHighwayTexture(savedTexture);
 
     // Restore texture parameters (all pooled highways, not just active)
     if (state.hasProperty("textureScale"))
@@ -1325,261 +859,6 @@ void ChartchoticAudioProcessorEditor::loadState()
     forEachHighway([](auto& hw) { hw.rebuildTrack(); });
 }
 
-void ChartchoticAudioProcessorEditor::rebuildSlotsFromSession(InstrumentSession& session)
-{
-    updateSessionData(session);
-    rebuildVisibleSlots();
-}
-
-void ChartchoticAudioProcessorEditor::updateSessionData(InstrumentSession& session)
-{
-    sessionSlotCache.clear();
-    discoveredParts.clear();
-    hasActiveSession = !session.isEmpty();
-
-    if (!hasActiveSession)
-        return;
-
-    const auto& tracks = session.getTracks();
-
-    for (int i = 0; i < (int)tracks.size(); ++i)
-    {
-        Part part = tracks[i].part;
-        if (!isHighwayRenderable(part))
-            continue;
-
-        SessionSlotData data;
-        data.part = part;
-        data.trackIdx = i;
-
-        const auto& notes = session.getNotes(i);
-
-        if (!notes.empty())
-        {
-            const juce::ScopedLock lock(*data.noteStateMapLock);
-            for (auto& map : *data.noteStateMapArray)
-                map.clear();
-
-            NoteProcessor noteProcessor;
-            noteProcessor.processAllNotes(notes, *data.noteStateMapArray);
-        }
-
-        const auto& discoFlip = session.getDiscoFlipState(i);
-        data.discoFlipState = discoFlip.hasRegions() ? &discoFlip : nullptr;
-
-        if (std::find(discoveredParts.begin(), discoveredParts.end(), part) == discoveredParts.end())
-            discoveredParts.push_back(part);
-
-        sessionSlotCache.push_back(std::move(data));
-    }
-
-    // Sort discovered parts: Guitar, guitar alts, Bass, Keys, Drums, Vocals
-    std::sort(discoveredParts.begin(), discoveredParts.end(),
-              [](Part a, Part b) { return getPartSortOrder(a) < getPartSortOrder(b); });
-
-    // First discovery: enable all parts
-    if (enabledParts.empty())
-    {
-        for (auto p : discoveredParts)
-            enabledParts.insert(p);
-    }
-    else
-    {
-        // Remove enabled parts that are no longer discovered
-        for (auto it = enabledParts.begin(); it != enabledParts.end(); )
-        {
-            if (std::find(discoveredParts.begin(), discoveredParts.end(), *it) == discoveredParts.end())
-                it = enabledParts.erase(it);
-            else
-                ++it;
-        }
-    }
-
-    // Update toolbar toggles
-    // Default to current skill level if no difficulties enabled yet
-    if (enabledDifficulties.empty())
-    {
-        SkillLevel current = (SkillLevel)((int)state.getProperty("skillLevel"));
-        enabledDifficulties.insert(current);
-    }
-
-    // Enable multi-select mode for difficulty in any session mode
-    toolbar.enableMultiDifficultyMode(true);
-
-    toolbar.setDiscoveredParts(discoveredParts);
-    toolbar.setEnabledParts(enabledParts);
-    toolbar.setEnabledDifficulties(enabledDifficulties);
-}
-
-void ChartchoticAudioProcessorEditor::forceSingleInstrument()
-{
-    if (enabledParts.size() <= 1) return;
-    Part first = discoveredParts.empty() ? *enabledParts.begin() : discoveredParts[0];
-    for (auto p : discoveredParts)
-        if (enabledParts.count(p)) { first = p; break; }
-    enabledParts.clear();
-    enabledParts.insert(first);
-    toolbar.setEnabledParts(enabledParts);
-}
-
-void ChartchoticAudioProcessorEditor::forceSingleDifficulty()
-{
-    if (enabledDifficulties.size() <= 1) return;
-    SkillLevel first = *enabledDifficulties.begin();
-    enabledDifficulties.clear();
-    enabledDifficulties.insert(first);
-    toolbar.setEnabledDifficulties(enabledDifficulties);
-    state.setProperty("skillLevel", (int)first, nullptr);
-}
-
-void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
-{
-    updateVisibleSlots();
-}
-
-void ChartchoticAudioProcessorEditor::updateVisibleSlots()
-{
-    // Hide all pooled slots
-    for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
-    {
-        slots[i].active = false;
-        slots[i].highway->setVisible(false);
-    }
-
-    if (!hasActiveSession || sessionSlotCache.empty())
-    {
-        // Fallback: single default slot using processor's shared note state
-        auto& slot = slots[0];
-        slot.part = getPartFromState(state);
-        slot.skillLevel = (SkillLevel)(int)state.getProperty("skillLevel");
-        slot.active = true;
-        slot.ownedState.reset();
-        slot.interpreter = std::make_unique<MidiInterpreter>(
-            state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
-        slot.noteStateMapArray = std::make_shared<NoteStateMapArray>();
-        slot.noteStateMapLock = std::make_shared<juce::CriticalSection>();
-        slot.highway->setActivePart(slot.part);
-        slot.highway->setVisible(true);
-        activeSlotCount = 1;
-
-        toolbar.setMultiInstrumentMode(false);
-        resized();
-        loadState();
-        return;
-    }
-
-    // Difficulty order for consistent grid layout (E/M/H/X = top-left → bottom-right)
-    static const SkillLevel diffOrder[] = { SkillLevel::EASY, SkillLevel::MEDIUM,
-                                             SkillLevel::HARD, SkillLevel::EXPERT };
-
-    // Assign slots from session cache (up to MAX_HIGHWAY_SLOTS)
-    int slotIdx = 0;
-    for (auto& cached : sessionSlotCache)
-    {
-        if (enabledParts.count(cached.part) == 0)
-            continue;
-
-        for (auto level : diffOrder)
-        {
-            if (enabledDifficulties.count(level) == 0)
-                continue;
-            if (slotIdx >= MAX_HIGHWAY_SLOTS)
-                break;
-
-            auto& slot = slots[slotIdx];
-            slot.part = cached.part;
-            slot.skillLevel = level;
-            slot.active = true;
-
-            // Per-slot state with baked skillLevel for interpreter
-            slot.ownedState = std::make_unique<juce::ValueTree>(state.createCopy());
-            slot.ownedState->setProperty("part", (int)cached.part, nullptr);
-            slot.ownedState->setProperty("skillLevel", (int)level, nullptr);
-
-            // All difficulties share the same raw note data
-            slot.noteStateMapArray = cached.noteStateMapArray;
-            slot.noteStateMapLock = cached.noteStateMapLock;
-
-            slot.interpreter = std::make_unique<MidiInterpreter>(
-                cached.part, *slot.ownedState, *slot.noteStateMapArray, *slot.noteStateMapLock);
-
-            if (cached.discoFlipState)
-                slot.interpreter->setDiscoFlipState(cached.discoFlipState);
-
-            slot.highway->setActivePart(cached.part);
-            slot.highway->setVisible(true);
-            slotIdx++;
-        }
-    }
-
-    activeSlotCount = slotIdx;
-
-    // Multi-slot labels
-    bool multiInst = enabledParts.size() > 1;
-    bool multiDiff = enabledDifficulties.size() > 1;
-    for (int i = 0; i < activeSlotCount; i++)
-    {
-        slots[i].highway->showPartLabel = multiInst;
-        slots[i].highway->showDifficultyLabel = multiDiff;
-        slots[i].highway->displaySkillLevel = slots[i].skillLevel;
-    }
-    toolbar.setMultiInstrumentMode(activeSlotCount > 1);
-
-    // Layout only — no loadState, no rebuildTrack
-    resized();
-
-    // Apply visual settings directly (NOT via loadState which triggers disk I/O + full rebuild)
-    applyVisualState();
-}
-
-void ChartchoticAudioProcessorEditor::applyVisualState()
-{
-    // Propagate render toggle flags from state to active highways
-    bool gems = !state.hasProperty("showGems") || (bool)state["showGems"];
-    bool bars = !state.hasProperty("showBars") || (bool)state["showBars"];
-    bool sustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
-    bool lanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
-    bool gridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
-    bool track = !state.hasProperty("showTrack") || (bool)state["showTrack"];
-    bool laneSeps = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
-    bool strikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
-    bool hwy = !state.hasProperty("showHighway") || (bool)state["showHighway"];
-    bool stretch = state.hasProperty("stretchToFill") && (bool)state["stretchToFill"];
-
-    float userLength = state.hasProperty("highwayLength")
-        ? juce::jlimit(FAR_FADE_MIN, FAR_FADE_MAX, (float)state["highwayLength"])
-        : FAR_FADE_DEFAULT;
-    float scaledLength = computeFarFadeEnd(userLength);
-
-    forEachHighway([=](auto& hw) {
-        hw.getSceneRenderer().showGems = gems;
-        hw.getSceneRenderer().showBars = bars;
-        hw.getSceneRenderer().showSustains = sustains;
-        hw.getSceneRenderer().showLanes = lanes;
-        hw.getSceneRenderer().showGridlines = gridlines;
-        hw.getSceneRenderer().showTrack = track;
-        hw.getSceneRenderer().showLaneSeparators = laneSeps;
-        hw.getSceneRenderer().showStrikeline = strikeline;
-        hw.showHighway = hwy;
-        hw.stretchToFill = stretch;
-        hw.getSceneRenderer().farFadeEnd = scaledLength;
-    });
-
-    // Texture settings (all pooled highways, not just active)
-    if (state.hasProperty("textureScale"))
-    {
-        float ts = (float)state["textureScale"];
-        forAllHighways([ts](auto& hw) { hw.getTrackRenderer().textureScale = ts; });
-    }
-    if (state.hasProperty("textureOpacity"))
-    {
-        float to = juce::jlimit(0.05f, 1.0f, (float)state["textureOpacity"]);
-        forAllHighways([to](auto& hw) { hw.getTrackRenderer().textureOpacity = to; });
-    }
-
-    // Point overlays at cache — rebuildTrack handles this via the cache path
-    forEachHighway([](auto& hw) { hw.rebuildTrack(); });
-}
 
 void ChartchoticAudioProcessorEditor::rebakeTrackCache()
 {
@@ -1727,117 +1006,6 @@ void ChartchoticAudioProcessorEditor::parentSizeChanged()
     AudioProcessorEditor::parentSizeChanged();
 }
 
-void ChartchoticAudioProcessorEditor::scanBackgrounds()
-{
-#if JUCE_MAC
-    backgroundDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Application Support/Chartchotic/backgrounds");
-#elif JUCE_WINDOWS
-    backgroundDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Chartchotic/backgrounds");
-#endif
-
-    backgroundNames.clear();
-
-    if (!backgroundDirectory.isDirectory())
-        backgroundDirectory.createDirectory();
-
-    auto files = backgroundDirectory.findChildFiles(juce::File::findFiles, false, "*.png;*.jpg;*.jpeg");
-    files.sort();
-    for (auto& f : files)
-        backgroundNames.add(f.getFileNameWithoutExtension());
-
-    toolbar.setBackgroundList(backgroundNames);
-}
-
-void ChartchoticAudioProcessorEditor::loadBackground(const juce::String& filename)
-{
-    if (filename.isEmpty())
-    {
-        backgroundImageCurrent = backgroundImageDefault;
-        return;
-    }
-
-    // Try common extensions
-    for (auto ext : { ".png", ".jpg", ".jpeg" })
-    {
-        auto file = backgroundDirectory.getChildFile(filename + ext);
-        if (file.existsAsFile())
-        {
-            auto img = juce::ImageFileFormat::loadFrom(file);
-            if (img.isValid())
-            {
-                backgroundImageCurrent = img;
-                return;
-            }
-        }
-    }
-
-    // File not found, fall back to default
-    backgroundImageCurrent = backgroundImageDefault;
-}
-
-void ChartchoticAudioProcessorEditor::scanHighwayTextures()
-{
-#if JUCE_MAC
-    highwayTextureDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Application Support/Chartchotic/highways");
-#elif JUCE_WINDOWS
-    highwayTextureDirectory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Chartchotic/highways");
-#endif
-
-    highwayTextureNames.clear();
-
-    if (!highwayTextureDirectory.isDirectory())
-        highwayTextureDirectory.createDirectory();
-
-    // Install bundled default textures if missing
-    struct BundledTexture { const char* filename; const char* data; int size; };
-    const BundledTexture bundled[] = {
-        { "kanaizo_amber.png",             BinaryData::kanaizo_amber_png,             BinaryData::kanaizo_amber_pngSize },
-        { "kanaizo_darkwood.png",          BinaryData::kanaizo_darkwood_png,          BinaryData::kanaizo_darkwood_pngSize },
-        { "kanaizo_gothic.png",            BinaryData::kanaizo_gothic_png,            BinaryData::kanaizo_gothic_pngSize },
-        { "kanaizo_ornate.png",            BinaryData::kanaizo_ornate_png,            BinaryData::kanaizo_ornate_pngSize },
-        { "kanaizo_BlueCaustic.png",       BinaryData::kanaizo_BlueCaustic_png,       BinaryData::kanaizo_BlueCaustic_pngSize },
-        { "kanaizo_BlueMagentaHex.png",    BinaryData::kanaizo_BlueMagentaHex_png,    BinaryData::kanaizo_BlueMagentaHex_pngSize },
-        { "kanaizo_FretWood.png",          BinaryData::kanaizo_FretWood_png,          BinaryData::kanaizo_FretWood_pngSize },
-        { "kanaizo_IcyMetal.png",          BinaryData::kanaizo_IcyMetal_png,          BinaryData::kanaizo_IcyMetal_pngSize },
-        { "kanaizo_BrightRadiated.png",    BinaryData::kanaizo_BrightRadiated_png,    BinaryData::kanaizo_BrightRadiated_pngSize },
-        { "kanaizo_ModernHueistic.png",    BinaryData::kanaizo_ModernHueistic_png,    BinaryData::kanaizo_ModernHueistic_pngSize },
-        { "kanaizo_RedCaustic.png",        BinaryData::kanaizo_RedCaustic_png,        BinaryData::kanaizo_RedCaustic_pngSize },
-        { "kanaizo_ScratchedRegular.png",  BinaryData::kanaizo_ScratchedRegular_png,  BinaryData::kanaizo_ScratchedRegular_pngSize },
-    };
-    for (auto& t : bundled)
-    {
-        auto file = highwayTextureDirectory.getChildFile(t.filename);
-        if (!file.existsAsFile())
-            file.replaceWithData(t.data, t.size);
-    }
-
-    auto files = highwayTextureDirectory.findChildFiles(juce::File::findFiles, false, "*.png");
-    files.sort();
-    for (auto& f : files)
-        highwayTextureNames.add(f.getFileNameWithoutExtension());
-
-    toolbar.setHighwayTextureList(highwayTextureNames);
-}
-
-void ChartchoticAudioProcessorEditor::loadHighwayTexture(const juce::String& filename)
-{
-    auto file = highwayTextureDirectory.getChildFile(filename + ".png");
-    if (!file.existsAsFile())
-    {
-        forAllHighways([](auto& hw) { hw.clearTexture(); });
-        return;
-    }
-
-    auto img = juce::ImageFileFormat::loadFrom(file);
-    if (img.isValid())
-        forAllHighways([&img](auto& hw) { hw.setTexture(img); });
-    else
-        forAllHighways([](auto& hw) { hw.clearTexture(); });
-}
 
 float ChartchoticAudioProcessorEditor::computeScrollOffset()
 {
@@ -1866,6 +1034,21 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
     // No wrapping here avoids double-modulo precision snaps.
     double scrollRate = 1.0 / displayWindowTimeSeconds;
     return (float)(-absoluteTime * scrollRate);
+}
+
+FrameContext ChartchoticAudioProcessorEditor::buildFrameContext()
+{
+    return FrameContext {
+        audioProcessor,
+        state,
+        lastKnownPosition,
+        displaySizeInPPQ,
+        displayWindowTimeSeconds,
+        computeScrollOffset(),
+        smoothedLatencyInPPQ(),
+        slots.data(),
+        activeSlotCount
+    };
 }
 
 void ChartchoticAudioProcessorEditor::drawFpsOverlay(juce::Graphics& g)

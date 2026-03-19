@@ -13,7 +13,7 @@
 #include <JuceHeader.h>
 #include "../Providers/REAPER/MidiCache.h"
 #include "../Utils/MidiTypes.h"
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 
 class NoteProcessor
 {

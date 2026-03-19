@@ -11,7 +11,7 @@
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
 #include "MenuGroup.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
 #ifdef DEBUG

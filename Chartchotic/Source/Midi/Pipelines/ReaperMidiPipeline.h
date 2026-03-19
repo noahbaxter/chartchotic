@@ -15,7 +15,7 @@
 #include "../Providers/REAPER/MidiCache.h"
 #include "../Providers/REAPER/ReaperMidiProvider.h"
 #include "../DiscoFlipState.h"
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 
 class ReaperMidiPipeline : public MidiPipeline
 {

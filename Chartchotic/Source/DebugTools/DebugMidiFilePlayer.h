@@ -5,8 +5,8 @@
 #include <JuceHeader.h>
 #include "../Midi/Providers/REAPER/MidiCache.h"
 #include "../Midi/ChartTextEvent.h"
-#include "../Utils/Utils.h"
-#include "../Utils/TimeConverter.h"
+#include "../Utils/ChartTypes.h"
+#include "../Midi/Utils/TimeConverter.h"
 
 namespace DebugMidiFilePlayer
 {

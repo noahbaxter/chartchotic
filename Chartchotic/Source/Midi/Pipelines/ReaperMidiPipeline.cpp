@@ -8,7 +8,7 @@
 */
 
 #include "ReaperMidiPipeline.h"
-#include "../../REAPER/ReaperTrackDetector.h"
+#include "../../Host/ReaperTrackDetector.h"
 
 ReaperMidiPipeline::ReaperMidiPipeline(MidiProject& project,
                                        ReaperMidiProvider& provider,

@@ -21,7 +21,7 @@
 #include <ctime>
 #include "../Visual/Utils/RenderTiming.h"
 #include "../Visual/Utils/DrawingConstants.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 
 static constexpr int MAX_PROFILED_HIGHWAYS = 4;
 

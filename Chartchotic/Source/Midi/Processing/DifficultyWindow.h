@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 
 struct DifficultyWindow {
     TrackWindow trackWindow;

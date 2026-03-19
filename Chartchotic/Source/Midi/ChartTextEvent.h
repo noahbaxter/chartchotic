@@ -2,7 +2,7 @@
 
 #include <vector>
 #include <JuceHeader.h>
-#include "../Utils/PPQ.h"
+#include "Utils/PPQ.h"
 
 struct ChartTextEvent {
     PPQ position;

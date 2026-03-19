@@ -13,8 +13,8 @@
 #include <memory>
 #include <vector>
 #include "MidiTrack.h"
-#include "../Utils/Utils.h"
-#include "../Utils/TimeConverter.h"
+#include "../Utils/ChartTypes.h"
+#include "Utils/TimeConverter.h"
 
 class MidiProject {
 public:

@@ -5,7 +5,7 @@
 #include "../Midi/Processing/MidiInterpreter.h"
 #include "../UI/ToolbarComponent.h"
 #include "../Visual/Managers/GridlineGenerator.h"
-#include "../Utils/TimeConverter.h"
+#include "../Midi/Utils/TimeConverter.h"
 
 #ifndef CHARTCHOTIC_MIDI_ASSET_DIR
   #define CHARTCHOTIC_MIDI_ASSET_DIR ""

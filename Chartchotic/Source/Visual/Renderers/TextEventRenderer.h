@@ -13,7 +13,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"

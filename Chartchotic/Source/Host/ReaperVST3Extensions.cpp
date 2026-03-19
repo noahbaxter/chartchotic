@@ -10,7 +10,7 @@
 #include "ReaperVST3Extensions.h"
 #include "TrackInfoListener.h"
 #include "../PluginProcessor.h"
-#include "../ReaperVST3.h"
+#include "ReaperVST3.h"
 
 #if JucePlugin_Build_VST3
 

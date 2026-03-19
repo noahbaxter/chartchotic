@@ -9,7 +9,7 @@
 
 #include "ReaperIntegration.h"
 #include "../PluginProcessor.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 
 void ReaperIntegration::processReaperTimelineMidi(
     ChartchoticAudioProcessor& processor,

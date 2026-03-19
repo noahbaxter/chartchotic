@@ -13,8 +13,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/PPQ.h"
-#include "../../Utils/Utils.h"
+#include "PPQ.h"
+#include "../../Utils/ChartTypes.h"
 
 struct NoteData
 {

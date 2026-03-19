@@ -17,13 +17,16 @@
 #include "Visual/HighwaySlot.h"
 #include "Visual/TrackImageCache.h"
 #include "Visual/Managers/GridlineGenerator.h"
-#include "Utils/Utils.h"
-#include "Utils/TimeConverter.h"
+#include "Utils/ChartTypes.h"
+#include "Midi/Utils/TimeConverter.h"
 #include "Visual/Utils/LatencySmoother.h"
-#include "UpdateChecker.h"
+#include "UI/UpdateChecker.h"
 #include "UI/LookAndFeel/ChartchoticLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
 #include "UI/UpdateBannerComponent.h"
+#include "Editor/AssetController.h"
+#include "Editor/SessionController.h"
+#include "Editor/FrameDataBuilder.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
 #endif
@@ -156,17 +159,11 @@ private:
     int sceneWidth = defaultWidth;
     int sceneHeight = defaultHeight;
 
-    // Background Assets
-    bool showBackground = false;
-    juce::Image backgroundImageDefault;
-    juce::Image backgroundImageCurrent;
-    std::unique_ptr<juce::Drawable> reaperLogo;
+    // Asset management (backgrounds, textures, logos)
+    AssetController assets;
 
-    // Background image folder
-    juce::StringArray backgroundNames;
-    juce::File backgroundDirectory;
-    void scanBackgrounds();
-    void loadBackground(const juce::String& filename);
+    // Session/slot management (multi-highway, instrument/difficulty selection)
+    SessionController session;
 
     struct ClickableLabel : public juce::Label
     {
@@ -204,48 +201,17 @@ private:
 
     //==============================================================================
 
-    void initAssets();
     void initToolbarCallbacks();
     void initBottomBar();
     void loadState();
-    void rebuildSlotsFromSession(InstrumentSession& session);
-    void updateSessionData(InstrumentSession& session);
-    void rebuildVisibleSlots();
-    void updateVisibleSlots();
-    void applyVisualState();
-    void forceSingleInstrument();
-    void forceSingleDifficulty();
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
 
-    // Session slot cache — one raw NoteStateMapArray per discovered track
-    // Gem types computed at render time by TrackResolver for all difficulties
-    struct SessionSlotData {
-        Part part = Part::GUITAR;
-        int trackIdx = 0;
-        std::shared_ptr<NoteStateMapArray> noteStateMapArray = std::make_shared<NoteStateMapArray>();
-        std::shared_ptr<juce::CriticalSection> noteStateMapLock = std::make_shared<juce::CriticalSection>();
-        const DiscoFlipState* discoFlipState = nullptr;
-    };
-    std::vector<SessionSlotData> sessionSlotCache;
-    std::vector<Part> discoveredParts;
-    std::set<Part> enabledParts;
-    std::set<SkillLevel> enabledDifficulties;
-    bool hasActiveSession = false;
+    FrameContext buildFrameContext();
 
-
-    void buildReaperFrameData(HighwayFrameData& out, MidiInterpreter& interpreter);
-    void buildReaperFrameDataBatched(HighwayFrameData& primaryOut);
-    void buildStandardFrameData(HighwayFrameData& out, MidiInterpreter& interpreter);
-
-    // Highway texture overlay
-    juce::StringArray highwayTextureNames;
-    juce::File highwayTextureDirectory;
-    void scanHighwayTextures();
-    void loadHighwayTexture(const juce::String& filename);
     float computeScrollOffset();
 
     float latencyInSeconds = 0.0;
@@ -321,22 +287,6 @@ private:
     //==============================================================================
     // Prints
 
-    void print(const juce::String &line)
-    {
-        audioProcessor.debugText += line + "\n";
-    }
-
-    std::string gemsToString(std::array<Gem, 7> gems)
-    {
-        std::string str = "(";
-        for (const auto &gem : gems)
-        {
-            str += std::to_string((int)gem) + ",";
-        }
-        str += ")";
-        return str;
-    }
-
     void printCallback()
     {
         if (!audioProcessor.debugText.isEmpty())
@@ -347,15 +297,5 @@ private:
 #endif
             audioProcessor.debugText.clear();
         }
-    }
-
-    std::string midiMessagesToString(const std::vector<juce::MidiMessage> &messages)
-    {
-        std::string str = "";
-        for (const auto &message : messages)
-        {
-            str += message.getDescription().toStdString() + " ";
-        }
-        return str;
     }
 };

@@ -13,7 +13,7 @@
 #include <vector>
 #include <map>
 #include <array>
-#include "../../Utils/PPQ.h"
+#include "../Utils/PPQ.h"
 #include "../Utils/MidiTypes.h"
 
 struct RawNoteEvent {

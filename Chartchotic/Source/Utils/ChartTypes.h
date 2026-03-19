@@ -1,7 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "PPQ.h"
+#include "../Midi/Utils/PPQ.h"
 #include "../UI/ControlConstants.h"
 
 // Windows compatibility - uint is not defined by default on Windows

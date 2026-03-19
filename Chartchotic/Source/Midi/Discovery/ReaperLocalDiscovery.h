@@ -1,7 +1,7 @@
 #pragma once
 
 #include "TrackDiscovery.h"
-#include "../../REAPER/ReaperTrackDetector.h"
+#include "../../Host/ReaperTrackDetector.h"
 
 class ReaperLocalDiscovery : public TrackDiscovery
 {

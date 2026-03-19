@@ -15,7 +15,7 @@
 #include "../Utils/InstrumentMapper.h"
 #include "../Utils/GemCalculator.h"
 #include "../DiscoFlipState.h"
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 
 class TrackResolver
 {
