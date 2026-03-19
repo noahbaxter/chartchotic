@@ -38,14 +38,16 @@ public:
     void onFrame(PPQ& lastKnownPosition, bool& lastPlayingState);
 
     // Call after building all slot frame data — logs frame metrics to TSV
-    void recordFrameData(const HighwayFrameData& primaryFrameData,
+    void recordFrameData(const HighwayFrameData& primaryFrameData, double dataBuild_us,
                          int slotCount, Part activePart, SkillLevel skill,
                          int viewportW, int viewportH, bool isPlaying);
 
     // --- Paint lifecycle ---
 
     // Call from paintOverChildren() — draws overlay + logs paint metrics to TSV
-    void paintOverChildren(juce::Graphics& g, HighwayComponent* primaryHighway, bool hasSlotsVisible);
+    void paintOverChildren(juce::Graphics& g, HighwayComponent* primaryHighway,
+                           HighwayComponent* const* allHighways, int highwayCount,
+                           bool hasSlotsVisible);
 
     // RAII lock wait measurement — use around interpreter calls
     ScopedPhaseMeasure measureLockWait() { return ScopedPhaseMeasure(lockWait_us, true); }
@@ -92,6 +94,7 @@ private:
     bool standalone = false;
     bool showProfilerOverlay = false;
     double frameDelta_us = 0.0;
+    double pendingDataBuild_us = 0.0;
     juce::ValueTree* statePtr = nullptr;
     ChartchoticAudioProcessor* processorPtr = nullptr;
 

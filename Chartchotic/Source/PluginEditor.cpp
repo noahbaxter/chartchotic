@@ -206,6 +206,9 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
 
     // Build frame data and push to each active highway slot
+#ifdef DEBUG
+    auto dataBuildStart = std::chrono::high_resolution_clock::now();
+#endif
     HighwayFrameData primaryFrameData;
     for (int i = 0; i < activeSlotCount; i++)
     {
@@ -220,14 +223,15 @@ void ChartchoticAudioProcessorEditor::onFrame()
         slot.highway->setFrameData(frameData);
         slot.highway->repaint();
     }
-
 #ifdef DEBUG
+    double dataBuild_us = std::chrono::duration<double, std::micro>(
+        std::chrono::high_resolution_clock::now() - dataBuildStart).count();
     {
         SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
         Part part = activeSlotCount == 0 ? getPartFromState(state) : primaryHighway().getActivePart();
         int vpW = activeSlotCount == 0 ? 0 : primaryHighway().renderWidth;
         int vpH = activeSlotCount == 0 ? 0 : primaryHighway().renderHeight;
-        debug.recordFrameData(primaryFrameData,
+        debug.recordFrameData(primaryFrameData, dataBuild_us,
             activeSlotCount, part, skill, vpW, vpH, lastPlayingState);
     }
 #endif
@@ -655,8 +659,15 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
         drawFpsOverlay(g);
 
 #ifdef DEBUG
-    debug.paintOverChildren(g,
-        activeSlotCount == 0 ? nullptr : &primaryHighway(), activeSlotCount > 0);
+    {
+        HighwayComponent* hwPtrs[MAX_PROFILED_HIGHWAYS] = {};
+        int hwCount = std::min(activeSlotCount, (int)MAX_PROFILED_HIGHWAYS);
+        for (int i = 0; i < hwCount; ++i)
+            hwPtrs[i] = slots[i].highway.get();
+        debug.paintOverChildren(g,
+            activeSlotCount == 0 ? nullptr : &primaryHighway(),
+            hwPtrs, hwCount, activeSlotCount > 0);
+    }
 #endif
 }
 

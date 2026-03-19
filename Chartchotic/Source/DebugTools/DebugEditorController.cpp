@@ -184,30 +184,49 @@ void DebugEditorController::onFrame(PPQ& lastKnownPosition, bool& lastPlayingSta
         lastPlayingState = true;
 }
 
-void DebugEditorController::recordFrameData(const HighwayFrameData& primaryFrameData,
+void DebugEditorController::recordFrameData(const HighwayFrameData& primaryFrameData, double dataBuild_us,
                                              int slotCount, Part activePart, SkillLevel skill,
                                              int viewportW, int viewportH, bool isPlaying)
 {
+    pendingDataBuild_us = dataBuild_us;
     frameProfileLogger.recordFrameData(
-        frameDelta_us, lockWait_us,
+        frameDelta_us, dataBuild_us, lockWait_us,
         (int)primaryFrameData.trackWindow.size(),
         (int)primaryFrameData.sustainWindow.size(),
         (int)primaryFrameData.gridlines.size(),
         slotCount, activePart, skill, viewportW, viewportH, isPlaying);
 }
 
-void DebugEditorController::paintOverChildren(juce::Graphics& g, HighwayComponent* primaryHighway, bool hasSlotsVisible)
+void DebugEditorController::paintOverChildren(juce::Graphics& g, HighwayComponent* primaryHighway,
+                                                HighwayComponent* const* allHighways, int highwayCount,
+                                                bool hasSlotsVisible)
 {
     if (hasSlotsVisible && primaryHighway)
     {
         if (showProfilerOverlay)
             drawProfilerOverlay(g, primaryHighway->getSceneRenderer());
 
+        // Collect per-highway timing
+        HighwayProfileRecord hwRecords[MAX_PROFILED_HIGHWAYS] = {};
+        int hwCount = std::min(highwayCount, (int)MAX_PROFILED_HIGHWAYS);
+        for (int i = 0; i < hwCount; ++i)
+        {
+            auto& hw = *allHighways[i];
+            auto& t = hw.getSceneRenderer().lastPhaseTiming;
+            hwRecords[i].paint_us = (int)hw.debugHighwayPaint_us;
+            hwRecords[i].scene_us = (int)t.total_us;
+            hwRecords[i].notes_us = (int)t.notes_us;
+            hwRecords[i].sustains_us = (int)t.sustains_us;
+            hwRecords[i].execute_us = (int)t.execute_us;
+            hwRecords[i].track_us = (int)hw.debugTrackRender_us;
+        }
+
         frameProfileLogger.recordPaintData(
             primaryHighway->getSceneRenderer().lastPhaseTiming,
             primaryHighway->debugTrackRender_us,
             textureRender_us,
-            primaryHighway->debugHighwayPaint_us);
+            primaryHighway->debugHighwayPaint_us,
+            hwRecords, hwCount);
     }
     else
     {
