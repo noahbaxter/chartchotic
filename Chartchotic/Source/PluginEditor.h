@@ -11,6 +11,7 @@
 #include <array>
 #include <map>
 #include <set>
+#include <unordered_map>
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Visual/HighwaySlot.h"
@@ -237,6 +238,7 @@ private:
 
 
     void buildReaperFrameData(HighwayFrameData& out, MidiInterpreter& interpreter);
+    void buildReaperFrameDataBatched(HighwayFrameData& primaryOut);
     void buildStandardFrameData(HighwayFrameData& out, MidiInterpreter& interpreter);
 
     // Highway texture overlay

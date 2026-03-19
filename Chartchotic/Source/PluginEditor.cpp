@@ -10,6 +10,7 @@
 #include "PluginEditor.h"
 #include "Midi/Pipelines/ReaperMidiPipeline.h"
 #include "Midi/Processing/NoteProcessor.h"
+#include "Midi/Utils/MidiConstants.h"
 #include "Utils/TempoTimeSignatureEventHelper.h"
 
 #ifdef DEBUG
@@ -210,18 +211,25 @@ void ChartchoticAudioProcessorEditor::onFrame()
     auto dataBuildStart = std::chrono::high_resolution_clock::now();
 #endif
     HighwayFrameData primaryFrameData;
-    for (int i = 0; i < activeSlotCount; i++)
+    if (isReaperMode && activeSlotCount > 1)
     {
-        auto& slot = slots[i];
-        HighwayFrameData frameData;
-        if (isReaperMode)
-            buildReaperFrameData(frameData, *slot.interpreter);
-        else
-            buildStandardFrameData(frameData, *slot.interpreter);
-        if (i == 0)
-            primaryFrameData = frameData;
-        slot.highway->setFrameData(frameData);
-        slot.highway->repaint();
+        buildReaperFrameDataBatched(primaryFrameData);
+    }
+    else
+    {
+        for (int i = 0; i < activeSlotCount; i++)
+        {
+            auto& slot = slots[i];
+            HighwayFrameData frameData;
+            if (isReaperMode)
+                buildReaperFrameData(frameData, *slot.interpreter);
+            else
+                buildStandardFrameData(frameData, *slot.interpreter);
+            if (i == 0)
+                primaryFrameData = frameData;
+            slot.highway->setFrameData(frameData);
+            slot.highway->repaint();
+        }
     }
 #ifdef DEBUG
     double dataBuild_us = std::chrono::duration<double, std::micro>(
@@ -778,6 +786,156 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
                 if (startTime > 0.0 || endTime > -displayWindowTimeSeconds)
                     out.flipRegions.push_back({startTime, endTime});
             }
+        }
+    }
+}
+
+void ChartchoticAudioProcessorEditor::buildReaperFrameDataBatched(HighwayFrameData& primaryOut)
+{
+    // === Phase A: Frame-level shared data (computed once) ===
+
+    PPQ trackWindowStartPPQ = lastKnownPosition;
+
+    auto* playHead = audioProcessor.getPlayHead();
+    int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
+    if (playHead)
+    {
+        auto positionInfo = playHead->getPosition();
+        if (positionInfo.hasValue())
+        {
+            double bpm = positionInfo->getBpm().orFallback(120.0);
+            double latencyOffsetSeconds = latencyOffsetMs / 1000.0;
+            double latencyOffsetBeats = latencyOffsetSeconds * (bpm / 60.0);
+            trackWindowStartPPQ = trackWindowStartPPQ - PPQ(latencyOffsetBeats);
+        }
+    }
+
+    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+    PPQ latencyBufferEnd = trackWindowStartPPQ;
+    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
+    PPQ cursorPPQ = trackWindowStartPPQ;
+
+    auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+    auto ppqToTime = [&reaperProvider](double ppq) { return reaperProvider.ppqToTime(ppq); };
+
+    // Tempo map — one lock acquisition
+    TempoTimeSignatureMap tempoTimeSigMap;
+    {
+        const juce::ScopedLock lock(audioProcessor.getTempoLock());
+        tempoTimeSigMap = audioProcessor.getTempoTimeSignatureMap();
+    }
+
+    // Gridlines + event markers — computed once for all slots
+    TimeBasedGridlineMap sharedGridlines = GridlineGenerator::generateGridlines(
+        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
+
+    TimeBasedEventMarkers sharedMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
+        tempoTimeSigMap, cursorPPQ, ppqToTime);
+
+    float scrollOffset = computeScrollOffset();
+    bool isPlaying = audioProcessor.isPlaying;
+
+    // === Phase B: Group slots by lock pointer ===
+
+    std::unordered_map<juce::CriticalSection*, std::vector<int>> lockGroups;
+    for (int i = 0; i < activeSlotCount; i++)
+        lockGroups[&slots[i].interpreter->noteStateMapLock].push_back(i);
+
+    // === Phase C + D: Per group: extract once, resolve once, then per-slot distribute ===
+
+    for (auto& [lockPtr, slotIndices] : lockGroups)
+    {
+        // Use first slot's interpreter to build Config (shared across group — only skillLevel differs)
+        auto& firstInterp = *slots[slotIndices[0]].interpreter;
+
+        TrackResolver::Config cfg;
+        cfg.part = firstInterp.instrumentPart;
+        cfg.autoHopo = (bool)firstInterp.getState().getProperty("autoHopo", false);
+        cfg.dynamics = (bool)firstInterp.getState().getProperty("dynamics");
+        cfg.proDrums = (DrumType)((int)firstInterp.getState().getProperty("drumType")) == DrumType::PRO;
+        cfg.kick2x = (bool)firstInterp.getState().getProperty("kick2x");
+        cfg.discoFlip = (bool)firstInterp.getState().getProperty("discoFlip");
+        cfg.starPower = (bool)firstInterp.getState().getProperty("starPower");
+        cfg.bemaniMode = PositionMath::bemaniMode;
+        cfg.discoFlipState = firstInterp.getDiscoFlipState();
+
+        int thresholdIndex = (int)firstInterp.getState().getProperty("hopoThreshold", 2);
+        if (cfg.autoHopo)
+        {
+            switch (thresholdIndex)
+            {
+                case 0: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH;     break;
+                case 1: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH_DOT; break;
+                case 2: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170;   break;
+                case 3: cfg.hopoThreshold = MIDI_HOPO_EIGHTH;        break;
+            }
+            cfg.hopoThreshold += MIDI_HOPO_THRESHOLD_BUFFER;
+        }
+
+        // ONE lock acquisition, ONE extract
+        SharedWindow shared;
+        {
+            DEBUG_MEASURE_LOCK_WAIT;
+            const juce::ScopedLock lock(*lockPtr);
+            shared = TrackResolver::extract(firstInterp.noteStateMapArray,
+                                            extendedStart, trackWindowEndPPQ, latencyBufferEnd,
+                                            cfg.bemaniMode);
+        }
+
+        // ONE resolve → all 4 difficulties
+        PartWindow partWindow = TrackResolver::resolve(shared, cfg);
+
+        // Per-slot: pick difficulty, convert, populate
+        for (int idx : slotIndices)
+        {
+            auto& slot = slots[idx];
+            auto& interp = *slot.interpreter;
+
+            SkillLevel activeSkill = (SkillLevel)((int)interp.getState().getProperty("skillLevel"));
+            auto& diffWindow = partWindow.forSkill(activeSkill);
+
+            TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(
+                diffWindow.trackWindow, cursorPPQ, ppqToTime);
+            TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(
+                diffWindow.sustainWindow, cursorPPQ, ppqToTime);
+
+            HighwayFrameData frameData;
+            frameData.trackWindow = timeTrackWindow;
+            frameData.sustainWindow = timeSustainWindow;
+            frameData.gridlines = sharedGridlines;
+            frameData.eventMarkers = sharedMarkers;
+            frameData.windowStartTime = 0.0;
+            frameData.windowEndTime = displayWindowTimeSeconds;
+            frameData.isPlaying = isPlaying;
+            frameData.scrollOffset = scrollOffset;
+
+            // Disco flip indicator + region markers (per-slot: reads per-interpreter state)
+            {
+                const DiscoFlipState* flipState = interp.getDiscoFlipState();
+                const auto& interpState = interp.getState();
+                bool isProDrums = (int)interpState.getProperty("drumType") == 2;
+                bool discoEnabled = (bool)interpState.getProperty("discoFlip");
+                int midiDiff = (int)interpState.getProperty("skillLevel") - 1;
+                frameData.discoFlipActive = flipState != nullptr && isProDrums && discoEnabled
+                                            && flipState->isFlipped(trackWindowStartPPQ, midiDiff);
+
+                if (flipState != nullptr && isProDrums && discoEnabled)
+                {
+                    double cursorTime = ppqToTime(cursorPPQ.toDouble());
+                    for (const auto& r : flipState->getRegions(midiDiff))
+                    {
+                        double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
+                        double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
+                        if (startTime > 0.0 || endTime > -displayWindowTimeSeconds)
+                            frameData.flipRegions.push_back({startTime, endTime});
+                    }
+                }
+            }
+
+            if (idx == 0)
+                primaryOut = frameData;
+            slot.highway->setFrameData(frameData);
+            slot.highway->repaint();
         }
     }
 }
