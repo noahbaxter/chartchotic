@@ -20,6 +20,8 @@
 #include "Managers/AssetManager.h"
 #include "Utils/DrawingConstants.h"
 
+class TrackImageCache;
+
 struct HighwayFrameData {
     TimeBasedTrackWindow trackWindow;
     TimeBasedSustainWindow sustainWindow;
@@ -75,7 +77,10 @@ public:
     bool showDifficultyLabel = false;
     SkillLevel displaySkillLevel = SkillLevel::EXPERT;
 
-    void onInstrumentChanged()          { setActivePart(getPartFromState(state)); trackRenderer.invalidate(); rebuildTrack(); repaint(); }
+    /** When cache is active, instrument change only swaps overlay pointers — no rebuild. */
+    void onInstrumentChanged();
+
+    void setTrackImageCache(TrackImageCache* cache) { trackImageCache = cache; }
 
     // Accessors for debug wiring
     SceneRenderer& getSceneRenderer()   { return sceneRenderer; }
@@ -102,6 +107,7 @@ private:
     AssetManager& assetManager;
     SceneRenderer sceneRenderer;
     TrackRenderer trackRenderer;
+    TrackImageCache* trackImageCache = nullptr;
 
     HighwayFrameData frameData;
 

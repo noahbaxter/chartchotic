@@ -42,13 +42,18 @@ public:
     void paintBemaniRails(juce::Graphics& g, int viewportWidth, int viewportHeight);
 
     /** Rebuild the cached faded track image. Call on resize, instrument change, or highway length change.
-        overflow = extra pixels above the viewport (for extended VP Y). Bitmaps are (width, height+overflow). */
+        overflow = extra pixels above the viewport (for extended VP Y). Bitmaps are (width, height+overflow).
+        When geometryOnly=true, skip image baking (polygon fill + layer overlays) but still rebuild
+        edge geometry cache and texture prebake. Used when a shared TrackImageCache provides images. */
     void rebuild(int width, int height, int overflow,
                  float farFadeEnd, float farFadeLen, float farFadeCurve,
-                 float posEnd);
+                 float posEnd, bool geometryOnly = false);
 
     /** Invalidate cached state so the next rebuild() is not skipped. */
     void invalidate() { cached.width = -1; }
+
+    /** Whether the cached geometry was built for drums (used to detect instrument change). */
+    bool getCachedIsDrums() const { return cached.isDrums; }
 
     /** Set the source texture for highway overlay. */
     void setTexture(const juce::Image& texture);
@@ -91,6 +96,22 @@ public:
 
     /** Get a pre-baked layer image (with far-fade applied). Valid after rebuild(). */
     const juce::Image& getLayerImage(Layer layer) const { return layerImages[layer]; }
+
+    /** Get the composited faded track base image. Valid after rebuild(). */
+    const juce::Image& getFadedTrackImage() const { return fadedTrackImage; }
+
+    /** Paint using an externally-provided cached faded track image (scales to viewport). */
+    void paintFromCache(juce::Graphics& g, const juce::Image& cachedFadedTrack,
+                        int viewportWidth, int viewportHeight)
+    {
+        if (PositionMath::bemaniMode) { paint(g, viewportWidth, viewportHeight); return; }
+        if (!cachedFadedTrack.isValid()) return;
+        if (cachedFadedTrack.getWidth() == viewportWidth && cachedFadedTrack.getHeight() == viewportHeight)
+            g.drawImageAt(cachedFadedTrack, 0, 0);
+        else
+            g.drawImage(cachedFadedTrack, 0, 0, viewportWidth, viewportHeight,
+                        0, 0, cachedFadedTrack.getWidth(), cachedFadedTrack.getHeight());
+    }
 
 private:
     const PositionConstants::NormalizedCoordinates* laneCoords_ = nullptr;

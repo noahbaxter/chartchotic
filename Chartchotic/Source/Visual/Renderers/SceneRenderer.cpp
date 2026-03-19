@@ -182,12 +182,14 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
         int vw = width, vh = height;
         int ov = overlayYOffset;
-        drawCallMap[static_cast<int>(order)][0].push_back([img, vw, vh, ov](juce::Graphics& g) {
+        int totalH = vh + ov;
+        drawCallMap[static_cast<int>(order)][0].push_back([img, vw, totalH, ov](juce::Graphics& g) {
             g.setOpacity(1.0f);
-            if (ov == 0 && img->getWidth() == vw && img->getHeight() == vh)
-                g.drawImageAt(*img, 0, 0);
-            else
+            int imgW = img->getWidth(), imgH = img->getHeight();
+            if (imgW == vw && imgH == totalH)
                 g.drawImageAt(*img, 0, -ov);
+            else
+                g.drawImage(*img, 0, -ov, vw, totalH, 0, 0, imgW, imgH);
         });
     }
 

@@ -159,6 +159,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/HighwayComponent.cpp
         Chartchotic/Source/Visual/HighwayComponent.h
         Chartchotic/Source/Visual/HighwaySlot.h
+        Chartchotic/Source/Visual/TrackImageCache.h
         Chartchotic/Source/Visual/Renderers/NoteRenderer.cpp
         Chartchotic/Source/Visual/Renderers/NoteRenderer.h
         Chartchotic/Source/Visual/Renderers/SustainRenderer.cpp

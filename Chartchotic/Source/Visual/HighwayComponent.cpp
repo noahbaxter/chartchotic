@@ -8,6 +8,7 @@
 */
 
 #include "HighwayComponent.h"
+#include "TrackImageCache.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
 
@@ -73,13 +74,28 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Draw them in component coordinates (no translation needed).
     if (showHighway)
     {
+        bool useCache = trackImageCache && !PositionMath::bemaniMode;
 #ifdef DEBUG
         {
             ScopedPhaseMeasure _trackMeasure(debugTrackRender_us, sceneRenderer.collectPhaseTiming);
-            trackRenderer.paint(g, w, totalH);
+            if (useCache)
+            {
+                auto& cached = trackImageCache->get(isDrumLike(activePart));
+                if (cached.valid)
+                    trackRenderer.paintFromCache(g, cached.fadedTrack, w, totalH);
+            }
+            else
+                trackRenderer.paint(g, w, totalH);
         }
 #else
-        trackRenderer.paint(g, w, totalH);
+        if (useCache)
+        {
+            auto& cached = trackImageCache->get(isDrumLike(activePart));
+            if (cached.valid)
+                trackRenderer.paintFromCache(g, cached.fadedTrack, w, totalH);
+        }
+        else
+            trackRenderer.paint(g, w, totalH);
 #endif
         trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH);
     }
@@ -284,6 +300,7 @@ void HighwayComponent::rebuildTrack()
     updateOverflow();
 
     bool isDrums = isDrumLike(activePart);
+    bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
@@ -293,25 +310,51 @@ void HighwayComponent::rebuildTrack()
         isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
         isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
 
-    trackRenderer.rebuild(w, h, topOverflow,
-                          sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
-                          sceneRenderer.highwayPosEnd);
-
-    // Always reset overlays — Bemani mode uses programmatic drawing, perspective uses baked images
-    sceneRenderer.clearOverlays();
-    if (PositionMath::bemaniMode)
+    if (useCache)
     {
-        // Inject rail draw call into the scene's draw order so it layers correctly
-        int rw = w, rh = h + topOverflow;
-        sceneRenderer.setCustomDrawCall(DrawOrder::TRACK_SIDEBARS,
-            [this, rw, rh](juce::Graphics& g) { trackRenderer.paintBemaniRails(g, rw, rh); });
+        // With a valid shared cache: skip all image baking.
+        // Rebuild geometry + texture prebake when dimensions or instrument changed
+        // (texture scanline LUT depends on fretboard edges which differ guitar vs drums).
+        bool dimsChanged = w != bakedRenderW || h != bakedRenderH || topOverflow != bakedOverflow;
+        bool partChanged = isDrums != trackRenderer.getCachedIsDrums();
+        if (dimsChanged || partChanged)
+            trackRenderer.rebuild(w, h, topOverflow,
+                                  sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
+                                  sceneRenderer.highwayPosEnd, /*geometryOnly=*/true);
+
+        // Point overlays at the correct cache entry for this instrument
+        sceneRenderer.clearOverlays();
+        auto& cached = trackImageCache->get(isDrums);
+        if (cached.valid)
+        {
+            sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &cached.layers[TrackRenderer::STRIKELINE]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &cached.layers[TrackRenderer::LANE_LINES]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &cached.layers[TrackRenderer::SIDEBARS]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &cached.layers[TrackRenderer::CONNECTORS]);
+        }
     }
     else
     {
-        sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
-        sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
-        sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
-        sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+        // No cache (standalone, first frame, or Bemani mode) — full rebuild
+        trackRenderer.rebuild(w, h, topOverflow,
+                              sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
+                              sceneRenderer.highwayPosEnd);
+
+        // Always reset overlays — Bemani mode uses programmatic drawing, perspective uses baked images
+        sceneRenderer.clearOverlays();
+        if (PositionMath::bemaniMode)
+        {
+            int rw = w, rh = h + topOverflow;
+            sceneRenderer.setCustomDrawCall(DrawOrder::TRACK_SIDEBARS,
+                [this, rw, rh](juce::Graphics& g) { trackRenderer.paintBemaniRails(g, rw, rh); });
+        }
+        else
+        {
+            sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
+            sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
+            sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
+            sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+        }
     }
 
     bakedRenderW = w;
@@ -319,4 +362,32 @@ void HighwayComponent::rebuildTrack()
     bakedOverflow = topOverflow;
 
     if (topOverflow != prevOverflow && onOverflowChanged) onOverflowChanged();
+}
+
+void HighwayComponent::onInstrumentChanged()
+{
+    setActivePart(getPartFromState(state));
+
+    if (trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode)
+    {
+        // Cache active — just swap overlay pointers, no rebuild needed
+        bool isDrums = isDrumLike(activePart);
+        sceneRenderer.clearOverlays();
+        auto& cached = trackImageCache->get(isDrums);
+        if (cached.valid)
+        {
+            sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &cached.layers[TrackRenderer::STRIKELINE]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &cached.layers[TrackRenderer::LANE_LINES]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &cached.layers[TrackRenderer::SIDEBARS]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &cached.layers[TrackRenderer::CONNECTORS]);
+        }
+        repaint();
+    }
+    else
+    {
+        // No cache — full rebuild path
+        trackRenderer.invalidate();
+        rebuildTrack();
+        repaint();
+    }
 }

@@ -36,14 +36,27 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
       toolbar(state),
       assetManager()
 {
-    // Create the default single highway slot
+    // Create scratch renderer for shared track image cache
+    cacheRenderer = std::make_unique<TrackRenderer>(state);
+
+    // Pre-allocate all 4 highway slots (pooled, never destroyed)
+    for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
     {
-        HighwaySlot slot;
+        slots[i].highway = std::make_unique<HighwayComponent>(state, assetManager);
+        slots[i].highway->setTrackImageCache(&trackImageCache);
+        slots[i].highway->setVisible(false);
+    }
+
+    // Activate slot 0 as default
+    {
+        auto& slot = slots[0];
         slot.part = getPartFromState(state);
+        slot.active = true;
         slot.interpreter = std::make_unique<MidiInterpreter>(
             state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
-        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
-        slots.push_back(std::move(slot));
+        slot.highway->setActivePart(slot.part);
+        slot.highway->setVisible(true);
+        activeSlotCount = 1;
     }
     setLookAndFeel(&chartPreviewLnF);
 
@@ -75,14 +88,17 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
-    // Wire and add highway slots to component tree.
+    // Wire and add all pooled highway slots to component tree (hidden by default).
     // In standalone debug mode, rebuildSlots may have already replaced
     // the default slot during init — just re-wire to be safe.
-    for (auto& slot : slots)
+    for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
     {
-        slot.highway->onOverflowChanged = [this]() { resized(); };
-        addAndMakeVisible(*slot.highway);
+        slots[i].highway->onOverflowChanged = [this]() { resized(); };
+        addChildComponent(*slots[i].highway);
     }
+    // Make active slots visible
+    for (int i = 0; i < activeSlotCount; i++)
+        slots[i].highway->setVisible(true);
     addAndMakeVisible(toolbar);
     initBottomBar();
 
@@ -189,16 +205,17 @@ void ChartchoticAudioProcessorEditor::onFrame()
         }
     }
 
-    // Build frame data and push to each highway slot
+    // Build frame data and push to each active highway slot
     HighwayFrameData primaryFrameData;
-    for (auto& slot : slots)
+    for (int i = 0; i < activeSlotCount; i++)
     {
+        auto& slot = slots[i];
         HighwayFrameData frameData;
         if (isReaperMode)
             buildReaperFrameData(frameData, *slot.interpreter);
         else
             buildStandardFrameData(frameData, *slot.interpreter);
-        if (&slot == &slots[0])
+        if (i == 0)
             primaryFrameData = frameData;
         slot.highway->setFrameData(frameData);
         slot.highway->repaint();
@@ -207,11 +224,11 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #ifdef DEBUG
     {
         SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
-        Part part = slots.empty() ? getPartFromState(state) : primaryHighway().getActivePart();
-        int vpW = slots.empty() ? 0 : primaryHighway().renderWidth;
-        int vpH = slots.empty() ? 0 : primaryHighway().renderHeight;
+        Part part = activeSlotCount == 0 ? getPartFromState(state) : primaryHighway().getActivePart();
+        int vpW = activeSlotCount == 0 ? 0 : primaryHighway().renderWidth;
+        int vpH = activeSlotCount == 0 ? 0 : primaryHighway().renderHeight;
         debug.recordFrameData(primaryFrameData,
-            (int)slots.size(), part, skill, vpW, vpH, lastPlayingState);
+            activeSlotCount, part, skill, vpW, vpH, lastPlayingState);
     }
 #endif
 
@@ -316,7 +333,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     };
 
     toolbar.onPartChanged = [this](int id) {
-        if (slots.empty()) return;
+        if (activeSlotCount == 0) return;
         state.setProperty("part", id, nullptr);
         Part newPart = getPartFromState(state);
         primaryInterpreter().instrumentPart = newPart;
@@ -327,10 +344,19 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         {
             float userLength = state.hasProperty("highwayLength")
                 ? (float)state["highwayLength"] : FAR_FADE_DEFAULT;
-            forEachHighway([this, userLength](auto& hw) { hw.setHighwayLength(computeFarFadeEnd(userLength)); });
+            float scaledLength = computeFarFadeEnd(userLength);
+            forEachHighway([scaledLength](auto& hw) {
+                hw.getSceneRenderer().farFadeEnd = scaledLength;
+                PositionMath::bemaniHwyScale = scaledLength;
+            });
+            // Cache already has both guitar and drums baked — if scale changed,
+            // invalidate and rebake
+            trackImageCache.invalidate();
+            rebakeTrackCache();
         }
         updateDisplaySizeFromSpeedSlider();
 
+        // onInstrumentChanged swaps overlay pointers to correct cache entry
         forEachHighway([](auto& hw) { hw.onInstrumentChanged(); });
 #ifdef DEBUG
         toolbar.getTuningPanel().setDrums(isDrumLike(getPartFromState(state)));
@@ -494,7 +520,20 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onHighwayLengthChanged = [this](float length) {
         state.setProperty("highwayLength", length, nullptr);
         if (!PositionMath::bemaniMode)
+        {
+            float scaledLength = computeFarFadeEnd(length);
+            // Update farFadeEnd on all highways first (needed for rebake to use correct params)
+            forEachHighway([scaledLength](auto& hw) {
+                hw.getSceneRenderer().farFadeEnd = scaledLength;
+                PositionMath::bemaniHwyScale = scaledLength;
+            });
+            trackImageCache.invalidate();
+            rebakeTrackCache();
+        }
+        else
+        {
             forEachHighway([this, length](auto& hw) { hw.setHighwayLength(computeFarFadeEnd(length)); });
+        }
         updateDisplaySizeFromSpeedSlider();
     };
 
@@ -509,6 +548,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         PositionMath::bemaniHwyScale = 1.0f;
         state.setProperty("bemaniMode", on, nullptr);
         updateDisplaySizeFromSpeedSlider();
+        trackImageCache.invalidate();
         resized();
         toolbar.resized();
         forEachHighway([](auto& hw) {
@@ -520,19 +560,19 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onHighwayTextureChanged = [this](const juce::String& textureName) {
         state.setProperty("highwayTexture", textureName, nullptr);
         if (textureName.isEmpty())
-            forEachHighway([](auto& hw) { hw.clearTexture(); });
+            forAllHighways([](auto& hw) { hw.clearTexture(); });
         else
             loadHighwayTexture(textureName);
     };
 
     toolbar.onTextureScaleChanged = [this](float scale) {
         state.setProperty("textureScale", scale, nullptr);
-        forEachHighway([scale](auto& hw) { hw.setTextureScale(scale); });
+        forAllHighways([scale](auto& hw) { hw.setTextureScale(scale); });
     };
 
     toolbar.onTextureOpacityChanged = [this](float opacity) {
         state.setProperty("textureOpacity", opacity, nullptr);
-        forEachHighway([opacity](auto& hw) { hw.setTextureOpacity(opacity); });
+        forAllHighways([opacity](auto& hw) { hw.setTextureOpacity(opacity); });
     };
 
     toolbar.onOpenBackgroundFolder = [this]() {
@@ -603,7 +643,7 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 {
     // "Nothing selected" placeholder
-    if (hasActiveSession && slots.empty())
+    if (hasActiveSession && activeSlotCount == 0)
     {
         int tbHeight = toolbar.getHeight();
         auto area = getLocalBounds().withTrimmedTop(tbHeight);
@@ -620,7 +660,7 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 
 #ifdef DEBUG
     debug.paintOverChildren(g,
-        slots.empty() ? nullptr : &primaryHighway(), !slots.empty());
+        activeSlotCount == 0 ? nullptr : &primaryHighway(), activeSlotCount > 0);
 #endif
 }
 
@@ -869,11 +909,11 @@ void ChartchoticAudioProcessorEditor::resized()
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
     // Layout highway slots below toolbar
-    if (!slots.empty())
+    if (activeSlotCount > 0)
     {
         int contentW = getWidth();
         int contentH = getHeight() - tbHeight;
-        int numSlots = (int)slots.size();
+        int numSlots = activeSlotCount;
 
         if (numSlots == 1)
         {
@@ -974,6 +1014,15 @@ void ChartchoticAudioProcessorEditor::resized()
     int versionWidth = (int)versionLabel.getFont().getStringWidthFloat(versionLabel.getText()) + juce::roundToInt(12.0f * s);
     versionLabel.setBounds(x, barY, versionWidth, barH);
 
+    // Rebake shared track cache when scene dimensions change or cache was externally invalidated
+    if (trackImageCache.isDirty() ||
+        sceneWidth != trackImageCache.getBakedWidth() ||
+        sceneHeight != trackImageCache.getBakedHeight())
+    {
+        trackImageCache.invalidate();
+        rebakeTrackCache();
+    }
+
     #ifdef DEBUG
     int stripH = toolbar.getStripHeight();
     debug.getClearButton().setBounds(margin, stripH + 4, 100, 20);
@@ -998,7 +1047,7 @@ void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
     // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.
     const double BASE_PPQ_WINDOW = 30.0;
-    double hwScale = slots.empty() ? 1.0 : std::max(1.0, (double)primaryHighway().getSceneRenderer().farFadeEnd);
+    double hwScale = activeSlotCount == 0 ? 1.0 : std::max(1.0, (double)primaryHighway().getSceneRenderer().farFadeEnd);
     displaySizeInPPQ = PPQ(BASE_PPQ_WINDOW * hwScale);
 
     // Sync the display size to the processor so processBlock can use it
@@ -1072,16 +1121,16 @@ void ChartchoticAudioProcessorEditor::loadState()
     if (savedTexture.isNotEmpty() && highwayTextureNames.contains(savedTexture))
         loadHighwayTexture(savedTexture);
 
-    // Restore texture parameters
+    // Restore texture parameters (all pooled highways, not just active)
     if (state.hasProperty("textureScale"))
     {
         float ts = (float)state["textureScale"];
-        forEachHighway([ts](auto& hw) { hw.getTrackRenderer().textureScale = ts; });
+        forAllHighways([ts](auto& hw) { hw.getTrackRenderer().textureScale = ts; });
     }
     if (state.hasProperty("textureOpacity"))
     {
         float to = juce::jlimit(0.05f, 1.0f, (float)state["textureOpacity"]);
-        forEachHighway([to](auto& hw) { hw.getTrackRenderer().textureOpacity = to; });
+        forAllHighways([to](auto& hw) { hw.getTrackRenderer().textureOpacity = to; });
     }
 
     // Apply side-effects that listeners would normally do
@@ -1107,6 +1156,7 @@ void ChartchoticAudioProcessorEditor::loadState()
     PositionMath::bemaniHwyScale = 1.0f;
 
     updateDisplaySizeFromSpeedSlider();
+    trackImageCache.invalidate();
     forEachHighway([](auto& hw) { hw.rebuildTrack(); });
 }
 
@@ -1219,24 +1269,35 @@ void ChartchoticAudioProcessorEditor::forceSingleDifficulty()
 
 void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
 {
-    // Remove old highway components
-    for (auto& slot : slots)
-        removeChildComponent(slot.highway.get());
-    slots.clear();
+    updateVisibleSlots();
+}
+
+void ChartchoticAudioProcessorEditor::updateVisibleSlots()
+{
+    // Hide all pooled slots
+    for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+    {
+        slots[i].active = false;
+        slots[i].highway->setVisible(false);
+    }
 
     if (!hasActiveSession || sessionSlotCache.empty())
     {
-        // Fallback: single default slot
-        HighwaySlot slot;
+        // Fallback: single default slot using processor's shared note state
+        auto& slot = slots[0];
         slot.part = getPartFromState(state);
+        slot.skillLevel = (SkillLevel)(int)state.getProperty("skillLevel");
+        slot.active = true;
+        slot.ownedState.reset();
         slot.interpreter = std::make_unique<MidiInterpreter>(
             state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
-        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
-        slot.highway->onOverflowChanged = [this]() { resized(); };
-        slots.push_back(std::move(slot));
+        slot.noteStateMapArray = std::make_shared<NoteStateMapArray>();
+        slot.noteStateMapLock = std::make_shared<juce::CriticalSection>();
+        slot.highway->setActivePart(slot.part);
+        slot.highway->setVisible(true);
+        activeSlotCount = 1;
 
-        for (auto& s : slots)
-            addAndMakeVisible(*s.highway);
+        toolbar.setMultiInstrumentMode(false);
         resized();
         loadState();
         return;
@@ -1246,7 +1307,8 @@ void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
     static const SkillLevel diffOrder[] = { SkillLevel::EASY, SkillLevel::MEDIUM,
                                              SkillLevel::HARD, SkillLevel::EXPERT };
 
-    // Build one slot per (enabled instrument × enabled difficulty)
+    // Assign slots from session cache (up to MAX_HIGHWAY_SLOTS)
+    int slotIdx = 0;
     for (auto& cached : sessionSlotCache)
     {
         if (enabledParts.count(cached.part) == 0)
@@ -1256,10 +1318,13 @@ void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
         {
             if (enabledDifficulties.count(level) == 0)
                 continue;
+            if (slotIdx >= MAX_HIGHWAY_SLOTS)
+                break;
 
-            HighwaySlot slot;
+            auto& slot = slots[slotIdx];
             slot.part = cached.part;
             slot.skillLevel = level;
+            slot.active = true;
 
             // Per-slot state with baked skillLevel for interpreter
             slot.ownedState = std::make_unique<juce::ValueTree>(state.createCopy());
@@ -1276,28 +1341,115 @@ void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
             if (cached.discoFlipState)
                 slot.interpreter->setDiscoFlipState(cached.discoFlipState);
 
-            slot.highway = std::make_unique<HighwayComponent>(*slot.ownedState, assetManager);
             slot.highway->setActivePart(cached.part);
-            slot.highway->onOverflowChanged = [this]() { resized(); };
-            slots.push_back(std::move(slot));
+            slot.highway->setVisible(true);
+            slotIdx++;
         }
     }
 
-    // Multi-slot labels — show part labels when multiple instruments, difficulty when multiple difficulties
+    activeSlotCount = slotIdx;
+
+    // Multi-slot labels
     bool multiInst = enabledParts.size() > 1;
     bool multiDiff = enabledDifficulties.size() > 1;
-    for (auto& slot : slots)
+    for (int i = 0; i < activeSlotCount; i++)
     {
-        slot.highway->showPartLabel = multiInst;
-        slot.highway->showDifficultyLabel = multiDiff;
-        slot.highway->displaySkillLevel = slot.skillLevel;
+        slots[i].highway->showPartLabel = multiInst;
+        slots[i].highway->showDifficultyLabel = multiDiff;
+        slots[i].highway->displaySkillLevel = slots[i].skillLevel;
     }
-    toolbar.setMultiInstrumentMode(slots.size() > 1);
+    toolbar.setMultiInstrumentMode(activeSlotCount > 1);
 
-    for (auto& slot : slots)
-        addAndMakeVisible(*slot.highway);
+    // Layout only — no loadState, no rebuildTrack
     resized();
-    loadState();
+
+    // Apply visual settings directly (NOT via loadState which triggers disk I/O + full rebuild)
+    applyVisualState();
+}
+
+void ChartchoticAudioProcessorEditor::applyVisualState()
+{
+    // Propagate render toggle flags from state to active highways
+    bool gems = !state.hasProperty("showGems") || (bool)state["showGems"];
+    bool bars = !state.hasProperty("showBars") || (bool)state["showBars"];
+    bool sustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
+    bool lanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
+    bool gridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
+    bool track = !state.hasProperty("showTrack") || (bool)state["showTrack"];
+    bool laneSeps = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
+    bool strikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
+    bool hwy = !state.hasProperty("showHighway") || (bool)state["showHighway"];
+    bool stretch = state.hasProperty("stretchToFill") && (bool)state["stretchToFill"];
+
+    float userLength = state.hasProperty("highwayLength")
+        ? juce::jlimit(FAR_FADE_MIN, FAR_FADE_MAX, (float)state["highwayLength"])
+        : FAR_FADE_DEFAULT;
+    float scaledLength = computeFarFadeEnd(userLength);
+
+    forEachHighway([=](auto& hw) {
+        hw.getSceneRenderer().showGems = gems;
+        hw.getSceneRenderer().showBars = bars;
+        hw.getSceneRenderer().showSustains = sustains;
+        hw.getSceneRenderer().showLanes = lanes;
+        hw.getSceneRenderer().showGridlines = gridlines;
+        hw.getSceneRenderer().showTrack = track;
+        hw.getSceneRenderer().showLaneSeparators = laneSeps;
+        hw.getSceneRenderer().showStrikeline = strikeline;
+        hw.showHighway = hwy;
+        hw.stretchToFill = stretch;
+        hw.getSceneRenderer().farFadeEnd = scaledLength;
+    });
+
+    // Texture settings (all pooled highways, not just active)
+    if (state.hasProperty("textureScale"))
+    {
+        float ts = (float)state["textureScale"];
+        forAllHighways([ts](auto& hw) { hw.getTrackRenderer().textureScale = ts; });
+    }
+    if (state.hasProperty("textureOpacity"))
+    {
+        float to = juce::jlimit(0.05f, 1.0f, (float)state["textureOpacity"]);
+        forAllHighways([to](auto& hw) { hw.getTrackRenderer().textureOpacity = to; });
+    }
+
+    // Point overlays at cache — rebuildTrack handles this via the cache path
+    forEachHighway([](auto& hw) { hw.rebuildTrack(); });
+}
+
+void ChartchoticAudioProcessorEditor::rebakeTrackCache()
+{
+    if (!trackImageCache.isDirty() || activeSlotCount == 0)
+        return;
+
+    // Always bake at full single-highway resolution (sceneWidth × sceneHeight),
+    // NOT at per-slot dimensions which are smaller in multi-highway mode.
+    int w = sceneWidth;
+    int h = sceneHeight;
+    if (w <= 0 || h <= 0) return;
+
+    // Compute overflow at full resolution
+    auto& sr = slots[0].highway->getSceneRenderer();
+    auto farEdgeGuitar = PositionMath::getFretboardEdge(
+        false, sr.farFadeEnd, w, h,
+        PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
+    auto farEdgeDrums = PositionMath::getFretboardEdge(
+        true, sr.farFadeEnd, w, h,
+        PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
+    int overflow = std::max(0, (int)std::ceil(std::max(-farEdgeGuitar.centerY, -farEdgeDrums.centerY)));
+
+    // Copy texture settings to scratch renderer
+    auto& hw = *slots[0].highway;
+    cacheRenderer->textureScale = hw.getTrackRenderer().textureScale;
+    cacheRenderer->textureOpacity = hw.getTrackRenderer().textureOpacity;
+
+    // Bake both guitar and drums at full single-highway resolution
+    trackImageCache.rebake(*cacheRenderer, w, h, overflow,
+        sr.farFadeEnd, sr.farFadeLen, sr.farFadeCurve, sr.highwayPosEnd,
+        sr.guitarLaneCoordsLocal, (int)PositionConstants::GUITAR_LANE_COUNT,
+        sr.drumLaneCoordsLocal, (int)PositionConstants::DRUM_LANE_COUNT);
+
+    // All active highways now pull overlays from the fresh cache
+    forEachHighway([](auto& hw) { hw.rebuildTrack(); });
 }
 
 #ifdef DEBUG
@@ -1315,34 +1467,44 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
         }
     };
 
-    // Remove old highway components
-    for (auto& slot : slots)
-        removeChildComponent(slot.highway.get());
-    slots.clear();
+    // Hide all pooled slots
+    for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+    {
+        slots[i].active = false;
+        slots[i].highway->setVisible(false);
+    }
 
-    // If no parts found, create a single default slot
+    // If no parts found, configure slot 0 as default
     if (chart.foundParts.empty())
     {
-        HighwaySlot slot;
+        auto& slot = slots[0];
         slot.part = getPartFromState(state);
+        slot.active = true;
+        slot.ownedState.reset();
         slot.interpreter = std::make_unique<MidiInterpreter>(
             state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
-        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
-        slot.highway->onOverflowChanged = [this]() { resized(); };
-        slots.push_back(std::move(slot));
+        slot.highway->setActivePart(slot.part);
+        slot.highway->setVisible(true);
+        activeSlotCount = 1;
 
-        for (auto& s : slots)
-            addAndMakeVisible(*s.highway);
         resized();
         loadState();
         return;
     }
 
-    // Create one slot per discovered part, each with its own NoteStateMapArray
+    // Configure one slot per discovered part (up to MAX_HIGHWAY_SLOTS)
+    int slotIdx = 0;
     for (Part part : chart.foundParts)
     {
-        HighwaySlot slot;
+        if (slotIdx >= MAX_HIGHWAY_SLOTS) break;
+
+        auto& slot = slots[slotIdx];
         slot.part = part;
+        slot.active = true;
+        slot.ownedState.reset();
+
+        slot.noteStateMapArray = std::make_shared<NoteStateMapArray>();
+        slot.noteStateMapLock = std::make_shared<juce::CriticalSection>();
 
         // Process this instrument's notes into the slot's own NoteStateMapArray
         juce::String tName = trackNameForPart(part);
@@ -1359,24 +1521,20 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
 
         slot.interpreter = std::make_unique<MidiInterpreter>(
             part, state, *slot.noteStateMapArray, *slot.noteStateMapLock);
-        slot.highway = std::make_unique<HighwayComponent>(state, assetManager);
         slot.highway->setActivePart(part);
-        slot.highway->onOverflowChanged = [this]() { resized(); };
-        slots.push_back(std::move(slot));
+        slot.highway->setVisible(true);
+        slotIdx++;
     }
 
+    activeSlotCount = slotIdx;
+
     // Multi-highway mode: show part labels and all toolbar options
-    bool multiSlot = slots.size() > 1;
-    forEachHighway([multiSlot](auto& hw) { hw.showPartLabel = multiSlot; });
+    bool multiSlot = activeSlotCount > 1;
+    for (int i = 0; i < activeSlotCount; i++)
+        slots[i].highway->showPartLabel = multiSlot;
     toolbar.setMultiInstrumentMode(multiSlot);
 
-    // Add to component tree and size before loadState,
-    // so rebuildTrack() has valid renderWidth/renderHeight
-    for (auto& slot : slots)
-        addAndMakeVisible(*slot.highway);
     resized();
-
-    // Now apply visual state (triggers rebuildTrack with valid dimensions)
     loadState();
 }
 #endif
@@ -1505,15 +1663,15 @@ void ChartchoticAudioProcessorEditor::loadHighwayTexture(const juce::String& fil
     auto file = highwayTextureDirectory.getChildFile(filename + ".png");
     if (!file.existsAsFile())
     {
-        forEachHighway([](auto& hw) { hw.clearTexture(); });
+        forAllHighways([](auto& hw) { hw.clearTexture(); });
         return;
     }
 
     auto img = juce::ImageFileFormat::loadFrom(file);
     if (img.isValid())
-        forEachHighway([&img](auto& hw) { hw.setTexture(img); });
+        forAllHighways([&img](auto& hw) { hw.setTexture(img); });
     else
-        forEachHighway([](auto& hw) { hw.clearTexture(); });
+        forAllHighways([](auto& hw) { hw.clearTexture(); });
 }
 
 float ChartchoticAudioProcessorEditor::computeScrollOffset()

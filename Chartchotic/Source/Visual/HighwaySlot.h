@@ -9,6 +9,7 @@ struct HighwaySlot {
     std::unique_ptr<MidiInterpreter> interpreter;
     Part part = Part::GUITAR;
     SkillLevel skillLevel = SkillLevel::EXPERT;
+    bool active = false;
 
     // Per-slot note data (used in multi-highway mode)
     // shared_ptr so session cache can share processed data with visible slots

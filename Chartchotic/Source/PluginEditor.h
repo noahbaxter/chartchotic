@@ -8,11 +8,13 @@
 
 #pragma once
 
+#include <array>
 #include <map>
 #include <set>
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Visual/HighwaySlot.h"
+#include "Visual/TrackImageCache.h"
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/Utils.h"
 #include "Utils/TimeConverter.h"
@@ -91,7 +93,15 @@ private:
 
     ChartchoticAudioProcessor& audioProcessor;
     AssetManager assetManager;
-    std::vector<HighwaySlot> slots;
+
+    static constexpr int MAX_HIGHWAY_SLOTS = 4;
+    std::array<HighwaySlot, MAX_HIGHWAY_SLOTS> slots;
+    int activeSlotCount = 0;
+
+    // Shared track image cache (guitar + drums baked once at full resolution)
+    TrackImageCache trackImageCache;
+    std::unique_ptr<TrackRenderer> cacheRenderer;
+    void rebakeTrackCache();
 
     HighwayComponent& primaryHighway() { return *slots[0].highway; }
     MidiInterpreter& primaryInterpreter() { return *slots[0].interpreter; }
@@ -99,15 +109,31 @@ private:
     template <typename Fn>
     void forEachHighway(Fn&& fn)
     {
-        for (auto& slot : slots)
-            fn(*slot.highway);
+        for (int i = 0; i < activeSlotCount; i++)
+            fn(*slots[i].highway);
+    }
+
+    template <typename Fn>
+    void forEachActiveSlot(Fn&& fn)
+    {
+        for (int i = 0; i < activeSlotCount; i++)
+            fn(slots[i]);
+    }
+
+    // Iterate ALL pooled highways (including inactive/hidden ones).
+    // Use for texture/asset operations that must be set on all slots upfront.
+    template <typename Fn>
+    void forAllHighways(Fn&& fn)
+    {
+        for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+            fn(*slots[i].highway);
     }
 
     void propagateToSlots(const juce::Identifier& prop, const juce::var& value)
     {
-        for (auto& slot : slots)
-            if (slot.ownedState)
-                slot.ownedState->setProperty(prop, value, nullptr);
+        for (int i = 0; i < activeSlotCount; i++)
+            if (slots[i].ownedState)
+                slots[i].ownedState->setProperty(prop, value, nullptr);
     }
 
     // Custom look and feel
@@ -184,6 +210,8 @@ private:
     void rebuildSlotsFromSession(InstrumentSession& session);
     void updateSessionData(InstrumentSession& session);
     void rebuildVisibleSlots();
+    void updateVisibleSlots();
+    void applyVisualState();
     void forceSingleInstrument();
     void forceSingleDifficulty();
 #ifdef DEBUG
@@ -233,8 +261,8 @@ private:
     // Compute farFadeEnd from user slider value × per-instrument scale
     float computeFarFadeEnd(float userLength) const
     {
-        bool drums = slots.empty() ? isDrumLike(getPartFromState(state))
-                                   : isDrumLike(slots[0].part);
+        bool drums = activeSlotCount == 0 ? isDrumLike(getPartFromState(state))
+                                          : isDrumLike(slots[0].part);
         return userLength * getHwyScale(drums);
     }
 

@@ -383,7 +383,7 @@ void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, con
 
 void TrackRenderer::rebuild(int width, int height, int overflow,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                               float posEnd)
+                               float posEnd, bool geometryOnly)
 {
     if (width <= 0 || height <= 0) return;
 
@@ -446,25 +446,28 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     cached.fadeLen = farFadeLen;
     cached.fadeCurve = farFadeCurve;
 
-    // Bake dark fill base (uses cached edges for polygon — already offset by overflow)
-    fadedTrackImage = juce::Image(juce::Image::ARGB, width, totalH, true);
-    compositeLayers(fadedTrackImage, width, totalH, isDrums, posEnd, farFadeEnd);
+    if (!geometryOnly)
+    {
+        // Bake dark fill base (uses cached edges for polygon — already offset by overflow)
+        fadedTrackImage = juce::Image(juce::Image::ARGB, width, totalH, true);
+        compositeLayers(fadedTrackImage, width, totalH, isDrums, posEnd, farFadeEnd);
 #ifdef DEBUG
-    if (!PositionMath::debugPolyShade)
+        if (!PositionMath::debugPolyShade)
 #endif
-    applyFarFade(fadedTrackImage, width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
-                 posEnd);
+        applyFarFade(fadedTrackImage, width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                     posEnd);
 
-    // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
-    auto* layers = isDrums ? layersDrums : layersGuitar;
-    bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
-                   width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-    bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
-                              farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-    bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
-                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-    bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
-                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
+        auto* layers = isDrums ? layersDrums : layersGuitar;
+        bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
+                       width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
+                                  farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
+                       width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
+                       width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+    }
 
     rebuildPrebake();
 }
