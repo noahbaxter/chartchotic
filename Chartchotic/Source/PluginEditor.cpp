@@ -551,10 +551,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         trackImageCache.invalidate();
         resized();
         toolbar.resized();
-        forEachHighway([](auto& hw) {
-            hw.getTrackRenderer().invalidate();
-            hw.rebuildTrack();
-        });
     };
 
     toolbar.onHighwayTextureChanged = [this](const juce::String& textureName) {

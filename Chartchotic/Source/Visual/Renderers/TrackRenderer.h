@@ -50,7 +50,7 @@ public:
                  float posEnd, bool geometryOnly = false);
 
     /** Invalidate cached state so the next rebuild() is not skipped. */
-    void invalidate() { cached.width = -1; }
+    void invalidate() { cached.width = -1; prebaked.valid = false; }
 
     /** Whether the cached geometry was built for drums (used to detect instrument change). */
     bool getCachedIsDrums() const { return cached.isDrums; }
