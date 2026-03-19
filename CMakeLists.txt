@@ -109,6 +109,9 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Processing/MidiProcessor.h
         Chartchotic/Source/Midi/Processing/NoteProcessor.cpp
         Chartchotic/Source/Midi/Processing/NoteProcessor.h
+        Chartchotic/Source/Midi/Processing/SharedTrackData.h
+        Chartchotic/Source/Midi/Processing/TrackResolver.cpp
+        Chartchotic/Source/Midi/Processing/TrackResolver.h
         # Midi / Providers / REAPER
         Chartchotic/Source/Midi/Providers/REAPER/MidiCache.cpp
         Chartchotic/Source/Midi/Providers/REAPER/MidiCache.h
@@ -126,13 +129,9 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Pipelines/StandardMidiPipeline.cpp
         Chartchotic/Source/Midi/Pipelines/StandardMidiPipeline.h
         # Midi / Utils
-        Chartchotic/Source/Midi/Utils/ChordAnalyzer.cpp
-        Chartchotic/Source/Midi/Utils/ChordAnalyzer.h
         Chartchotic/Source/Midi/Utils/GemCalculator.cpp
         Chartchotic/Source/Midi/Utils/GemCalculator.h
         Chartchotic/Source/Midi/Utils/InstrumentMapper.h
-        Chartchotic/Source/Midi/Utils/LaneDetector.cpp
-        Chartchotic/Source/Midi/Utils/LaneDetector.h
         Chartchotic/Source/Midi/Utils/MidiConstants.h
         Chartchotic/Source/Midi/Utils/MidiTypes.h
         # REAPER

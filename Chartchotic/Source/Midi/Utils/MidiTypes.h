@@ -19,10 +19,9 @@
 struct NoteData
 {
     uint8_t velocity;
-    Gem gemType;
 
-    NoteData() : velocity(0), gemType(Gem::NONE) {}
-    NoteData(uint8_t vel, Gem gem) : velocity(vel), gemType(gem) {}
+    NoteData() : velocity(0) {}
+    NoteData(uint8_t vel) : velocity(vel) {}
 
     operator uint8_t() const { return velocity; }
     operator bool() const { return velocity > 0; }

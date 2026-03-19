@@ -31,7 +31,7 @@ ChartchoticAudioProcessor::ChartchoticAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        ),
-       midiProcessor(state),
+       midiProcessor(state, midiProject.primaryTrack().notes, midiProject.primaryTrack().notesLock),
        debugLogger([this](const juce::String& msg) { print(msg); })
 #endif
 {
@@ -39,7 +39,7 @@ ChartchoticAudioProcessor::ChartchoticAudioProcessor()
     initializeDefaultState();
 
     // Create the default pipeline (will be recreated when REAPER is detected)
-    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, nullptr, state,
+    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, midiProject, nullptr, state,
                                                       [this](const juce::String& msg) { print(msg); });
 }
 
@@ -240,7 +240,7 @@ void ChartchoticAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, j
         print("useReaperTimeline: " + juce::String(useReaperTimeline ? "TRUE" : "FALSE"));
 
         midiPipeline = MidiPipelineFactory::createPipeline(isReaperHost, useReaperTimeline,
-                                                          midiProcessor, &reaperMidiProvider, state,
+                                                          midiProcessor, midiProject, &reaperMidiProvider, state,
                                                           [this](const juce::String& msg) { print(msg); });
 
         if (useReaperTimeline)

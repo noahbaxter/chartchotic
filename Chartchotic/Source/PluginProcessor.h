@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include <memory>
+#include "Midi/MidiProject.h"
 #include "Midi/Processing/MidiProcessor.h"
 #include "Midi/Providers/REAPER/ReaperMidiProvider.h"
 #include "Midi/InstrumentSession.h"
@@ -42,12 +43,15 @@ public:
     uint latencyInSamples = 0;
     void setLatencyInSeconds(float latencyInSeconds);
 
-    NoteStateMapArray& getNoteStateMapArray() { return midiProcessor.noteStateMapArray; }
-    juce::CriticalSection& getNoteStateMapLock() { return midiProcessor.noteStateMapLock; }
+    // MIDI data access — all goes through MidiProject
+    MidiProject& getMidiProject() { return midiProject; }
+    NoteStateMapArray& getNoteStateMapArray() { return midiProject.primaryTrack().notes; }
+    juce::CriticalSection& getNoteStateMapLock() { return midiProject.primaryTrack().notesLock; }
+    TempoTimeSignatureMap& getTempoTimeSignatureMap() { return midiProject.tempoTimeSignatures; }
+    juce::CriticalSection& getTempoLock() { return midiProject.tempoLock; }
 
     // Set visual window bounds for conservative cleanup during tempo changes
     void setMidiProcessorVisualWindowBounds(PPQ startPPQ, PPQ endPPQ) { midiProcessor.setVisualWindowBounds(startPPQ, endPPQ); }
-    void refreshMidiDisplay() { midiProcessor.refreshMidiDisplay(); }
     void invalidateReaperCache();  // Clear cache and force re-fetch (for track changes)
     void applyTrackNumberChange(int trackNumberZeroBased);  // Auto-apply track number from VST3 detection
 
@@ -137,6 +141,7 @@ public:
 
   private:
     juce::ValueTree state;
+    MidiProject midiProject;
     MidiProcessor midiProcessor;
     DebugTools::Logger debugLogger;
 

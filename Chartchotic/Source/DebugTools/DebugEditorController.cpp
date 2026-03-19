@@ -289,8 +289,11 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + PPQ(displaySizeInPPQ);
     PPQ extendedStart = trackWindowStartPPQ - PPQ(displaySizeInPPQ);
 
-    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
-    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, trackWindowStartPPQ);
+    PartWindow partWindow = midiInterpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, trackWindowStartPPQ);
+    SkillLevel activeSkill = (SkillLevel)((int)midiInterpreter.getState().getProperty("skillLevel"));
+    auto& diffWindow = partWindow.forSkill(activeSkill);
+    TrackWindow& ppqTrackWindow = diffWindow.trackWindow;
+    SustainWindow& ppqSustainWindow = diffWindow.sustainWindow;
 
     double bpm = playbackController.getBPM();
     auto ppqToTime = [bpm](double ppq) { return ppq * (60.0 / bpm); };
@@ -418,8 +421,8 @@ void DebugEditorController::loadDebugChart(int index)
 
     // Update MidiProcessor's tempo map (global, shared)
     {
-        const juce::ScopedLock tempoLock(processorPtr->getMidiProcessor().tempoTimeSignatureMapLock);
-        processorPtr->getMidiProcessor().tempoTimeSignatureMap = result.tempoMap;
+        const juce::ScopedLock tempoLock(processorPtr->getTempoLock());
+        processorPtr->getTempoTimeSignatureMap() = result.tempoMap;
     }
 
     // Build disco flip state from PART DRUMS text events only

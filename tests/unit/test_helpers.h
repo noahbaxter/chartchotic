@@ -23,19 +23,20 @@ struct TestFixture
         state.setProperty("starPower", 1, nullptr);
         state.setProperty("kick2x", 1, nullptr);
         state.setProperty("dynamics", 1, nullptr);
+        state.setProperty("discoFlip", false, nullptr);
     }
 
     // Add a playable note with proper note-on/note-off
-    void addNote(uint pitch, PPQ start, PPQ end, uint8_t vel = 100, Gem gem = Gem::NOTE)
+    void addNote(uint pitch, PPQ start, PPQ end, uint8_t vel = 100)
     {
-        array[pitch][start] = NoteData(vel, gem);
-        array[pitch][std::max(start + PPQ(1), end - PPQ(1))] = NoteData(0, Gem::NONE);
+        array[pitch][start] = NoteData(vel);
+        array[pitch][std::max(start + PPQ(1), end - PPQ(1))] = NoteData(0);
     }
 
     // Add a modifier (sustained note-on/note-off pair)
     void addModifier(uint pitch, PPQ start, PPQ end)
     {
-        array[pitch][start] = NoteData(100, Gem::NONE);
-        array[pitch][std::max(start + PPQ(1), end - PPQ(1))] = NoteData(0, Gem::NONE);
+        array[pitch][start] = NoteData(100);
+        array[pitch][std::max(start + PPQ(1), end - PPQ(1))] = NoteData(0);
     }
 };

@@ -234,15 +234,13 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 {
     toolbar.onSkillChanged = [this](int id) {
         state.setProperty("skillLevel", id, nullptr);
-        // Session mode: rebuild slots with new difficulty
+        propagateToSlots("skillLevel", id);
         if (hasActiveSession)
         {
             enabledDifficulties = { (SkillLevel)id };
             toolbar.setEnabledDifficulties(enabledDifficulties);
             rebuildVisibleSlots();
-            return;
         }
-        refreshNoteData();
     };
 
     toolbar.onDifficultyClicked = [this](SkillLevel skill, bool modifierHeld) {
@@ -337,21 +335,21 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 #ifdef DEBUG
         toolbar.getTuningPanel().setDrums(isDrumLike(getPartFromState(state)));
 #endif
-        refreshNoteData();
+        propagateToSlots("part", id);
     };
 
     toolbar.onDrumTypeChanged = [this](int id) {
         state.setProperty("drumType", id, nullptr);
-        refreshNoteData();
+        propagateToSlots("drumType", id);
     };
 
     toolbar.onAutoHopoChanged = [this](bool enabled) {
         state.setProperty("autoHopo", enabled, nullptr);
-        refreshNoteData();
+        propagateToSlots("autoHopo", enabled);
     };
     toolbar.onHopoThresholdChanged = [this](int thresholdIndex) {
         state.setProperty("hopoThreshold", thresholdIndex, nullptr);
-        refreshNoteData();
+        propagateToSlots("hopoThreshold", thresholdIndex);
     };
 
     toolbar.onGemsChanged = [this](bool on) {
@@ -381,17 +379,17 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onHitIndicatorsChanged = [this](bool on) {
         state.setProperty("hitIndicators", on, nullptr);
-        refreshNoteData();
+        propagateToSlots("hitIndicators", on);
     };
 
     toolbar.onStarPowerChanged = [this](bool on) {
         state.setProperty("starPower", on, nullptr);
-        refreshNoteData();
+        propagateToSlots("starPower", on);
     };
 
     toolbar.onKick2xChanged = [this](bool on) {
         state.setProperty("kick2x", on, nullptr);
-        refreshNoteData();
+        propagateToSlots("kick2x", on);
     };
 
     toolbar.onDiscoFlipChanged = [this](bool on) {
@@ -401,7 +399,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onDynamicsChanged = [this](bool on) {
         state.setProperty("dynamics", on, nullptr);
-        refreshNoteData();
+        propagateToSlots("dynamics", on);
     };
 
     toolbar.onTrackChanged = [this](bool on) {
@@ -444,8 +442,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
         if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
             audioProcessor.invalidateReaperCache();
-
-        repaint();
     };
 
     toolbar.onFramerateChanged = [this](int id) {
@@ -465,7 +461,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onShowBackgroundChanged = [this](bool on) {
         showBackground = on;
-        repaint();
     };
 
     toolbar.onLatencyChanged = [this](int id) {
@@ -474,18 +469,14 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     };
 
     toolbar.onLatencyOffsetChanged = [this](int offsetMs) {
-        // State is already set by the slider; apply side-effects
-        audioProcessor.refreshMidiDisplay();
         bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
         if (isReaperMode)
             audioProcessor.invalidateReaperCache();
-        repaint();
     };
 
     toolbar.onBackgroundChanged = [this](const juce::String& bgName) {
         state.setProperty("background", bgName, nullptr);
         loadBackground(bgName);
-        repaint();
     };
 
     toolbar.onGemScaleChanged = [this](float scale) {
@@ -532,7 +523,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
             forEachHighway([](auto& hw) { hw.clearTexture(); });
         else
             loadHighwayTexture(textureName);
-        repaint();
     };
 
     toolbar.onTextureScaleChanged = [this](float scale) {
@@ -679,14 +669,16 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
         flipState = interpreter.getDiscoFlipState();
     }
 
-    // Generate PPQ-based windows from MidiInterpreter
-    TrackWindow ppqTrackWindow;
-    SustainWindow ppqSustainWindow;
+    // Resolve all 4 difficulties in one lock — extract the active one
+    PartWindow partWindow;
     {
         DEBUG_MEASURE_LOCK_WAIT;
-        ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
-        ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+        partWindow = interpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     }
+    SkillLevel activeSkill = (SkillLevel)((int)interpreter.getState().getProperty("skillLevel"));
+    auto& diffWindow = partWindow.forSkill(activeSkill);
+    TrackWindow& ppqTrackWindow = diffWindow.trackWindow;
+    SustainWindow& ppqSustainWindow = diffWindow.sustainWindow;
 
     // Create a lambda that uses REAPER's timeline conversion (handles ALL tempo changes)
     auto& reaperProvider = audioProcessor.getReaperMidiProvider();
@@ -695,8 +687,8 @@ void ChartchoticAudioProcessorEditor::buildReaperFrameData(HighwayFrameData& out
     // Get tempo/timesig map from MidiProcessor (make a copy to avoid holding lock)
     TempoTimeSignatureMap tempoTimeSigMap;
     {
-        const juce::ScopedLock lock(audioProcessor.getMidiProcessor().tempoTimeSignatureMapLock);
-        tempoTimeSigMap = audioProcessor.getMidiProcessor().tempoTimeSignatureMap;
+        const juce::ScopedLock lock(audioProcessor.getTempoLock());
+        tempoTimeSigMap = audioProcessor.getTempoTimeSignatureMap();
     }
 
     // Convert everything to time-based (seconds from cursor)
@@ -804,14 +796,16 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
     // Extend window for notes behind cursor
     PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
 
-    // Generate PPQ-based windows from MidiInterpreter
-    TrackWindow ppqTrackWindow;
-    SustainWindow ppqSustainWindow;
+    // Resolve all 4 difficulties in one lock — extract the active one
+    PartWindow partWindow;
     {
         DEBUG_MEASURE_LOCK_WAIT;
-        ppqTrackWindow = interpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
-        ppqSustainWindow = interpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+        partWindow = interpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     }
+    SkillLevel activeSkill = (SkillLevel)((int)interpreter.getState().getProperty("skillLevel"));
+    auto& diffWindow = partWindow.forSkill(activeSkill);
+    TrackWindow& ppqTrackWindow = diffWindow.trackWindow;
+    SustainWindow& ppqSustainWindow = diffWindow.sustainWindow;
 
     // Simple constant BPM conversion for non-REAPER mode
     auto ppqToTime = [currentBPM](double ppq) { return ppq * (60.0 / currentBPM); };
@@ -819,8 +813,8 @@ void ChartchoticAudioProcessorEditor::buildStandardFrameData(HighwayFrameData& o
     // Create a simple tempo/timesig map for standard mode (default 120 BPM, 4/4)
     TempoTimeSignatureMap tempoTimeSigMap;
     {
-        const juce::ScopedLock lock(audioProcessor.getMidiProcessor().tempoTimeSignatureMapLock);
-        tempoTimeSigMap = audioProcessor.getMidiProcessor().tempoTimeSignatureMap;
+        const juce::ScopedLock lock(audioProcessor.getTempoLock());
+        tempoTimeSigMap = audioProcessor.getTempoTimeSignatureMap();
 
         // If empty, add a default 4/4, currentBPM event at the start
         if (tempoTimeSigMap.empty()) {
@@ -1145,30 +1139,14 @@ void ChartchoticAudioProcessorEditor::updateSessionData(InstrumentSession& sessi
 
         const auto& notes = session.getNotes(i);
 
-        // Process all 4 difficulties separately — each gets correct modifier context
-        for (auto skill : { SkillLevel::EASY, SkillLevel::MEDIUM, SkillLevel::HARD, SkillLevel::EXPERT })
+        if (!notes.empty())
         {
-            DifficultyData dd;
+            const juce::ScopedLock lock(*data.noteStateMapLock);
+            for (auto& map : *data.noteStateMapArray)
+                map.clear();
 
-            if (!notes.empty())
-            {
-                const juce::ScopedLock lock(*dd.noteStateMapLock);
-                for (auto& map : *dd.noteStateMapArray)
-                    map.clear();
-
-                juce::ValueTree tempState = state.createCopy();
-                tempState.setProperty("part", (int)part, nullptr);
-                tempState.setProperty("skillLevel", (int)skill, nullptr);
-
-                NoteProcessor noteProcessor;
-                noteProcessor.processModifierNotes(notes, *dd.noteStateMapArray,
-                                                    *dd.noteStateMapLock, tempState);
-                noteProcessor.processPlayableNotes(notes, *dd.noteStateMapArray,
-                                                    *dd.noteStateMapLock, audioProcessor.getMidiProcessor(),
-                                                    tempState, 120.0, 44100.0);
-            }
-
-            data.difficulties[skill] = std::move(dd);
+            NoteProcessor noteProcessor;
+            noteProcessor.processAllNotes(notes, *data.noteStateMapArray);
         }
 
         const auto& discoFlip = session.getDiscoFlipState(i);
@@ -1279,9 +1257,6 @@ void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
             if (enabledDifficulties.count(level) == 0)
                 continue;
 
-            auto it = cached.difficulties.find(level);
-            if (it == cached.difficulties.end()) continue;
-
             HighwaySlot slot;
             slot.part = cached.part;
             slot.skillLevel = level;
@@ -1291,8 +1266,9 @@ void ChartchoticAudioProcessorEditor::rebuildVisibleSlots()
             slot.ownedState->setProperty("part", (int)cached.part, nullptr);
             slot.ownedState->setProperty("skillLevel", (int)level, nullptr);
 
-            slot.noteStateMapArray = it->second.noteStateMapArray;
-            slot.noteStateMapLock = it->second.noteStateMapLock;
+            // All difficulties share the same raw note data
+            slot.noteStateMapArray = cached.noteStateMapArray;
+            slot.noteStateMapLock = cached.noteStateMapLock;
 
             slot.interpreter = std::make_unique<MidiInterpreter>(
                 cached.part, *slot.ownedState, *slot.noteStateMapArray, *slot.noteStateMapLock);
@@ -1377,16 +1353,8 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
             for (auto& map : *slot.noteStateMapArray)
                 map.clear();
 
-            // Use a temporary state copy to avoid mutating the shared state (which fires listeners)
-            juce::ValueTree tempState = state.createCopy();
-            tempState.setProperty("part", (int)part, nullptr);
-
             NoteProcessor noteProcessor;
-            noteProcessor.processModifierNotes(notesIt->second, *slot.noteStateMapArray,
-                                                *slot.noteStateMapLock, tempState);
-            noteProcessor.processPlayableNotes(notesIt->second, *slot.noteStateMapArray,
-                                                *slot.noteStateMapLock, audioProcessor.getMidiProcessor(),
-                                                tempState, chart.initialBPM, 44100.0);
+            noteProcessor.processAllNotes(notesIt->second, *slot.noteStateMapArray);
         }
 
         slot.interpreter = std::make_unique<MidiInterpreter>(
@@ -1412,29 +1380,6 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
     loadState();
 }
 #endif
-
-void ChartchoticAudioProcessorEditor::refreshNoteData()
-{
-#ifdef DEBUG
-    // In standalone multi-slot mode, toggle changes need to reprocess per-slot note data
-    if (debug.isStandalone() && slots.size() > 1)
-    {
-        debug.reloadCurrentChart();
-        return;
-    }
-#endif
-
-    // Session mode: reprocess all difficulties then rebuild slots
-    if (hasActiveSession)
-    {
-        if (auto* session = audioProcessor.getInstrumentSession())
-            updateSessionData(*session);
-        rebuildVisibleSlots();
-        return;
-    }
-
-    audioProcessor.refreshMidiDisplay();
-}
 
 void ChartchoticAudioProcessorEditor::applyLatencySetting(int latencyValue)
 {

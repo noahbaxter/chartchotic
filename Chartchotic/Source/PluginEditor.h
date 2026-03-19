@@ -189,21 +189,16 @@ private:
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif
-    void refreshNoteData();
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
 
-    // Per-difficulty processed note data
-    struct DifficultyData {
-        std::shared_ptr<NoteStateMapArray> noteStateMapArray = std::make_shared<NoteStateMapArray>();
-        std::shared_ptr<juce::CriticalSection> noteStateMapLock = std::make_shared<juce::CriticalSection>();
-    };
-
-    // Session slot cache — processed note data per discovered track, per difficulty
+    // Session slot cache — one raw NoteStateMapArray per discovered track
+    // Gem types computed at render time by TrackResolver for all difficulties
     struct SessionSlotData {
         Part part = Part::GUITAR;
         int trackIdx = 0;
-        std::map<SkillLevel, DifficultyData> difficulties;
+        std::shared_ptr<NoteStateMapArray> noteStateMapArray = std::make_shared<NoteStateMapArray>();
+        std::shared_ptr<juce::CriticalSection> noteStateMapLock = std::make_shared<juce::CriticalSection>();
         const DiscoFlipState* discoFlipState = nullptr;
     };
     std::vector<SessionSlotData> sessionSlotCache;
