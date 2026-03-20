@@ -112,6 +112,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
 ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
 {
+    // Shut down async bake thread before destroying members it references
+    trackImageCache.shutdown();
+
     setLookAndFeel(nullptr);
 
     // Clear static typeface refs so JUCE leak detector doesn't fire on shutdown.
@@ -370,7 +373,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
                 PositionMath::bemaniHwyScale = scaledLength;
             });
             trackImageCache.invalidate();
-            rebakeTrackCache();
+            requestAsyncRebake();
         }
         updateDisplaySizeFromSpeedSlider();
 
@@ -462,7 +465,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
                 PositionMath::bemaniHwyScale = scaledLength;
             });
             trackImageCache.invalidate();
-            rebakeTrackCache();
+            requestAsyncRebake();
         }
         else
         {
@@ -719,7 +722,7 @@ void ChartchoticAudioProcessorEditor::resized()
         sceneHeight != trackImageCache.getBakedHeight())
     {
         trackImageCache.invalidate();
-        rebakeTrackCache();
+        requestAsyncRebake();
     }
 
     #ifdef DEBUG
@@ -860,7 +863,7 @@ void ChartchoticAudioProcessorEditor::loadState()
 }
 
 
-void ChartchoticAudioProcessorEditor::rebakeTrackCache()
+void ChartchoticAudioProcessorEditor::requestAsyncRebake()
 {
     if (!trackImageCache.isDirty() || activeSlotCount == 0)
         return;
@@ -881,19 +884,24 @@ void ChartchoticAudioProcessorEditor::rebakeTrackCache()
         PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
     int overflow = std::max(0, (int)std::ceil(std::max(-farEdgeGuitar.centerY, -farEdgeDrums.centerY)));
 
-    // Copy texture settings to scratch renderer
     auto& hw = *slots[0].highway;
-    cacheRenderer->textureScale = hw.getTrackRenderer().textureScale;
-    cacheRenderer->textureOpacity = hw.getTrackRenderer().textureOpacity;
 
-    // Bake both guitar and drums at full single-highway resolution
-    trackImageCache.rebake(*cacheRenderer, w, h, overflow,
+    trackImageCache.requestBake(*cacheRenderer, w, h, overflow,
         sr.farFadeEnd, sr.farFadeLen, sr.farFadeCurve, sr.highwayPosEnd,
         sr.guitarLaneCoordsLocal, (int)PositionConstants::GUITAR_LANE_COUNT,
-        sr.drumLaneCoordsLocal, (int)PositionConstants::DRUM_LANE_COUNT);
+        sr.drumLaneCoordsLocal, (int)PositionConstants::DRUM_LANE_COUNT,
+        hw.getTrackRenderer().textureScale, hw.getTrackRenderer().textureOpacity,
+        [this]() {
+            // If more invalidations arrived while we were baking, re-trigger
+            if (trackImageCache.isDirty())
+            {
+                requestAsyncRebake();
+                return;
+            }
 
-    // All active highways now pull overlays from the fresh cache
-    forEachHighway([](auto& hw) { hw.rebuildTrack(); });
+            // Called on message thread after staging committed
+            forEachHighway([](auto& hw) { hw.rebuildTrack(); });
+        });
 }
 
 #ifdef DEBUG

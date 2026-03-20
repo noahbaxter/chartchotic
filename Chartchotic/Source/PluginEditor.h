@@ -105,7 +105,7 @@ private:
     // Shared track image cache (guitar + drums baked once at full resolution)
     TrackImageCache trackImageCache;
     std::unique_ptr<TrackRenderer> cacheRenderer;
-    void rebakeTrackCache();
+    void requestAsyncRebake();
 
     HighwayComponent& primaryHighway() { return *slots[0].highway; }
     MidiInterpreter& primaryInterpreter() { return *slots[0].interpreter; }
