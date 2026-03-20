@@ -183,12 +183,15 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
     }
 
-    // Bemani mode: nudge gems/bars
+    // Bemani mode: nudge gems/bars using a width-independent reference
+    // (pixelsPerUnit is constant regardless of viewport dimensions)
     if (PositionMath::bemaniMode)
     {
         bool isDrumsHere = isDrumLike(activePart);
         float nudge = barNote ? bemaniConfig.barNudge : bemaniConfig.gemNudge(isDrumsHere);
-        glyphRect.translate(0.0f, glyphRect.getHeight() * nudge);
+        float pixelsPerUnit = PositionConstants::REFERENCE_HEIGHT * bemaniConfig.strikelinePos
+                            / std::max(0.1f, PositionMath::bemaniHwyScale);
+        glyphRect.translate(0.0f, pixelsPerUnit * nudge);
     }
 
     float opacity = calculateOpacity(position);
@@ -256,53 +259,58 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float oHScale = hScale;
 
     // Per-column adjustments from ColumnAdjust struct
-    float zOff = barNote ? barZOffset : gemZOffset;
-    float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
-    if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
-        const auto& ca = guitarColAdjust[gemColumn];
-        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-    } else if (isDrums) {
-        uint drumIdx = drumColumnIndex(gemColumn);
-        const auto& ca = drumColAdjust[drumIdx];
-        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-        if (!barNote)
-            zOff += ca.z;
-    }
-
-    // Per-column scale: interpolate uniform scale, multiply with per-axis
-#ifdef DEBUG
-    float vpDepth = PositionMath::perspParams(isDrumLike(activePart)).vanishingPointDepth;
-#else
-    float vpDepth = PositionConstants::getPerspectiveParams(isDrumLike(activePart)).vanishingPointDepth;
-#endif
-    float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
-    float colScale = colSNear + (colSFar - colSNear) * t;
-    wScale *= colScale * colW;
-    hScale *= colScale * colH;
-    oWScale *= colScale * colW;
-    oHScale *= colScale * colH;
-
-    // Scale Z offset by perspective
+    // In Bemani mode: no perspective Z offsets or depth-based column scaling — everything is flat.
+    float zOff = 0.0f;
+    if (!PositionMath::bemaniMode)
     {
-        float curWidth = glyphRect.getWidth();
-        float strikeWidth;
-        if (barNote)
-        {
-            bool isDrums = isDrumLike(activePart);
-            auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
-                                                            PositionConstants::HIGHWAY_POS_START, posEnd);
-            strikeWidth = (fbStrike.rightX - fbStrike.leftX) * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
+        zOff = barNote ? barZOffset : gemZOffset;
+        float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
+        if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
+            const auto& ca = guitarColAdjust[gemColumn];
+            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+        } else if (isDrums) {
+            uint drumIdx = drumColumnIndex(gemColumn);
+            const auto& ca = drumColAdjust[drumIdx];
+            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+            if (!barNote)
+                zOff += ca.z;
         }
-        else
+
+        // Per-column scale: interpolate uniform scale, multiply with per-axis
+#ifdef DEBUG
+        float vpDepth = PositionMath::perspParams(isDrumLike(activePart)).vanishingPointDepth;
+#else
+        float vpDepth = PositionConstants::getPerspectiveParams(isDrumLike(activePart)).vanishingPointDepth;
+#endif
+        float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
+        float colScale = colSNear + (colSFar - colSNear) * t;
+        wScale *= colScale * colW;
+        hScale *= colScale * colH;
+        oWScale *= colScale * colW;
+        oHScale *= colScale * colH;
+
+        // Scale Z offset by perspective
         {
-            const auto& colCoordsRef = isGuitarLike(activePart)
-                ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
-                : laneCoordsDrums[drumColumnIndex(gemColumn)];
-            auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE, PositionConstants::FRETBOARD_SCALE);
-            strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+            float curWidth = glyphRect.getWidth();
+            float strikeWidth;
+            if (barNote)
+            {
+                bool isDrums = isDrumLike(activePart);
+                auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
+                                                                PositionConstants::HIGHWAY_POS_START, posEnd);
+                strikeWidth = (fbStrike.rightX - fbStrike.leftX) * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
+            }
+            else
+            {
+                const auto& colCoordsRef = isGuitarLike(activePart)
+                    ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
+                    : laneCoordsDrums[drumColumnIndex(gemColumn)];
+                auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE, PositionConstants::FRETBOARD_SCALE);
+                strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+            }
+            if (strikeWidth > 0.0f)
+                zOff *= curWidth / strikeWidth;
         }
-        if (strikeWidth > 0.0f)
-            zOff *= curWidth / strikeWidth;
     }
 
     // Compute global arc Y offset so adjacent notes form a continuous parabola.

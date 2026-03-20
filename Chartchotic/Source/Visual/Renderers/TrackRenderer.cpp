@@ -225,12 +225,13 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
         if (tileH < 1.0f) return;
 
         // scrollOffset = how many viewport-heights of notes have scrolled by.
-        // Convert to pixels: use REFERENCE_HEIGHT so texture matches note speed
-        // (notes normalize position by height/REFERENCE_HEIGHT in PositionMath).
+        // Match PositionMath Bemani Y: pixelsPerUnit = REFERENCE_HEIGHT * strikelinePos / bemaniHwyScale.
+        // scrollOffset is in position units, so totalPx = scrollOffset * pixelsPerUnit * texSpeed.
         float strikeFrac = bemaniConfig.strikelinePos;
         float texSpeed = bemaniConfig.texSpeed;
+        float hwyScale = std::max(0.1f, PositionMath::bemaniHwyScale);
         // Total pixels scrolled (continuous, never wraps)
-        float totalPx = scrollOffset * strikeFrac * PositionConstants::REFERENCE_HEIGHT * texSpeed;
+        float totalPx = scrollOffset * strikeFrac * PositionConstants::REFERENCE_HEIGHT * texSpeed / hwyScale;
         // Modulo against tile height for seamless repeat
         float offset = std::fmod(totalPx, tileH);
         if (offset < 0.0f) offset += tileH;

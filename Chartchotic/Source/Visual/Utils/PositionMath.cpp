@@ -46,15 +46,14 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
         float fbCenter = normX1 + normWidth1 * 0.5f;
         float adjX = fbCenter - adjW * 0.5f;
 
-        // Position 0 = strikeline, positive = toward top of viewport
-        // Scale by height/REFERENCE_HEIGHT so taller viewports show more highway
-        // instead of stretching the same range over more pixels
-        float strikeY = bemaniConfig.strikelinePos;
-        float noteYOff = bemaniConfig.noteYOffset;
-        float heightScale = (float)height / REFERENCE_HEIGHT;
-        float effectiveScale = std::max(0.1f, bemaniHwyScale) * heightScale;
-        float scaledPos = position / effectiveScale;
-        float yPos = (float)height * (strikeY - scaledPos * strikeY + noteYOff);
+        // Position 0 = strikeline, positive = toward top of viewport.
+        // Strikeline pixel Y = height * strikelinePos (matches TrackRenderer overlay).
+        // Pixels per position unit = REFERENCE_HEIGHT * strikelinePos / bemaniHwyScale
+        // (constant regardless of viewport height — taller = see more highway).
+        float strikePixelY = (float)height * bemaniConfig.strikelinePos;
+        float pixelsPerUnit = REFERENCE_HEIGHT * bemaniConfig.strikelinePos
+                            / std::max(0.1f, bemaniHwyScale);
+        float yPos = strikePixelY - position * pixelsPerUnit;
 
         float finalWidth = adjW * width;
         float targetHeight = isBarNote
