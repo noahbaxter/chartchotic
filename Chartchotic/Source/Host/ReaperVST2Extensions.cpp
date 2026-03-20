@@ -78,7 +78,9 @@ void ChartchoticVST2Extensions::tryGetReaperApi()
 
     if (testResult != 0)
     {
+#ifndef CHARTCHOTIC_DISABLE_REAPER
         processor->isReaperHost = true;
+#endif
 
         // Store callback in per-instance map so our wrapper function can access it
         instanceCallbacks[processor] = &hostCallback;

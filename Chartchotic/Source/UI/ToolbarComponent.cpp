@@ -1,7 +1,7 @@
 #include "ToolbarComponent.h"
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
-static const juce::StringArray latencyLabels = { "250ms", "500ms", "750ms", "1000ms", "1500ms" };
+static const juce::StringArray latencyLabels = { "0ms", "250ms", "500ms", "750ms", "1000ms", "1500ms" };
 static const juce::StringArray hopoThresholdLabels = { "1/16", "Dot 1/16", "170 Tick", "1/8" };
 
 ToolbarComponent::ToolbarComponent(juce::ValueTree& state)

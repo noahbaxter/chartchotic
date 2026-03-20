@@ -28,6 +28,7 @@ BUILD_VST3=true
 BUILD_AU=true
 BUILD_STANDALONE=false
 BUILD_BENCHMARK=false
+BUILD_STD=false
 SKIN_DIR=""
 NEXT_IS_SKIN_DIR=false
 
@@ -51,9 +52,10 @@ for arg in "$@"; do
         --au-only)      BUILD_VST3=false; BUILD_STANDALONE=false ;;
         --standalone)   BUILD_STANDALONE=true; BUILD_VST3=false; BUILD_AU=false ;;
         --benchmark)    BUILD_BENCHMARK=true; BUILD_VST3=false; BUILD_AU=false ;;
+        --std)          BUILD_STD=true ;;
         --skin-dir)     NEXT_IS_SKIN_DIR=true ;;
         -h|--help)
-            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--skin-dir <path>]"
+            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--std] [--skin-dir <path>]"
             exit 0
             ;;
         *)
@@ -199,6 +201,38 @@ if [ "$BUILD_STANDALONE" = true ]; then
         echo "  Standalone built: $APP_PATH"
     else
         echo "  Standalone build output not found at: $APP_PATH"
+        exit 1
+    fi
+fi
+
+if [ "$BUILD_STD" = true ]; then
+    STD_ARTIFACT_DIR="$NINJA_BUILD_DIR/ChartchoticStd_artefacts/$BUILD_CONFIG"
+
+    echo ""
+    echo "Building Standard (non-REAPER) VST3..."
+    cmake --build "$NINJA_BUILD_DIR" --target ChartchoticStd_VST3
+
+    STD_VST3_PATH="$STD_ARTIFACT_DIR/VST3/Chartchotic Std.vst3"
+    if [ -d "$STD_VST3_PATH" ]; then
+        mkdir -p ~/Library/Audio/Plug-Ins/VST3/
+        cp -R "$STD_VST3_PATH" ~/Library/Audio/Plug-Ins/VST3/
+        echo "  Standard VST3 installed"
+    else
+        echo "  Standard VST3 build output not found at: $STD_VST3_PATH"
+        exit 1
+    fi
+
+    echo ""
+    echo "Building Standard (non-REAPER) AU..."
+    cmake --build "$NINJA_BUILD_DIR" --target ChartchoticStd_AU
+
+    STD_AU_PATH="$STD_ARTIFACT_DIR/AU/Chartchotic Std.component"
+    if [ -d "$STD_AU_PATH" ]; then
+        mkdir -p ~/Library/Audio/Plug-Ins/Components/
+        cp -R "$STD_AU_PATH" ~/Library/Audio/Plug-Ins/Components/
+        echo "  Standard AU installed"
+    else
+        echo "  Standard AU build output not found at: $STD_AU_PATH"
         exit 1
     fi
 fi

@@ -364,3 +364,66 @@ if(APPLE)
         -Wno-deprecated-declarations
     )
 endif()
+
+# --- Standard (non-REAPER) variant for testing ---
+juce_add_plugin(ChartchoticStd
+    VERSION ${PROJECT_VERSION}
+    COMPANY_NAME "Dichotic Studios"
+    BUNDLE_ID "com.dichoticstudios.chartchotic-std"
+    PLUGIN_MANUFACTURER_CODE Dich
+    PLUGIN_CODE ChSt
+    FORMATS VST3 AU
+    PRODUCT_NAME "Chartchotic Std"
+    PLUGIN_DESC "Chartchotic — standard DAW mode (no REAPER integration)"
+
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT TRUE
+    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    COPY_PLUGIN_AFTER_BUILD FALSE
+    NEEDS_CURL TRUE
+
+    VST3_CATEGORIES Tools
+)
+
+juce_generate_juce_header(ChartchoticStd)
+
+# Reuse the same source files
+get_target_property(_chartchotic_sources Chartchotic SOURCES)
+target_sources(ChartchoticStd PRIVATE ${_chartchotic_sources})
+
+target_include_directories(ChartchoticStd
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/third_party/reaper-sdk/sdk
+)
+
+target_compile_definitions(ChartchoticStd
+    PUBLIC
+        JUCE_STRICT_REFCOUNTEDPOINTER=1
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=1
+    PRIVATE
+        CHARTCHOTIC_BUILD_CHANNEL="${BUILD_CHANNEL}"
+        CHARTCHOTIC_VERSION_STRING="${VERSION_STRING}"
+        CHARTCHOTIC_MIDI_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/midi"
+        CHARTCHOTIC_DISABLE_REAPER=1
+)
+
+target_link_libraries(ChartchoticStd
+    PRIVATE
+        ChartchoticData
+        juce::juce_audio_utils
+        juce::juce_audio_processors
+        juce::juce_gui_extra
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags
+)
+
+if(APPLE)
+    target_compile_options(ChartchoticStd PRIVATE
+        -Wno-deprecated-declarations
+    )
+endif()

@@ -33,7 +33,9 @@ void ChartchoticVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
 
     if (reaperHost)
     {
+#ifndef CHARTCHOTIC_DISABLE_REAPER
         processor->isReaperHost = true;
+#endif
 
         // Store the REAPER interface per-instance using a map
         // This allows multiple plugin instances to work simultaneously

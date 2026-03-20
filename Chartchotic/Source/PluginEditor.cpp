@@ -1037,11 +1037,12 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
 void ChartchoticAudioProcessorEditor::applyLatencySetting(int latencyValue)
 {
     switch (latencyValue) {
-    case 1: latencyInSeconds = 0.250; break;
-    case 2: latencyInSeconds = 0.500; break;
-    case 3: latencyInSeconds = 0.750; break;
-    case 4: latencyInSeconds = 1.000; break;
-    case 5: latencyInSeconds = 1.500; break;
+    case 1: latencyInSeconds = 0.000; break;
+    case 2: latencyInSeconds = 0.250; break;
+    case 3: latencyInSeconds = 0.500; break;
+    case 4: latencyInSeconds = 0.750; break;
+    case 5: latencyInSeconds = 1.000; break;
+    case 6: latencyInSeconds = 1.500; break;
     default: latencyInSeconds = 0.500; break;
     }
     audioProcessor.setLatencyInSeconds(latencyInSeconds);
