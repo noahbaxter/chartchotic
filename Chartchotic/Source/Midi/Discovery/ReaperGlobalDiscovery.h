@@ -1,5 +1,6 @@
 #pragma once
 
+#include <set>
 #include "TrackDiscovery.h"
 #include "../../Host/ReaperTrackDetector.h"
 
@@ -15,6 +16,7 @@ public:
         if (!reaperGetFunc) return tracks;
 
         int trackCount = ReaperTrackDetector::getTrackCount(reaperGetFunc);
+        std::set<Part> seenParts;
 
         for (int i = 0; i < trackCount; ++i)
         {
@@ -22,6 +24,11 @@ public:
             Part part;
             if (!matchTrackNameToPart(name, part))
                 continue;
+
+            // First match wins — skip duplicate instrument types
+            if (seenParts.count(part))
+                continue;
+            seenParts.insert(part);
 
             InstrumentTrackInfo info;
             info.part = part;

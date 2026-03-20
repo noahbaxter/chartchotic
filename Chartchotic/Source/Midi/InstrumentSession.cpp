@@ -21,6 +21,32 @@ void InstrumentSession::discover()
 
 bool InstrumentSession::pollForChanges()
 {
+    // Re-run discovery to detect added/removed/renamed tracks
+    auto freshTracks = discovery->discoverTracks();
+    bool structureChanged = freshTracks.size() != tracks.size();
+    if (!structureChanged)
+    {
+        for (int i = 0; i < (int)tracks.size(); ++i)
+        {
+            if (freshTracks[i].part != tracks[i].part
+                || freshTracks[i].sourceTrackIndex != tracks[i].sourceTrackIndex)
+            {
+                structureChanged = true;
+                break;
+            }
+        }
+    }
+
+    if (structureChanged)
+    {
+        tracks = std::move(freshTracks);
+        trackData.resize(tracks.size());
+        for (int i = 0; i < (int)tracks.size(); ++i)
+            fetchTrackData(i);
+        return true;
+    }
+
+    // No structural change — just check for note edits on existing tracks
     bool anyChanged = false;
     for (int i = 0; i < (int)tracks.size(); ++i)
     {

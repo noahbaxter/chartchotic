@@ -27,11 +27,17 @@ void SessionController::rebuildFromSession(InstrumentSession& session)
 void SessionController::updateSessionData(InstrumentSession& session)
 {
     slotCache.clear();
+    size_t previousDiscoveredCount = discoveredParts.size();
     discoveredParts.clear();
     hasActiveSession = !session.isEmpty();
 
     if (!hasActiveSession)
+    {
+        enabledParts.clear();
+        toolbar->setDiscoveredParts(discoveredParts);
+        toolbar->setEnabledParts(enabledParts);
         return;
+    }
 
     const auto& tracks = session.getTracks();
 
@@ -78,6 +84,10 @@ void SessionController::updateSessionData(InstrumentSession& session)
     }
     else
     {
+        // Were all parts enabled before re-discovery? ("All" mode)
+        bool wasAllEnabled = enabledParts.size() >= previousDiscoveredCount
+                             && previousDiscoveredCount > 0;
+
         // Remove enabled parts that are no longer discovered
         for (auto it = enabledParts.begin(); it != enabledParts.end(); )
         {
@@ -85,6 +95,13 @@ void SessionController::updateSessionData(InstrumentSession& session)
                 it = enabledParts.erase(it);
             else
                 ++it;
+        }
+
+        // If user had all parts enabled, auto-enable newly discovered parts
+        if (wasAllEnabled)
+        {
+            for (auto p : discoveredParts)
+                enabledParts.insert(p);
         }
     }
 
@@ -140,7 +157,16 @@ void SessionController::updateVisibleSlots()
 
     if (!hasActiveSession || slotCache.empty())
     {
-        // Fallback: single default slot using processor's shared note state
+        if (processor->isReaperHost)
+        {
+            // REAPER with no instrument tracks — show nothing, editor draws the hint
+            *activeSlotCount = 0;
+            toolbar->setMultiInstrumentMode(false);
+            cb.resized();
+            return;
+        }
+
+        // Non-REAPER fallback: single default slot with manual instrument selection
         auto& slot = slots[0];
         slot.part = getPartFromState(*state);
         slot.skillLevel = (SkillLevel)(int)state->getProperty("skillLevel");

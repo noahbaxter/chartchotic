@@ -418,17 +418,7 @@ void ToolbarComponent::initSettingsPanel()
         if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
     };
 
-    // --- REAPER view mode ---
-    viewModeButtons.setItems({ "Global", "Local" });
-    viewModeButtons.setSelectedIndex(0);
-    viewModeButtons.onSelectionChanged = [this](int index) {
-        // 1=GLOBAL, 2=LOCAL (offset by 1 from 0-based index)
-        if (onViewModeChanged) onViewModeChanged(index + 1);
-    };
-
     // Register all children
-    settingsButton.addPanelChild(&reaperHeader);
-    settingsButton.addPanelChild(&viewModeButtons);
     settingsButton.addPanelChild(&displayHeader);
     settingsButton.addPanelChild(&framerateButtons);
     settingsButton.addPanelChild(&showFpsToggle);
@@ -613,14 +603,6 @@ void ToolbarComponent::loadState()
     // Stretch to fill (hidden in Bemani mode)
     stretchToggle.setVisible(!bemaniOn);
     stretchToggle.setToggleState(state.hasProperty("stretchToFill") && (bool)state["stretchToFill"]);
-
-    // REAPER view mode (1=GLOBAL→index 0, 2=LOCAL→index 1)
-    if (state.hasProperty("reaperViewMode"))
-    {
-        int savedMode = (int)state["reaperViewMode"];
-        // AUTO(0) and GLOBAL(1) both map to index 0, LOCAL(2) maps to index 1
-        viewModeButtons.setSelectedIndex((savedMode == 2) ? 1 : 0);
-    }
 
     // Background
     if (backgroundNames.isEmpty())
@@ -839,23 +821,6 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
-    // --- REAPER (only visible in REAPER mode) ---
-    if (reaperMode)
-    {
-        reaperHeader.setBounds(margin, y, w, headerH);
-        reaperHeader.setVisible(true);
-        y += headerH + gap;
-
-        viewModeButtons.setBounds(margin, y, w, stepperH);
-        viewModeButtons.setVisible(true);
-        y += stepperH + sectionGap;
-    }
-    else
-    {
-        reaperHeader.setVisible(false);
-        viewModeButtons.setVisible(false);
-    }
-
     // --- Display ---
     displayHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
@@ -939,57 +904,42 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
 void ToolbarComponent::setDiscoveredParts(const std::vector<Part>& parts)
 {
     discoveredParts = parts;
-    showMultiInstrument = reaperMode && parts.size() >= 2;
+    showMultiInstrument = true;
 
-    if (showMultiInstrument)
+    // Build CircleItems from discovered parts (with per-instrument icons)
+    std::vector<CircleItem> circleItems;
+    for (auto part : parts)
     {
-        // Build CircleItems from discovered parts (with per-instrument icons)
-        std::vector<CircleItem> circleItems;
-        for (auto part : parts)
+        CircleItem item;
+        item.tooltip = getPartDisplayName(part);
+        auto icon = getPartIcon(part);
+        item.image = juce::ImageCache::getFromMemory(icon.data, icon.size);
+        circleItems.push_back(std::move(item));
+    }
+
+    instrumentSelector.setItems(std::move(circleItems));
+    instrumentSelector.setMultiSelectMode(true, true); // with "All" option
+
+    // Wire multi-select callback
+    instrumentSelector.onMultiSelectionChanged = [this](int index, bool modifierHeld) {
+        if (index == -1)
         {
-            CircleItem item;
-            item.tooltip = getPartDisplayName(part);
-            auto icon = getPartIcon(part);
-            item.image = juce::ImageCache::getFromMemory(icon.data, icon.size);
-            circleItems.push_back(std::move(item));
+            // "All" clicked
+            if (onAllInstrumentsClicked) onAllInstrumentsClicked();
+            return;
         }
+        if (index >= 0 && index < (int)discoveredParts.size())
+        {
+            if (onInstrumentClicked)
+                onInstrumentClicked(discoveredParts[index], modifierHeld);
+        }
+    };
 
-        instrumentSelector.setItems(std::move(circleItems));
-        instrumentSelector.setMultiSelectMode(true, true); // with "All" option
-
-        // Wire multi-select callback
-        instrumentSelector.onMultiSelectionChanged = [this](int index, bool modifierHeld) {
-            if (index == -1)
-            {
-                // "All" clicked
-                if (onAllInstrumentsClicked) onAllInstrumentsClicked();
-                return;
-            }
-            if (index >= 0 && index < (int)discoveredParts.size())
-            {
-                if (onInstrumentClicked)
-                    onInstrumentClicked(discoveredParts[index], modifierHeld);
-            }
-        };
-
-        // Default: all selected
-        std::set<int> allIndices;
-        for (int i = 0; i < (int)parts.size(); ++i)
-            allIndices.insert(i);
-        instrumentSelector.setMultiSelectedIndices(allIndices);
-    }
-    else
-    {
-        instrumentSelector.setMultiSelectMode(false);
-        // Restore original instrument items if needed
-        auto guitarImg = juce::ImageCache::getFromMemory(BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize);
-        auto drumsImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);
-        instrumentSelector.setItems({
-            { "Guitar", guitarImg },
-            { "Drums",  drumsImg }
-        });
-        instrumentSelector.onMultiSelectionChanged = nullptr;
-    }
+    // Default: all selected
+    std::set<int> allIndices;
+    for (int i = 0; i < (int)parts.size(); ++i)
+        allIndices.insert(i);
+    instrumentSelector.setMultiSelectedIndices(allIndices);
 
     resized();
 }

@@ -118,10 +118,6 @@ public:
     void createInstrumentSession();
     void destroyInstrumentSession() { instrumentSession.reset(); }
 
-    // View mode: 0=AUTO, 1=GLOBAL, 2=LOCAL
-    enum class ReaperViewMode { AUTO = 0, GLOBAL = 1, LOCAL = 2 };
-    ReaperViewMode getReaperViewMode() const;
-    void setReaperViewMode(ReaperViewMode mode);
 
     // Set display window size (called from editor)
     void setDisplayWindowSize(PPQ size) { displayWindowSize = size; }

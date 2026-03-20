@@ -16,7 +16,6 @@
 #include "Midi/Pipelines/MidiPipeline.h"
 #include "Midi/Pipelines/ReaperMidiPipeline.h"
 #include "Midi/Discovery/ReaperGlobalDiscovery.h"
-#include "Midi/Discovery/ReaperLocalDiscovery.h"
 #include "Midi/Discovery/ManualDiscovery.h"
 #include "Midi/Providers/ReaperTrackNoteProvider.h"
 
@@ -85,7 +84,6 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("textureScale", TEX_SCALE_DEFAULT_PCT / 100.0f, nullptr);
     state.setProperty("textureOpacity", TEX_OPACITY_DEFAULT / 100.0f, nullptr);
     state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
-    state.setProperty("reaperViewMode", (int)ReaperViewMode::AUTO, nullptr);
 }
 
 void ChartchoticAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
@@ -140,17 +138,6 @@ void ChartchoticAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased)
     }
 }
 
-ChartchoticAudioProcessor::ReaperViewMode ChartchoticAudioProcessor::getReaperViewMode() const
-{
-    int mode = state.hasProperty("reaperViewMode") ? (int)state.getProperty("reaperViewMode") : 0;
-    if (mode < 0 || mode > 2) mode = 0;
-    return static_cast<ReaperViewMode>(mode);
-}
-
-void ChartchoticAudioProcessor::setReaperViewMode(ReaperViewMode mode)
-{
-    state.setProperty("reaperViewMode", (int)mode, nullptr);
-}
 
 void ChartchoticAudioProcessor::createInstrumentSession()
 {
@@ -158,41 +145,7 @@ void ChartchoticAudioProcessor::createInstrumentSession()
         return;
 
     auto noteProvider = std::make_unique<ReaperTrackNoteProvider>(reaperMidiProvider);
-
-    ReaperViewMode mode = getReaperViewMode();
-
-    // Auto-detect on first init
-    if (mode == ReaperViewMode::AUTO)
-    {
-        auto getFunc = reaperMidiProvider.getReaperGetFunc();
-        if (getFunc)
-        {
-            auto testDiscovery = std::make_unique<ReaperGlobalDiscovery>(getFunc);
-            auto testTracks = testDiscovery->discoverTracks();
-            mode = (testTracks.size() >= 2) ? ReaperViewMode::GLOBAL : ReaperViewMode::LOCAL;
-            setReaperViewMode(mode);
-            print("Auto-detected view mode: " + juce::String(mode == ReaperViewMode::GLOBAL ? "GLOBAL" : "LOCAL")
-                  + " (" + juce::String((int)testTracks.size()) + " instrument tracks found)");
-        }
-        else
-        {
-            mode = ReaperViewMode::LOCAL;
-            setReaperViewMode(mode);
-        }
-    }
-
-    std::unique_ptr<TrackDiscovery> discovery;
-    if (mode == ReaperViewMode::GLOBAL)
-    {
-        discovery = std::make_unique<ReaperGlobalDiscovery>(reaperMidiProvider.getReaperGetFunc());
-    }
-    else
-    {
-        int trackIdx = (int)state.getProperty("reaperTrack") - 1;
-        Part fallback = getPartFromState(state);
-        discovery = std::make_unique<ReaperLocalDiscovery>(
-            reaperMidiProvider.getReaperGetFunc(), trackIdx, fallback);
-    }
+    auto discovery = std::make_unique<ReaperGlobalDiscovery>(reaperMidiProvider.getReaperGetFunc());
 
     instrumentSession = std::make_unique<InstrumentSession>(std::move(discovery), std::move(noteProvider));
     instrumentSession->discover();

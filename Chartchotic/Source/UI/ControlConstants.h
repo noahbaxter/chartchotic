@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "../Visual/Utils/DrawingConstants.h"
 
 //==============================================================================
@@ -90,7 +91,9 @@ constexpr bool DEFAULT_DISCO_FLIP       = true;
 enum class Part
 {
     // 5-fret family (same MIDI pitch layout: 60-100 across 4 difficulties)
-    GUITAR = 1,         // PART GUITAR (also covers PART GUITAR COOP, PART RHYTHM)
+    GUITAR = 1,         // PART GUITAR
+    GUITAR_COOP,        // PART GUITAR COOP
+    RHYTHM,             // PART RHYTHM
     BASS,               // PART BASS
     KEYS,               // PART KEYS (5-lane keys, uses guitar pitch mapping)
 
@@ -129,6 +132,8 @@ inline RenderType getRenderType(Part p)
 {
     switch (p) {
         case Part::GUITAR:
+        case Part::GUITAR_COOP:
+        case Part::RHYTHM:
         case Part::BASS:
         case Part::KEYS:         return RenderType::FIVE_FRET;
         case Part::GHL_GUITAR:
@@ -151,22 +156,54 @@ inline bool isDrumLike(Part p)   { auto r = getRenderType(p); return r == Render
 // Can this Part be rendered as a scrolling highway? (Vocals, Pro Keys etc. need different rendering)
 inline bool isHighwayRenderable(Part p) { return isGuitarLike(p) || isDrumLike(p); }
 
+// Track names recognized by discovery, split by implementation status.
+// Implemented parts have full rendering support; unimplemented are parsed but not renderable.
+struct TrackNameEntry { const char* name; Part part; };
+
+inline const std::vector<TrackNameEntry>& getImplementedTrackNames()
+{
+    static const std::vector<TrackNameEntry> names = {
+        { "PART GUITAR",      Part::GUITAR },
+        { "PART GUITAR COOP", Part::GUITAR_COOP },
+        { "PART RHYTHM",      Part::RHYTHM },
+        { "PART BASS",        Part::BASS },
+        { "PART KEYS",        Part::KEYS },
+        { "PART DRUMS",       Part::DRUMS },
+    };
+    return names;
+}
+
+inline const std::vector<TrackNameEntry>& getUnimplementedTrackNames()
+{
+    static const std::vector<TrackNameEntry> names = {
+        { "PART GUITAR GHL",     Part::GHL_GUITAR },
+        { "PART BASS GHL",       Part::GHL_BASS },
+        { "PART REAL_GUITAR",    Part::PRO_GUITAR },
+        { "PART REAL_GUITAR_22", Part::PRO_GUITAR },
+        { "PART REAL_BASS",      Part::PRO_BASS },
+        { "PART REAL_BASS_22",   Part::PRO_BASS },
+    };
+    return names;
+}
+
 // Sort order: Guitar, guitar alts (GHL, Pro), Bass, bass alts, Keys, Drums, Vocals
 inline int getPartSortOrder(Part p)
 {
     switch (p) {
         case Part::GUITAR:      return 0;
-        case Part::GHL_GUITAR:  return 1;
-        case Part::PRO_GUITAR:  return 2;
-        case Part::BASS:        return 3;
-        case Part::GHL_BASS:    return 4;
-        case Part::PRO_BASS:    return 5;
-        case Part::KEYS:        return 6;
-        case Part::PRO_KEYS:    return 7;
-        case Part::DRUMS:       return 8;
-        case Part::ELITE_DRUMS: return 9;
-        case Part::VOCALS:      return 10;
-        case Part::HARMONIES:   return 11;
+        case Part::RHYTHM:      return 1;
+        case Part::GUITAR_COOP: return 2;
+        case Part::GHL_GUITAR:  return 3;
+        case Part::PRO_GUITAR:  return 4;
+        case Part::BASS:        return 5;
+        case Part::GHL_BASS:    return 6;
+        case Part::PRO_BASS:    return 7;
+        case Part::KEYS:        return 8;
+        case Part::PRO_KEYS:    return 9;
+        case Part::DRUMS:       return 10;
+        case Part::ELITE_DRUMS: return 11;
+        case Part::VOCALS:      return 12;
+        case Part::HARMONIES:   return 13;
         default:                return 99;
     }
 }
@@ -176,6 +213,8 @@ inline juce::String getPartDisplayName(Part p)
 {
     switch (p) {
         case Part::GUITAR:      return "Guitar";
+        case Part::GUITAR_COOP: return "Co-op";
+        case Part::RHYTHM:      return "Rhythm";
         case Part::BASS:        return "Bass";
         case Part::KEYS:        return "Keys";
         case Part::GHL_GUITAR:  return "GHL";

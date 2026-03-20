@@ -24,6 +24,8 @@ private:
     {
         switch (p) {
             case Part::GUITAR:     return "PART GUITAR";
+            case Part::GUITAR_COOP: return "PART GUITAR COOP";
+            case Part::RHYTHM:     return "PART RHYTHM";
             case Part::BASS:       return "PART BASS";
             case Part::KEYS:       return "PART KEYS";
             case Part::DRUMS:      return "PART DRUMS";

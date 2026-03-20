@@ -39,6 +39,7 @@ public:
     void loadState();
     void updateVisibility();
     void setReaperMode(bool isReaper);
+    bool isReaperModeActive() const { return reaperMode; }
     void setMultiInstrumentMode(bool multi) { multiInstrumentMode = multi; }
 
     // Multi-select instrument/difficulty (Global mode)
@@ -90,7 +91,6 @@ public:
     std::function<void(bool)> onShowBackgroundChanged;
     std::function<void()> onOpenBackgroundFolder;
     std::function<void()> onOpenTextureFolder;
-    std::function<void(int viewModeId)> onViewModeChanged;  // 0=Auto, 1=Global, 2=Local
 
     void setHighwayTextureList(const juce::StringArray& names)
     {
@@ -192,9 +192,6 @@ private:
     ValueStepper gemScaleStepper{"Gem Size", "%"};
     ValueStepper barScaleStepper{"Bar Size", "%"};
 
-    // REAPER view mode (only visible in REAPER mode)
-    PanelSectionHeader reaperHeader{"REAPER"};
-    SegmentedButtons viewModeButtons;
 
     PanelSectionHeader syncHeader{"Sync"};
     ValueStepper syncOffsetStepper{"Calibration", " ms"};

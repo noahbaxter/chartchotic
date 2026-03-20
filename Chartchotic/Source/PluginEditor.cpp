@@ -104,6 +104,15 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     addAndMakeVisible(toolbar);
     initBottomBar();
 
+    // If REAPER session already exists (editor recreated after track move), rebuild from it
+    if (audioProcessor.isReaperHost)
+    {
+        toolbar.setReaperMode(true);
+        toolbar.updateVisibility();
+        if (auto* instrSession = audioProcessor.getInstrumentSession())
+            session.rebuildFromSession(*instrSession);
+    }
+
     loadState();
     resized();
 
@@ -162,8 +171,11 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #endif
 
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
-    toolbar.setReaperMode(isReaperMode);
-    toolbar.updateVisibility();
+    if (isReaperMode && !toolbar.isReaperModeActive())
+    {
+        toolbar.setReaperMode(true);
+        toolbar.updateVisibility();
+    }
 
     // Create InstrumentSession on first REAPER detection
     if (isReaperMode && !audioProcessor.getInstrumentSession())
@@ -416,15 +428,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onStrikelineChanged = [this](bool on) { state.setProperty("showStrikeline", on, nullptr); propagateToSlots("showStrikeline", on); forEachHighway([on](auto& hw) { hw.setShowStrikeline(on); }); };
     toolbar.onHighwayChanged = [this](bool on) { state.setProperty("showHighway", on, nullptr); propagateToSlots("showHighway", on); forEachHighway([on](auto& hw) { hw.setShowHighway(on); }); };
 
-    toolbar.onViewModeChanged = [this](int viewModeId) {
-        auto mode = static_cast<ChartchoticAudioProcessor::ReaperViewMode>(viewModeId);
-        audioProcessor.setReaperViewMode(mode);
-        audioProcessor.destroyInstrumentSession();
-        audioProcessor.createInstrumentSession();
-        if (auto* instrSession = audioProcessor.getInstrumentSession())
-            session.rebuildFromSession(*instrSession);
-    };
-
     toolbar.onNoteSpeedChanged = [this](int speed) {
         state.setProperty("noteSpeed", speed, nullptr);
         updateDisplaySizeFromSpeedSlider();
@@ -557,17 +560,50 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 {
-    // "Nothing selected" placeholder
-    if (session.isActive() && activeSlotCount == 0)
+    // "Nothing selected" or "no parts detected" placeholder
+    if (activeSlotCount == 0)
     {
         int tbHeight = toolbar.getHeight();
         auto area = getLocalBounds().withTrimmedTop(tbHeight);
-        g.setColour(juce::Colours::white.withAlpha(0.4f));
-        g.setFont(Theme::getUIFont(16.0f));
-        juce::String msg = session.getEnabledParts().empty() ? "Select an instrument"
-                         : session.getEnabledDifficulties().empty() ? "Select a difficulty"
-                         : "No data";
-        g.drawText(msg, area, juce::Justification::centred);
+
+        if (audioProcessor.isReaperHost && session.getDiscoveredParts().empty())
+        {
+            // No instrument tracks found — show naming guide
+            float s = (float)getHeight() / (float)defaultHeight;
+            float headerSize = 20.0f * s;
+            float listSize = 14.0f * s;
+            int lineH = juce::roundToInt(listSize * 1.6f);
+
+            juce::StringArray trackNames;
+            for (auto& entry : getImplementedTrackNames())
+                trackNames.addIfNotAlreadyThere(entry.name);
+
+            int blockH = juce::roundToInt(headerSize * 2.0f) + lineH * trackNames.size();
+            int y = area.getCentreY() - blockH / 2;
+
+            g.setColour(juce::Colours::white.withAlpha(0.6f));
+            g.setFont(Theme::getUIFont(headerSize));
+            g.drawText("No instrument tracks detected", area.getX(), y, area.getWidth(),
+                       juce::roundToInt(headerSize * 1.5f), juce::Justification::centred);
+            y += juce::roundToInt(headerSize * 2.0f);
+
+            g.setColour(juce::Colours::white.withAlpha(0.35f));
+            g.setFont(Theme::getUIFont(listSize));
+            for (auto& name : trackNames)
+            {
+                g.drawText(name, area.getX(), y, area.getWidth(), lineH, juce::Justification::centred);
+                y += lineH;
+            }
+        }
+        else if (session.isActive())
+        {
+            g.setColour(juce::Colours::white.withAlpha(0.4f));
+            g.setFont(Theme::getUIFont(16.0f));
+            juce::String msg = session.getEnabledParts().empty() ? "Select an instrument"
+                             : session.getEnabledDifficulties().empty() ? "Select a difficulty"
+                             : "No data";
+            g.drawText(msg, area, juce::Justification::centred);
+        }
     }
 
     if (showFps)
@@ -916,6 +952,8 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
     auto trackNameForPart = [](Part p) -> juce::String {
         switch (p) {
             case Part::GUITAR:     return "PART GUITAR";
+            case Part::GUITAR_COOP: return "PART GUITAR COOP";
+            case Part::RHYTHM:     return "PART RHYTHM";
             case Part::BASS:       return "PART BASS";
             case Part::KEYS:       return "PART KEYS";
             case Part::DRUMS:      return "PART DRUMS";

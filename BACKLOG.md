@@ -6,14 +6,10 @@ Work from the top.
 
 ## Up Next
 
-- **Bemani: pre-release fixes** — (1) Per-highway padding for viewWindows in multi-highway layout. (2) Highway length should scale with slot height — taller slot = more visible notes, not same notes stretched over more space. (3) Multi-highway layout must always be a single horizontal row in Bemani mode (no 2x2 grid, no vertical column).
-- **Resolve-per-track caching for multi-highway** — `resolveAllDifficulties` computes all 4 difficulties but currently each slot resolves independently. In multi-difficulty grid mode (4 highways showing E/M/H/X of same track), this means 4× redundant resolve. Cache one PartWindow per unique track per frame, let each slot extract its DifficultyWindow. Skip unused difficulties in single-highway mode.
 - **All-difficulty overlay mode** — Show all 4 difficulties squeezed into the same highway. Each lane gets up to 4 notes stacked when all difficulties hit them. Color-code by difficulty instead of track color. All note data except specific pitches is shared across difficulties in the MIDI spec, so the data model supports this naturally.
 - **Save/load presets + default state** — Persist user settings to disk. "Save as default" makes all new plugin instances start with custom settings. Presets for game-specific profiles (GH, RB, etc.). Foundation for everything downstream.
 - **Section borders + event markers** — EVENTS track parsing, blue measure lines, section name overlay. Backend partially wired (`TimeBasedEventMarker`, `populateEventMarkers`). Tempo/timesig marker infrastructure landed (`d23505b`), rendering disabled. Enable for tempo/timesig, then extend for sections, lyrics.
-- **Multi-highway: missing track types** — Discovery currently handles GUITAR, BASS, KEYS, DRUMS, GHL_GUITAR, GHL_BASS. Missing 5-fret tracks (priority): `PART GUITAR COOP`, `PART RHYTHM`. Missing 6-fret: `PART RHYTHM GHL`, `PART GUITAR COOP GHL`, `PART KEYS GHL`. Need new Part enum values for GUITAR_COOP and RHYTHM, plus "Guitar 1"/"Guitar 2" badge on the highway label when both are present (instead of a separate icon).
-- **Multi-highway: track re-discovery** — `pollForChanges()` only detects note edits on existing tracks. If user adds/removes a REAPER track, session is stale until plugin reopen or view mode toggle. Should periodically re-run discovery or check track count.
-- **Multi-highway: ReaperMidiPipeline slimming** — `fetchAllNoteEvents()`, `fetchAllTextEvents()`, `processCachedNotesIntoState()` are duplicated between pipeline and InstrumentSession. Can remove from pipeline once session fully replaces it for note fetching.
+- **Multi-highway: missing track types** — 6-fret variants still missing (RHYTHM GHL, COOP GHL, KEYS GHL). 5-fret COOP/RHYTHM now have separate Part enum values.
 - **Ratio-agnostic window resizing** — Viewport-based resize landed (`c030e7d`), but "too much space below strikeline" tuning and REAPER fullscreen restore white gap / ~98% size bug still open.
 - **SysEx marker support** — Read Phase Shift SysEx events for open/tap note markers. The open note marker turns ALL notes into opens, not just greens. See [chart format spec](https://thenathannator.github.io/GuitarGame_ChartFormats/Chart-File-Formats/mid-format/Format-Overview/#phase-shift-sysex-event-specification).
 - **Audio playback** — Metronome click, guitar note sounds, drum hit sounds for listening back to charts. Assets mostly ready. Needs audio output from plugin + sync.
@@ -33,6 +29,7 @@ Work from the top.
 - ~~Disco flip force field markers~~ — Flat horizontal markers in Bemani mode.
 - ~~Sidebar edge lines~~ — Sidebar rails via DrawCallMap at TRACK_SIDEBARS draw order.
 - ~~Unified note speed~~ — Both modes share 2-20 range, Bemani applies internal 1.7x ratio.
+- ~~Pre-release fixes~~ — Per-highway padding, highway length scales with slot height, force horizontal row in multi-highway.
 
 **Multi-highway:**
 - ~~Pool HighwayComponents + shared track image cache~~ — 4 pooled slots (never destroyed), TrackImageCache bakes guitar+drums once at full resolution. Difficulty/instrument toggles swap overlay pointers (~0ms).
@@ -48,6 +45,22 @@ Work from the top.
 - ~~Update overlay improvements~~ — ESC dismisses, resizes with window.
 - ~~Lane/sustain draw order~~ — SUSTAIN before BAR (bars render on top).
 - ~~Source tree reorg~~ — Extract Editor/ module from PluginEditor.
+
+**Multi-highway:**
+- ~~Track re-discovery~~ — `pollForChanges` re-runs discovery, detects added/removed/renamed tracks live.
+- ~~GUITAR_COOP + RHYTHM parts~~ — Separate Part enum values, own highway slots, centralized track name constants.
+- ~~Remove Global/Local toggle~~ — Always use global discovery in REAPER; non-REAPER uses manual fallback.
+- ~~No-tracks-found message~~ — Shows supported track names when REAPER has no instrument tracks.
+- ~~Dedup duplicate parts~~ — First match per instrument type wins in discovery.
+
+**Bug fixes:**
+- ~~Drum track cache overflow~~ — Per-instrument overflow in TrackImageCache instead of shared max.
+- ~~REAPER mode latch~~ — Toolbar stays in REAPER mode when API flickers during track moves.
+- ~~Editor re-attach~~ — Rebuild session state when editor is recreated (plugin moved between tracks).
+
+**Closed (not needed):**
+- ~~Resolve-per-track caching~~ — Already batched per lock group in FrameDataBuilder; `resolveAllDifficulties` runs once, each slot extracts its difficulty.
+- ~~ReaperMidiPipeline slimming~~ — Anticipated duplication never materialized; functions only exist in pipeline.
 
 ---
 
