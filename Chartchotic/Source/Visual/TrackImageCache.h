@@ -18,6 +18,7 @@ public:
     struct BakedTrack {
         juce::Image fadedTrack;
         juce::Image layers[TrackRenderer::NUM_LAYERS];
+        int overflow = 0;
         bool valid = false;
     };
 
@@ -27,7 +28,7 @@ public:
     /** Request an async bake on a background thread.
         Drops the request if a bake is already in flight.
         onComplete is called on the message thread after staging is ready. */
-    void requestBake(TrackRenderer& renderer, int width, int height, int overflow,
+    void requestBake(TrackRenderer& renderer, int width, int height, int overflowGuitar, int overflowDrums,
                      float farFadeEnd, float farFadeLen, float farFadeCurve, float posEnd,
                      const PositionConstants::NormalizedCoordinates* guitarLaneCoords, int guitarLaneCount,
                      const PositionConstants::NormalizedCoordinates* drumLaneCoords, int drumLaneCount,
@@ -58,21 +59,21 @@ public:
 
         auto aliveFlag = alive;  // shared_ptr copy for the lambda chain
 
-        bakeThread = std::thread([this, &renderer, width, height, overflow,
+        bakeThread = std::thread([this, &renderer, width, height, overflowGuitar, overflowDrums,
                                   farFadeEnd, farFadeLen, farFadeCurve, posEnd,
                                   gLanes, dLanes, guitarLaneCount, drumLaneCount,
                                   requestGen, aliveFlag,
                                   onComplete = std::move(onComplete)]() {
             BakedTrack stagedG, stagedD;
-            bakeInto(renderer, stagedG, stagedD, width, height, overflow,
+            bakeInto(renderer, stagedG, stagedD, width, height, overflowGuitar, overflowDrums,
                      farFadeEnd, farFadeLen, farFadeCurve, posEnd,
                      gLanes.data(), guitarLaneCount, dLanes.data(), drumLaneCount);
 
-            int stagedW = width, stagedH = height, stagedO = overflow;
+            int stagedW = width, stagedH = height, stagedOG = overflowGuitar, stagedOD = overflowDrums;
 
             juce::MessageManager::callAsync([this, requestGen, onComplete, aliveFlag,
                                              sg = std::move(stagedG), sd = std::move(stagedD),
-                                             stagedW, stagedH, stagedO]() mutable {
+                                             stagedW, stagedH, stagedOG, stagedOD]() mutable {
                 // Owner destroyed — discard silently
                 if (!aliveFlag->load(std::memory_order_relaxed))
                     return;
@@ -92,7 +93,8 @@ public:
                 drums = std::move(sd);
                 bakedWidth = stagedW;
                 bakedHeight = stagedH;
-                bakedOverflow = stagedO;
+                bakedOverflowGuitar = stagedOG;
+                bakedOverflowDrums = stagedOD;
                 dirty = false;
 
                 if (onComplete)
@@ -112,7 +114,7 @@ public:
 
     int getBakedWidth() const { return bakedWidth; }
     int getBakedHeight() const { return bakedHeight; }
-    int getBakedOverflow() const { return bakedOverflow; }
+    int getBakedOverflow(bool isDrums) const { return isDrums ? bakedOverflowDrums : bakedOverflowGuitar; }
 
     void shutdown()
     {
@@ -124,7 +126,7 @@ public:
 private:
     /** Bake both guitar and drums into the provided output structs. */
     static void bakeInto(TrackRenderer& renderer, BakedTrack& outGuitar, BakedTrack& outDrums,
-                         int width, int height, int overflow,
+                         int width, int height, int overflowGuitar, int overflowDrums,
                          float farFadeEnd, float farFadeLen, float farFadeCurve, float posEnd,
                          const PositionConstants::NormalizedCoordinates* guitarLaneCoords, int guitarLaneCount,
                          const PositionConstants::NormalizedCoordinates* drumLaneCoords, int drumLaneCount)
@@ -133,13 +135,15 @@ private:
             renderer.activePart = isDrums ? Part::DRUMS : Part::GUITAR;
             auto* coords = isDrums ? drumLaneCoords : guitarLaneCoords;
             int count = isDrums ? drumLaneCount : guitarLaneCount;
+            int ov = isDrums ? overflowDrums : overflowGuitar;
             renderer.setLaneCoords(coords, count);
             renderer.invalidate();
-            renderer.rebuild(width, height, overflow, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+            renderer.rebuild(width, height, ov, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
 
             out.fadedTrack = renderer.getFadedTrackImage().createCopy();
             for (int i = 0; i < TrackRenderer::NUM_LAYERS; i++)
                 out.layers[i] = renderer.getLayerImage((TrackRenderer::Layer)i).createCopy();
+            out.overflow = ov;
             out.valid = true;
         };
 
@@ -153,5 +157,5 @@ private:
     std::atomic<bool> baking{false};
     std::shared_ptr<std::atomic<bool>> alive;
     std::thread bakeThread;
-    int bakedWidth = 0, bakedHeight = 0, bakedOverflow = 0;
+    int bakedWidth = 0, bakedHeight = 0, bakedOverflowGuitar = 0, bakedOverflowDrums = 0;
 };

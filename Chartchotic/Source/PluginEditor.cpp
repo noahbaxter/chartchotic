@@ -886,11 +886,12 @@ void ChartchoticAudioProcessorEditor::requestAsyncRebake()
     auto farEdgeDrums = PositionMath::getFretboardEdge(
         true, sr.farFadeEnd, w, h,
         PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
-    int overflow = std::max(0, (int)std::ceil(std::max(-farEdgeGuitar.centerY, -farEdgeDrums.centerY)));
+    int overflowGuitar = std::max(0, (int)std::ceil(-farEdgeGuitar.centerY));
+    int overflowDrums  = std::max(0, (int)std::ceil(-farEdgeDrums.centerY));
 
     auto& hw = *slots[0].highway;
 
-    trackImageCache.requestBake(*cacheRenderer, w, h, overflow,
+    trackImageCache.requestBake(*cacheRenderer, w, h, overflowGuitar, overflowDrums,
         sr.farFadeEnd, sr.farFadeLen, sr.farFadeCurve, sr.highwayPosEnd,
         sr.guitarLaneCoordsLocal, (int)PositionConstants::GUITAR_LANE_COUNT,
         sr.drumLaneCoordsLocal, (int)PositionConstants::DRUM_LANE_COUNT,
