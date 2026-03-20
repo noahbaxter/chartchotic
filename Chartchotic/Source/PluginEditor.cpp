@@ -593,7 +593,8 @@ void ChartchoticAudioProcessorEditor::resized()
 
     // Virtual scene dimensions
     sceneWidth = getWidth();
-    int tbHeight = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
+    int tbHeight = std::min(juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio),
+                            ToolbarComponent::maxToolbarHeight);
     if (PositionMath::bemaniMode)
     {
         // Bemani: enforce minimum aspect ratio, but grow taller to fill available space
@@ -1072,7 +1073,8 @@ void ChartchoticAudioProcessorEditor::drawFpsOverlay(juce::Graphics& g)
     double fps = avgDelta > 0.0 ? 1000000.0 / avgDelta : 0.0;
 
     float s = (float)getHeight() / (float)defaultHeight;
-    int tbHeight = juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio);
+    int tbHeight = std::min(juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio),
+                            ToolbarComponent::maxToolbarHeight);
     int pad = juce::roundToInt(8.0f * s);
     int textH = juce::roundToInt(16.0f * s);
     auto area = juce::Rectangle<int>(pad, tbHeight + pad, juce::roundToInt(80.0f * s), textH);

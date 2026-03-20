@@ -13,6 +13,11 @@ void DebugTuningPanel::initTunableSliders(ScrollableLabel* labels, const DebugTu
     {
         const auto& t = tunables[i];
         setupScrollLabel(labels[i]);
+        if (t.featured)
+        {
+            labels[i].setFont(juce::Font(13.0f).boldened());
+            labels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+        }
         labels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
         labels[i].onScroll = [this, i, &t = tunables[i], onChange, labels](int delta) {
             *t.value = juce::jlimit(t.min, t.max, *t.value + delta * t.step);
@@ -65,14 +70,15 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             &PositionMath::debugPerspParamsGuitar.playerDistance,
             &PositionMath::debugPerspParamsGuitar.perspectiveStrength
         };
-        static constexpr const char* names[PERSP_COUNT] = {"VP Depth", "VP Y", "Near Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
+        static constexpr const char* names[PERSP_COUNT] = {"VP Depth", "Horizon Y", "Fretboard Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
         static constexpr float lo[PERSP_COUNT]   = {0.5f, -0.500f, 0.30f, 0.05f, 10.0f, 10.0f, 0.0f};
         static constexpr float hi[PERSP_COUNT]   = {20.0f, 0.500f, 2.00f, 2.0f, 500.0f, 500.0f, 2.0f};
         static constexpr float steps[PERSP_COUNT] = {0.1f, 0.001f, 0.005f, 0.01f, 5.0f, 5.0f, 0.01f};
         static constexpr int   dec[PERSP_COUNT]   = {1, 3, 3, 2, 0, 0, 2};
+        static constexpr bool feat[PERSP_COUNT]  = {false, true, true, true, false, false, false};
 
         for (int i = 0; i < PERSP_COUNT; i++)
-            perspTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i]};
+            perspTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i], feat[i]};
 
         initTunableSliders(perspLabels, perspTunables, PERSP_COUNT,
                            [this]() { if (onPerspectiveChanged) onPerspectiveChanged(); });
@@ -202,6 +208,11 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     {
         const auto& t = bemaniTunables[i];
         setupScrollLabel(bemaniLabels[i]);
+        if (t.featured)
+        {
+            bemaniLabels[i].setFont(juce::Font(13.0f).boldened());
+            bemaniLabels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+        }
         float& val = bemaniConfig.*t.field;
         bemaniLabels[i].setText(juce::String(t.name) + ": " + juce::String(val, t.decimals), juce::dontSendNotification);
         bemaniLabels[i].onScroll = [this, i, &t = bemaniTunables[i]](int delta) {

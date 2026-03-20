@@ -88,6 +88,7 @@ struct BemaniTunable
     float BemaniConfig::* field;
     float min, max, step;
     int decimals;
+    bool featured = false;
 };
 
 inline constexpr BemaniTunable bemaniTunables[] = {

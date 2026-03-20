@@ -20,6 +20,7 @@ struct DebugTunable
     float* value;          // direct pointer to the backing float
     float min, max, step;
     int decimals;
+    bool featured = false; // highlighted in the tuning panel for quick access
 };
 
 class DebugTuningPanel

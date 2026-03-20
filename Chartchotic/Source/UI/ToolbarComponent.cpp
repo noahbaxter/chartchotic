@@ -385,6 +385,9 @@ void ToolbarComponent::initSettingsPanel()
     bemaniModeToggle.onClick = [this]() {
         bool on = bemaniModeToggle.getToggleState();
         state.setProperty("bemaniMode", on, nullptr);
+        // Hide stretch in Bemani mode and relayout
+        stretchToggle.setVisible(!on);
+        resized();
         // Speed stays the same — internal ratio handles the visual equivalence
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
         if (onBemaniModeChanged) onBemaniModeChanged(on);
@@ -603,11 +606,13 @@ void ToolbarComponent::loadState()
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
-    // Stretch to fill
-    stretchToggle.setToggleState(state.hasProperty("stretchToFill") && (bool)state["stretchToFill"]);
+    // Bemani mode (restore before stretch so we can hide it if needed)
+    bool bemaniOn = state.hasProperty("bemaniMode") && (bool)state["bemaniMode"];
+    bemaniModeToggle.setToggleState(bemaniOn);
 
-    // Bemani mode
-    bemaniModeToggle.setToggleState(state.hasProperty("bemaniMode") && (bool)state["bemaniMode"]);
+    // Stretch to fill (hidden in Bemani mode)
+    stretchToggle.setVisible(!bemaniOn);
+    stretchToggle.setToggleState(state.hasProperty("stretchToFill") && (bool)state["stretchToFill"]);
 
     // REAPER view mode (1=GLOBAL→index 0, 2=LOCAL→index 1)
     if (state.hasProperty("reaperViewMode"))
@@ -895,9 +900,18 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     }
 
     {
-        int halfW = (w - gap) / 2;
-        stretchToggle.setBounds(margin, y, halfW, stepperH);
-        bemaniModeToggle.setBounds(margin + halfW + gap, y, halfW, stepperH);
+        bool bemaniOn = bemaniModeToggle.getToggleState();
+        stretchToggle.setVisible(!bemaniOn);
+        if (!bemaniOn)
+        {
+            int halfW = (w - gap) / 2;
+            bemaniModeToggle.setBounds(margin, y, halfW, stepperH);
+            stretchToggle.setBounds(margin + halfW + gap, y, halfW, stepperH);
+        }
+        else
+        {
+            bemaniModeToggle.setBounds(margin, y, w, stepperH);
+        }
         y += stepperH + sectionGap;
     }
 
