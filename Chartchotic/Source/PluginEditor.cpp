@@ -246,6 +246,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
                 FrameDataBuilder::buildReaper(frameData, ctx, *slot.interpreter);
             else
                 FrameDataBuilder::buildStandard(frameData, ctx, *slot.interpreter);
+
             if (i == 0)
                 primaryFrameData = frameData;
             slot.highway->setFrameData(frameData);
@@ -595,8 +596,8 @@ void ChartchoticAudioProcessorEditor::resized()
     int tbHeight = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
     if (PositionMath::bemaniMode)
     {
-        // Bemani: minimum 1:2 aspect, but grow taller to fill available space
-        int minH = sceneWidth * 2;
+        // Bemani: enforce minimum aspect ratio, but grow taller to fill available space
+        int minH = juce::roundToInt(sceneWidth / bemaniMinAspect);
         int available = getHeight() - tbHeight;
         sceneHeight = std::max(minH, available);
     }
@@ -628,13 +629,19 @@ void ChartchoticAudioProcessorEditor::resized()
         else
         {
             // Determine grid layout based on aspect ratio and slot count
+            //   Bemani: always a single horizontal row
             //   wide  (aspect > 1.5): single row
             //   tall  (aspect < 0.7): single column
             //   square-ish:           grid (2x2 for 3-4 slots, row for 2)
             float aspect = (float)contentW / (float)std::max(1, contentH);
             int cols, rows;
 
-            if (numSlots <= 2)
+            if (PositionMath::bemaniMode)
+            {
+                cols = numSlots;
+                rows = 1;
+            }
+            else if (numSlots <= 2)
             {
                 if (aspect > 1.0f) { cols = numSlots; rows = 1; }
                 else               { cols = 1; rows = numSlots; }
@@ -648,34 +655,30 @@ void ChartchoticAudioProcessorEditor::resized()
             }
 
             int pad = highwayGridPadding;
+
+            // Uniform padding: pad between every slot and at window edges.
+            // Total horizontal padding = (cols + 1) gaps × pad pixels.
+            int totalPadX = (cols + 1) * pad;
+            int totalPadY = (rows + 1) * pad;
+            int slotBaseW = (contentW - totalPadX) / cols;
+            int slotBaseH = (contentH - totalPadY) / rows;
+
             for (int i = 0; i < numSlots; ++i)
             {
                 auto& hw = *slots[i].highway;
                 int col = i % cols;
                 int row = i / cols;
 
-                // Full cell size
-                int cellW = contentW / cols;
-                int cellH = contentH / rows;
-                int cellX = col * cellW;
-                int cellY = tbHeight + row * cellH;
-
-                // Apply padding (half on each side, so adjacent slots share the gap)
-                int padL = (col > 0)        ? pad / 2 : 0;
-                int padR = (col < cols - 1) ? pad / 2 : 0;
-                int padT = (row > 0)        ? pad / 2 : 0;
-                int padB = (row < rows - 1) ? pad / 2 : 0;
-
-                int slotX = cellX + padL;
-                int slotY = cellY + padT;
-                int slotW = cellW - padL - padR;
-                int slotH = cellH - padT - padB;
+                int slotX = pad + col * (slotBaseW + pad);
+                int slotY = tbHeight + pad + row * (slotBaseH + pad);
+                int slotW = slotBaseW;
+                int slotH = slotBaseH;
 
                 // Each slot gets its own scene dimensions based on its bounds
                 if (PositionMath::bemaniMode)
                 {
                     hw.renderWidth = slotW;
-                    int minH = slotW * 2;
+                    int minH = juce::roundToInt(slotW / bemaniMinAspect);
                     hw.renderHeight = std::max(minH, slotH);
                 }
                 else

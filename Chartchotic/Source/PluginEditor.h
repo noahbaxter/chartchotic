@@ -153,7 +153,8 @@ private:
     static constexpr int minWidth = 400;
     static constexpr int minHeight = 200;
     static constexpr double sceneAspectRatio = 4.0 / 3.0;
-    static constexpr int highwayGridPadding = 4; // px between highways in multi-slot grid
+    static constexpr int highwayGridPadding = 4;        // px between highways and window edges in multi-slot grid
+    static constexpr double bemaniMinAspect = 1.0 / 2.0; // minimum width:height ratio for Bemani highways
 
     // Virtual scene dimensions (maintain internal 4:3 ratio)
     int sceneWidth = defaultWidth;

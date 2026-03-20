@@ -47,9 +47,13 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
         float adjX = fbCenter - adjW * 0.5f;
 
         // Position 0 = strikeline, positive = toward top of viewport
+        // Scale by height/REFERENCE_HEIGHT so taller viewports show more highway
+        // instead of stretching the same range over more pixels
         float strikeY = bemaniConfig.strikelinePos;
         float noteYOff = bemaniConfig.noteYOffset;
-        float scaledPos = position / std::max(0.1f, bemaniHwyScale);
+        float heightScale = (float)height / REFERENCE_HEIGHT;
+        float effectiveScale = std::max(0.1f, bemaniHwyScale) * heightScale;
+        float scaledPos = position / effectiveScale;
         float yPos = (float)height * (strikeY - scaledPos * strikeY + noteYOff);
 
         float finalWidth = adjW * width;
