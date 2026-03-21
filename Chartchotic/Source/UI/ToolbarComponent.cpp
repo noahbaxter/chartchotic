@@ -716,60 +716,55 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
     int w = panel->getWidth() - margin * 2;
     int col2 = w / 2;
     int pillW = col2 - juce::roundToInt(2.0f * s);
-    bool isDrums = isDrumLike(getPartFromState(state));
-    bool showAll = multiInstrumentMode;
+    // Show toggles based on what's currently visible
+    bool hasDrums = false, hasGuitar = false;
+    if (enabledParts.empty())
+    {
+        // Non-REAPER fallback: use selected part
+        Part current = getPartFromState(state);
+        hasDrums = isDrumLike(current);
+        hasGuitar = isGuitarLike(current);
+    }
+    else
+    {
+        for (auto p : enabledParts)
+        {
+            if (isDrumLike(p)) hasDrums = true;
+            if (isGuitarLike(p)) hasGuitar = true;
+        }
+    }
 
     // --- Modifiers ---
     modifiersHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
-    starPowerToggle.setBounds(margin, y, pillW, pillH);
-
-    if (isDrums || showAll)
+    // Flow modifier pills left-to-right in 2-column rows
+    int col = 0;
+    for (auto& mod : modToggles)
     {
-        cymbalsToggle.setBounds(margin + col2, y, pillW, pillH);
-        cymbalsToggle.setVisible(true);
-        y += pillH + gap;
+        bool visible = (mod.scope == ModScope::ALL)
+                     || (mod.scope == ModScope::GUITAR && hasGuitar)
+                     || (mod.scope == ModScope::DRUMS && hasDrums);
+        mod.pill->setVisible(visible);
+        if (!visible) continue;
 
-        dynamicsToggle.setBounds(margin, y, pillW, pillH);
-        dynamicsToggle.setVisible(true);
-        kick2xToggle.setBounds(margin + col2, y, pillW, pillH);
-        kick2xToggle.setVisible(true);
-        y += pillH + gap;
+        mod.pill->setBounds(margin + col * col2, y, pillW, pillH);
+        col++;
+        if (col >= 2) { col = 0; y += pillH + gap; }
+    }
+    if (col > 0) y += pillH + gap;
 
-        discoFlipToggle.setBounds(margin, y, pillW, pillH);
-        discoFlipToggle.setVisible(true);
+    if (hasDrums)
         discoFlipToggle.setDisabled(!cymbalsToggle.getToggleState());
-        y += pillH + gap;
+
+    if (hasGuitar && autoHopoToggle.getToggleState())
+    {
+        hopoThresholdStepper.setBounds(margin, y, w, stepperH);
+        hopoThresholdStepper.setVisible(true);
+        y += stepperH + gap;
     }
     else
     {
-        cymbalsToggle.setVisible(false);
-        dynamicsToggle.setVisible(false);
-        kick2xToggle.setVisible(false);
-        discoFlipToggle.setVisible(false);
-    }
-
-    if (!isDrums || showAll)
-    {
-        autoHopoToggle.setBounds(margin + col2, y, pillW, pillH);
-        autoHopoToggle.setVisible(true);
-        y += pillH + gap;
-
-        if (autoHopoToggle.getToggleState())
-        {
-            hopoThresholdStepper.setBounds(margin, y, w, stepperH);
-            hopoThresholdStepper.setVisible(true);
-            y += stepperH + gap;
-        }
-        else
-        {
-            hopoThresholdStepper.setVisible(false);
-        }
-    }
-    else
-    {
-        autoHopoToggle.setVisible(false);
         hopoThresholdStepper.setVisible(false);
     }
 
@@ -946,12 +941,16 @@ void ToolbarComponent::setDiscoveredParts(const std::vector<Part>& parts)
 
 void ToolbarComponent::setEnabledParts(const std::set<Part>& enabled)
 {
+    enabledParts = enabled;
+
     // Update multi-select indices on instrumentSelector
     std::set<int> indices;
     for (int i = 0; i < (int)discoveredParts.size(); ++i)
         if (enabled.count(discoveredParts[i]) > 0)
             indices.insert(i);
     instrumentSelector.setMultiSelectedIndices(indices);
+    if (chartButton.isPanelVisible())
+        chartButton.relayoutPanel();
     resized(); // stacking width may change
 }
 

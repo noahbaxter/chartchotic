@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <set>
 #include <JuceHeader.h>
 #include "ChartchoticLogo.h"
@@ -141,6 +142,7 @@ private:
 
     // Multi-select instrument state (Global mode with 2+ parts)
     std::vector<Part> discoveredParts;
+    std::set<Part> enabledParts;
     bool showMultiInstrument = false;
     bool showMultiDifficulty = false;
 
@@ -149,17 +151,26 @@ private:
 
     PanelSectionHeader modifiersHeader{"Modifiers"};
     PillToggle starPowerToggle{"Star Power"};
-
-    // Guitar modifiers
     PillToggle autoHopoToggle{"Auto HOPO"};
-    ValueStepper hopoThresholdStepper{"Threshold"};
-    int hopoThresholdIndex = HOPO_THRESHOLD_DEFAULT;
-
-    // Drum modifiers
     PillToggle dynamicsToggle{"Dynamics"};
     PillToggle kick2xToggle{"Kick 2x"};
     PillToggle cymbalsToggle{"Cymbals"};
     PillToggle discoFlipToggle{"Disco Flip"};
+    ValueStepper hopoThresholdStepper{"Threshold"};
+    int hopoThresholdIndex = HOPO_THRESHOLD_DEFAULT;
+
+    // Modifier visibility: which instrument type each toggle requires
+    enum class ModScope { ALL, GUITAR, DRUMS };
+    struct ModToggle { PillToggle* pill; ModScope scope; };
+    // Order here = display order in the chart panel (flows left-to-right, 2 per row)
+    std::array<ModToggle, 6> modToggles {{
+        { &starPowerToggle,  ModScope::ALL },
+        { &cymbalsToggle,    ModScope::DRUMS },
+        { &dynamicsToggle,   ModScope::DRUMS },
+        { &kick2xToggle,     ModScope::DRUMS },
+        { &discoFlipToggle,  ModScope::DRUMS },
+        { &autoHopoToggle,   ModScope::GUITAR },
+    }};
 
     // View panel — Chart elements
     PanelSectionHeader chartHeader{"Chart"};
