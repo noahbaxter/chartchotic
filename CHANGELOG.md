@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.0
+Easily the biggest release since 1.0. Multi-highway support turns Chartchotic into a full band view (or full difficulty if you prefer).
+
+### Multi-Highway
+- Just place one instance of **Chartchotic** in your reaper project and it now automatically discovers all instruments and can display up to 4 at once! *(or individually as you wish)*
+- **REAPER tracks must use standard names to be detected:** `PART GUITAR`, `PART BASS`, `PART DRUMS`, `PART KEYS`, `PART RHYTHM`, `PART GUITAR COOP`
+- Click any instrument or difficulty icon to select it, shift click to toggle multiple at once, or "All" to show everything
+- Live track detection. Add, remove, or rename REAPER tracks and the plugin highways update in real time
+
+### Bemani Mode
+- As an alternative to perspective Harmonix-style scrolling, Bemani mode introduces flat vertical scrolling inspired by IIDX/SDVX/DDR. Toggle ビーマニ to switch view modes.
+- Highway length scales with slot height. Taller slots show more notes and match the relative speed in perspective mode.
+
+### Performance
+- Major architecture rework under the hood. Multi-highway rendering shares work across all visible highways instead of duplicating it, so 4 highways doesn't mean 4x the cost
+- Resizing the window and changing perspective settings no longer freeze the UI
+- Switching instruments or difficulties is now instant with no stutter or dropped frames
+
+### Bug Fixes
+- Fix drum highway misalignment with lanes and bar notes
+- Fix highway texture jumps at tempo changes
+- Fix toolbar state persistence when moving the plugin between tracks
+
+### Quality of Life
+- Viewport-based window resizing (no more auto-resize surprises)
+- 0ms latency buffer option for the lowest-latency setups
+
+### IMPORTANT
+- 1.2.0 is optimized for REAPER. All other DAWs are not actively supported at this time, but stay tuned for revamped alternate DAW support in future updates.
+
 ## 1.1.0
 
 ### Window Resizing

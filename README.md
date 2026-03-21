@@ -2,34 +2,30 @@
   <img src="./logo.png" alt="Chartchotic" width="700">
 </p>
 
-Chartchotic is a VST3/AU plugin that visualizes MIDI notes as they'd appear in rhythm games like Clone Hero and YARG. Works in any DAW - just throw it on a MIDI track and start charting on **Windows**, **macOS**, and **Linux**.
-
-For the best experience, use REAPER - direct timeline integration gives you zero-latency scrubbing and advanced MIDI features. Other DAWs work great too via MIDI lookahead.
+Chartchotic is a VST3/AU plugin that visualizes MIDI as rhythm game highways -- Clone Hero, YARG, and Rock Band style. Preview your charts in real time as you write them.
 
 ![Preview Image](preview.png)
 
 ---
 
-## What Can You Do?
+## Features
 
-### 🎸 **Guitar**
-- See basic, chord, sustain, HOPO, open and tap notes
-- Visual lanes for tremolos and trills
-- Configurable auto-HOPO detection
+**Multi-Highway** - View up to 4 instruments or difficulties at once. Guitar, Bass, Keys, Drums, Rhythm, and Co-op Guitar are all supported.
 
-### 🥁 **Drums**
-- See snare, tom, cymbal and kick notes
-- Toggleable 2x kick (double kick pedal) support
-- Dynamics in the form of ghosts and accents
-- Lanes for rolls and swells
+**Guitar** - Notes, chords, sustains, HOPOs, opens, taps. Trill and tremolo lane markers. Configurable auto-HOPO threshold.
 
-### ✨ **General Features**
-- Smooth rendering synced to your display refresh rate
-- Hit animations with visual feedback
-- Adjustable playback speed
-- Resizable, responsive interface
-- Hide/show star power, dynamics, specific instruments
-- **REAPER:** Zero-latency scrubbing with direct timeline access
+**Drums** - Standard and Pro Drums with cymbals, 2x kick, ghost/accent dynamics, and disco flip. Roll and swell lane markers.
+
+**REAPER Integration** - Auto-discovers instrument tracks by name. Zero-latency timeline scrubbing. Live updates when tracks are added, removed, or renamed.
+
+---
+
+## DAW Compatibility
+
+| DAW | Status | Notes |
+|-----|--------|-------|
+| **REAPER** | Fully supported | Zero-latency timeline scrubbing, auto track discovery, multi-highway |
+| **Other DAWs** | Not currently supported | Broader DAW support planned for a future release |
 
 ---
 
@@ -55,24 +51,24 @@ After installing, restart your DAW to autoscan for the plugin.
 
 ## Quick Start
 
-1. Add Chartchotic to any MIDI track
-2. Select your instrument (Guitar or Drums)
-3. Choose difficulty level (Easy/Medium/Hard/Expert)
-4. Adjust playback speed to your liking
-5. Play and chart!
-
-**Pro tip:** Use REAPER for the best experience - direct timeline access with zero latency.
+1. Add Chartchotic to any MIDI track in REAPER
+2. Name your tracks using standard chart names: `PART GUITAR`, `PART BASS`, `PART DRUMS`, `PART KEYS`
+3. The plugin auto-discovers instruments and displays them
+4. Click instrument/difficulty icons in the toolbar to control what's visible
+5. Adjust note speed and highway length to your liking
 
 ---
 
-## Why Chartchotic?
+## Supported Track Names
 
-- **Open source** - Built from the ground up, MIT licensed
-- **Cross-platform** - Works on Windows, macOS, and Linux
-- **Accurate** - Properly renders all chart types and note modifiers
-- **Fast** - Smooth high FPS rendering, optimized for real-time preview
-- **Modern** - Built for current DAWs with 64bit VST3/AU support
-- **REAPER integration** - Scrub and preview with zero latency
+| Track Name | Instrument |
+|------------|-----------|
+| `PART GUITAR` | Lead Guitar |
+| `PART GUITAR COOP` | Co-op Guitar |
+| `PART RHYTHM` | Rhythm Guitar |
+| `PART BASS` | Bass |
+| `PART KEYS` | Keys |
+| `PART DRUMS` | Drums |
 
 ---
 

@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     branches: [main]
-    paths: [VERSION]
+    paths: [VERSION, CHANGELOG.md]
 
 permissions:
   contents: write
@@ -75,18 +75,34 @@ jobs:
         fi
         cat release_notes.md
 
-    - name: Create GitHub release
+    - name: Create or update GitHub release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         VERSION="${{ needs.version.outputs.version_string }}"
-        gh release create "v${VERSION}" \
-          --repo ${{ github.repository }} \
-          --title "Chartchotic v${VERSION}" \
-          --notes-file release_notes.md \
-          release/Chartchotic-Windows.zip \
-          release/Chartchotic-macOS.zip \
-          release/Chartchotic-Linux.zip
+        TAG="v${VERSION}"
+        if gh release view "$TAG" --repo ${{ github.repository }} &>/dev/null; then
+          echo "Release $TAG exists — updating"
+          gh release edit "$TAG" \
+            --repo ${{ github.repository }} \
+            --title "Chartchotic $TAG" \
+            --notes-file release_notes.md
+          gh release upload "$TAG" \
+            --repo ${{ github.repository }} \
+            --clobber \
+            release/Chartchotic-Windows.zip \
+            release/Chartchotic-macOS.zip \
+            release/Chartchotic-Linux.zip
+        else
+          echo "Creating release $TAG"
+          gh release create "$TAG" \
+            --repo ${{ github.repository }} \
+            --title "Chartchotic $TAG" \
+            --notes-file release_notes.md \
+            release/Chartchotic-Windows.zip \
+            release/Chartchotic-macOS.zip \
+            release/Chartchotic-Linux.zip
+        fi
 
     - name: Upload to R2 CDN
       env:
