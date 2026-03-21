@@ -9,7 +9,7 @@ class UpdateBannerComponent : public juce::Component,
 public:
     UpdateBannerComponent()
     {
-        badge.onClick = [this]() { showPrompt(); };
+        setInterceptsMouseClicks(false, false);
         badge.pulsePhasePtr = &pulsePhase;
         badge.setVisible(false);
         addAndMakeVisible(badge);
@@ -81,10 +81,10 @@ private:
     struct BadgeComponent : public juce::Component,
                            public juce::SettableTooltipClient
     {
-        std::function<void()> onClick;
         float* pulsePhasePtr = nullptr;
         bool hovered = false;
 
+        BadgeComponent() { setInterceptsMouseClicks(false, false); }
         void setHovered(bool h) { if (hovered != h) { hovered = h; repaint(); } }
 
         void paint(juce::Graphics& g) override
@@ -123,21 +123,6 @@ private:
             g.fillEllipse(cx - dotR, dotY - dotR, dotR * 2.0f, dotR * 2.0f);
         }
 
-        void mouseDown(const juce::MouseEvent&) override
-        {
-            if (onClick) onClick();
-        }
-
-        void mouseEnter(const juce::MouseEvent&) override
-        {
-            setMouseCursor(juce::MouseCursor::PointingHandCursor);
-            setHovered(true);
-        }
-
-        void mouseExit(const juce::MouseEvent&) override
-        {
-            setHovered(false);
-        }
     };
 
     //==========================================================================

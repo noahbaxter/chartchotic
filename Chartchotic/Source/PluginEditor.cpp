@@ -509,27 +509,15 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
 void ChartchoticAudioProcessorEditor::initBottomBar()
 {
-    // Version label (clickable when update available)
-    versionLabel.setText(juce::String("v") + CHARTCHOTIC_VERSION, juce::dontSendNotification);
-    versionLabel.setJustificationType(juce::Justification::centredLeft);
-    versionLabel.normalColour = juce::Colours::white.withAlpha(0.6f);
-    versionLabel.hoverColour = juce::Colour(Theme::coral);
-    versionLabel.setColour(juce::Label::textColourId, versionLabel.normalColour);
-    versionLabel.isClickable = [this]() { return updateBanner.hasUpdate(); };
-    versionLabel.onClick = [this]() { updateBanner.showPrompt(); };
-    versionLabel.onHover = [this](bool h) { updateBanner.setBadgeHovered(h); };
-    addAndMakeVisible(versionLabel);
-
-    // Update checker
-    addAndMakeVisible(updateBanner);
+    footer.init(juce::String("v") + CHARTCHOTIC_VERSION);
+    addAndMakeVisible(footer);
 
     updateChecker.onUpdateCheckComplete = [this](const UpdateChecker::UpdateInfo& info)
     {
         if (info.available)
         {
             updateBanner.setUpdateInfo(info.version, info.downloadUrl);
-            versionLabel.normalColour = juce::Colours::white.withAlpha(0.8f);
-            versionLabel.setColour(juce::Label::textColourId, versionLabel.normalColour);
+            footer.setUpdateAvailable();
             resized();
         }
     };
@@ -544,18 +532,11 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
     if (assets.isBackgroundVisible())
         g.drawImage(assets.getCurrentBackground(), getLocalBounds().toFloat());
 
+    // DAW icon in footer
     if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
-    {
-        if (auto* logo = assets.getReaperLogo())
-        {
-            float s = (float)getHeight() / (float)defaultHeight;
-            int logoSize = juce::roundToInt(24.0f * s);
-            int logoMargin = juce::roundToInt(10.0f * s);
-            juce::Rectangle<float> logoBounds((float)logoMargin, (float)(getHeight() - logoSize - logoMargin),
-                                              (float)logoSize, (float)logoSize);
-            logo->drawWithin(g, logoBounds, juce::RectanglePlacement::centred, 0.8f);
-        }
-    }
+        footer.setDawIcon(assets.getReaperLogo());
+    else
+        footer.setDawIcon(nullptr);
 }
 
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
@@ -648,11 +629,15 @@ void ChartchoticAudioProcessorEditor::resized()
     // Toolbar at top — scales with editor width
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Layout highway slots below toolbar
+    // Footer bar height
+    int footerH = std::min(juce::roundToInt(getWidth() * FooterComponent::footerRatio),
+                           FooterComponent::maxFooterHeight);
+
+    // Layout highway slots below toolbar, above footer
     if (activeSlotCount > 0)
     {
         int contentW = getWidth();
-        int contentH = getHeight() - tbHeight;
+        int contentH = getHeight() - tbHeight - footerH;
         int numSlots = activeSlotCount;
 
         if (numSlots == 1)
@@ -730,31 +715,8 @@ void ChartchoticAudioProcessorEditor::resized()
         }
     }
 
-    // Version label + update badge (bottom-left) — same scale as toolbar
-    float s = (float)tbHeight / (float)ToolbarComponent::referenceHeight;
-
-    int barH = juce::roundToInt(20.0f * s);
-    int barMargin = juce::roundToInt(10.0f * s);
-    int barY = getHeight() - barH - barMargin;
-
-    // Font: use toolbar's font sizing approach
-    versionLabel.setFont(Theme::getUIFont(Theme::fontSize));
-
-    // Start after REAPER logo area
-    int logoArea = juce::roundToInt(40.0f * s);
-    int gap = juce::roundToInt(5.0f * s);
-    int x = logoArea;
-
-    // Badge to the LEFT of the version label
-    if (updateBanner.hasUpdate())
-    {
-        int badgeSize = barH;
-        updateBanner.setBounds(x, barY, badgeSize, badgeSize);
-        x += badgeSize + gap;
-    }
-
-    int versionWidth = (int)versionLabel.getFont().getStringWidthFloat(versionLabel.getText()) + juce::roundToInt(12.0f * s);
-    versionLabel.setBounds(x, barY, versionWidth, barH);
+    footer.label.setFont(Theme::getUIFont(Theme::fontSize));
+    footer.setBounds(0, getHeight() - footerH, getWidth(), footerH);
 
     // Rebake shared track cache when scene dimensions change or cache was externally invalidated
     if (trackImageCache.isDirty() ||

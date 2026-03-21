@@ -24,6 +24,7 @@
 #include "UI/LookAndFeel/ChartchoticLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
 #include "UI/UpdateBannerComponent.h"
+#include "UI/FooterComponent.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
@@ -166,39 +167,9 @@ private:
     // Session/slot management (multi-highway, instrument/difficulty selection)
     SessionController session;
 
-    struct ClickableLabel : public juce::Label
-    {
-        std::function<bool()> isClickable;
-        std::function<void()> onClick;
-        std::function<void(bool)> onHover;
-        juce::Colour normalColour, hoverColour;
-
-        void mouseDown(const juce::MouseEvent&) override
-        {
-            if (isClickable && isClickable() && onClick) onClick();
-        }
-        void mouseEnter(const juce::MouseEvent&) override
-        {
-            if (isClickable && isClickable())
-            {
-                setMouseCursor(juce::MouseCursor::PointingHandCursor);
-                setColour(juce::Label::textColourId, hoverColour);
-                repaint();
-                if (onHover) onHover(true);
-            }
-        }
-        void mouseExit(const juce::MouseEvent&) override
-        {
-            setMouseCursor(juce::MouseCursor::NormalCursor);
-            setColour(juce::Label::textColourId, normalColour);
-            repaint();
-            if (onHover) onHover(false);
-        }
-    };
-    ClickableLabel versionLabel;
-
-    UpdateChecker updateChecker;
     UpdateBannerComponent updateBanner;
+    FooterComponent footer { updateBanner };
+    UpdateChecker updateChecker;
 
     //==============================================================================
 
