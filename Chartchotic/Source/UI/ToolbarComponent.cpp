@@ -1,7 +1,7 @@
 #include "ToolbarComponent.h"
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
-static const juce::StringArray latencyLabels = { "250ms", "500ms", "750ms", "1000ms", "1500ms" };
+static const juce::StringArray latencyLabels = { "0ms", "250ms", "500ms", "750ms", "1000ms", "1500ms" };
 static const juce::StringArray hopoThresholdLabels = { "1/16", "Dot 1/16", "170 Tick", "1/8" };
 
 ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
@@ -54,7 +54,7 @@ void ToolbarComponent::initTopBar()
     };
     addAndMakeVisible(instrumentSelector);
 
-    // Difficulty selector (text circles: X H M E — hardest on top)
+    // Difficulty selector (text circles: X H M E)
     difficultySelector.setItems({
         { "X", {}, juce::Colour(Theme::red),    "Expert" },
         { "H", {}, juce::Colour(Theme::orange), "Hard" },
@@ -62,7 +62,25 @@ void ToolbarComponent::initTopBar()
         { "E", {}, juce::Colour(Theme::green),  "Easy" }
     });
     difficultySelector.onSelectionChanged = [this](int index) {
-        if (onSkillChanged) onSkillChanged(4 - index); // reversed: 0=Expert(4), 3=Easy(1)
+        // Single-select mode (non-REAPER): 0=X(4), 1=H(3), 2=M(2), 3=E(1)
+        if (onSkillChanged) onSkillChanged(4 - index);
+    };
+    difficultySelector.onMultiSelectionChanged = [this](int index, bool modifierHeld) {
+        if (index == -1)
+        {
+            // "All" clicked
+            if (onAllDifficultiesClicked) onAllDifficultiesClicked();
+        }
+        else
+        {
+            // Map index to SkillLevel: 0=Expert(4), 1=Hard(3), 2=Medium(2), 3=Easy(1)
+            static const SkillLevel indexToSkill[] = { SkillLevel::EXPERT, SkillLevel::HARD,
+                                                       SkillLevel::MEDIUM, SkillLevel::EASY };
+            if (index >= 0 && index < 4)
+            {
+                if (onDifficultyClicked) onDifficultyClicked(indexToSkill[index], modifierHeld);
+            }
+        }
     };
     addAndMakeVisible(difficultySelector);
 
@@ -363,6 +381,18 @@ void ToolbarComponent::initSettingsPanel()
         if (onStretchChanged) onStretchChanged(on);
     };
 
+    bemaniModeToggle.setToggleState(false);
+    bemaniModeToggle.onClick = [this]() {
+        bool on = bemaniModeToggle.getToggleState();
+        state.setProperty("bemaniMode", on, nullptr);
+        // Hide stretch in Bemani mode and relayout
+        stretchToggle.setVisible(!on);
+        resized();
+        // Speed stays the same — internal ratio handles the visual equivalence
+        if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
+        if (onBemaniModeChanged) onBemaniModeChanged(on);
+    };
+
     // --- Sync ---
 
     latencyStepper.setDisplayValue(latencyLabels[LATENCY_DEFAULT - 1]);
@@ -400,6 +430,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&textureScaleStepper);
     settingsButton.addPanelChild(&textureOpacityStepper);
     settingsButton.addPanelChild(&stretchToggle);
+    settingsButton.addPanelChild(&bemaniModeToggle);
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&barScaleStepper);
@@ -441,13 +472,23 @@ void ToolbarComponent::resized()
     int margin = juce::roundToInt(6.0f * scale);
     int x = margin;
 
-    // Instrument circle
-    instrumentSelector.setBounds(x, y, h, h);
-    x += h + gap;
+    // Instrument circle — fixed width in multi-select (fits up to 5 stacked)
+    {
+        int instW = h;
+        if (showMultiInstrument)
+            instW = h + juce::roundToInt(h * CircleIconSelector::multiStackOffset * 4.0f); // room for 5 stacked
+        instrumentSelector.setBounds(x, y, instW, h);
+        x += instW + gap;
+    }
 
-    // Difficulty circle
-    difficultySelector.setBounds(x, y, h, h);
-    x += h + gap;
+    // Difficulty circle — fixed width in multi-select (fits up to 4 stacked)
+    {
+        int diffW = h;
+        if (showMultiDifficulty)
+            diffW = h + juce::roundToInt(h * CircleIconSelector::multiStackOffset * 3.0f);
+        difficultySelector.setBounds(x, y, diffW, h);
+        x += diffW + gap;
+    }
 
     // Logo
     int logoH = stripH;
@@ -483,10 +524,22 @@ void ToolbarComponent::resized()
     // Note Speed + Highway Length steppers — centered between logo and right-side buttons
     int stepW = juce::roundToInt(66.0f * scale);
     int stepGap = juce::roundToInt(4.0f * scale);
-    int totalW = stepW * 2 + stepGap;
-    int cx = leftEdge + (rx - leftEdge - totalW) / 2;
-    noteSpeedStepper.setBounds(cx, y, stepW, h);
-    highwayLengthStepper.setBounds(cx + stepW + stepGap, y, stepW, h);
+    bool bemani = bemaniModeToggle.getToggleState();
+    if (bemani)
+    {
+        // Bemani: hide highway length, center note speed
+        highwayLengthStepper.setVisible(false);
+        int cx = leftEdge + (rx - leftEdge - stepW) / 2;
+        noteSpeedStepper.setBounds(cx, y, stepW, h);
+    }
+    else
+    {
+        highwayLengthStepper.setVisible(true);
+        int totalW = stepW * 2 + stepGap;
+        int cx = leftEdge + (rx - leftEdge - totalW) / 2;
+        noteSpeedStepper.setBounds(cx, y, stepW, h);
+        highwayLengthStepper.setBounds(cx + stepW + stepGap, y, stepW, h);
+    }
 }
 
 //==============================================================================
@@ -495,9 +548,13 @@ void ToolbarComponent::resized()
 void ToolbarComponent::loadState()
 {
     // Difficulty (1-based skill → reversed index: 1=Easy→3, 4=Expert→0)
-    int skill = (int)state["skillLevel"];
-    if (skill >= 1 && skill <= 4)
-        difficultySelector.setSelectedIndex(4 - skill);
+    // In multi-select mode, skip — enabledDifficulties controls display
+    if (!showMultiDifficulty)
+    {
+        int skill = (int)state["skillLevel"];
+        if (skill >= 1 && skill <= 4)
+            difficultySelector.setSelectedIndex(4 - skill);
+    }
 
     // Part (1-based → 0-based)
     int part = (int)state["part"];
@@ -539,7 +596,12 @@ void ToolbarComponent::loadState()
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
-    // Stretch to fill
+    // Bemani mode (restore before stretch so we can hide it if needed)
+    bool bemaniOn = state.hasProperty("bemaniMode") && (bool)state["bemaniMode"];
+    bemaniModeToggle.setToggleState(bemaniOn);
+
+    // Stretch to fill (hidden in Bemani mode)
+    stretchToggle.setVisible(!bemaniOn);
     stretchToggle.setToggleState(state.hasProperty("stretchToFill") && (bool)state["stretchToFill"]);
 
     // Background
@@ -654,55 +716,56 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
     int w = panel->getWidth() - margin * 2;
     int col2 = w / 2;
     int pillW = col2 - juce::roundToInt(2.0f * s);
-    bool isDrums = isPart(state, Part::DRUMS);
+    // Show toggles based on what's currently visible
+    bool hasDrums = false, hasGuitar = false;
+    if (enabledParts.empty())
+    {
+        // Non-REAPER fallback: use selected part
+        Part current = getPartFromState(state);
+        hasDrums = isDrumLike(current);
+        hasGuitar = isGuitarLike(current);
+    }
+    else
+    {
+        for (auto p : enabledParts)
+        {
+            if (isDrumLike(p)) hasDrums = true;
+            if (isGuitarLike(p)) hasGuitar = true;
+        }
+    }
 
     // --- Modifiers ---
     modifiersHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;
 
-    starPowerToggle.setBounds(margin, y, pillW, pillH);
-
-    if (isDrums)
+    // Flow modifier pills left-to-right in 2-column rows
+    int col = 0;
+    for (auto& mod : modToggles)
     {
-        cymbalsToggle.setBounds(margin + col2, y, pillW, pillH);
-        cymbalsToggle.setVisible(true);
-        y += pillH + gap;
+        bool visible = (mod.scope == ModScope::ALL)
+                     || (mod.scope == ModScope::GUITAR && hasGuitar)
+                     || (mod.scope == ModScope::DRUMS && hasDrums);
+        mod.pill->setVisible(visible);
+        if (!visible) continue;
 
-        dynamicsToggle.setBounds(margin, y, pillW, pillH);
-        dynamicsToggle.setVisible(true);
-        kick2xToggle.setBounds(margin + col2, y, pillW, pillH);
-        kick2xToggle.setVisible(true);
-        y += pillH + gap;
+        mod.pill->setBounds(margin + col * col2, y, pillW, pillH);
+        col++;
+        if (col >= 2) { col = 0; y += pillH + gap; }
+    }
+    if (col > 0) y += pillH + gap;
 
-        discoFlipToggle.setBounds(margin, y, pillW, pillH);
-        discoFlipToggle.setVisible(true);
+    if (hasDrums)
         discoFlipToggle.setDisabled(!cymbalsToggle.getToggleState());
-        y += pillH + gap;
 
-        autoHopoToggle.setVisible(false);
-        hopoThresholdStepper.setVisible(false);
+    if (hasGuitar && autoHopoToggle.getToggleState())
+    {
+        hopoThresholdStepper.setBounds(margin, y, w, stepperH);
+        hopoThresholdStepper.setVisible(true);
+        y += stepperH + gap;
     }
     else
     {
-        cymbalsToggle.setVisible(false);
-        dynamicsToggle.setVisible(false);
-        kick2xToggle.setVisible(false);
-        discoFlipToggle.setVisible(false);
-
-        autoHopoToggle.setBounds(margin + col2, y, pillW, pillH);
-        autoHopoToggle.setVisible(true);
-        y += pillH + gap;
-
-        if (autoHopoToggle.getToggleState())
-        {
-            hopoThresholdStepper.setBounds(margin, y, w, stepperH);
-            hopoThresholdStepper.setVisible(true);
-            y += stepperH + gap;
-        }
-        else
-        {
-            hopoThresholdStepper.setVisible(false);
-        }
+        hopoThresholdStepper.setVisible(false);
     }
 
     y += sectionGap - gap;
@@ -796,8 +859,21 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         y += stepperH + gap;
     }
 
-    stretchToggle.setBounds(margin, y, w, stepperH);
-    y += stepperH + sectionGap;
+    {
+        bool bemaniOn = bemaniModeToggle.getToggleState();
+        stretchToggle.setVisible(!bemaniOn);
+        if (!bemaniOn)
+        {
+            int halfW = (w - gap) / 2;
+            bemaniModeToggle.setBounds(margin, y, halfW, stepperH);
+            stretchToggle.setBounds(margin + halfW + gap, y, halfW, stepperH);
+        }
+        else
+        {
+            bemaniModeToggle.setBounds(margin, y, w, stepperH);
+        }
+        y += stepperH + sectionGap;
+    }
 
     // --- Sync ---
     syncHeader.setBounds(margin, y, w, headerH);
@@ -818,6 +894,89 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
 
     y += stepperH;
     panel->setSize(panel->getWidth(), y + margin);
+}
+
+void ToolbarComponent::setDiscoveredParts(const std::vector<Part>& parts)
+{
+    discoveredParts = parts;
+    showMultiInstrument = true;
+
+    // Build CircleItems from discovered parts (with per-instrument icons)
+    std::vector<CircleItem> circleItems;
+    for (auto part : parts)
+    {
+        CircleItem item;
+        item.tooltip = getPartDisplayName(part);
+        auto icon = getPartIcon(part);
+        item.image = juce::ImageCache::getFromMemory(icon.data, icon.size);
+        circleItems.push_back(std::move(item));
+    }
+
+    instrumentSelector.setItems(std::move(circleItems));
+    instrumentSelector.setMultiSelectMode(true, true); // with "All" option
+
+    // Wire multi-select callback
+    instrumentSelector.onMultiSelectionChanged = [this](int index, bool modifierHeld) {
+        if (index == -1)
+        {
+            // "All" clicked
+            if (onAllInstrumentsClicked) onAllInstrumentsClicked();
+            return;
+        }
+        if (index >= 0 && index < (int)discoveredParts.size())
+        {
+            if (onInstrumentClicked)
+                onInstrumentClicked(discoveredParts[index], modifierHeld);
+        }
+    };
+
+    // Default: all selected
+    std::set<int> allIndices;
+    for (int i = 0; i < (int)parts.size(); ++i)
+        allIndices.insert(i);
+    instrumentSelector.setMultiSelectedIndices(allIndices);
+
+    resized();
+}
+
+void ToolbarComponent::setEnabledParts(const std::set<Part>& enabled)
+{
+    enabledParts = enabled;
+
+    // Update multi-select indices on instrumentSelector
+    std::set<int> indices;
+    for (int i = 0; i < (int)discoveredParts.size(); ++i)
+        if (enabled.count(discoveredParts[i]) > 0)
+            indices.insert(i);
+    instrumentSelector.setMultiSelectedIndices(indices);
+    if (chartButton.isPanelVisible())
+        chartButton.relayoutPanel();
+    resized(); // stacking width may change
+}
+
+void ToolbarComponent::setEnabledDifficulties(const std::set<SkillLevel>& diffs)
+{
+    // Map SkillLevel to index: Expert→0, Hard→1, Medium→2, Easy→3
+    std::set<int> indices;
+    for (auto s : diffs)
+    {
+        switch (s)
+        {
+            case SkillLevel::EXPERT: indices.insert(0); break;
+            case SkillLevel::HARD:   indices.insert(1); break;
+            case SkillLevel::MEDIUM: indices.insert(2); break;
+            case SkillLevel::EASY:   indices.insert(3); break;
+        }
+    }
+    difficultySelector.setMultiSelectedIndices(indices);
+    resized(); // stacking width may change
+}
+
+void ToolbarComponent::enableMultiDifficultyMode(bool enabled)
+{
+    showMultiDifficulty = enabled;
+    difficultySelector.setMultiSelectMode(enabled, enabled); // with "All" option
+    resized();
 }
 
 void ToolbarComponent::setLatencyOffsetRange(int minMs, int maxMs)

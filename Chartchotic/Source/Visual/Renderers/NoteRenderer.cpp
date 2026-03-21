@@ -79,7 +79,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
 
     bool starPowerActive = state.getProperty("starPower");
 
-    if (activePart == Part::GUITAR)
+    if (isGuitarLike(activePart))
     {
         barNote = isBarNote(gemColumn, Part::GUITAR);
         glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
@@ -108,12 +108,12 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     // Perspective foreshortening: reduce note height toward the far end.
     // Normalized against vanishingPointDepth for consistent perspective.
     float foreshorten = 1.0f;
-    if (depthForeshorten > 0.0f)
+    if (depthForeshorten > 0.0f && !PositionMath::bemaniMode)
     {
 #ifdef DEBUG
-        const auto& pp = PositionMath::perspParams(activePart == Part::DRUMS);
+        const auto& pp = PositionMath::perspParams(isDrumLike(activePart));
 #else
-        auto pp = PositionConstants::getPerspectiveParams(activePart == Part::DRUMS);
+        auto pp = PositionConstants::getPerspectiveParams(isDrumLike(activePart));
 #endif
         float depth = std::max(0.0f, adjustedPosition) / pp.vanishingPointDepth;
         float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
@@ -125,22 +125,31 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     if (barNote)
     {
         // Bar notes span the full fretboard polygon (no FRETBOARD_SCALE)
-        bool isDrums = activePart == Part::DRUMS;
-        auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
-                                                      PositionConstants::HIGHWAY_POS_START, posEnd);
-        float fbWidth = fbEdge.rightX - fbEdge.leftX;
-        float colWidth = fbWidth * BAR_FRETBOARD_FIT * sizeScale;
-        float colHeight = (colWidth / imageAspect) * foreshorten;
-        float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
-        glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
+        bool isDrums = isDrumLike(activePart);
+        if (PositionMath::bemaniMode)
+        {
+            glyphRect = PositionMath::computeBemaniBarRect(
+                isDrums, adjustedPosition, width, height, posEnd,
+                sizeScale, imageAspect, foreshorten);
+        }
+        else
+        {
+            auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
+                                                          PositionConstants::HIGHWAY_POS_START, posEnd);
+            float fbWidth = fbEdge.rightX - fbEdge.leftX;
+            float colWidth = fbWidth * BAR_FRETBOARD_FIT * sizeScale;
+            float colHeight = (colWidth / imageAspect) * foreshorten;
+            float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
+            glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
+        }
     }
-    else if (activePart == Part::GUITAR)
+    else if (isGuitarLike(activePart))
     {
         int idx = (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1;
         const auto& colCoords = laneCoordsGuitar[idx];
-        // Position from lane (sizeScale=1), then scale the drawn rect for gem art
+        int bemaniIdx = idx - 1;  // skip open (0) → green=0, red=1, yel=2, blu=3, org=4
         auto edge = getColumnEdge(adjustedPosition, colCoords, 1.0f,
-                                  PositionConstants::FRETBOARD_SCALE);
+                                  PositionConstants::FRETBOARD_SCALE, bemaniIdx);
         float laneWidth = edge.rightX - edge.leftX;
         float colWidth = laneWidth * sizeScale;
         float colHeight = (colWidth / imageAspect) * foreshorten;
@@ -151,8 +160,9 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     {
         uint drumIdx = drumColumnIndex(gemColumn);
         const auto& colCoords = laneCoordsDrums[drumIdx];
+        int bemaniIdx = (int)drumIdx - 1;  // skip kick (0) → red=0, yel=1, blu=2, grn=3
         auto edge = getColumnEdge(adjustedPosition, colCoords, 1.0f,
-                                  PositionConstants::FRETBOARD_SCALE);
+                                  PositionConstants::FRETBOARD_SCALE, bemaniIdx);
         float laneWidth = edge.rightX - edge.leftX;
         float colWidth = laneWidth * sizeScale;
         float colHeight = (colWidth / imageAspect) * foreshorten;
@@ -173,15 +183,36 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
     }
 
+    // Bemani mode: nudge gems/bars using a width-independent reference
+    // (pixelsPerUnit is constant regardless of viewport dimensions)
+    if (PositionMath::bemaniMode)
+    {
+        bool isDrumsHere = isDrumLike(activePart);
+        float nudge = barNote ? bemaniConfig.barNudge : bemaniConfig.gemNudge(isDrumsHere);
+        float pixelsPerUnit = PositionConstants::REFERENCE_HEIGHT * bemaniConfig.strikelinePos
+                            / std::max(0.1f, PositionMath::bemaniHwyScale);
+        glyphRect.translate(0.0f, pixelsPerUnit * nudge);
+    }
+
     float opacity = calculateOpacity(position);
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
-    float curvature = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
+    float baseCurv = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
+    float curvature = PositionMath::bemaniMode ? baseCurv * bemaniConfig.curvature : baseCurv;
 
     // Debug scale factors (separate note vs bar)
     const auto& baseScale = barNote ? barScale : gemScale;
-    float baseW = baseScale.width;
-    float baseH = baseScale.height;
+    float baseW, baseH;
+    if (PositionMath::bemaniMode)
+    {
+        baseW = barNote ? bemaniConfig.barW : bemaniConfig.gemW;
+        baseH = barNote ? bemaniConfig.barH : bemaniConfig.gemH;
+    }
+    else
+    {
+        baseW = baseScale.width;
+        baseH = baseScale.height;
+    }
 
     // Per-note-type scale (applied uniformly to base + overlay)
     float typeScale = 1.0f;
@@ -228,53 +259,58 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float oHScale = hScale;
 
     // Per-column adjustments from ColumnAdjust struct
-    float zOff = barNote ? barZOffset : gemZOffset;
-    float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
-    if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
-        const auto& ca = guitarColAdjust[gemColumn];
-        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-    } else if (isDrums) {
-        uint drumIdx = drumColumnIndex(gemColumn);
-        const auto& ca = drumColAdjust[drumIdx];
-        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-        if (!barNote)
-            zOff += ca.z;
-    }
-
-    // Per-column scale: interpolate uniform scale, multiply with per-axis
-#ifdef DEBUG
-    float vpDepth = PositionMath::perspParams(activePart == Part::DRUMS).vanishingPointDepth;
-#else
-    float vpDepth = PositionConstants::getPerspectiveParams(activePart == Part::DRUMS).vanishingPointDepth;
-#endif
-    float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
-    float colScale = colSNear + (colSFar - colSNear) * t;
-    wScale *= colScale * colW;
-    hScale *= colScale * colH;
-    oWScale *= colScale * colW;
-    oHScale *= colScale * colH;
-
-    // Scale Z offset by perspective
+    // In Bemani mode: no perspective Z offsets or depth-based column scaling — everything is flat.
+    float zOff = 0.0f;
+    if (!PositionMath::bemaniMode)
     {
-        float curWidth = glyphRect.getWidth();
-        float strikeWidth;
-        if (barNote)
-        {
-            bool isDrums = activePart == Part::DRUMS;
-            auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
-                                                            PositionConstants::HIGHWAY_POS_START, posEnd);
-            strikeWidth = (fbStrike.rightX - fbStrike.leftX) * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
+        zOff = barNote ? barZOffset : gemZOffset;
+        float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
+        if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
+            const auto& ca = guitarColAdjust[gemColumn];
+            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+        } else if (isDrums) {
+            uint drumIdx = drumColumnIndex(gemColumn);
+            const auto& ca = drumColAdjust[drumIdx];
+            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+            if (!barNote)
+                zOff += ca.z;
         }
-        else
+
+        // Per-column scale: interpolate uniform scale, multiply with per-axis
+#ifdef DEBUG
+        float vpDepth = PositionMath::perspParams(isDrumLike(activePart)).vanishingPointDepth;
+#else
+        float vpDepth = PositionConstants::getPerspectiveParams(isDrumLike(activePart)).vanishingPointDepth;
+#endif
+        float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
+        float colScale = colSNear + (colSFar - colSNear) * t;
+        wScale *= colScale * colW;
+        hScale *= colScale * colH;
+        oWScale *= colScale * colW;
+        oHScale *= colScale * colH;
+
+        // Scale Z offset by perspective
         {
-            const auto& colCoordsRef = activePart == Part::GUITAR
-                ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
-                : laneCoordsDrums[drumColumnIndex(gemColumn)];
-            auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE, PositionConstants::FRETBOARD_SCALE);
-            strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+            float curWidth = glyphRect.getWidth();
+            float strikeWidth;
+            if (barNote)
+            {
+                bool isDrums = isDrumLike(activePart);
+                auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
+                                                                PositionConstants::HIGHWAY_POS_START, posEnd);
+                strikeWidth = (fbStrike.rightX - fbStrike.leftX) * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
+            }
+            else
+            {
+                const auto& colCoordsRef = isGuitarLike(activePart)
+                    ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
+                    : laneCoordsDrums[drumColumnIndex(gemColumn)];
+                auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE, PositionConstants::FRETBOARD_SCALE);
+                strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+            }
+            if (strikeWidth > 0.0f)
+                zOff *= curWidth / strikeWidth;
         }
-        if (strikeWidth > 0.0f)
-            zOff *= curWidth / strikeWidth;
     }
 
     // Compute global arc Y offset so adjacent notes form a continuous parabola.
@@ -331,7 +367,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         });
     }
 
-    juce::Image* overlayImage = assetManager.getOverlayImage(gemWrapper.gem, activePart == Part::GUITAR ? Part::GUITAR : Part::DRUMS);
+    juce::Image* overlayImage = assetManager.getOverlayImage(gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
     if (overlayImage != nullptr)
     {
         const auto& overlayAdj = [&]() -> const OverlayAdjust& {

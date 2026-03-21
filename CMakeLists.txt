@@ -73,12 +73,18 @@ target_sources(Chartchotic
         Chartchotic/Source/PluginProcessor.h
         Chartchotic/Source/PluginEditor.cpp
         Chartchotic/Source/PluginEditor.h
-        Chartchotic/Source/ReaperVST3.h
-        Chartchotic/Source/UpdateChecker.cpp
-        Chartchotic/Source/UpdateChecker.h
+        # Editor (PluginEditor delegates)
+        Chartchotic/Source/Editor/AssetController.cpp
+        Chartchotic/Source/Editor/AssetController.h
+        Chartchotic/Source/Editor/FrameDataBuilder.cpp
+        Chartchotic/Source/Editor/FrameDataBuilder.h
+        Chartchotic/Source/Editor/SessionController.cpp
+        Chartchotic/Source/Editor/SessionController.h
+        Chartchotic/Source/Host/ReaperVST3.h
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp
         Chartchotic/Source/DebugTools/DebugEditorController.h
+        Chartchotic/Source/DebugTools/FrameProfileLogger.h
         Chartchotic/Source/DebugTools/DebugMidiFilePlayer.h
         Chartchotic/Source/DebugTools/DebugPlaybackController.h
         Chartchotic/Source/DebugTools/DebugToolbarPanel.cpp
@@ -90,6 +96,17 @@ target_sources(Chartchotic
         # Midi
         Chartchotic/Source/Midi/ChartTextEvent.h
         Chartchotic/Source/Midi/InstrumentSlot.h
+        Chartchotic/Source/Midi/InstrumentSession.cpp
+        Chartchotic/Source/Midi/InstrumentSession.h
+        # Midi / Discovery
+        Chartchotic/Source/Midi/Discovery/TrackDiscovery.h
+        Chartchotic/Source/Midi/Discovery/ReaperGlobalDiscovery.h
+        Chartchotic/Source/Midi/Discovery/ReaperLocalDiscovery.h
+        Chartchotic/Source/Midi/Discovery/ManualDiscovery.h
+        # Midi / Providers (DAW-agnostic)
+        Chartchotic/Source/Midi/Providers/TrackNoteProvider.h
+        Chartchotic/Source/Midi/Providers/ReaperTrackNoteProvider.h
+        Chartchotic/Source/Midi/Providers/MidiFileNoteProvider.h
         # Midi / Processing
         Chartchotic/Source/Midi/Processing/MidiInterpreter.cpp
         Chartchotic/Source/Midi/Processing/MidiInterpreter.h
@@ -97,6 +114,9 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Processing/MidiProcessor.h
         Chartchotic/Source/Midi/Processing/NoteProcessor.cpp
         Chartchotic/Source/Midi/Processing/NoteProcessor.h
+        Chartchotic/Source/Midi/Processing/SharedTrackData.h
+        Chartchotic/Source/Midi/Processing/TrackResolver.cpp
+        Chartchotic/Source/Midi/Processing/TrackResolver.h
         # Midi / Providers / REAPER
         Chartchotic/Source/Midi/Providers/REAPER/MidiCache.cpp
         Chartchotic/Source/Midi/Providers/REAPER/MidiCache.h
@@ -114,26 +134,25 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Pipelines/StandardMidiPipeline.cpp
         Chartchotic/Source/Midi/Pipelines/StandardMidiPipeline.h
         # Midi / Utils
-        Chartchotic/Source/Midi/Utils/ChordAnalyzer.cpp
-        Chartchotic/Source/Midi/Utils/ChordAnalyzer.h
         Chartchotic/Source/Midi/Utils/GemCalculator.cpp
         Chartchotic/Source/Midi/Utils/GemCalculator.h
         Chartchotic/Source/Midi/Utils/InstrumentMapper.h
-        Chartchotic/Source/Midi/Utils/LaneDetector.cpp
-        Chartchotic/Source/Midi/Utils/LaneDetector.h
         Chartchotic/Source/Midi/Utils/MidiConstants.h
         Chartchotic/Source/Midi/Utils/MidiTypes.h
-        # REAPER
-        Chartchotic/Source/REAPER/ReaperIntegration.cpp
-        Chartchotic/Source/REAPER/ReaperIntegration.h
-        Chartchotic/Source/REAPER/ReaperTrackDetector.cpp
-        Chartchotic/Source/REAPER/ReaperTrackDetector.h
-        Chartchotic/Source/REAPER/ReaperVST2Extensions.cpp
-        Chartchotic/Source/REAPER/ReaperVST2Extensions.h
-        Chartchotic/Source/REAPER/ReaperVST3Extensions.cpp
-        Chartchotic/Source/REAPER/ReaperVST3Extensions.h
-        Chartchotic/Source/REAPER/TrackInfoListener.cpp
-        Chartchotic/Source/REAPER/TrackInfoListener.h
+        Chartchotic/Source/Midi/Utils/PPQ.h
+        Chartchotic/Source/Midi/Utils/TempoTimeSignatureEventHelper.h
+        Chartchotic/Source/Midi/Utils/TimeConverter.h
+        # Host (REAPER integration)
+        Chartchotic/Source/Host/ReaperIntegration.cpp
+        Chartchotic/Source/Host/ReaperIntegration.h
+        Chartchotic/Source/Host/ReaperTrackDetector.cpp
+        Chartchotic/Source/Host/ReaperTrackDetector.h
+        Chartchotic/Source/Host/ReaperVST2Extensions.cpp
+        Chartchotic/Source/Host/ReaperVST2Extensions.h
+        Chartchotic/Source/Host/ReaperVST3Extensions.cpp
+        Chartchotic/Source/Host/ReaperVST3Extensions.h
+        Chartchotic/Source/Host/TrackInfoListener.cpp
+        Chartchotic/Source/Host/TrackInfoListener.h
         # Visual / Renderers
         Chartchotic/Source/Visual/Renderers/AnimationRenderer.cpp
         Chartchotic/Source/Visual/Renderers/AnimationRenderer.h
@@ -147,6 +166,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Renderers/TrackRenderer.h
         Chartchotic/Source/Visual/HighwayComponent.cpp
         Chartchotic/Source/Visual/HighwayComponent.h
+        Chartchotic/Source/Visual/HighwaySlot.h
+        Chartchotic/Source/Visual/TrackImageCache.h
         Chartchotic/Source/Visual/Renderers/NoteRenderer.cpp
         Chartchotic/Source/Visual/Renderers/NoteRenderer.h
         Chartchotic/Source/Visual/Renderers/SustainRenderer.cpp
@@ -180,14 +201,14 @@ target_sources(Chartchotic
         Chartchotic/Source/UI/MenuGroup.h
         Chartchotic/Source/UI/SectionHeader.h
         Chartchotic/Source/UI/ControlConstants.h
+        Chartchotic/Source/UI/FooterComponent.h
         Chartchotic/Source/UI/ToolbarComponent.cpp
         Chartchotic/Source/UI/ToolbarComponent.h
+        Chartchotic/Source/UI/UpdateChecker.cpp
+        Chartchotic/Source/UI/UpdateChecker.h
         # Utils
         Chartchotic/Source/Visual/Utils/LatencySmoother.h
-        Chartchotic/Source/Utils/PPQ.h
-        Chartchotic/Source/Utils/TempoTimeSignatureEventHelper.h
-        Chartchotic/Source/Utils/TimeConverter.h
-        Chartchotic/Source/Utils/Utils.h
+        Chartchotic/Source/Utils/ChartTypes.h
 )
 
 # Binary data (images + SVG)
@@ -206,6 +227,9 @@ juce_add_binary_data(ChartchoticData
         assets/static/backgrounds/background.png
         assets/static/backgrounds/background_red.jpg
         assets/static/icons/icon_guitar.png
+        assets/static/icons/icon_bass.png
+        assets/static/icons/icon_keys.png
+        assets/static/icons/icon_vocals.png
         assets/static/icons/icon_drums.png
         assets/static/icons/discoball.jpg
         assets/static/logo-reaper.svg
@@ -341,3 +365,68 @@ if(APPLE)
         -Wno-deprecated-declarations
     )
 endif()
+
+# --- Standard (non-REAPER) variant for local dev testing only ---
+if(BUILD_STD)
+juce_add_plugin(ChartchoticStd
+    VERSION ${PROJECT_VERSION}
+    COMPANY_NAME "Dichotic Studios"
+    BUNDLE_ID "com.dichoticstudios.chartchotic-std"
+    PLUGIN_MANUFACTURER_CODE Dich
+    PLUGIN_CODE ChSt
+    FORMATS VST3 AU
+    PRODUCT_NAME "Chartchotic Std"
+    PLUGIN_DESC "Chartchotic — standard DAW mode (no REAPER integration)"
+
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT TRUE
+    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    COPY_PLUGIN_AFTER_BUILD FALSE
+    NEEDS_CURL TRUE
+
+    VST3_CATEGORIES Tools
+)
+
+juce_generate_juce_header(ChartchoticStd)
+
+# Reuse the same source files
+get_target_property(_chartchotic_sources Chartchotic SOURCES)
+target_sources(ChartchoticStd PRIVATE ${_chartchotic_sources})
+
+target_include_directories(ChartchoticStd
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/third_party/reaper-sdk/sdk
+)
+
+target_compile_definitions(ChartchoticStd
+    PUBLIC
+        JUCE_STRICT_REFCOUNTEDPOINTER=1
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=1
+    PRIVATE
+        CHARTCHOTIC_BUILD_CHANNEL="${BUILD_CHANNEL}"
+        CHARTCHOTIC_VERSION_STRING="${VERSION_STRING}"
+        CHARTCHOTIC_MIDI_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/midi"
+        CHARTCHOTIC_DISABLE_REAPER=1
+)
+
+target_link_libraries(ChartchoticStd
+    PRIVATE
+        ChartchoticData
+        juce::juce_audio_utils
+        juce::juce_audio_processors
+        juce::juce_gui_extra
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags
+)
+
+if(APPLE)
+    target_compile_options(ChartchoticStd PRIVATE
+        -Wno-deprecated-declarations
+    )
+endif()
+endif() # BUILD_STD

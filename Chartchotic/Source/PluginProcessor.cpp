@@ -8,13 +8,16 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include "ReaperVST3.h"
-#include "REAPER/ReaperVST2Extensions.h"
-#include "REAPER/ReaperVST3Extensions.h"
-#include "REAPER/ReaperIntegration.h"
+#include "Host/ReaperVST3.h"
+#include "Host/ReaperVST2Extensions.h"
+#include "Host/ReaperVST3Extensions.h"
+#include "Host/ReaperIntegration.h"
 #include "Midi/Pipelines/MidiPipelineFactory.h"
 #include "Midi/Pipelines/MidiPipeline.h"
 #include "Midi/Pipelines/ReaperMidiPipeline.h"
+#include "Midi/Discovery/ReaperGlobalDiscovery.h"
+#include "Midi/Discovery/ManualDiscovery.h"
+#include "Midi/Providers/ReaperTrackNoteProvider.h"
 
 //==============================================================================
 ChartchoticAudioProcessor::ChartchoticAudioProcessor()
@@ -27,7 +30,7 @@ ChartchoticAudioProcessor::ChartchoticAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        ),
-       midiProcessor(state),
+       midiProcessor(state, midiProject.primaryTrack().notes, midiProject.primaryTrack().notesLock),
        debugLogger([this](const juce::String& msg) { print(msg); })
 #endif
 {
@@ -35,7 +38,7 @@ ChartchoticAudioProcessor::ChartchoticAudioProcessor()
     initializeDefaultState();
 
     // Create the default pipeline (will be recreated when REAPER is detected)
-    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, nullptr, state,
+    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, midiProject, nullptr, state,
                                                       [this](const juce::String& msg) { print(msg); });
 }
 
@@ -135,6 +138,19 @@ void ChartchoticAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased)
     }
 }
 
+
+void ChartchoticAudioProcessor::createInstrumentSession()
+{
+    if (!isReaperHost || !reaperMidiProvider.isReaperApiAvailable())
+        return;
+
+    auto noteProvider = std::make_unique<ReaperTrackNoteProvider>(reaperMidiProvider);
+    auto discovery = std::make_unique<ReaperGlobalDiscovery>(reaperMidiProvider.getReaperGetFunc());
+
+    instrumentSession = std::make_unique<InstrumentSession>(std::move(discovery), std::move(noteProvider));
+    instrumentSession->discover();
+}
+
 // MANUAL OVERRIDES
 void ChartchoticAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
@@ -177,7 +193,7 @@ void ChartchoticAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, j
         print("useReaperTimeline: " + juce::String(useReaperTimeline ? "TRUE" : "FALSE"));
 
         midiPipeline = MidiPipelineFactory::createPipeline(isReaperHost, useReaperTimeline,
-                                                          midiProcessor, &reaperMidiProvider, state,
+                                                          midiProcessor, midiProject, &reaperMidiProvider, state,
                                                           [this](const juce::String& msg) { print(msg); });
 
         if (useReaperTimeline)

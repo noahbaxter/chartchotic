@@ -8,6 +8,9 @@
 */
 
 #include "HighwayComponent.h"
+#include "TrackImageCache.h"
+#include "../UI/ControlConstants.h"
+#include "../UI/Theme.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -16,7 +19,7 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
       trackRenderer(state)
 {
     // Sync activePart from state
-    setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR);
+    setActivePart(getPartFromState(state));
 #ifdef DEBUG
     debugColour = juce::Colour::fromHSV(
         juce::Random::getSystemRandom().nextFloat(), 0.4f, 0.4f, 1.0f);
@@ -34,6 +37,7 @@ void HighwayComponent::paint(juce::Graphics& g)
 {
 #ifdef DEBUG
     if (showDebugColour && debugColour != juce::Colour()) g.fillAll(debugColour);
+    ScopedPhaseMeasure _hwPaintMeasure(debugHighwayPaint_us, sceneRenderer.collectPhaseTiming);
 #endif
 
     // During resize debounce, render at baked dimensions and scale to fit.
@@ -46,31 +50,58 @@ void HighwayComponent::paint(juce::Graphics& g)
     int overflow = debouncing ? bakedOverflow  : topOverflow;
     int totalH   = h + overflow;
 
-    // In split mode (render wider than component), always use uniform scale-to-fit
-    // even during debounce — the stretch path would distort the aspect ratio.
-    if (w > getWidth() && !stretchToFill)
+    if (stretchToFill && !PositionMath::bemaniMode)
     {
-        float scale = (float)getWidth() / (float)w;
-        float scaledTotalH = (float)totalH * scale;
-        float yOffset = (float)getHeight() - scaledTotalH;
-        g.addTransform(juce::AffineTransform(scale, 0.0f, 0.0f, 0.0f, scale, yOffset));
-    }
-    else if (debouncing || stretchToFill)
-    {
-        float srcW = debouncing ? (float)bakedRenderW : (float)renderWidth;
-        float srcH = debouncing ? (float)(bakedRenderH + bakedOverflow) : (float)(renderHeight + topOverflow);
-        float sx = (float)getWidth()  / srcW;
-        float sy = (float)getHeight() / srcH;
+        // Non-uniform stretch to fill all available space (perspective only)
+        float sx = (float)getWidth()  / (float)w;
+        float sy = (float)getHeight() / (float)totalH;
         g.addTransform(juce::AffineTransform::scale(sx, sy));
+    }
+    else
+    {
+        // Uniform scale to maximize height, centered horizontally, bottom-anchored.
+        // Bemani always uses uniform scale to avoid aspect ratio distortion.
+        float scale = std::min((float)getWidth() / (float)w,
+                               (float)getHeight() / (float)totalH);
+        float scaledW = (float)w * scale;
+        float scaledH = (float)totalH * scale;
+        float offsetX = ((float)getWidth() - scaledW) / 2.0f;
+        float offsetY = (float)getHeight() - scaledH;
+        g.addTransform(juce::AffineTransform(scale, 0.0f, offsetX, 0.0f, scale, offsetY));
     }
 
     // Track fill, layers, and texture are baked at totalH (viewport + overflow).
     // Draw them in component coordinates (no translation needed).
     if (showHighway)
     {
-        trackRenderer.paint(g, w, totalH);
+        bool useCache = trackImageCache && !PositionMath::bemaniMode;
+#ifdef DEBUG
+        {
+            ScopedPhaseMeasure _trackMeasure(debugTrackRender_us, sceneRenderer.collectPhaseTiming);
+            if (useCache)
+            {
+                auto& cached = trackImageCache->get(isDrumLike(activePart));
+                if (cached.valid)
+                    trackRenderer.paintFromCache(g, cached.fadedTrack, w, totalH);
+            }
+            else
+                trackRenderer.paint(g, w, totalH);
+        }
+#else
+        if (useCache)
+        {
+            auto& cached = trackImageCache->get(isDrumLike(activePart));
+            if (cached.valid)
+                trackRenderer.paintFromCache(g, cached.fadedTrack, w, totalH);
+        }
+        else
+            trackRenderer.paint(g, w, totalH);
+#endif
         trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH);
     }
+    // Bemani overlay (lane dividers, strikeline) always draws — independent of highway texture toggle
+    if (showHighway || PositionMath::bemaniMode)
+        trackRenderer.paintBemaniOverlay(g, w, totalH);
 
     // Translate so scene renderer (notes, gridlines, etc.) sees viewport coordinates.
     // Overlay images are drawn at (0, -overlayYOffset) to extend into the overflow area.
@@ -79,8 +110,20 @@ void HighwayComponent::paint(juce::Graphics& g)
 
     sceneRenderer.paint(g, w, h,
                         frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
-                        frameData.flipRegions,
+                        frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
+
+    // Bemani sidebar masks — drawn after notes/sustains to clip overflow.
+    // Must cover the full component height. In Bemani mode overflow=0 so h=totalH.
+    if (PositionMath::bemaniMode)
+    {
+        // Undo the overflow translation to draw in component coordinates
+        if (overflow > 0)
+            g.addTransform(juce::AffineTransform::translation(0.0f, -(float)overflow));
+        trackRenderer.paintBemaniSidebars(g, w, totalH);
+        if (overflow > 0)
+            g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
+    }
 
     // Disco ball indicator when disco flip is active at current playhead
     if (frameData.discoFlipActive)
@@ -99,9 +142,129 @@ void HighwayComponent::paint(juce::Graphics& g)
     }
 }
 
+void HighwayComponent::paintOverChildren(juce::Graphics& g)
+{
+    if (showPartLabel)
+    {
+        auto iconData = getPartIcon(activePart);
+        juce::String label = getPartDisplayName(activePart);
+
+        juce::Image icon;
+        if (iconData.data != nullptr)
+            icon = juce::ImageCache::getFromMemory(iconData.data, iconData.size);
+        bool hasIcon = icon.isValid();
+
+        float s = (float)getWidth() / 600.0f;
+        int iconSize = hasIcon ? juce::roundToInt(labelIconSize * s) : 0;
+        int pad = juce::roundToInt(10.0f * s);
+        float fontSize = 18.0f * s;
+        auto font = Theme::getUIFont(fontSize);
+        int textW = (int)font.getStringWidthFloat(label);
+        int totalW = (hasIcon ? iconSize + pad : 0) + textW + pad * 2;
+        int totalH = juce::jmax(iconSize, juce::roundToInt(fontSize * 1.5f)) + pad * 2;
+
+        int x = (getWidth() - totalW) / 2;
+        int y = getHeight() - totalH - pad;
+
+        auto pillBounds = juce::Rectangle<float>((float)x, (float)y, (float)totalW, (float)totalH);
+        g.setColour(juce::Colours::black.withAlpha(0.55f));
+        g.fillRoundedRectangle(pillBounds, 6.0f * s);
+
+        float textX = pillBounds.getX() + pad;
+
+        if (hasIcon)
+        {
+            auto iconBounds = juce::Rectangle<float>(
+                pillBounds.getX() + pad, pillBounds.getCentreY() - iconSize * 0.5f,
+                (float)iconSize, (float)iconSize);
+            g.setOpacity(0.9f);
+            g.drawImage(icon, iconBounds);
+            g.setOpacity(1.0f);
+            textX += iconSize + pad * 0.5f;
+        }
+
+        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.setFont(font);
+        auto textBounds = juce::Rectangle<float>(
+            textX, pillBounds.getY(),
+            pillBounds.getRight() - textX - pad,
+            (float)totalH);
+        g.drawText(label, textBounds, hasIcon ? juce::Justification::centredLeft : juce::Justification::centred);
+    }
+
+    if (showDifficultyLabel)
+    {
+        juce::uint32 badgeColor;
+        juce::String diffName;
+        switch (displaySkillLevel)
+        {
+            case SkillLevel::EXPERT: badgeColor = Theme::red;    diffName = "Expert"; break;
+            case SkillLevel::HARD:   badgeColor = Theme::orange;  diffName = "Hard"; break;
+            case SkillLevel::MEDIUM: badgeColor = Theme::yellow;  diffName = "Medium"; break;
+            case SkillLevel::EASY:   badgeColor = Theme::green;   diffName = "Easy"; break;
+            default:                 badgeColor = Theme::textDim; diffName = "?"; break;
+        }
+
+        float s = (float)getWidth() / 600.0f;
+        int circleSize = juce::roundToInt(labelIconSize * s);
+        int pad = juce::roundToInt(10.0f * s);
+        float fontSize = 18.0f * s;
+        auto font = Theme::getUIFont(fontSize);
+        int textW = (int)font.getStringWidthFloat(diffName);
+        int totalW = circleSize + pad + textW + pad * 2;
+        int totalH = juce::jmax(circleSize, juce::roundToInt(fontSize * 1.5f)) + pad * 2;
+
+        int x = (getWidth() - totalW) / 2;
+        int y = getHeight() - totalH - pad;
+
+        auto pillBounds = juce::Rectangle<float>((float)x, (float)y, (float)totalW, (float)totalH);
+        g.setColour(juce::Colours::black.withAlpha(0.55f));
+        g.fillRoundedRectangle(pillBounds, 6.0f * s);
+
+        // Colored circle
+        auto circleBounds = juce::Rectangle<float>(
+            pillBounds.getX() + pad, pillBounds.getCentreY() - circleSize * 0.5f,
+            (float)circleSize, (float)circleSize);
+        g.setColour(juce::Colour(badgeColor));
+        g.fillEllipse(circleBounds);
+
+        // Difficulty letter inside circle
+        juce::String letter;
+        switch (displaySkillLevel)
+        {
+            case SkillLevel::EXPERT: letter = "X"; break;
+            case SkillLevel::HARD:   letter = "H"; break;
+            case SkillLevel::MEDIUM: letter = "M"; break;
+            case SkillLevel::EASY:   letter = "E"; break;
+            default:                 letter = "?"; break;
+        }
+        g.setColour(juce::Colours::white);
+        g.setFont(Theme::getUIFont(20.0f * s));
+        g.drawText(letter, circleBounds.toNearestInt(), juce::Justification::centred);
+
+        // Difficulty name text
+        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.setFont(font);
+        float textX = circleBounds.getRight() + pad * 0.5f;
+        auto textBounds = juce::Rectangle<float>(
+            textX, pillBounds.getY(),
+            pillBounds.getRight() - textX - pad,
+            (float)totalH);
+        g.drawText(diffName, textBounds, juce::Justification::centredLeft);
+    }
+}
+
 void HighwayComponent::resized()
 {
-    startTimer(rebuildDebounceMs);
+    if (PositionMath::bemaniMode)
+    {
+        // No baked assets in Bemani mode — rebuild immediately, no debounce
+        rebuildTrack();
+    }
+    else
+    {
+        startTimer(rebuildDebounceMs);
+    }
 }
 
 void HighwayComponent::timerCallback()
@@ -118,7 +281,8 @@ void HighwayComponent::setFrameData(const HighwayFrameData& data)
 void HighwayComponent::updateOverflow()
 {
     if (renderWidth <= 0 || renderHeight <= 0) return;
-    bool isDrums = activePart == Part::DRUMS;
+    if (PositionMath::bemaniMode) { topOverflow = 0; return; }
+    bool isDrums = isDrumLike(activePart);
     auto farEdge = PositionMath::getFretboardEdge(
         isDrums, sceneRenderer.farFadeEnd, renderWidth, renderHeight,
         PositionConstants::HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
@@ -135,7 +299,8 @@ void HighwayComponent::rebuildTrack()
     int prevOverflow = topOverflow;
     updateOverflow();
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
+    bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
@@ -145,18 +310,84 @@ void HighwayComponent::rebuildTrack()
         isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
         isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
 
-    trackRenderer.rebuild(w, h, topOverflow,
-                          sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
-                          sceneRenderer.highwayPosEnd);
+    if (useCache)
+    {
+        // With a valid shared cache: skip all image baking.
+        // Rebuild geometry + texture prebake when dimensions or instrument changed
+        // (texture scanline LUT depends on fretboard edges which differ guitar vs drums).
+        bool dimsChanged = w != bakedRenderW || h != bakedRenderH || topOverflow != bakedOverflow;
+        bool partChanged = isDrums != trackRenderer.getCachedIsDrums();
+        if (dimsChanged || partChanged)
+            trackRenderer.rebuild(w, h, topOverflow,
+                                  sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
+                                  sceneRenderer.highwayPosEnd, /*geometryOnly=*/true);
 
-    sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
-    sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
-    sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
-    sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+        // Point overlays at the correct cache entry for this instrument
+        sceneRenderer.clearOverlays();
+        auto& cached = trackImageCache->get(isDrums);
+        if (cached.valid)
+        {
+            sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &cached.layers[TrackRenderer::STRIKELINE]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &cached.layers[TrackRenderer::LANE_LINES]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &cached.layers[TrackRenderer::SIDEBARS]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &cached.layers[TrackRenderer::CONNECTORS]);
+        }
+    }
+    else
+    {
+        // No cache (standalone, first frame, or Bemani mode) — full rebuild
+        trackRenderer.rebuild(w, h, topOverflow,
+                              sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
+                              sceneRenderer.highwayPosEnd);
+
+        // Always reset overlays — Bemani mode uses programmatic drawing, perspective uses baked images
+        sceneRenderer.clearOverlays();
+        if (PositionMath::bemaniMode)
+        {
+            int rw = w, rh = h + topOverflow;
+            sceneRenderer.setCustomDrawCall(DrawOrder::TRACK_SIDEBARS,
+                [this, rw, rh](juce::Graphics& g) { trackRenderer.paintBemaniRails(g, rw, rh); });
+        }
+        else
+        {
+            sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
+            sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
+            sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
+            sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+        }
+    }
 
     bakedRenderW = w;
     bakedRenderH = h;
     bakedOverflow = topOverflow;
 
     if (topOverflow != prevOverflow && onOverflowChanged) onOverflowChanged();
+}
+
+void HighwayComponent::onInstrumentChanged()
+{
+    setActivePart(getPartFromState(state));
+
+    if (trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode)
+    {
+        // Cache active — just swap overlay pointers, no rebuild needed
+        bool isDrums = isDrumLike(activePart);
+        sceneRenderer.clearOverlays();
+        auto& cached = trackImageCache->get(isDrums);
+        if (cached.valid)
+        {
+            sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &cached.layers[TrackRenderer::STRIKELINE]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &cached.layers[TrackRenderer::LANE_LINES]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &cached.layers[TrackRenderer::SIDEBARS]);
+            sceneRenderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &cached.layers[TrackRenderer::CONNECTORS]);
+        }
+        repaint();
+    }
+    else
+    {
+        // No cache — full rebuild path
+        trackRenderer.invalidate();
+        rebuildTrack();
+        repaint();
+    }
 }

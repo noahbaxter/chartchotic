@@ -9,7 +9,7 @@
 
 #include "ReaperNoteFetcher.h"
 #include "ReaperApiHelpers.h"
-#include "../../../REAPER/ReaperTrackDetector.h"
+#include "../../../Host/ReaperTrackDetector.h"
 
 ReaperNoteFetcher::ReaperNoteFetcher(std::function<void*(const char*)> reaperApiFunc, const ReaperAPIs& apis)
     : getReaperApi(reaperApiFunc), apis(apis)

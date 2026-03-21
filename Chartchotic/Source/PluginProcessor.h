@@ -10,8 +10,10 @@
 
 #include <JuceHeader.h>
 #include <memory>
+#include "Midi/MidiProject.h"
 #include "Midi/Processing/MidiProcessor.h"
 #include "Midi/Providers/REAPER/ReaperMidiProvider.h"
+#include "Midi/InstrumentSession.h"
 #include "DebugTools/Logger.h"
 
 // Forward declarations
@@ -41,12 +43,15 @@ public:
     uint latencyInSamples = 0;
     void setLatencyInSeconds(float latencyInSeconds);
 
-    NoteStateMapArray& getNoteStateMapArray() { return midiProcessor.noteStateMapArray; }
-    juce::CriticalSection& getNoteStateMapLock() { return midiProcessor.noteStateMapLock; }
+    // MIDI data access — all goes through MidiProject
+    MidiProject& getMidiProject() { return midiProject; }
+    NoteStateMapArray& getNoteStateMapArray() { return midiProject.primaryTrack().notes; }
+    juce::CriticalSection& getNoteStateMapLock() { return midiProject.primaryTrack().notesLock; }
+    TempoTimeSignatureMap& getTempoTimeSignatureMap() { return midiProject.tempoTimeSignatures; }
+    juce::CriticalSection& getTempoLock() { return midiProject.tempoLock; }
 
     // Set visual window bounds for conservative cleanup during tempo changes
     void setMidiProcessorVisualWindowBounds(PPQ startPPQ, PPQ endPPQ) { midiProcessor.setVisualWindowBounds(startPPQ, endPPQ); }
-    void refreshMidiDisplay() { midiProcessor.refreshMidiDisplay(); }
     void invalidateReaperCache();  // Clear cache and force re-fetch (for track changes)
     void applyTrackNumberChange(int trackNumberZeroBased);  // Auto-apply track number from VST3 detection
 
@@ -108,6 +113,12 @@ public:
     // Get the current MIDI pipeline
     MidiPipeline* getMidiPipeline() { return midiPipeline.get(); }
 
+    // Multi-instrument session (REAPER Global mode + standalone debug)
+    InstrumentSession* getInstrumentSession() { return instrumentSession.get(); }
+    void createInstrumentSession();
+    void destroyInstrumentSession() { instrumentSession.reset(); }
+
+
     // Set display window size (called from editor)
     void setDisplayWindowSize(PPQ size) { displayWindowSize = size; }
     PPQ getDisplayWindowSize() const { return displayWindowSize; }
@@ -126,11 +137,15 @@ public:
 
   private:
     juce::ValueTree state;
+    MidiProject midiProject;
     MidiProcessor midiProcessor;
     DebugTools::Logger debugLogger;
 
     // MIDI processing pipeline (created based on host)
     std::unique_ptr<MidiPipeline> midiPipeline;
+
+    // Multi-instrument session (owns discovery + provider)
+    std::unique_ptr<InstrumentSession> instrumentSession;
 
     // Display window size (set by editor, used by pipeline)
     PPQ displayWindowSize = PPQ(4.0);

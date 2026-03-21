@@ -10,7 +10,7 @@
 #include "ReaperVST3Extensions.h"
 #include "TrackInfoListener.h"
 #include "../PluginProcessor.h"
-#include "../ReaperVST3.h"
+#include "ReaperVST3.h"
 
 #if JucePlugin_Build_VST3
 
@@ -33,7 +33,9 @@ void ChartchoticVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
 
     if (reaperHost)
     {
+#ifndef CHARTCHOTIC_DISABLE_REAPER
         processor->isReaperHost = true;
+#endif
 
         // Store the REAPER interface per-instance using a map
         // This allows multiple plugin instances to work simultaneously

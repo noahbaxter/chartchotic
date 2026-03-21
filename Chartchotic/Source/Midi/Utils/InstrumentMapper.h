@@ -14,7 +14,7 @@
 
 #include <JuceHeader.h>
 #include "MidiTypes.h"
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 
 class InstrumentMapper
 {

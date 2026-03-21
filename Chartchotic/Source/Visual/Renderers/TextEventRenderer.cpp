@@ -54,10 +54,77 @@ void TextEventRenderer::populate(DrawCallMap& drawCallMap,
     }
 }
 
+void TextEventRenderer::populateEventMarkers(DrawCallMap& drawCallMap,
+                                              const TimeBasedEventMarkers& markers,
+                                              double windowStartTime, double windowEndTime,
+                                              uint width, uint height,
+                                              float posEnd,
+                                              float farFadeEnd, float farFadeLen, float farFadeCurve)
+{
+    this->width = width;
+    this->height = height;
+    this->posEnd = posEnd;
+
+    double windowTimeSpan = windowEndTime - windowStartTime;
+    if (windowTimeSpan <= 0.0) return;
+
+    for (const auto& marker : markers)
+    {
+        float pos = (float)((marker.time - windowStartTime) / windowTimeSpan);
+        if (pos >= HIGHWAY_POS_START && pos <= farFadeEnd)
+        {
+            float fade = calculateFarFade(pos, farFadeEnd, farFadeLen, farFadeCurve);
+            juce::String label = marker.label;
+            drawCallMap[static_cast<int>(DrawOrder::TEXT_EVENT)][0].push_back(
+                [this, pos, label, fade](juce::Graphics& g) {
+                    this->drawMarker(g, pos, label, fade);
+                });
+        }
+    }
+}
+
 void TextEventRenderer::drawMarker(juce::Graphics& g, float position, const juce::String& label,
                                    float fadeOpacity)
 {
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
+
+    if (PositionMath::bemaniMode)
+    {
+        // Flat horizontal marker matching Bemani gridline style
+        auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
+                        PositionConstants::HIGHWAY_POS_START, posEnd);
+        float leftX = edge.leftX;
+        float rightX = edge.rightX;
+        float bandWidth = rightX - leftX;
+        float baseY = edge.centerY;
+
+        // Band dimensions
+        float bandH = std::max(24.0f, bandWidth * 0.10f);
+        float topY = baseY - bandH;
+        float lineH = std::max(2.0f, bandH * 0.12f);
+
+        // Translucent band fill
+        g.setColour(juce::Colours::white.withAlpha(0.12f * fadeOpacity));
+        g.fillRect(leftX, topY, bandWidth, bandH);
+
+        // Bright base line (bottom edge of band)
+        g.setColour(juce::Colours::white.withAlpha(0.8f * fadeOpacity));
+        g.fillRect(leftX, baseY - lineH, bandWidth, lineH);
+
+        // Dimmer top line
+        g.setColour(juce::Colours::white.withAlpha(0.4f * fadeOpacity));
+        g.fillRect(leftX, topY, bandWidth, std::max(1.0f, lineH * 0.5f));
+
+        // Text label centered in band
+        g.setColour(juce::Colours::white.withAlpha(0.95f * fadeOpacity));
+        float fontSize = std::max(11.0f, bandH * 0.55f);
+        g.setFont(juce::Font(fontSize, juce::Font::bold));
+        g.drawText(label, juce::Rectangle<float>(leftX, topY, bandWidth, bandH),
+                   juce::Justification::centred, false);
+        return;
+    }
+
+    // --- Perspective mode: curved force field ---
 
     // Width from fretboard coords, same scale as gridlines
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;

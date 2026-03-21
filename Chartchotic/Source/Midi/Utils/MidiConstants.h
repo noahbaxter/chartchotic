@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "../../Utils/PPQ.h"
+#include "PPQ.h"
 
 constexpr float MIDI_RESOLUTION = 480.0f;
 

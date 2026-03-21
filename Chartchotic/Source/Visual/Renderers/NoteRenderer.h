@@ -15,8 +15,8 @@
 #include <JuceHeader.h>
 #include <map>
 #include <tuple>
-#include "../../Utils/Utils.h"
-#include "../../Utils/TimeConverter.h"
+#include "../../Utils/ChartTypes.h"
+#include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
@@ -70,16 +70,18 @@ private:
     using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
 
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f)
+                              float sizeScale, float fretboardScale = 1.0f,
+                              int bemaniLaneIdx = -1)
     {
-        bool isDrums = activePart == Part::DRUMS;
+        bool isDrums = isDrumLike(activePart);
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale);
+                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
     }
 
     float calculateOpacity(float position)
     {
+        if (PositionMath::bemaniMode) return 1.0f;
         return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
     }
 

@@ -14,16 +14,32 @@ using namespace PositionConstants;
 TrackRenderer::TrackRenderer(juce::ValueTree& state)
     : state(state)
 {
+#ifndef CHARTCHOTIC_NO_BINARY_DATA
     // Load layer images from BinaryData
     sidebarsImage = juce::ImageCache::getFromMemory(BinaryData::sidebars_png, BinaryData::sidebars_pngSize);
     strikelineGuitarImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_guitar_png, BinaryData::strikeline_guitar_pngSize);
     strikelineDrumsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_drums_png, BinaryData::strikeline_drums_pngSize);
     strikelineConnectorsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_connectors_png, BinaryData::strikeline_connectors_pngSize);
     kickSmashersImage = juce::ImageCache::getFromMemory(BinaryData::kick_smashers_png, BinaryData::kick_smashers_pngSize);
+#endif
 }
 
 void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeight)
 {
+    if (PositionMath::bemaniMode)
+    {
+        bool showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
+        if (showTrack)
+        {
+            bool isDrums = isDrumLike(activePart);
+            auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                            HIGHWAY_POS_START, cached.posEnd);
+            g.setColour(juce::Colour(0xFF111111));
+            g.fillRect(edge.leftX, 0.0f, edge.rightX - edge.leftX, (float)viewportHeight);
+        }
+        return;
+    }
+
     if (!fadedTrackImage.isValid()) return;
 
     // Stretch if baked size doesn't match (during resize, before rebuild settles)
@@ -34,8 +50,203 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
                     0, 0, fadedTrackImage.getWidth(), fadedTrackImage.getHeight());
 }
 
+void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int viewportHeight)
+{
+    if (!PositionMath::bemaniMode) return;
+
+    bool isDrums = isDrumLike(activePart);
+    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                    HIGHWAY_POS_START, cached.posEnd);
+    float leftX = edge.leftX;
+    float rightX = edge.rightX;
+    float fbWidth = rightX - leftX;
+    float h = (float)viewportHeight;
+
+    // Lane dividers
+    bool showLaneSeps = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
+    bool showStrike = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
+
+    if (showLaneSeps)
+    {
+        int numCols = isDrums ? 4 : 5;
+        float laneAlpha = bemaniConfig.laneOpacity;
+        g.setColour(juce::Colours::white.withAlpha(laneAlpha));
+        float divW = std::max(1.0f, bemaniConfig.laneDivW);
+        for (int i = 1; i < numCols; i++)
+        {
+            float cx = leftX + ((float)i / (float)numCols) * fbWidth;
+            g.fillRect(cx - divW * 0.5f, 0.0f, divW, h);
+        }
+    }
+
+    // Strikeline — colored rounded squares per lane
+    if (showStrike)
+    {
+        float strikeAlpha = bemaniConfig.strikelineOpacity;
+        float strikeFrac = bemaniConfig.strikelinePos;
+        int numCols = isDrums ? 4 : 5;
+        float colW = fbWidth / (float)numCols;
+        float strikeY = h * strikeFrac;
+        float padH = colW * 0.55f;   // square-ish pads
+        float padY = strikeY - padH * 0.5f;
+        float inset = colW * 0.08f;
+        float corner = colW * 0.15f;
+
+        // Guitar: Green Red Yellow Blue Orange
+        // Drums:  Red Yellow Blue Green
+        static const juce::Colour guitarCols[] = {
+            juce::Colours::green, juce::Colours::red, juce::Colours::yellow,
+            juce::Colours::blue, juce::Colours::orange
+        };
+        static const juce::Colour drumCols[] = {
+            juce::Colours::red, juce::Colours::yellow, juce::Colours::blue, juce::Colours::green
+        };
+        const juce::Colour* cols = isDrums ? drumCols : guitarCols;
+
+        for (int i = 0; i < numCols; i++)
+        {
+            float cx = leftX + ((float)i + 0.5f) / (float)numCols * fbWidth;
+            float pw = colW - inset * 2.0f;
+            auto padRect = juce::Rectangle<float>(cx - pw * 0.5f, padY, pw, padH);
+
+            // Outer rounded square — gem color, semi-transparent
+            g.setColour(cols[i].withAlpha(strikeAlpha * 0.5f));
+            g.fillRoundedRectangle(padRect, corner);
+
+            // Darker inner rectangle — darker center chunk
+            float innerInset = pw * 0.15f;
+            auto innerRect = padRect.reduced(innerInset, padH * 0.2f);
+            g.setColour(cols[i].darker(0.6f).withAlpha(strikeAlpha * 0.7f));
+            g.fillRoundedRectangle(innerRect, corner * 0.5f);
+
+            // Thin bright border
+            g.setColour(cols[i].withAlpha(strikeAlpha * 0.8f));
+            g.drawRoundedRectangle(padRect, corner, 1.0f);
+        }
+
+        // Thin white line through center of strikeline
+        g.setColour(juce::Colours::white.withAlpha(strikeAlpha * 0.3f));
+        g.drawHorizontalLine((int)strikeY, leftX, rightX);
+    }
+
+}
+
+void TrackRenderer::paintBemaniSidebars(juce::Graphics& g, int viewportWidth, int viewportHeight)
+{
+    if (!PositionMath::bemaniMode) return;
+
+    bool isDrums = isDrumLike(activePart);
+    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                    HIGHWAY_POS_START, cached.posEnd);
+    float leftX = edge.leftX;
+    float rightX = edge.rightX;
+    float h = (float)viewportHeight;
+    float viewW = (float)viewportWidth;
+
+    // Padding lets note glyphs bleed slightly past the fretboard edge
+    float pad = (rightX - leftX) * 0.06f;
+    float maskL = leftX - pad;
+    float maskR = rightX + pad;
+
+    // Opaque black masks outside the padded fretboard (extend far to cover scaled area)
+    g.setColour(juce::Colours::black);
+    g.fillRect(-viewW, -h, maskL + viewW, h * 3.0f);
+    g.fillRect(maskR, -h, viewW * 2.0f, h * 3.0f);
+
+}
+
+void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int viewportHeight)
+{
+    if (!PositionMath::bemaniMode) return;
+
+    bool isDrums = isDrumLike(activePart);
+    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+                    HIGHWAY_POS_START, cached.posEnd);
+    float leftX = edge.leftX;
+    float rightX = edge.rightX;
+    float h = (float)viewportHeight;
+
+    // Sidebar rails — outer grey (narrow), black (wide), inner grey (wider)
+    float fbW = rightX - leftX;
+    float railInset = bemaniConfig.railInset * fbW;
+    float outerGreyW = std::max(1.0f, fbW * 0.004f);
+    float blackW     = std::max(2.0f, fbW * 0.012f);
+    float innerGreyW = std::max(1.5f, fbW * 0.006f);
+    float totalRailW = outerGreyW + blackW + innerGreyW;
+
+    auto innerGrey = juce::Colour(0xff8c8c8c);
+    auto outerGrey = juce::Colour(0xff606060);
+    auto darkCol   = juce::Colour(0xff1a1a1a);
+
+    // Left rail (outer→inner = left→right)
+    {
+        float x = leftX + railInset - totalRailW + innerGreyW;
+        g.setColour(outerGrey);
+        g.fillRect(x, 0.0f, outerGreyW, h);
+        x += outerGreyW;
+        g.setColour(darkCol);
+        g.fillRect(x, 0.0f, blackW, h);
+        x += blackW;
+        g.setColour(innerGrey);
+        g.fillRect(x, 0.0f, innerGreyW, h);
+    }
+
+    // Right rail (inner→outer = left→right, mirrored)
+    {
+        float x = rightX - railInset - innerGreyW;
+        g.setColour(innerGrey);
+        g.fillRect(x, 0.0f, innerGreyW, h);
+        x += innerGreyW;
+        g.setColour(darkCol);
+        g.fillRect(x, 0.0f, blackW, h);
+        x += blackW;
+        g.setColour(outerGrey);
+        g.fillRect(x, 0.0f, outerGreyW, h);
+    }
+}
+
 void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targetW, int targetH)
 {
+    if (PositionMath::bemaniMode)
+    {
+        if (!textureEnabled || !sourceTexture.isValid()) return;
+
+        bool isDrums = isDrumLike(activePart);
+        auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, targetW, targetH,
+                        HIGHWAY_POS_START, cached.posEnd);
+        float leftX = edge.leftX;
+        float hwyW = edge.rightX - edge.leftX;
+        if (hwyW <= 0) return;
+
+        // Tile the texture vertically within the highway bounds, scrolling
+        float texAspect = (float)sourceTexture.getWidth() / (float)sourceTexture.getHeight();
+        float tileW = hwyW;
+        float tileH = tileW / texAspect * textureScale;
+        if (tileH < 1.0f) return;
+
+        // scrollOffset = how many viewport-heights of notes have scrolled by.
+        // Match PositionMath Bemani Y: pixelsPerUnit = REFERENCE_HEIGHT * strikelinePos / bemaniHwyScale.
+        // scrollOffset is in position units, so totalPx = scrollOffset * pixelsPerUnit * texSpeed.
+        float strikeFrac = bemaniConfig.strikelinePos;
+        float texSpeed = bemaniConfig.texSpeed;
+        float hwyScale = std::max(0.1f, PositionMath::bemaniHwyScale);
+        // Total pixels scrolled (continuous, never wraps)
+        float totalPx = scrollOffset * strikeFrac * PositionConstants::REFERENCE_HEIGHT * texSpeed / hwyScale;
+        // Modulo against tile height for seamless repeat
+        float offset = std::fmod(totalPx, tileH);
+        if (offset < 0.0f) offset += tileH;
+
+        // Tile from bottom to top, covering entire viewport
+        g.saveState();
+        g.reduceClipRegion((int)leftX, 0, (int)std::ceil(hwyW), targetH);
+        g.setOpacity(textureOpacity);
+        float startY = (float)targetH - offset;
+        for (float y = startY; y > -tileH; y -= tileH)
+            g.drawImage(sourceTexture, leftX, y, tileW, tileH,
+                        0, 0, sourceTexture.getWidth(), sourceTexture.getHeight());
+        g.restoreState();
+        return;
+    }
 #ifdef DEBUG
     if (PositionMath::debugPolyShade) return;
 #endif
@@ -174,7 +385,7 @@ void TrackRenderer::bakeLayerImage(juce::Image& out, const juce::Image& src, con
 
 void TrackRenderer::rebuild(int width, int height, int overflow,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                               float posEnd)
+                               float posEnd, bool geometryOnly)
 {
     if (width <= 0 || height <= 0) return;
 
@@ -182,11 +393,29 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
-        (activePart == Part::DRUMS) == cached.isDrums)
+        (isDrumLike(activePart)) == cached.isDrums)
         return;
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
     int totalH = height + overflow;
+
+    if (PositionMath::bemaniMode)
+    {
+        // In Bemani mode, skip all perspective baking — draw flat programmatically in paint()
+        cached.width = width;
+        cached.height = height;
+        cached.overflow = overflow;
+        cached.isDrums = isDrums;
+        cached.posEnd = posEnd;
+        cached.fadeEnd = farFadeEnd;
+        cached.fadeLen = farFadeLen;
+        cached.fadeCurve = farFadeCurve;
+
+        fadedTrackImage = {};
+        for (auto& img : layerImages) img = {};
+        prebaked.valid = false;
+        return;
+    }
 
     // Rebuild cached edge geometry (shared by polygon fill and texture scanline LUT)
     // Perspective math uses original viewport height; overflow offsets Y into the taller bitmap.
@@ -219,25 +448,28 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     cached.fadeLen = farFadeLen;
     cached.fadeCurve = farFadeCurve;
 
-    // Bake dark fill base (uses cached edges for polygon — already offset by overflow)
-    fadedTrackImage = juce::Image(juce::Image::ARGB, width, totalH, true);
-    compositeLayers(fadedTrackImage, width, totalH, isDrums, posEnd, farFadeEnd);
+    if (!geometryOnly)
+    {
+        // Bake dark fill base (uses cached edges for polygon — already offset by overflow)
+        fadedTrackImage = juce::Image(juce::Image::ARGB, width, totalH, true);
+        compositeLayers(fadedTrackImage, width, totalH, isDrums, posEnd, farFadeEnd);
 #ifdef DEBUG
-    if (!PositionMath::debugPolyShade)
+        if (!PositionMath::debugPolyShade)
 #endif
-    applyFarFade(fadedTrackImage, width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
-                 posEnd);
+        applyFarFade(fadedTrackImage, width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                     posEnd);
 
-    // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
-    auto* layers = isDrums ? layersDrums : layersGuitar;
-    bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
-                   width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-    bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
-                              farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-    bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
-                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-    bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
-                   width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
+        auto* layers = isDrums ? layersDrums : layersGuitar;
+        bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
+                       width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
+                                  farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
+                       width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
+                       width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+    }
 
     rebuildPrebake();
 }

@@ -15,8 +15,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
-#include "../../Utils/TimeConverter.h"
+#include "../../Utils/ChartTypes.h"
+#include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
 #include "AnimationRenderer.h"
 #include "NoteRenderer.h"
@@ -37,7 +37,7 @@ class SceneRenderer
         Part activePart = Part::GUITAR;
         ~SceneRenderer();
 
-        void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, double windowStartTime, double windowEndTime, bool isPlaying = true);
+        void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
         // Pre-scale assets for the current viewport size. Call on window resize.
         void rescaleAssets(int viewportWidth)
@@ -55,7 +55,11 @@ class SceneRenderer
         bool showLaneSeparators = true;
         bool showStrikeline = true;
 
+#ifdef DEBUG
+        bool collectPhaseTiming = true;
+#else
         bool collectPhaseTiming = false;
+#endif
         PhaseTiming lastPhaseTiming;
 
         float highwayPosEnd = PositionConstants::HIGHWAY_POS_END;
@@ -136,7 +140,7 @@ class SceneRenderer
         LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                                   float sizeScale, float fretboardScale = 1.0f)
         {
-            bool isDrums = activePart == Part::DRUMS;
+            bool isDrums = isDrumLike(activePart);
             return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                    PositionConstants::HIGHWAY_POS_START, highwayPosEnd,
                                                    colCoords, sizeScale, fretboardScale);
@@ -149,10 +153,12 @@ class SceneRenderer
             The image is drawn at (0, -overlayYOffset) with full opacity. Call before paint(). */
         void setOverlay(DrawOrder order, const juce::Image* img) { overlays[order] = img; }
         void clearOverlays() { overlays.clear(); }
+        void setCustomDrawCall(DrawOrder order, std::function<void(juce::Graphics&)> fn) { customDrawCalls[order] = std::move(fn); }
 
         /** Y offset for overlay images (pixels above viewport origin to cover overflow area). */
         int overlayYOffset = 0;
 
     private:
         std::map<DrawOrder, const juce::Image*> overlays;
+        std::map<DrawOrder, std::function<void(juce::Graphics&)>> customDrawCalls;
 };

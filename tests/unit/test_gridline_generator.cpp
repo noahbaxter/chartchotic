@@ -1,6 +1,6 @@
 #include "test_helpers.h"
 #include "Visual/Managers/GridlineGenerator.h"
-#include "Utils/TimeConverter.h"
+#include "Midi/Utils/TimeConverter.h"
 
 // Simple identity ppqToTime for testing (PPQ value = time in seconds)
 static auto identityPPQToTime = [](double ppq) { return ppq; };

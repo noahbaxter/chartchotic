@@ -114,8 +114,8 @@ namespace PositionConstants
     constexpr float BAR_NOTE_POS_OFFSET = -0.020f;      // Nudge bar notes forward in position space
     constexpr float SUSTAIN_WIDTH = 0.15f;              // Sustain width multiplier
     constexpr float SUSTAIN_OPEN_WIDTH = 0.7f;          // Open sustain width multiplier (narrower)
-    constexpr float LANE_WIDTH = 1.1f;                  // Lane width multiplier
-    constexpr float LANE_OPEN_WIDTH = 0.9f;             // Open lane width multiplier
+    inline float LANE_WIDTH = 1.0f;                       // Lane width multiplier (mutable for debug tuning)
+    inline float LANE_OPEN_WIDTH = 0.9f;                // Open lane width multiplier (mutable for debug tuning)
 
     //==============================================================================
     // Sustain Geometry Constants
@@ -225,18 +225,18 @@ namespace PositionConstants
     // Bezier Lane Coordinate Tables (sustain/lane rendering, slightly different from glyph tables)
     constexpr NormalizedCoordinates guitarBezierLaneCoords[] = {
         {0.208f, 0.350f, 0.73f, 0.234f, 0.582f, 0.300f},     // Open
-        {0.234f, 0.367f, 0.71f, 0.22f, 0.096f, 0.056f},      // Green
-        {0.341f, 0.424f, 0.71f, 0.22f, 0.099f, 0.052f},      // Red
+        {0.234f, 0.367f, 0.71f, 0.22f, 0.098f, 0.056f},      // Green
+        {0.342f, 0.424f, 0.71f, 0.22f, 0.099f, 0.052f},      // Red
         {0.451f, 0.474f, 0.71f, 0.22f, 0.099f, 0.052f},      // Yellow
-        {0.560f, 0.524f, 0.71f, 0.22f, 0.100f, 0.052f},      // Blue
-        {0.670f, 0.576f, 0.71f, 0.22f, 0.096f, 0.056f}       // Orange
+        {0.559f, 0.524f, 0.71f, 0.22f, 0.100f, 0.052f},      // Blue
+        {0.668f, 0.576f, 0.71f, 0.22f, 0.098f, 0.056f}       // Orange
     };
     constexpr NormalizedCoordinates drumBezierLaneCoords[] = {
         {0.212f, 0.354f, 0.735f, 0.239f, 0.574f, 0.290f},    // Kick (1x and 2x)
-        {0.232f, 0.376f, 0.70f, 0.22f, 0.130f, 0.060f},      // Red
-        {0.374f, 0.436f, 0.70f, 0.22f, 0.121f, 0.064f},      // Yellow
-        {0.507f, 0.500f, 0.70f, 0.22f, 0.119f, 0.066f},      // Blue
-        {0.638f, 0.564f, 0.70f, 0.22f, 0.122f, 0.060f}       // Green
+        {0.234f, 0.376f, 0.70f, 0.22f, 0.130f, 0.060f},      // Red
+        {0.376f, 0.436f, 0.70f, 0.22f, 0.120f, 0.064f},      // Yellow
+        {0.506f, 0.500f, 0.70f, 0.22f, 0.118f, 0.066f},      // Blue
+        {0.636f, 0.564f, 0.70f, 0.22f, 0.124f, 0.060f}       // Green
     };
 
     //==============================================================================

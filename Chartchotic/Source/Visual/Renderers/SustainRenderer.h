@@ -12,8 +12,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
-#include "../../Utils/TimeConverter.h"
+#include "../../Utils/ChartTypes.h"
+#include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
@@ -53,20 +53,22 @@ private:
     using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
 
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f)
+                              float sizeScale, float fretboardScale = 1.0f,
+                              int bemaniLaneIdx = -1)
     {
-        bool isDrums = activePart == Part::DRUMS;
+        bool isDrums = isDrumLike(activePart);
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale);
+                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
     }
 
     float calculateOpacity(float position)
     {
+        if (PositionMath::bemaniMode) return 1.0f;
         return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
     }
 
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
-    void drawPerspectiveSustainFlat(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
-                                     float opacity, float sustainWidth, juce::Colour colour, bool isLane);
+    void drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
+                         float opacity, float sustainWidth, juce::Colour colour, bool isLane);
 };

@@ -2,49 +2,89 @@
 
 #include "DebugTuningPanel.h"
 #include "../Visual/Renderers/SceneRenderer.h"
+#include <cstring>
+
+// --- Shared helpers for data-driven slider sections ---
+
+void DebugTuningPanel::initTunableSliders(ScrollableLabel* labels, const DebugTunable* tunables,
+                                           int count, std::function<void()> onChange)
+{
+    for (int i = 0; i < count; i++)
+    {
+        const auto& t = tunables[i];
+        setupScrollLabel(labels[i]);
+        if (t.featured)
+        {
+            labels[i].setFont(juce::Font(13.0f).boldened());
+            labels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+        }
+        labels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
+        labels[i].onScroll = [this, i, &t = tunables[i], onChange, labels](int delta) {
+            *t.value = juce::jlimit(t.min, t.max, *t.value + delta * t.step);
+            labels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
+            if (onChange) onChange();
+        };
+    }
+}
+
+void DebugTuningPanel::addTunableChildren(ScrollableLabel* labels, int count)
+{
+    for (int i = 0; i < count; i++)
+        tuningButton.addPanelChild(&labels[i]);
+}
+
+void DebugTuningPanel::layoutTunableRows(ScrollableLabel* labels, int count, bool visible,
+                                          int margin, int w, int rowHeight, int gap, int& y)
+{
+    for (int i = 0; i < count; i++)
+    {
+        labels[i].setVisible(visible);
+        if (visible)
+        {
+            labels[i].setBounds(margin, y, w, rowHeight);
+            y += rowHeight + gap;
+        }
+    }
+}
+
+void DebugTuningPanel::refreshTunableLabels(ScrollableLabel* labels, const DebugTunable* tunables, int count)
+{
+    for (int i = 0; i < count; i++)
+        labels[i].setText(juce::String(tunables[i].name) + ": " + juce::String(*tunables[i].value, tunables[i].decimals), juce::dontSendNotification);
+}
+
+// ==========================================================================
 
 DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     : state(state)
 {
-    // --- Perspective section ---
+    // --- Perspective section (data-driven) ---
     setupSectionHeader(perspectiveHeader, "Perspective");
     {
-        static constexpr const char* names[PERSP_COUNT] = {"VP Depth", "VP Y", "Near Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
-        static constexpr float steps[PERSP_COUNT] = {0.1f, 0.001f, 0.005f, 0.01f, 5.0f, 5.0f, 0.01f};
-        static constexpr float lo[PERSP_COUNT]    = {0.5f, -0.500f, 0.30f, 0.05f, 10.0f, 10.0f, 0.0f};
-        static constexpr float hi[PERSP_COUNT]    = {20.0f, 0.500f, 2.00f, 2.0f, 500.0f, 500.0f, 2.0f};
-        static constexpr int   dec[PERSP_COUNT]   = {1, 3, 3, 2, 0, 0, 2};
-
-        auto getPerspPtr = [](int i) -> float* {
-            switch (i) {
-            case 0: return &PositionMath::debugPerspParamsGuitar.vanishingPointDepth;
-            case 1: return &PositionMath::debugPerspParamsGuitar.vanishingPointY;
-            case 2: return &PositionMath::debugPerspParamsGuitar.nearWidth;
-            case 3: return &PositionMath::debugPerspParamsGuitar.exponentialCurve;
-            case 4: return &PositionMath::debugPerspParamsGuitar.highwayDepth;
-            case 5: return &PositionMath::debugPerspParamsGuitar.playerDistance;
-            default: return &PositionMath::debugPerspParamsGuitar.perspectiveStrength;
-            }
+        float* ptrs[PERSP_COUNT] = {
+            &PositionMath::debugPerspParamsGuitar.vanishingPointDepth,
+            &PositionMath::debugPerspParamsGuitar.vanishingPointY,
+            &PositionMath::debugPerspParamsGuitar.nearWidth,
+            &PositionMath::debugPerspParamsGuitar.exponentialCurve,
+            &PositionMath::debugPerspParamsGuitar.highwayDepth,
+            &PositionMath::debugPerspParamsGuitar.playerDistance,
+            &PositionMath::debugPerspParamsGuitar.perspectiveStrength
         };
+        static constexpr const char* names[PERSP_COUNT] = {"VP Depth", "Horizon Y", "Fretboard Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
+        static constexpr float lo[PERSP_COUNT]   = {0.5f, -0.500f, 0.30f, 0.05f, 10.0f, 10.0f, 0.0f};
+        static constexpr float hi[PERSP_COUNT]   = {20.0f, 0.500f, 2.00f, 2.0f, 500.0f, 500.0f, 2.0f};
+        static constexpr float steps[PERSP_COUNT] = {0.1f, 0.001f, 0.005f, 0.01f, 5.0f, 5.0f, 0.01f};
+        static constexpr int   dec[PERSP_COUNT]   = {1, 3, 3, 2, 0, 0, 2};
+        static constexpr bool feat[PERSP_COUNT]  = {false, true, true, true, false, false, false};
 
         for (int i = 0; i < PERSP_COUNT; i++)
-        {
-            setupScrollLabel(perspLabels[i]);
-            perspLabels[i].onScroll = [this, i, getPerspPtr](int delta) {
-                static constexpr const char* names_l[PERSP_COUNT] = {"VP Depth", "VP Y", "Near Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
-                static constexpr float steps_l[PERSP_COUNT] = {0.1f, 0.001f, 0.005f, 0.01f, 5.0f, 5.0f, 0.01f};
-                static constexpr float lo_l[PERSP_COUNT]    = {0.5f, -0.500f, 0.30f, 0.05f, 10.0f, 10.0f, 0.0f};
-                static constexpr float hi_l[PERSP_COUNT]    = {20.0f, 0.500f, 2.00f, 2.0f, 500.0f, 500.0f, 2.0f};
-                static constexpr int   dec_l[PERSP_COUNT]   = {1, 3, 3, 2, 0, 0, 2};
-                float* val = getPerspPtr(i);
-                *val = juce::jlimit(lo_l[i], hi_l[i], *val + delta * steps_l[i]);
-                perspLabels[i].setText(juce::String(names_l[i]) + ": " + juce::String(*val, dec_l[i]), juce::dontSendNotification);
-                if (onPerspectiveChanged) onPerspectiveChanged();
-            };
-        }
+            perspTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i], feat[i]};
+
+        initTunableSliders(perspLabels, perspTunables, PERSP_COUNT,
+                           [this]() { if (onPerspectiveChanged) onPerspectiveChanged(); });
     }
 
-    // --- Track section (layers table + tiling) ---
+    // --- Track section (layers table + tiling + individual sliders) ---
     setupSectionHeader(trackHeader, "Track");
 
     for (int c = 0; c < LAYER_COLS; c++)
@@ -85,33 +125,50 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    setupScrollLabel(tileStepLabel);
-    tileStepLabel.onScroll = [this](int delta) {
-        tileStepValue = juce::jlimit(0.30f, 1.00f, tileStepValue + delta * 0.005f);
-        tileStepLabel.setText("Step: " + juce::String(tileStepValue, 3), juce::dontSendNotification);
-        if (onTileStepChanged) onTileStepChanged(tileStepValue);
-    };
+    // Track section individual sliders (data-driven with per-slider callbacks)
+    {
+        static constexpr const char* names[TRACK_SLIDER_COUNT] = {
+            "Step", "Scale", "Tex S", "Tex O",
+            "Hwy Gtr", "Hwy Drm", "LogoGap", "DotNudge", "Grid"
+        };
+        float* ptrs[TRACK_SLIDER_COUNT] = {
+            &tileStepValue, &tileScaleStepValue, &textureScaleValue, &textureOpacityValue,
+            &hwyScaleGuitarValue, &hwyScaleDrumsValue, &logoPadValue, &dotNudgeValue, &gridlinePosOffset
+        };
+        static constexpr float lo[TRACK_SLIDER_COUNT]   = {0.30f, 0.30f, 0.10f, 0.05f, 0.50f, 0.50f, -0.1f, -0.5f, -0.10f};
+        static constexpr float hi[TRACK_SLIDER_COUNT]   = {1.00f, 1.00f, 5.00f, 1.00f, 2.00f, 2.00f, 0.5f, 0.3f, 0.10f};
+        static constexpr float steps[TRACK_SLIDER_COUNT] = {0.005f, 0.005f, 0.05f, 0.02f, 0.02f, 0.02f, 0.01f, 0.01f, 0.002f};
+        static constexpr int   dec[TRACK_SLIDER_COUNT]   = {3, 3, 2, 2, 2, 2, 3, 3, 3};
 
-    setupScrollLabel(tileScaleStepLabel);
-    tileScaleStepLabel.onScroll = [this](int delta) {
-        tileScaleStepValue = juce::jlimit(0.30f, 1.00f, tileScaleStepValue + delta * 0.005f);
-        tileScaleStepLabel.setText("Scale: " + juce::String(tileScaleStepValue, 3), juce::dontSendNotification);
-        if (onTileScaleStepChanged) onTileScaleStepChanged(tileScaleStepValue);
-    };
+        for (int i = 0; i < TRACK_SLIDER_COUNT; i++)
+            trackSliderTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i]};
 
-    setupScrollLabel(textureScaleLabel);
-    textureScaleLabel.onScroll = [this](int delta) {
-        textureScaleValue = juce::jlimit(0.10f, 5.00f, textureScaleValue + delta * 0.05f);
-        textureScaleLabel.setText("Tex S: " + juce::String(textureScaleValue, 2), juce::dontSendNotification);
-        if (onTextureScaleChanged) onTextureScaleChanged(textureScaleValue);
-    };
+        // Per-slider callbacks mapped by index
+        std::function<void()> callbacks[TRACK_SLIDER_COUNT] = {
+            [this]() { if (onTileStepChanged) onTileStepChanged(tileStepValue); },
+            [this]() { if (onTileScaleStepChanged) onTileScaleStepChanged(tileScaleStepValue); },
+            [this]() { if (onTextureScaleChanged) onTextureScaleChanged(textureScaleValue); },
+            [this]() { if (onTextureOpacityChanged) onTextureOpacityChanged(textureOpacityValue); },
+            [this]() { bemaniConfig.hwyScaleGuitar = hwyScaleGuitarValue; if (onHwyScaleChanged) onHwyScaleChanged(hwyScaleGuitarValue, hwyScaleDrumsValue); },
+            [this]() { bemaniConfig.hwyScaleDrums = hwyScaleDrumsValue; if (onHwyScaleChanged) onHwyScaleChanged(hwyScaleGuitarValue, hwyScaleDrumsValue); },
+            [this]() { if (onLogoPadChanged) onLogoPadChanged(logoPadValue, dotNudgeValue); },
+            [this]() { if (onLogoPadChanged) onLogoPadChanged(logoPadValue, dotNudgeValue); },
+            [this]() { fireChanged(); }
+        };
 
-    setupScrollLabel(textureOpacityLabel);
-    textureOpacityLabel.onScroll = [this](int delta) {
-        textureOpacityValue = juce::jlimit(0.05f, 1.00f, textureOpacityValue + delta * 0.02f);
-        textureOpacityLabel.setText("Tex O: " + juce::String(textureOpacityValue, 2), juce::dontSendNotification);
-        if (onTextureOpacityChanged) onTextureOpacityChanged(textureOpacityValue);
-    };
+        for (int i = 0; i < TRACK_SLIDER_COUNT; i++)
+        {
+            const auto& t = trackSliderTunables[i];
+            setupScrollLabel(trackSliderLabels[i]);
+            trackSliderLabels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
+            trackSliderLabels[i].onScroll = [this, i, cb = std::move(callbacks[i])](int delta) {
+                const auto& t = trackSliderTunables[i];
+                *t.value = juce::jlimit(t.min, t.max, *t.value + delta * t.step);
+                trackSliderLabels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
+                if (cb) cb();
+            };
+        }
+    }
 
     polyShadeToggle.setButtonText("Poly Shade");
     polyShadeToggle.onClick = [this]() {
@@ -124,66 +181,71 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (onDebugColourChanged) onDebugColourChanged(debugColourToggle.getToggleState());
     };
 
-    stretchToggle.setButtonText("Stretch Fill");
+    stretchToggle.setButtonText("Stretch");
     stretchToggle.onClick = [this]() {
         if (onStretchChanged) onStretchChanged(stretchToggle.getToggleState());
     };
 
-    setupScrollLabel(logoPadLabel);
-    logoPadLabel.setText("LogoGap: " + juce::String(logoPadValue, 3), juce::dontSendNotification);
-    logoPadLabel.onScroll = [this](int delta) {
-        logoPadValue = juce::jlimit(-0.1f, 0.5f, logoPadValue + delta * 0.01f);
-        logoPadLabel.setText("LogoGap: " + juce::String(logoPadValue, 3), juce::dontSendNotification);
-        if (onLogoPadChanged) onLogoPadChanged(logoPadValue, dotNudgeValue);
+    bemaniToggle.setButtonText("Bemani");
+    bemaniToggle.onClick = [this]() {
+        if (onBemaniToggled) onBemaniToggled(bemaniToggle.getToggleState());
     };
 
-    setupScrollLabel(dotNudgeLabel);
-    dotNudgeLabel.setText("DotNudge: " + juce::String(dotNudgeValue, 3), juce::dontSendNotification);
-    dotNudgeLabel.onScroll = [this](int delta) {
-        dotNudgeValue = juce::jlimit(-0.5f, 0.3f, dotNudgeValue + delta * 0.01f);
-        dotNudgeLabel.setText("DotNudge: " + juce::String(dotNudgeValue, 3), juce::dontSendNotification);
-        if (onLogoPadChanged) onLogoPadChanged(logoPadValue, dotNudgeValue);
-    };
+    // --- Bemani section (data-driven from bemaniTunables) ---
+    setupSectionHeader(bemaniHeader, "Bemani");
 
-    setupScrollLabel(gridPosLabel);
-    gridPosLabel.onScroll = [this](int delta) {
-        gridlinePosOffset = juce::jlimit(-0.10f, 0.10f, gridlinePosOffset + delta * 0.002f);
-        gridPosLabel.setText("Grid: " + juce::String(gridlinePosOffset, 3), juce::dontSendNotification);
-        fireChanged();
+    auto setupSubHeader = [](juce::Label& lbl, const juce::String& text) {
+        lbl.setText(text, juce::dontSendNotification);
+        lbl.setJustificationType(juce::Justification::centredLeft);
+        lbl.setColour(juce::Label::textColourId, juce::Colour(0xFFFF6B6B));
+        lbl.setFont(juce::Font(12.0f, juce::Font::bold));
     };
+    setupSubHeader(bemaniGroupHeaders[0], "Position");
+    setupSubHeader(bemaniGroupHeaders[1], "Sustains");
+    setupSubHeader(bemaniGroupHeaders[2], "Visual");
 
-    // --- Curvature section ---
+    for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++)
+    {
+        const auto& t = bemaniTunables[i];
+        setupScrollLabel(bemaniLabels[i]);
+        if (t.featured)
+        {
+            bemaniLabels[i].setFont(juce::Font(13.0f).boldened());
+            bemaniLabels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+        }
+        float& val = bemaniConfig.*t.field;
+        bemaniLabels[i].setText(juce::String(t.name) + ": " + juce::String(val, t.decimals), juce::dontSendNotification);
+        bemaniLabels[i].onScroll = [this, i, &t = bemaniTunables[i]](int delta) {
+            float& v = bemaniConfig.*t.field;
+            v = juce::jlimit(t.min, t.max, v + delta * t.step);
+            bemaniLabels[i].setText(juce::String(t.name) + ": " + juce::String(v, t.decimals), juce::dontSendNotification);
+            if (onBemaniTuningChanged) onBemaniTuningChanged();
+        };
+    }
+
+    // --- Curvature section (data-driven) ---
     setupSectionHeader(curvatureHeader, "Curvature");
+    {
+        static constexpr const char* names[CURVATURE_COUNT] = {"Guitar", "Drums", "Depth"};
+        float* ptrs[CURVATURE_COUNT] = {&guitarCurvature, &drumCurvature, &depthForeshorten};
+        static constexpr float lo[CURVATURE_COUNT]   = {-0.20f, -0.20f, 0.0f};
+        static constexpr float hi[CURVATURE_COUNT]   = {0.20f, 0.20f, 1.0f};
+        static constexpr float steps[CURVATURE_COUNT] = {0.002f, 0.002f, 0.02f};
+        static constexpr int   dec[CURVATURE_COUNT]   = {3, 3, 2};
 
-    setupScrollLabel(guitarCurvLabel);
-    guitarCurvLabel.onScroll = [this](int delta) {
-        guitarCurvature = juce::jlimit(-0.20f, 0.20f, guitarCurvature + delta * 0.002f);
-        guitarCurvLabel.setText("Guitar: " + juce::String(guitarCurvature, 3), juce::dontSendNotification);
-        fireChanged();
-    };
+        for (int i = 0; i < CURVATURE_COUNT; i++)
+            curvatureTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i]};
 
-    setupScrollLabel(drumCurvLabel);
-    drumCurvLabel.onScroll = [this](int delta) {
-        drumCurvature = juce::jlimit(-0.20f, 0.20f, drumCurvature + delta * 0.002f);
-        drumCurvLabel.setText("Drums: " + juce::String(drumCurvature, 3), juce::dontSendNotification);
-        fireChanged();
-    };
+        initTunableSliders(curvatureLabels, curvatureTunables, CURVATURE_COUNT,
+                           [this]() { fireChanged(); });
+    }
 
-    setupScrollLabel(depthForeshortenLabel);
-    depthForeshortenLabel.onScroll = [this](int delta) {
-        depthForeshorten = juce::jlimit(0.0f, 1.0f, depthForeshorten + delta * 0.02f);
-        depthForeshortenLabel.setText("Depth: " + juce::String(depthForeshorten, 2), juce::dontSendNotification);
-        fireChanged();
-    };
-
-    // --- Base Scale table (Gem/Bar × W/H) ---
+    // --- Base Scale table (Gem/Bar x W/H) ---
     setupSectionHeader(baseScaleHeader, "Base Scale");
 
-    // Column headers
     for (int c = 0; c < BASE_SCALE_COLS; c++)
         setupTableHeader(baseScaleColHdrLabels[c]);
 
-    // Access helpers: row 0 = gemScale, row 1 = barScale
     auto getBaseScalePtr = [this](int r, int c) -> float* {
         auto* s = (r == 0) ? &gemScale : &barScale;
         return (c == 0) ? &s->width : &s->height;
@@ -210,7 +272,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    // Gem type scales (list, backed by gemTypeScales struct)
+    // Gem type scales (data-driven)
     {
         static constexpr const char* names[GEM_TYPE_COUNT] = {"Normal", "Cymbal", "HOPO", "GTap", "DGho", "DAcc", "CGho", "CAcc", "SPGem", "SPBar"};
         float* ptrs[GEM_TYPE_COUNT] = {
@@ -219,18 +281,13 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             &gemTypeScales.cAccent, &gemTypeScales.spGem, &gemTypeScales.spBar
         };
         for (int i = 0; i < GEM_TYPE_COUNT; i++)
-        {
-            setupScrollLabel(gemTypeScaleLabels[i]);
-            gemTypeScaleLabels[i].onScroll = [this, i, ptrs](int delta) {
-                float* val = ptrs[i];
-                *val = juce::jlimit(0.30f, 2.00f, *val + delta * 0.01f);
-                gemTypeScaleLabels[i].setText(juce::String(names[i]) + ": " + juce::String(*val, 2), juce::dontSendNotification);
-                fireChanged();
-            };
-        }
+            gemTypeTunables[i] = {names[i], ptrs[i], 0.30f, 2.00f, 0.01f, 2};
+
+        initTunableSliders(gemTypeLabels, gemTypeTunables, GEM_TYPE_COUNT,
+                           [this]() { fireChanged(); });
     }
 
-    // --- Hit Scale table (Gem/Bar × S/W/H) ---
+    // --- Hit Scale table (Gem/Bar x S/W/H) ---
     setupSectionHeader(hitScaleHeader, "Hit Scale");
 
     for (int c = 0; c < HIT_SCALE_COLS; c++)
@@ -266,25 +323,21 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    // Hit type scales (list, backed by hitTypeConfig struct)
+    // Hit type scales (data-driven)
     {
         static constexpr const char* names[HIT_TYPE_FLOAT_COUNT] = {"Ghost", "Accent", "HOPO", "Tap", "SP"};
-        static constexpr float lo[HIT_TYPE_FLOAT_COUNT] = {0.30f, 0.50f, 0.30f, 0.30f, 0.50f};
-        static constexpr float hi[HIT_TYPE_FLOAT_COUNT] = {1.50f, 2.00f, 2.00f, 1.50f, 2.00f};
         float* ptrs[HIT_TYPE_FLOAT_COUNT] = {
             &hitTypeConfig.ghost, &hitTypeConfig.accent, &hitTypeConfig.hopo,
             &hitTypeConfig.tap, &hitTypeConfig.sp
         };
+        static constexpr float lo[HIT_TYPE_FLOAT_COUNT] = {0.30f, 0.50f, 0.30f, 0.30f, 0.50f};
+        static constexpr float hi[HIT_TYPE_FLOAT_COUNT] = {1.50f, 2.00f, 2.00f, 1.50f, 2.00f};
+
         for (int i = 0; i < HIT_TYPE_FLOAT_COUNT; i++)
-        {
-            setupScrollLabel(hitTypeScaleLabels[i]);
-            hitTypeScaleLabels[i].onScroll = [this, i, ptrs](int delta) {
-                float* val = ptrs[i];
-                *val = juce::jlimit(lo[i], hi[i], *val + delta * 0.01f);
-                hitTypeScaleLabels[i].setText(juce::String(names[i]) + ": " + juce::String(*val, 2), juce::dontSendNotification);
-                fireChanged();
-            };
-        }
+            hitTypeTunables[i] = {names[i], ptrs[i], lo[i], hi[i], 0.01f, 2};
+
+        initTunableSliders(hitTypeLabels, hitTypeTunables, HIT_TYPE_FLOAT_COUNT,
+                           [this]() { fireChanged(); });
     }
 
     // Hit type bools (backed by hitTypeConfig struct)
@@ -302,7 +355,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    // --- Z Offsets table (5 rows × 2 cols: Guitar/Drums) ---
+    // --- Z Offsets table (5 rows x 2 cols: Guitar/Drums) ---
     setupSectionHeader(zOffsetsHeader, "Z Offsets");
 
     for (int c = 0; c < Z_COLS; c++)
@@ -340,7 +393,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    // --- Strike Position table (2 rows × 2 cols: Guitar/Drums) ---
+    // --- Strike Position table (2 rows x 2 cols: Guitar/Drums) ---
     setupSectionHeader(strikeHeader, "Strike Pos");
 
     for (int c = 0; c < STRIKE_COLS; c++)
@@ -404,7 +457,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     setupSubLabel(gcolSubNoteLabel, "Notes");
     setupSubLabel(gcolSubLaneLabel, "Lanes");
 
-    // Guitar notes sub-table (6 rows × 7 cols)
+    // Guitar notes sub-table (6 rows x 7 cols)
     for (int c = 0; c < COL_NOTE_COLS; c++)
         setupTableHeader(gcolNoteHdrLabels[c]);
 
@@ -429,7 +482,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    // Guitar lanes sub-table (6 rows × 4 cols)
+    // Guitar lanes sub-table (6 rows x 4 cols)
     std::copy_n(PositionConstants::guitarBezierLaneCoords, GUITAR_LANES, guitarLaneCoords);
 
     for (int c = 0; c < COL_LANE_COLS; c++)
@@ -468,7 +521,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     setupSubLabel(dcolSubNoteLabel, "Notes");
     setupSubLabel(dcolSubLaneLabel, "Lanes");
 
-    // Drum notes sub-table (5 rows × 7 cols)
+    // Drum notes sub-table (5 rows x 7 cols)
     for (int c = 0; c < COL_NOTE_COLS; c++)
         setupTableHeader(dcolNoteHdrLabels[c]);
 
@@ -493,7 +546,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    // Drum lanes sub-table (5 rows × 4 cols)
+    // Drum lanes sub-table (5 rows x 4 cols)
     std::copy_n(PositionConstants::drumBezierLaneCoords, DRUM_LANES, drumLaneCoords);
 
     for (int c = 0; c < COL_LANE_COLS; c++)
@@ -526,6 +579,23 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             };
         }
     }
+
+    // --- Lane Width sliders ---
+    setupScrollLabel(laneWidthLabel);
+    laneWidthLabel.setText(">>> LANE W: " + juce::String(PositionConstants::LANE_WIDTH, 2), juce::dontSendNotification);
+    laneWidthLabel.onScroll = [this](int delta) {
+        PositionConstants::LANE_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_WIDTH + delta * 0.02f);
+        laneWidthLabel.setText(">>> LANE W: " + juce::String(PositionConstants::LANE_WIDTH, 2), juce::dontSendNotification);
+        fireChanged();
+    };
+
+    setupScrollLabel(laneOpenWidthLabel);
+    laneOpenWidthLabel.setText(">>> LANE OPEN W: " + juce::String(PositionConstants::LANE_OPEN_WIDTH, 2), juce::dontSendNotification);
+    laneOpenWidthLabel.onScroll = [this](int delta) {
+        PositionConstants::LANE_OPEN_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_OPEN_WIDTH + delta * 0.02f);
+        laneOpenWidthLabel.setText(">>> LANE OPEN W: " + juce::String(PositionConstants::LANE_OPEN_WIDTH, 2), juce::dontSendNotification);
+        fireChanged();
+    };
 
     // --- Lane Shape section ---
     setupSectionHeader(laneShapeHeader, "Lane Shape");
@@ -619,8 +689,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
 
     // Perspective section
     tuningButton.addPanelChild(&perspectiveHeader);
-    for (int i = 0; i < PERSP_COUNT; i++)
-        tuningButton.addPanelChild(&perspLabels[i]);
+    addTunableChildren(perspLabels, PERSP_COUNT);
 
     tuningButton.addPanelChild(&trackHeader);
     for (int c = 0; c < LAYER_COLS; c++)
@@ -631,21 +700,20 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         for (int c = 0; c < LAYER_COLS; c++)
             tuningButton.addPanelChild(&layerParams[r][c]);
     }
-    tuningButton.addPanelChild(&tileStepLabel);
-    tuningButton.addPanelChild(&tileScaleStepLabel);
-    tuningButton.addPanelChild(&textureScaleLabel);
-    tuningButton.addPanelChild(&textureOpacityLabel);
+    addTunableChildren(trackSliderLabels, TRACK_SLIDER_COUNT);
     tuningButton.addPanelChild(&polyShadeToggle);
     tuningButton.addPanelChild(&debugColourToggle);
     tuningButton.addPanelChild(&stretchToggle);
-    tuningButton.addPanelChild(&logoPadLabel);
-    tuningButton.addPanelChild(&dotNudgeLabel);
-    tuningButton.addPanelChild(&gridPosLabel);
+    tuningButton.addPanelChild(&bemaniToggle);
+
+    tuningButton.addPanelChild(&bemaniHeader);
+    for (int g = 0; g < 3; g++)
+        tuningButton.addPanelChild(&bemaniGroupHeaders[g]);
+    for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++)
+        tuningButton.addPanelChild(&bemaniLabels[i]);
 
     tuningButton.addPanelChild(&curvatureHeader);
-    tuningButton.addPanelChild(&guitarCurvLabel);
-    tuningButton.addPanelChild(&drumCurvLabel);
-    tuningButton.addPanelChild(&depthForeshortenLabel);
+    addTunableChildren(curvatureLabels, CURVATURE_COUNT);
 
     // Base Scale table
     tuningButton.addPanelChild(&baseScaleHeader);
@@ -657,8 +725,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         for (int c = 0; c < BASE_SCALE_COLS; c++)
             tuningButton.addPanelChild(&baseScaleParams[r][c]);
     }
-    for (int i = 0; i < GEM_TYPE_COUNT; i++)
-        tuningButton.addPanelChild(&gemTypeScaleLabels[i]);
+    addTunableChildren(gemTypeLabels, GEM_TYPE_COUNT);
 
     // Hit Scale table
     tuningButton.addPanelChild(&hitScaleHeader);
@@ -670,8 +737,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         for (int c = 0; c < HIT_SCALE_COLS; c++)
             tuningButton.addPanelChild(&hitScaleParams[r][c]);
     }
-    for (int i = 0; i < HIT_TYPE_FLOAT_COUNT; i++)
-        tuningButton.addPanelChild(&hitTypeScaleLabels[i]);
+    addTunableChildren(hitTypeLabels, HIT_TYPE_FLOAT_COUNT);
     for (int i = 0; i < HIT_TYPE_BOOL_COUNT; i++)
         tuningButton.addPanelChild(&hitTypeBoolLabels[i]);
 
@@ -739,6 +805,10 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             tuningButton.addPanelChild(&dcolLaneParams[r][c]);
     }
 
+    // Lane Width
+    tuningButton.addPanelChild(&laneWidthLabel);
+    tuningButton.addPanelChild(&laneOpenWidthLabel);
+
     // Lane Shape table
     tuningButton.addPanelChild(&laneShapeHeader);
     for (int c = 0; c < LANE_SHAPE_COLS; c++)
@@ -761,7 +831,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             tuningButton.addPanelChild(&overlayParamLabels[r][c]);
     }
 
-    tuningButton.setPanelSize(280, 200);
+    tuningButton.setPanelSize(320, 500);
     tuningButton.onLayoutPanel = [this](juce::Component* panel) { layoutPanel(panel); };
 }
 
@@ -831,12 +901,8 @@ void DebugTuningPanel::refreshTrackLabels()
         for (int c = 0; c < LAYER_COLS; c++)
             layerParams[r][c].setText(juce::String(vals[c], layerDec[c]), juce::dontSendNotification);
     }
-    tileStepLabel.setText("Step: " + juce::String(tileStepValue, 3), juce::dontSendNotification);
-    tileScaleStepLabel.setText("Scale: " + juce::String(tileScaleStepValue, 3), juce::dontSendNotification);
-    textureScaleLabel.setText("Tex S: " + juce::String(textureScaleValue, 2), juce::dontSendNotification);
-    textureOpacityLabel.setText("Tex O: " + juce::String(textureOpacityValue, 2), juce::dontSendNotification);
+    refreshTunableLabels(trackSliderLabels, trackSliderTunables, TRACK_SLIDER_COUNT);
     polyShadeToggle.setToggleState(PositionMath::debugPolyShade, juce::dontSendNotification);
-    gridPosLabel.setText("Grid: " + juce::String(gridlinePosOffset, 3), juce::dontSendNotification);
 }
 
 void DebugTuningPanel::refreshColLabels()
@@ -923,25 +989,10 @@ void DebugTuningPanel::refreshOverlayLabels()
 void DebugTuningPanel::refreshLabels()
 {
     // Perspective labels
-    {
-        static constexpr const char* names[PERSP_COUNT] = {"VP Depth", "VP Y", "Near Width", "Exp Curve", "Hwy Depth", "Player Dist", "Persp Str"};
-        static constexpr int dec[PERSP_COUNT] = {1, 3, 3, 2, 0, 0, 2};
-        const float vals[PERSP_COUNT] = {
-            PositionMath::debugPerspParamsGuitar.vanishingPointDepth,
-            PositionMath::debugPerspParamsGuitar.vanishingPointY,
-            PositionMath::debugPerspParamsGuitar.nearWidth,
-            PositionMath::debugPerspParamsGuitar.exponentialCurve,
-            PositionMath::debugPerspParamsGuitar.highwayDepth,
-            PositionMath::debugPerspParamsGuitar.playerDistance,
-            PositionMath::debugPerspParamsGuitar.perspectiveStrength
-        };
-        for (int i = 0; i < PERSP_COUNT; i++)
-            perspLabels[i].setText(juce::String(names[i]) + ": " + juce::String(vals[i], dec[i]), juce::dontSendNotification);
-    }
+    refreshTunableLabels(perspLabels, perspTunables, PERSP_COUNT);
 
-    guitarCurvLabel.setText("Guitar: " + juce::String(guitarCurvature, 3), juce::dontSendNotification);
-    drumCurvLabel.setText("Drums: " + juce::String(drumCurvature, 3), juce::dontSendNotification);
-    depthForeshortenLabel.setText("Depth: " + juce::String(depthForeshorten, 2), juce::dontSendNotification);
+    // Curvature labels
+    refreshTunableLabels(curvatureLabels, curvatureTunables, CURVATURE_COUNT);
 
     // Base Scale table
     for (int r = 0; r < BASE_SCALE_ROWS; r++)
@@ -953,16 +1004,8 @@ void DebugTuningPanel::refreshLabels()
         baseScaleColHdrLabels[1].setText(baseScaleColNames[1], juce::dontSendNotification);
     }
 
-    {
-        static constexpr const char* names[GEM_TYPE_COUNT] = {"Normal", "Cymbal", "HOPO", "GTap", "DGho", "DAcc", "CGho", "CAcc", "SPGem", "SPBar"};
-        const float vals[GEM_TYPE_COUNT] = {
-            gemTypeScales.normal, gemTypeScales.cymbal, gemTypeScales.hopo, gemTypeScales.gTap,
-            gemTypeScales.dGhost, gemTypeScales.dAccent, gemTypeScales.cGhost,
-            gemTypeScales.cAccent, gemTypeScales.spGem, gemTypeScales.spBar
-        };
-        for (int i = 0; i < GEM_TYPE_COUNT; i++)
-            gemTypeScaleLabels[i].setText(juce::String(names[i]) + ": " + juce::String(vals[i], 2), juce::dontSendNotification);
-    }
+    // Gem type scales
+    refreshTunableLabels(gemTypeLabels, gemTypeTunables, GEM_TYPE_COUNT);
 
     // Hit Scale table
     for (int r = 0; r < HIT_SCALE_ROWS; r++)
@@ -975,15 +1018,10 @@ void DebugTuningPanel::refreshLabels()
     for (int c = 0; c < HIT_SCALE_COLS; c++)
         hitScaleColHdrLabels[c].setText(hitScaleColNames[c], juce::dontSendNotification);
 
-    {
-        static constexpr const char* names[HIT_TYPE_FLOAT_COUNT] = {"Ghost", "Accent", "HOPO", "Tap", "SP"};
-        const float vals[HIT_TYPE_FLOAT_COUNT] = {
-            hitTypeConfig.ghost, hitTypeConfig.accent, hitTypeConfig.hopo,
-            hitTypeConfig.tap, hitTypeConfig.sp
-        };
-        for (int i = 0; i < HIT_TYPE_FLOAT_COUNT; i++)
-            hitTypeScaleLabels[i].setText(juce::String(names[i]) + ": " + juce::String(vals[i], 2), juce::dontSendNotification);
+    // Hit type scales
+    refreshTunableLabels(hitTypeLabels, hitTypeTunables, HIT_TYPE_FLOAT_COUNT);
 
+    {
         static constexpr const char* boolNames[HIT_TYPE_BOOL_COUNT] = {"SP White: ", "Tap Purple:"};
         const bool boolVals[HIT_TYPE_BOOL_COUNT] = {hitTypeConfig.spWhiteFlare, hitTypeConfig.tapPurpleFlare};
         for (int i = 0; i < HIT_TYPE_BOOL_COUNT; i++)
@@ -1019,7 +1057,7 @@ void DebugTuningPanel::setupTableHeader(juce::Label& label)
 {
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, juce::Colours::grey);
-    label.setFont(juce::Font(10.0f));
+    label.setFont(juce::Font(13.0f));
 }
 
 void DebugTuningPanel::setupSectionHeader(SectionHeader& header, const juce::String& text)
@@ -1027,7 +1065,7 @@ void DebugTuningPanel::setupSectionHeader(SectionHeader& header, const juce::Str
     header.setTitle(text);
     header.setJustificationType(juce::Justification::centred);
     header.setColour(juce::Label::textColourId, juce::Colours::grey);
-    header.setFont(juce::Font(11.0f));
+    header.setFont(juce::Font(14.0f));
     header.setInterceptsMouseClicks(true, true);
     header.onToggle = [this]() {
         if (tuningButton.isPanelVisible())
@@ -1039,6 +1077,7 @@ void DebugTuningPanel::setupScrollLabel(ScrollableLabel& label)
 {
     label.setJustificationType(juce::Justification::centredLeft);
     label.setColour(juce::Label::textColourId, juce::Colours::white);
+    label.setFont(juce::Font(13.0f));
     label.setInterceptsMouseClicks(true, true);
 }
 
@@ -1075,9 +1114,9 @@ int DebugTuningPanel::layoutTable(int y, int x, int w, int rowHeight, int gap,
 void DebugTuningPanel::layoutPanel(juce::Component* panel)
 {
     const int margin = 8;
-    const int rowHeight = 22;
-    const int gap = 3;
-    const int headerGap = 6;
+    const int rowHeight = 26;
+    const int gap = 4;
+    const int headerGap = 8;
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
@@ -1101,8 +1140,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     // --- Perspective section ---
     perspectiveHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
-    for (int i = 0; i < PERSP_COUNT; i++)
-        layoutRow(perspLabels[i], perspectiveHeader.expanded);
+    layoutTunableRows(perspLabels, PERSP_COUNT, perspectiveHeader.expanded, margin, w, rowHeight, gap, y);
     y += headerGap;
 
     // --- Track section (layers table + tiling) ---
@@ -1114,39 +1152,70 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
                         layerColHdrLabels, LAYER_COLS,
                         layerRowLabels, &layerParams[0][0],
                         NUM_DISPLAY_LAYERS, LAYER_COLS, 40);
-        layoutRow(tileStepLabel, true);
-        layoutRow(tileScaleStepLabel, true);
-        layoutRow(textureScaleLabel, true);
-        layoutRow(textureOpacityLabel, true);
+        // Track individual sliders: first 4 (tileStep, tileScaleStep, texScale, texOpacity)
+        for (int i = 0; i < 4; i++)
+            layoutRow(trackSliderLabels[i], true);
         layoutRow(polyShadeToggle, true);
         layoutRow(debugColourToggle, true);
-        layoutRow(stretchToggle, true);
-        layoutRow(logoPadLabel, true);
-        layoutRow(dotNudgeLabel, true);
-        layoutRow(gridPosLabel, true);
+        // Stretch + Bemani toggles side by side
+        {
+            int halfW = (w - gap) / 2;
+            stretchToggle.setVisible(true);
+            stretchToggle.setBounds(margin, y, halfW, rowHeight);
+            bemaniToggle.setVisible(true);
+            bemaniToggle.setBounds(margin + halfW + gap, y, halfW, rowHeight);
+            y += rowHeight + gap;
+        }
+        // Remaining track sliders: hwyGtr, hwyDrm, logoPad, dotNudge, grid
+        for (int i = 4; i < TRACK_SLIDER_COUNT; i++)
+            layoutRow(trackSliderLabels[i], true);
     }
     else
     {
         hideTable(layerColHdrLabels, LAYER_COLS, layerRowLabels, &layerParams[0][0], NUM_DISPLAY_LAYERS, LAYER_COLS);
-        tileStepLabel.setVisible(false);
-        tileScaleStepLabel.setVisible(false);
-        textureScaleLabel.setVisible(false);
-        textureOpacityLabel.setVisible(false);
+        layoutTunableRows(trackSliderLabels, TRACK_SLIDER_COUNT, false, margin, w, rowHeight, gap, y);
         polyShadeToggle.setVisible(false);
         debugColourToggle.setVisible(false);
         stretchToggle.setVisible(false);
-        logoPadLabel.setVisible(false);
-        dotNudgeLabel.setVisible(false);
-        gridPosLabel.setVisible(false);
+        bemaniToggle.setVisible(false);
+    }
+    y += headerGap;
+
+    // --- Bemani section (data-driven) ---
+    bemaniHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    if (bemaniHeader.expanded)
+    {
+        const char* lastGroup = nullptr;
+        int groupIdx = 0;
+        for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++)
+        {
+            const char* group = bemaniTunables[i].group;
+            if (lastGroup == nullptr || std::strcmp(group, lastGroup) != 0)
+            {
+                // Map group name to header index
+                if (std::strcmp(group, "Position") == 0) groupIdx = 0;
+                else if (std::strcmp(group, "Sustains") == 0) groupIdx = 1;
+                else groupIdx = 2;
+                layoutRow(bemaniGroupHeaders[groupIdx], true);
+                lastGroup = group;
+            }
+            layoutRow(bemaniLabels[i], true);
+        }
+    }
+    else
+    {
+        for (int g = 0; g < 3; g++)
+            bemaniGroupHeaders[g].setVisible(false);
+        for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++)
+            bemaniLabels[i].setVisible(false);
     }
     y += headerGap;
 
     // Curvature
     curvatureHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
-    layoutRow(guitarCurvLabel, curvatureHeader.expanded);
-    layoutRow(drumCurvLabel, curvatureHeader.expanded);
-    layoutRow(depthForeshortenLabel, curvatureHeader.expanded);
+    layoutTunableRows(curvatureLabels, CURVATURE_COUNT, curvatureHeader.expanded, margin, w, rowHeight, gap, y);
     y += headerGap;
 
     // Base Scale table
@@ -1159,14 +1228,12 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
                         baseScaleRowLabels, &baseScaleParams[0][0],
                         BASE_SCALE_ROWS, BASE_SCALE_COLS, 34);
         // Gem type scales
-        for (int i = 0; i < GEM_TYPE_COUNT; i++)
-            layoutRow(gemTypeScaleLabels[i], true);
+        layoutTunableRows(gemTypeLabels, GEM_TYPE_COUNT, true, margin, w, rowHeight, gap, y);
     }
     else
     {
         hideTable(baseScaleColHdrLabels, BASE_SCALE_COLS, baseScaleRowLabels, &baseScaleParams[0][0], BASE_SCALE_ROWS, BASE_SCALE_COLS);
-        for (int i = 0; i < GEM_TYPE_COUNT; i++)
-            gemTypeScaleLabels[i].setVisible(false);
+        layoutTunableRows(gemTypeLabels, GEM_TYPE_COUNT, false, margin, w, rowHeight, gap, y);
     }
     y += headerGap;
 
@@ -1179,16 +1246,14 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
                         hitScaleColHdrLabels, HIT_SCALE_COLS,
                         hitScaleRowLabels, &hitScaleParams[0][0],
                         HIT_SCALE_ROWS, HIT_SCALE_COLS, 34);
-        for (int i = 0; i < HIT_TYPE_FLOAT_COUNT; i++)
-            layoutRow(hitTypeScaleLabels[i], true);
+        layoutTunableRows(hitTypeLabels, HIT_TYPE_FLOAT_COUNT, true, margin, w, rowHeight, gap, y);
         for (int i = 0; i < HIT_TYPE_BOOL_COUNT; i++)
             layoutRow(hitTypeBoolLabels[i], true);
     }
     else
     {
         hideTable(hitScaleColHdrLabels, HIT_SCALE_COLS, hitScaleRowLabels, &hitScaleParams[0][0], HIT_SCALE_ROWS, HIT_SCALE_COLS);
-        for (int i = 0; i < HIT_TYPE_FLOAT_COUNT; i++)
-            hitTypeScaleLabels[i].setVisible(false);
+        layoutTunableRows(hitTypeLabels, HIT_TYPE_FLOAT_COUNT, false, margin, w, rowHeight, gap, y);
         for (int i = 0; i < HIT_TYPE_BOOL_COUNT; i++)
             hitTypeBoolLabels[i].setVisible(false);
     }
@@ -1277,6 +1342,10 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         hideTable(dcolLaneHdrLabels, COL_LANE_COLS, dcolLaneRowLabels, &dcolLaneParams[0][0], DRUM_LANES, COL_LANE_COLS);
     }
     y += headerGap;
+
+    // Lane Width sliders (always visible)
+    layoutRow(laneWidthLabel, true);
+    layoutRow(laneOpenWidthLabel, true);
 
     // Lane Shape (table layout)
     laneShapeHeader.setBounds(margin, y, w, rowHeight);

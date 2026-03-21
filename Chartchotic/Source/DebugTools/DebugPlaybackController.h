@@ -3,7 +3,7 @@
 #ifdef DEBUG
 
 #include <JuceHeader.h>
-#include "../Utils/PPQ.h"
+#include "../Midi/Utils/PPQ.h"
 
 class DebugPlaybackController
 {

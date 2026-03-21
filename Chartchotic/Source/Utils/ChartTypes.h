@@ -1,7 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "PPQ.h"
+#include "../Midi/Utils/PPQ.h"
 #include "../UI/ControlConstants.h"
 
 // Windows compatibility - uint is not defined by default on Windows
@@ -16,6 +16,16 @@ constexpr uint LANE_COUNT = 7;  // Number of playable lanes (0-6)
 
 //==============================================================================
 // State helpers
+
+inline Part getPartFromState(juce::ValueTree &state)
+{
+    return (Part)(int)state.getProperty("part");
+}
+
+inline RenderType getRenderTypeFromState(juce::ValueTree &state)
+{
+    return getRenderType(getPartFromState(state));
+}
 
 inline bool isPart(juce::ValueTree &state, Part part)
 {

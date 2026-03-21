@@ -4,7 +4,7 @@
 
 #include <JuceHeader.h>
 #include "../UI/Controls/PopupMenuButton.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 
 class DebugToolbarPanel
 {

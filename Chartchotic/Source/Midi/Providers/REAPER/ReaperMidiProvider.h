@@ -2,9 +2,9 @@
 
 #include <JuceHeader.h>
 #include "ReaperApiHelpers.h"
-#include "../../../Utils/PPQ.h"
-#include "../../../Utils/Utils.h"
-#include "../../../Utils/TimeConverter.h"
+#include "../../Utils/PPQ.h"
+#include "../../../Utils/ChartTypes.h"
+#include "../../Utils/TimeConverter.h"
 #include "../../../DebugTools/Logger.h"
 #include "../../ChartTextEvent.h"
 

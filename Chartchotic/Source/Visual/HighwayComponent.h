@@ -13,18 +13,21 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils/Utils.h"
-#include "../Utils/TimeConverter.h"
+#include "../Utils/ChartTypes.h"
+#include "../Midi/Utils/TimeConverter.h"
 #include "Renderers/SceneRenderer.h"
 #include "Renderers/TrackRenderer.h"
 #include "Managers/AssetManager.h"
 #include "Utils/DrawingConstants.h"
+
+class TrackImageCache;
 
 struct HighwayFrameData {
     TimeBasedTrackWindow trackWindow;
     TimeBasedSustainWindow sustainWindow;
     TimeBasedGridlineMap gridlines;
     TimeBasedFlipRegions flipRegions;
+    TimeBasedEventMarkers eventMarkers;
     double windowStartTime = 0.0;
     double windowEndTime = 1.0;
     float scrollOffset = 0.0f;
@@ -42,6 +45,7 @@ public:
     Part getActivePart() const { return activePart; }
 
     void paint(juce::Graphics& g) override;
+    void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
     void timerCallback() override;
 
@@ -59,7 +63,7 @@ public:
     void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
     void setShowHighway(bool on)        { showHighway = on; repaint(); }
 
-    void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; rebuildTrack(); repaint(); }
+    void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; PositionMath::bemaniHwyScale = length; rebuildTrack(); repaint(); }
     void setTexture(const juce::Image& img) { trackRenderer.setTexture(img); }
     void clearTexture()                 { trackRenderer.clearTexture(); }
     void setTextureScale(float s)       { trackRenderer.textureScale = s; repaint(); }
@@ -67,7 +71,16 @@ public:
     void setGemScale(float)             { repaint(); }
     void setBarScale(float)             { repaint(); }
 
-    void onInstrumentChanged()          { setActivePart(isPart(state, Part::DRUMS) ? Part::DRUMS : Part::GUITAR); rebuildTrack(); repaint(); }
+    static constexpr float labelIconSize = 40.0f;
+
+    bool showPartLabel = false;
+    bool showDifficultyLabel = false;
+    SkillLevel displaySkillLevel = SkillLevel::EXPERT;
+
+    /** When cache is active, instrument change only swaps overlay pointers — no rebuild. */
+    void onInstrumentChanged();
+
+    void setTrackImageCache(TrackImageCache* cache) { trackImageCache = cache; }
 
     // Accessors for debug wiring
     SceneRenderer& getSceneRenderer()   { return sceneRenderer; }
@@ -94,6 +107,7 @@ private:
     AssetManager& assetManager;
     SceneRenderer sceneRenderer;
     TrackRenderer trackRenderer;
+    TrackImageCache* trackImageCache = nullptr;
 
     HighwayFrameData frameData;
 
@@ -105,6 +119,8 @@ private:
 #ifdef DEBUG
 public:
     bool showDebugColour = false;
+    double debugTrackRender_us = 0.0;
+    double debugHighwayPaint_us = 0.0;
 private:
     juce::Colour debugColour;
 #endif

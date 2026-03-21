@@ -5,13 +5,18 @@
 #include "../Midi/Processing/MidiInterpreter.h"
 #include "../UI/ToolbarComponent.h"
 #include "../Visual/Managers/GridlineGenerator.h"
-#include "../Utils/TimeConverter.h"
+#include "../Midi/Utils/TimeConverter.h"
 
 #ifndef CHARTCHOTIC_MIDI_ASSET_DIR
   #define CHARTCHOTIC_MIDI_ASSET_DIR ""
 #endif
 
 DebugEditorController::DebugEditorController() {}
+
+DebugEditorController::~DebugEditorController()
+{
+    frameProfileLogger.stop();
+}
 
 void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProcessor& processor,
                                   juce::ValueTree& state, bool isStandalone)
@@ -35,6 +40,8 @@ void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProces
         consoleOutput.clear();
     };
     parent.addChildComponent(clearLogsButton);
+
+    frameProfileLogger.start();
 }
 
 void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
@@ -62,15 +69,15 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         consoleOutput.setVisible(show);
         clearLogsButton.setVisible(show);
     };
-    dbg.onProfilerChanged = [&highway](bool on) {
-        highway.getSceneRenderer().collectPhaseTiming = on;
+    dbg.onProfilerChanged = [this](bool on) {
+        showProfilerOverlay = on;
     };
 
     auto& tune = toolbar.getTuningPanel();
     tune.initDefaults(highway.getTrackRenderer());
 
     tune.onLayerChanged = [this, &highway](int layer, float scale, float x, float y) {
-        bool isDrums = isPart(*statePtr, Part::DRUMS);
+        bool isDrums = isDrumLike(getPartFromState(*statePtr));
         auto* layers = isDrums ? highway.getTrackRenderer().layersDrums : highway.getTrackRenderer().layersGuitar;
         layers[layer] = {scale, x, y};
         highway.getTrackRenderer().invalidate();
@@ -112,6 +119,30 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
             parent->resized();
     };
 
+    tune.onBemaniToggled = [&highway, repaintEditor](bool on) {
+        PositionMath::bemaniMode = on;
+        PositionMath::bemaniHwyScale = 1.0f;
+        // resized() sets correct dimensions for the new mode
+        if (auto* parent = highway.getParentComponent())
+            parent->resized();
+        // Force immediate rebuild with correct dimensions
+        highway.getTrackRenderer().invalidate();
+        highway.rebuildTrack();
+        repaintEditor();
+    };
+
+    tune.onHwyScaleChanged = [&highway, repaintEditor](float gtr, float drm) {
+        highway.getTrackRenderer().invalidate();
+        highway.rebuildTrack();
+        if (auto* parent = highway.getParentComponent())
+            parent->resized();
+        repaintEditor();
+    };
+
+    tune.onBemaniTuningChanged = [repaintEditor]() {
+        repaintEditor();
+    };
+
     tune.onLogoPadChanged = [&toolbar](float gap, float nudge) {
         toolbar.getLogo().logoGapRatio = gap;
         toolbar.getLogo().dotNudge = nudge;
@@ -135,6 +166,12 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
     };
 }
 
+void DebugEditorController::beginFrame(double delta_us)
+{
+    frameDelta_us = delta_us;
+    frameProfileLogger.beginFrame();
+}
+
 void DebugEditorController::onFrame(PPQ& lastKnownPosition, bool& lastPlayingState)
 {
     if (!standalone) return;
@@ -145,6 +182,57 @@ void DebugEditorController::onFrame(PPQ& lastKnownPosition, bool& lastPlayingSta
     lastKnownPosition = playbackController.getCurrentPPQ();
     if (playbackController.isPlaying())
         lastPlayingState = true;
+}
+
+void DebugEditorController::recordFrameData(const HighwayFrameData& primaryFrameData, double dataBuild_us,
+                                             int slotCount, Part activePart, SkillLevel skill,
+                                             int viewportW, int viewportH, bool isPlaying)
+{
+    pendingDataBuild_us = dataBuild_us;
+    frameProfileLogger.recordFrameData(
+        frameDelta_us, dataBuild_us, lockWait_us,
+        (int)primaryFrameData.trackWindow.size(),
+        (int)primaryFrameData.sustainWindow.size(),
+        (int)primaryFrameData.gridlines.size(),
+        slotCount, activePart, skill, viewportW, viewportH, isPlaying);
+}
+
+void DebugEditorController::paintOverChildren(juce::Graphics& g, HighwayComponent* primaryHighway,
+                                                HighwayComponent* const* allHighways, int highwayCount,
+                                                bool hasSlotsVisible)
+{
+    if (hasSlotsVisible && primaryHighway)
+    {
+        if (showProfilerOverlay)
+            drawProfilerOverlay(g, primaryHighway->getSceneRenderer());
+
+        // Collect per-highway timing
+        HighwayProfileRecord hwRecords[MAX_PROFILED_HIGHWAYS] = {};
+        int hwCount = std::min(highwayCount, (int)MAX_PROFILED_HIGHWAYS);
+        for (int i = 0; i < hwCount; ++i)
+        {
+            auto& hw = *allHighways[i];
+            auto& t = hw.getSceneRenderer().lastPhaseTiming;
+            hwRecords[i].paint_us = (int)hw.debugHighwayPaint_us;
+            hwRecords[i].scene_us = (int)t.total_us;
+            hwRecords[i].notes_us = (int)t.notes_us;
+            hwRecords[i].sustains_us = (int)t.sustains_us;
+            hwRecords[i].execute_us = (int)t.execute_us;
+            hwRecords[i].track_us = (int)hw.debugTrackRender_us;
+        }
+
+        frameProfileLogger.recordPaintData(
+            primaryHighway->getSceneRenderer().lastPhaseTiming,
+            primaryHighway->debugTrackRender_us,
+            textureRender_us,
+            primaryHighway->debugHighwayPaint_us,
+            hwRecords, hwCount);
+    }
+    else
+    {
+        PhaseTiming empty;
+        frameProfileLogger.recordPaintData(empty, 0.0, 0.0, 0.0);
+    }
 }
 
 void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer)
@@ -212,15 +300,19 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
 {
     if (!standalone || !playbackController.isNotesActive()) return;
 
-    // Wire disco flip state to interpreter each frame (lightweight pointer set)
-    midiInterpreter.setDiscoFlipState(discoFlipState.hasRegions() ? &discoFlipState : nullptr);
+    // Wire disco flip state to drum interpreters only
+    bool isDrumSlot = midiInterpreter.instrumentPart == Part::DRUMS;
+    midiInterpreter.setDiscoFlipState(isDrumSlot && discoFlipState.hasRegions() ? &discoFlipState : nullptr);
 
     PPQ trackWindowStartPPQ = playbackController.getCurrentPPQ();
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + PPQ(displaySizeInPPQ);
     PPQ extendedStart = trackWindowStartPPQ - PPQ(displaySizeInPPQ);
 
-    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
-    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, trackWindowStartPPQ);
+    PartWindow partWindow = midiInterpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, trackWindowStartPPQ);
+    SkillLevel activeSkill = (SkillLevel)((int)midiInterpreter.getState().getProperty("skillLevel"));
+    auto& diffWindow = partWindow.forSkill(activeSkill);
+    TrackWindow& ppqTrackWindow = diffWindow.trackWindow;
+    SustainWindow& ppqSustainWindow = diffWindow.sustainWindow;
 
     double bpm = playbackController.getBPM();
     auto ppqToTime = [bpm](double ppq) { return ppq * (60.0 / bpm); };
@@ -244,14 +336,15 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
 
     bool isProDrums = (int)statePtr->getProperty("drumType") == 2;
     bool discoEnabled = (bool)statePtr->getProperty("discoFlip");
-    out.discoFlipActive = isProDrums && discoEnabled
-                          && discoFlipState.isFlipped(trackWindowStartPPQ);
+    int midiDiff = (int)statePtr->getProperty("skillLevel") - 1;
+    out.discoFlipActive = isDrumSlot && isProDrums && discoEnabled
+                          && discoFlipState.isFlipped(trackWindowStartPPQ, midiDiff);
 
-    // Convert flip region boundaries to time-relative for highway markers
-    if (isProDrums && discoEnabled && discoFlipState.hasRegions())
+    // Convert flip region boundaries to time-relative for highway markers (drums only)
+    if (isDrumSlot && isProDrums && discoEnabled && discoFlipState.hasRegions())
     {
         double cursorTime = ppqToTime(cursorPPQ.toDouble());
-        for (const auto& r : discoFlipState.getRegions())
+        for (const auto& r : discoFlipState.getRegions(midiDiff))
         {
             double startTime = ppqToTime(r.start.toDouble()) - cursorTime;
             double endTime   = ppqToTime(r.end.toDouble())   - cursorTime;
@@ -274,8 +367,7 @@ bool DebugEditorController::computeScrollOffset(float& outOffset, double display
 
     double absoluteTime = ppq * (60.0 / bpm);
     double scrollRate = 1.0 / displayWindowTimeSeconds;
-    double raw = std::fmod(-absoluteTime * scrollRate, 1.0);
-    outOffset = (float)(raw < 0.0 ? raw + 1.0 : raw);
+    outOffset = (float)(-absoluteTime * scrollRate);
     return true;
 }
 
@@ -303,12 +395,6 @@ bool DebugEditorController::mouseWheelMove(const juce::MouseWheelDetails& wheel,
     return true;
 }
 
-bool DebugEditorController::collectPhaseTiming() const
-{
-    // Delegates to the profiler toggle state — but that's on SceneRenderer.
-    // This is just a convenience for the texture scoped measure.
-    return false; // Caller should check sceneRenderer.collectPhaseTiming directly
-}
 
 void DebugEditorController::scanMidiDirectory()
 {
@@ -332,37 +418,42 @@ void DebugEditorController::loadDebugChart(int index)
 {
     if (index <= 0 || index >= (int)chartEntries.size() || !chartEntries[index].file.existsAsFile())
     {
-        {
-            const juce::ScopedLock lock(processorPtr->getNoteStateMapLock());
-            for (auto& map : processorPtr->getNoteStateMapArray())
-                map.clear();
-        }
         debugMidiTempoMap.clear();
+        // Notify with empty chart to clear highways
+        if (onChartLoaded)
+        {
+            DebugMidiFilePlayer::LoadedChart empty;
+            onChartLoaded(empty);
+        }
         return;
     }
 
     juce::MemoryBlock data;
     chartEntries[index].file.loadFileAsData(data);
 
-    bool isDrums = isPart(*statePtr, Part::DRUMS);
-
     auto result = DebugMidiFilePlayer::loadMidiFile(
-        (const char*)data.getData(), (int)data.getSize(),
-        isDrums,
-        processorPtr->getNoteStateMapArray(),
-        processorPtr->getNoteStateMapLock(),
-        processorPtr->getMidiProcessor(),
-        *statePtr);
+        (const char*)data.getData(), (int)data.getSize());
 
     debugMidiTempoMap = result.tempoMap;
     debugChartLengthInBeats = result.lengthInBeats;
     playbackController.setBPM(result.initialBPM);
 
-    // Build disco flip state from text events (drums only)
-    if (isDrums)
-        discoFlipState.buildFromTextEvents(result.textEvents);
+    // Update MidiProcessor's tempo map (global, shared)
+    {
+        const juce::ScopedLock tempoLock(processorPtr->getTempoLock());
+        processorPtr->getTempoTimeSignatureMap() = result.tempoMap;
+    }
+
+    // Build disco flip state from PART DRUMS text events only
+    auto drumTextIt = result.trackTextEvents.find("PART DRUMS");
+    if (drumTextIt != result.trackTextEvents.end())
+        discoFlipState.buildFromTextEvents(drumTextIt->second);
     else
         discoFlipState = DiscoFlipState();
+
+    // Notify editor with full chart data — each slot processes its own track
+    if (onChartLoaded)
+        onChartLoaded(result);
 }
 
 #endif

@@ -1,7 +1,7 @@
 #include "ReaperMidiProvider.h"
 #include "ReaperNoteFetcher.h"
 #include "ReaperApiHelpers.h"
-#include "../../../REAPER/ReaperTrackDetector.h"
+#include "../../../Host/ReaperTrackDetector.h"
 
 ReaperMidiProvider::ReaperMidiProvider()
 {

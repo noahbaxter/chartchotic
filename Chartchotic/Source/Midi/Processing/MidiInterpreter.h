@@ -11,13 +11,12 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 #include "../Utils/MidiTypes.h"
-#include "../Utils/ChordAnalyzer.h"
 #include "../Utils/InstrumentMapper.h"
-#include "../Utils/GemCalculator.h"
-#include "../Utils/LaneDetector.h"
 #include "../DiscoFlipState.h"
+#include "PartWindow.h"
+#include "TrackResolver.h"
 
 class MidiInterpreter
 {
@@ -29,42 +28,16 @@ class MidiInterpreter
 		~MidiInterpreter();
 
 		void setDiscoFlipState(const DiscoFlipState* flipState) { discoFlip = flipState; }
+		const DiscoFlipState* getDiscoFlipState() const { return discoFlip; }
+		const juce::ValueTree& getState() const { return state; }
 
 		NoteStateMapArray &noteStateMapArray;
 		juce::CriticalSection &noteStateMapLock;
 
-		bool isNoteHeld(uint pitch, PPQ position)
-		{
-			return ChordAnalyzer::isNoteHeld(pitch, position, noteStateMapArray, noteStateMapLock);
-		}
-
-		TrackWindow generateTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
-		SustainWindow generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd, PPQ latencyBufferEnd);
-		TrackFrame generateEmptyTrackFrame();
+		// Resolve all 4 difficulties in one pass, one lock
+		PartWindow resolveAllDifficulties(PPQ windowStart, PPQ windowEnd, PPQ latencyEnd);
 
 	private:
 		juce::ValueTree &state;
 		const DiscoFlipState* discoFlip = nullptr;
-
-		void addGuitarEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType);
-		void addDrumEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType);
-
-		// Disco flip: replace cymbal/tom flag while preserving dynamic (ghost/accent)
-		static Gem swapCymbalFlag(Gem gem, bool cymbal)
-		{
-			switch (gem)
-			{
-				case Gem::CYM_GHOST:
-				case Gem::HOPO_GHOST:  return cymbal ? Gem::CYM_GHOST  : Gem::HOPO_GHOST;
-				case Gem::CYM:
-				case Gem::NOTE:        return cymbal ? Gem::CYM        : Gem::NOTE;
-				case Gem::CYM_ACCENT:
-				case Gem::TAP_ACCENT:  return cymbal ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
-				default:               return gem;
-			}
-		}
-
-		// Helper functions for testing
-		TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ);
-		SustainWindow generateFakeSustains(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ);
 };

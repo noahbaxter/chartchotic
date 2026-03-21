@@ -5,11 +5,12 @@
 #include <JuceHeader.h>
 #include "DebugPlaybackController.h"
 #include "DebugMidiFilePlayer.h"
+#include "FrameProfileLogger.h"
 #include "../Midi/DiscoFlipState.h"
 #include "../Visual/HighwayComponent.h"
 #include "../Visual/Utils/RenderTiming.h"
 #include "../Visual/Utils/DrawingConstants.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 
 class ChartchoticAudioProcessor;
 class MidiInterpreter;
@@ -19,6 +20,7 @@ class DebugEditorController
 {
 public:
     DebugEditorController();
+    ~DebugEditorController();
 
     void init(juce::Component& parent, ChartchoticAudioProcessor& processor,
               juce::ValueTree& state, bool isStandalone);
@@ -27,8 +29,28 @@ public:
                        HighwayComponent& highway,
                        std::function<void()> repaintEditor);
 
-    // Called from onFrame() — advances playhead, handles looping
+    // --- Frame lifecycle (called from PluginEditor) ---
+
+    // Call at top of onFrame(), after throttle check
+    void beginFrame(double frameDelta_us);
+
+    // Call at top of onFrame() — advances standalone playhead
     void onFrame(PPQ& lastKnownPosition, bool& lastPlayingState);
+
+    // Call after building all slot frame data — logs frame metrics to TSV
+    void recordFrameData(const HighwayFrameData& primaryFrameData, double dataBuild_us,
+                         int slotCount, Part activePart, SkillLevel skill,
+                         int viewportW, int viewportH, bool isPlaying);
+
+    // --- Paint lifecycle ---
+
+    // Call from paintOverChildren() — draws overlay + logs paint metrics to TSV
+    void paintOverChildren(juce::Graphics& g, HighwayComponent* primaryHighway,
+                           HighwayComponent* const* allHighways, int highwayCount,
+                           bool hasSlotsVisible);
+
+    // RAII lock wait measurement — use around interpreter calls
+    ScopedPhaseMeasure measureLockWait() { return ScopedPhaseMeasure(lockWait_us, true); }
 
     // Called from paint() — draws profiler overlay
     void drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer);
@@ -54,6 +76,9 @@ public:
     bool isNotesActive() const { return playbackController.isNotesActive(); }
     const DiscoFlipState* getDiscoFlipState() const { return &discoFlipState; }
 
+    // Callback when chart load discovers instrument parts — provides parts + per-track notes
+    std::function<void(const DebugMidiFilePlayer::LoadedChart&)> onChartLoaded;
+
     // Reload current chart (e.g. after instrument switch)
     void reloadCurrentChart() { loadDebugChart(playbackController.getChartIndex()); }
 
@@ -61,18 +86,20 @@ public:
     juce::TextEditor& getConsole() { return consoleOutput; }
     juce::TextButton& getClearButton() { return clearLogsButton; }
 
-    // Profiler timing targets
+    // Profiler timing targets (public for ScopedPhaseMeasure in buildFrameData)
     double textureRender_us = 0.0;
-    double frameDelta_us = 0.0;
     double lockWait_us = 0.0;
-    bool collectPhaseTiming() const;
 
 private:
     bool standalone = false;
+    bool showProfilerOverlay = false;
+    double frameDelta_us = 0.0;
+    double pendingDataBuild_us = 0.0;
     juce::ValueTree* statePtr = nullptr;
     ChartchoticAudioProcessor* processorPtr = nullptr;
 
     DebugPlaybackController playbackController;
+    FrameProfileLogger frameProfileLogger;
 
     // Profiler
     static constexpr int PROFILER_RING_SIZE = 60;

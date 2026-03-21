@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <set>
 #include <JuceHeader.h>
 #include "ChartchoticLogo.h"
 #include "Controls/CircleIconSelector.h"
@@ -10,7 +12,7 @@
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
 #include "MenuGroup.h"
-#include "../Utils/Utils.h"
+#include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
 #ifdef DEBUG
@@ -22,6 +24,7 @@ class ToolbarComponent : public juce::Component
 {
 public:
     static constexpr float toolbarRatio = 0.06f;    // fraction of editor width (single strip)
+    static constexpr int maxToolbarHeight = 100;    // cap toolbar height (pixels)
     static constexpr int referenceHeight = 36;     // design reference for the strip portion
     static constexpr float stripFraction = 1.0f;   // strip is the full toolbar height
     static constexpr float logoFontRatio = 0.90f;  // logo font size as fraction of strip height
@@ -37,10 +40,22 @@ public:
     void loadState();
     void updateVisibility();
     void setReaperMode(bool isReaper);
+    bool isReaperModeActive() const { return reaperMode; }
+    void setMultiInstrumentMode(bool multi) { multiInstrumentMode = multi; }
+
+    // Multi-select instrument/difficulty (Global mode)
+    void setDiscoveredParts(const std::vector<Part>& parts);
+    void setEnabledParts(const std::set<Part>& parts);
+    void setEnabledDifficulties(const std::set<SkillLevel>& diffs);
+    void enableMultiDifficultyMode(bool enabled);
 
     //==============================================================================
     // Callbacks — the editor wires these
 
+    std::function<void(Part part, bool modifierHeld)> onInstrumentClicked;
+    std::function<void()> onAllInstrumentsClicked;
+    std::function<void(SkillLevel skill, bool modifierHeld)> onDifficultyClicked;
+    std::function<void()> onAllDifficultiesClicked;
     std::function<void(int skillId)> onSkillChanged;
     std::function<void(int partId)> onPartChanged;
     std::function<void(int drumTypeId)> onDrumTypeChanged;
@@ -72,6 +87,7 @@ public:
     std::function<void(float scale)> onBarScaleChanged;
     std::function<void(float length)> onHighwayLengthChanged;
     std::function<void(bool)> onStretchChanged;
+    std::function<void(bool)> onBemaniModeChanged;
     std::function<void(bool)> onShowFpsChanged;
     std::function<void(bool)> onShowBackgroundChanged;
     std::function<void()> onOpenBackgroundFolder;
@@ -114,6 +130,7 @@ public:
 private:
     juce::ValueTree& state;
     bool reaperMode = false;
+    bool multiInstrumentMode = false;
 
     //==============================================================================
     // Top bar — always visible
@@ -123,22 +140,37 @@ private:
     CircleIconSelector difficultySelector;
     ValueStepper noteSpeedStepper{"Speed"};
 
+    // Multi-select instrument state (Global mode with 2+ parts)
+    std::vector<Part> discoveredParts;
+    std::set<Part> enabledParts;
+    bool showMultiInstrument = false;
+    bool showMultiDifficulty = false;
+
     //==============================================================================
     // View panel — Modifiers (contextual per instrument)
 
     PanelSectionHeader modifiersHeader{"Modifiers"};
     PillToggle starPowerToggle{"Star Power"};
-
-    // Guitar modifiers
     PillToggle autoHopoToggle{"Auto HOPO"};
-    ValueStepper hopoThresholdStepper{"Threshold"};
-    int hopoThresholdIndex = HOPO_THRESHOLD_DEFAULT;
-
-    // Drum modifiers
     PillToggle dynamicsToggle{"Dynamics"};
     PillToggle kick2xToggle{"Kick 2x"};
     PillToggle cymbalsToggle{"Cymbals"};
     PillToggle discoFlipToggle{"Disco Flip"};
+    ValueStepper hopoThresholdStepper{"Threshold"};
+    int hopoThresholdIndex = HOPO_THRESHOLD_DEFAULT;
+
+    // Modifier visibility: which instrument type each toggle requires
+    enum class ModScope { ALL, GUITAR, DRUMS };
+    struct ModToggle { PillToggle* pill; ModScope scope; };
+    // Order here = display order in the chart panel (flows left-to-right, 2 per row)
+    std::array<ModToggle, 6> modToggles {{
+        { &starPowerToggle,  ModScope::ALL },
+        { &cymbalsToggle,    ModScope::DRUMS },
+        { &dynamicsToggle,   ModScope::DRUMS },
+        { &kick2xToggle,     ModScope::DRUMS },
+        { &discoFlipToggle,  ModScope::DRUMS },
+        { &autoHopoToggle,   ModScope::GUITAR },
+    }};
 
     // View panel — Chart elements
     PanelSectionHeader chartHeader{"Chart"};
@@ -171,6 +203,7 @@ private:
     ValueStepper gemScaleStepper{"Gem Size", "%"};
     ValueStepper barScaleStepper{"Bar Size", "%"};
 
+
     PanelSectionHeader syncHeader{"Sync"};
     ValueStepper syncOffsetStepper{"Calibration", " ms"};
     int syncOffsetMs = CALIBRATION_DEFAULT;
@@ -179,7 +212,8 @@ private:
     ValueStepper latencyStepper{"Latency"};
     int latencyIndex = LATENCY_DEFAULT - 1; // state is 1-based
     SegmentedButtons framerateButtons;
-    CheckboxToggle stretchToggle{"Free Resize"};
+    CheckboxToggle stretchToggle{"Stretch"};
+    CheckboxToggle bemaniModeToggle{juce::CharPointer_UTF8("\xe3\x83\x93\xe3\x83\xbc\xe3\x83\x9e\xe3\x83\x8b"), "Bemani Mode"}; // ビーマニ
     CheckboxToggle showFpsToggle{"Show FPS"};
     CheckboxToggle showBackgroundToggle{"Background"};
 

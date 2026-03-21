@@ -9,6 +9,7 @@ class CheckboxToggle : public juce::Component
 {
 public:
     CheckboxToggle(const juce::String& text) : label(text) {}
+    CheckboxToggle(const juce::String& text, const juce::String& hover) : label(text), hoverLabel(hover) {}
 
     void setToggleState(bool shouldBeOn, juce::NotificationType notification = juce::dontSendNotification)
     {
@@ -63,7 +64,8 @@ public:
         g.setColour(hovering ? juce::Colour(Theme::textWhite)
                              : juce::Colour(Theme::textDim));
         g.setFont(Theme::controlFont);
-        g.drawText(label, juce::Rectangle<float>(labelX, 0.0f, getWidth() - labelX, h),
+        auto& displayLabel = (hovering && hoverLabel.isNotEmpty()) ? hoverLabel : label;
+        g.drawText(displayLabel, juce::Rectangle<float>(labelX, 0.0f, getWidth() - labelX, h),
                    juce::Justification::centredLeft);
     }
 
@@ -82,5 +84,6 @@ public:
 
 private:
     juce::String label;
+    juce::String hoverLabel;
     bool on = false;
 };

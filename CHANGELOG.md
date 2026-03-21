@@ -1,41 +1,59 @@
 # Changelog
 
-## 1.1.0
-Disco flip support for Pro Drums, rebuilt perspective engine, window resizing improvements, and visual polish.
+## 1.2.0
+Easily the biggest release since 1.0. Multi-highway support turns Chartchotic into a full band view (or full difficulty if you prefer).
 
-### Disco Flip (Pro Drums)
-- Automatic red↔yellow lane swap during disco flip sections
-- Parses `[mix 3 drums*d]` text events from MIDI tracks (REAPER and standalone)
-- Toggle in toolbar (visible when cymbals are enabled)
-- Disco start/end markers on the highway
-- Disco ball indicator when flip is active at the playhead
+### Multi-Highway
+- Just place one instance of **Chartchotic** in your reaper project and it now automatically discovers all instruments and can display up to 4 at once! *(or individually as you wish)*
+- **REAPER tracks must use standard names to be detected:** `PART GUITAR`, `PART BASS`, `PART DRUMS`, `PART KEYS`, `PART RHYTHM`, `PART GUITAR COOP`
+- Click any instrument or difficulty icon to select it, shift click to toggle multiple at once, or "All" to show everything
+- Live track detection. Add, remove, or rename REAPER tracks and the plugin highways update in real time
 
-### Perspective & Rendering
-- Rebuilt 1/z perspective model with per-instrument tuning — replaces the previous curve system
-- Lane-based positioning for notes, sustains, and gridlines
-- Per-instrument highway scale normalization (guitar and drums feel visually equivalent at the same slider setting)
-- Highway viewport overflow — extended highway lengths no longer clip at the top
+### Bemani Mode
+- As an alternative to perspective Harmonix-style scrolling, Bemani mode introduces flat vertical scrolling inspired by IIDX/SDVX/DDR. Toggle ビーマニ to switch view modes.
+- Highway length scales with slot height. Taller slots show more notes and match the relative speed in perspective mode.
 
-### Window & Layout
-- Reworked window resizing with constrained aspect ratio by default
-- Free resize toggle for unconstrained mode
-- Highway length slider moved to the top bar
-- Highway length range extended to 500%
-- Background toggle to show/hide the highway fill
-- Default window ratio changed to 1:1
-
-### Visual
-- Refreshed strikeline and note assets
-- Difficulty selector now shows in descending order (Expert first)
-- Updated logo and toolbar layout tweaks
+### Performance
+- Major architecture rework under the hood. Multi-highway rendering shares work across all visible highways instead of duplicating it, so 4 highways doesn't mean 4x the cost
+- Resizing the window and changing perspective settings no longer freeze the UI
+- Switching instruments or difficulties is now instant with no stutter or dropped frames
 
 ### Bug Fixes
-- Fixed highway texture tile loop causing infinite spin at narrow widths
+- Fix drum highway misalignment with lanes and bar notes
+- Fix highway texture jumps at tempo changes
+- Fix toolbar state persistence when moving the plugin between tracks
 
-### Infrastructure
-- LV2 plugin format support
-- Pluginval validation on Linux builds
-- Skin override directory with documentation
+### Quality of Life
+- Viewport-based window resizing (no more auto-resize surprises)
+- 0ms latency buffer option for the lowest-latency setups
+
+### IMPORTANT
+- 1.2.0 is optimized for REAPER. All other DAWs are not actively supported at this time, but stay tuned for revamped alternate DAW support in future updates.
+
+## 1.1.0
+
+### Window Resizing
+- Highway length now adjusts window height automatically
+- Boosted highway length to 500%, slider moved next to note speed in top bar
+- Free resize mode (settings toggle) lets you stretch the window to any shape you want
+
+### Visual
+- Higher resolution strikeline and note assets
+- Guitar and drums now scale consistently at the same highway length setting
+- Extended highways no longer clip at the top of the viewport
+- Subtle perspective improvements for more consistent note placement
+- Difficulty selector reversed - Expert on top
+
+### Disco Flips
+- Pro Drums: automatic red<->yellow lane swap during disco flip sections
+- Reads `[mix 3 drums*d]` text events from MIDI
+- Visible start/end markers on the highway so you can see exactly where flips happen
+- Toggle in View menu when pro drums cymbals are enabled
+
+### Other
+- Proper Linux builds - VST3 and LV2 format!
+- Skin override directory for building plugin with custom assets - see `docs/SKINNING.md`
+- Fix texture tile loop causing infinite spin at narrow widths
 
 ## 1.0.0
 This is the official 1.0 release of Chartchotic. This ground-up overhaul consists of a rewritten rendering engine, brand new UI, and comprehensive improvements to every visual asset.
@@ -50,7 +68,7 @@ This is the official 1.0 release of Chartchotic. This ground-up overhaul consist
 - New SP white variants for all assets and hit indicators
 
 ### Highway
-- Highways have textures now — use one of the bundled textures (courtesy of kanaizo), or add your own
+- Highways have textures now - use one of the bundled textures (courtesy of kanaizo), or add your own
 - Adjustable highway length up to 300% longer than standard
 
 ### Notes & Animations
@@ -60,8 +78,8 @@ This is the official 1.0 release of Chartchotic. This ground-up overhaul consist
 
 ### UI
 - Renamed from Chart Preview to Chartchotic with a new logo
-- Major UI overhaul — redesigned toolbar, cleaner layout, consistent scaling
-- Revamped chart toggles — organized controls for hiding/showing modifiers, chart elements, and scene layers
+- Major UI overhaul - redesigned toolbar, cleaner layout, consistent scaling
+- Revamped chart toggles - organized controls for hiding/showing modifiers, chart elements, and scene layers
 - Double-click most number values to type directly
 - Calibration now supports negative latency up to -200ms
 - Note speed reworked to integers 2–20, matching CH/YARG conventions

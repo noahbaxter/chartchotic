@@ -12,8 +12,12 @@
 */
 
 #include "PositionMath.h"
+#include "DrawingConstants.h"
 
 using namespace PositionConstants;
+
+bool PositionMath::bemaniMode = false;
+float PositionMath::bemaniHwyScale = 1.0f;
 
 #ifdef DEBUG
 PerspectiveParams PositionMath::debugPerspParamsGuitar = getGuitarPerspectiveParams();
@@ -33,6 +37,35 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
     bool isBarNote,
     uint width, uint height)
 {
+    if (bemaniMode)
+    {
+        // Flat mode: full-height linear Y, constant width, no perspective
+        float nw = perspParams.nearWidth;
+        float adjW = normWidth1 * nw;
+        // Center the scaled fretboard around the original fretboard center
+        float fbCenter = normX1 + normWidth1 * 0.5f;
+        float adjX = fbCenter - adjW * 0.5f;
+
+        // Position 0 = strikeline, positive = toward top of viewport.
+        // Strikeline pixel Y = height * strikelinePos (matches TrackRenderer overlay).
+        // Pixels per position unit = REFERENCE_HEIGHT * strikelinePos / bemaniHwyScale
+        // (constant regardless of viewport height — taller = see more highway).
+        float strikePixelY = (float)height * bemaniConfig.strikelinePos;
+        float pixelsPerUnit = REFERENCE_HEIGHT * bemaniConfig.strikelinePos
+                            / std::max(0.1f, bemaniHwyScale);
+        float yPos = strikePixelY - position * pixelsPerUnit;
+
+        float finalWidth = adjW * width;
+        float targetHeight = isBarNote
+            ? finalWidth / perspParams.barNoteHeightRatio
+            : finalWidth / perspParams.regularNoteHeightRatio;
+
+        float finalX = adjX * width;
+        float finalY = yPos - targetHeight / 2.0f;
+
+        return juce::Rectangle<float>(finalX, finalY, finalWidth, targetHeight);
+    }
+
     float depth = position / perspParams.vanishingPointDepth;
 
     // Derive 1/z depth coefficient from exponentialCurve parameter
@@ -105,7 +138,8 @@ LaneCorners PositionMath::getColumnPosition(
     bool isDrums, float position, uint width, uint height,
     float posStart, float posEnd,
     const NormalizedCoordinates& colCoords,
-    float sizeScale, float fretboardScale)
+    float sizeScale, float fretboardScale,
+    int bemaniLaneIdx)
 {
     auto edge = getFretboardEdge(isDrums, position, width, height,
                                  posStart, posEnd);
@@ -116,9 +150,25 @@ LaneCorners PositionMath::getColumnPosition(
     float centerFrac = (nearCenterNorm - fbCoords.normX1) / fbCoords.normWidth1;
     float widthFrac  = (colCoords.normWidth1 / fbCoords.normWidth1) * sizeScale;
 
+    // In Bemani mode, use tunable gem positions by lane index
+    if (bemaniMode)
+    {
+        int numLanes = isDrums ? 4 : 5;
+
+        if (bemaniLaneIdx >= 0 && bemaniLaneIdx < numLanes)
+        {
+            // Evenly spaced lanes: center of lane i = (i + 0.5) / numLanes
+            centerFrac = ((float)bemaniLaneIdx + 0.5f) / (float)numLanes;
+        }
+        // else: bar notes (bemaniLaneIdx = -1) — keep original centerFrac (centered)
+
+        widthFrac = sizeScale / (float)numLanes;
+    }
+
     // Expand fretboard reference from center (matches visual highway width)
     float edgeCenter = (edge.leftX + edge.rightX) * 0.5f;
-    float edgeWidth = (edge.rightX - edge.leftX) * fretboardScale;
+    // In Bemani mode, fretboard is already correctly sized — don't apply perspective expansion
+    float edgeWidth = (edge.rightX - edge.leftX) * (bemaniMode ? 1.0f : fretboardScale);
     float scaledLeftX = edgeCenter - edgeWidth * 0.5f;
 
     float actualCenter = scaledLeftX + centerFrac * edgeWidth;

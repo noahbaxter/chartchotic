@@ -14,10 +14,10 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
-#include "../../Utils/PPQ.h"
-#include "../../Utils/TimeConverter.h"
-#include "../../Utils/TempoTimeSignatureEventHelper.h"
+#include "../../Utils/ChartTypes.h"
+#include "../../Midi/Utils/PPQ.h"
+#include "../../Midi/Utils/TimeConverter.h"
+#include "../../Midi/Utils/TempoTimeSignatureEventHelper.h"
 
 class GridlineGenerator
 {

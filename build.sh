@@ -28,6 +28,7 @@ BUILD_VST3=true
 BUILD_AU=true
 BUILD_STANDALONE=false
 BUILD_BENCHMARK=false
+BUILD_STD=false
 SKIN_DIR=""
 NEXT_IS_SKIN_DIR=false
 
@@ -51,9 +52,10 @@ for arg in "$@"; do
         --au-only)      BUILD_VST3=false; BUILD_STANDALONE=false ;;
         --standalone)   BUILD_STANDALONE=true; BUILD_VST3=false; BUILD_AU=false ;;
         --benchmark)    BUILD_BENCHMARK=true; BUILD_VST3=false; BUILD_AU=false ;;
+        --std)          BUILD_STD=true ;;
         --skin-dir)     NEXT_IS_SKIN_DIR=true ;;
         -h|--help)
-            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--skin-dir <path>]"
+            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--std] [--skin-dir <path>]"
             exit 0
             ;;
         *)
@@ -119,8 +121,11 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
     echo "Configuring CMake (Ninja, $BUILD_CONFIG)..."
     CMAKE_EXTRA_ARGS=""
     if [ -n "$SKIN_DIR" ]; then
-        CMAKE_EXTRA_ARGS="-DSKIN_DIR=$SKIN_DIR"
+        CMAKE_EXTRA_ARGS="$CMAKE_EXTRA_ARGS -DSKIN_DIR=$SKIN_DIR"
         echo "  Skin directory: $SKIN_DIR"
+    fi
+    if [ "$BUILD_STD" = true ]; then
+        CMAKE_EXTRA_ARGS="$CMAKE_EXTRA_ARGS -DBUILD_STD=ON"
     fi
     cmake -B "$NINJA_BUILD_DIR" -G Ninja \
         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
@@ -133,6 +138,25 @@ fi
 
 # Ensure user data directories exist
 mkdir -p "$HOME/Library/Application Support/Chartchotic/highways"
+
+# Warn if system-level plugin copies exist (they shadow user-level installs)
+SYSTEM_VST3="/Library/Audio/Plug-Ins/VST3/Chartchotic.vst3"
+SYSTEM_AU="/Library/Audio/Plug-Ins/Components/Chartchotic.component"
+SHADOW_FOUND=false
+if [ -d "$SYSTEM_VST3" ] || [ -d "$SYSTEM_AU" ]; then
+    echo ""
+    echo "⚠  System-level plugin copies detected (will shadow your dev build):"
+    [ -d "$SYSTEM_VST3" ] && echo "    $SYSTEM_VST3"
+    [ -d "$SYSTEM_AU" ]   && echo "    $SYSTEM_AU"
+    printf "  Remove them? (requires sudo) [y/N] "
+    read -r answer
+    if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
+        [ -d "$SYSTEM_VST3" ] && sudo rm -rf "$SYSTEM_VST3" && echo "    Removed $SYSTEM_VST3"
+        [ -d "$SYSTEM_AU" ]   && sudo rm -rf "$SYSTEM_AU"   && echo "    Removed $SYSTEM_AU"
+    else
+        echo "  Skipped — REAPER may load the old system copy instead of your build."
+    fi
+fi
 
 ARTIFACT_DIR="$NINJA_BUILD_DIR/Chartchotic_artefacts/$BUILD_CONFIG"
 
@@ -180,6 +204,38 @@ if [ "$BUILD_STANDALONE" = true ]; then
         echo "  Standalone built: $APP_PATH"
     else
         echo "  Standalone build output not found at: $APP_PATH"
+        exit 1
+    fi
+fi
+
+if [ "$BUILD_STD" = true ]; then
+    STD_ARTIFACT_DIR="$NINJA_BUILD_DIR/ChartchoticStd_artefacts/$BUILD_CONFIG"
+
+    echo ""
+    echo "Building Standard (non-REAPER) VST3..."
+    cmake --build "$NINJA_BUILD_DIR" --target ChartchoticStd_VST3
+
+    STD_VST3_PATH="$STD_ARTIFACT_DIR/VST3/Chartchotic Std.vst3"
+    if [ -d "$STD_VST3_PATH" ]; then
+        mkdir -p ~/Library/Audio/Plug-Ins/VST3/
+        cp -R "$STD_VST3_PATH" ~/Library/Audio/Plug-Ins/VST3/
+        echo "  Standard VST3 installed"
+    else
+        echo "  Standard VST3 build output not found at: $STD_VST3_PATH"
+        exit 1
+    fi
+
+    echo ""
+    echo "Building Standard (non-REAPER) AU..."
+    cmake --build "$NINJA_BUILD_DIR" --target ChartchoticStd_AU
+
+    STD_AU_PATH="$STD_ARTIFACT_DIR/AU/Chartchotic Std.component"
+    if [ -d "$STD_AU_PATH" ]; then
+        mkdir -p ~/Library/Audio/Plug-Ins/Components/
+        cp -R "$STD_AU_PATH" ~/Library/Audio/Plug-Ins/Components/
+        echo "  Standard AU installed"
+    else
+        echo "  Standard AU build output not found at: $STD_AU_PATH"
         exit 1
     fi
 fi

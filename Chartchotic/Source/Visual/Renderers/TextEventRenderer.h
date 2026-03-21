@@ -13,7 +13,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
+#include "../../Utils/ChartTypes.h"
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
@@ -30,6 +30,13 @@ public:
                   float posEnd,
                   float farFadeEnd, float farFadeLen, float farFadeCurve);
 
+    void populateEventMarkers(DrawCallMap& drawCallMap,
+                              const TimeBasedEventMarkers& markers,
+                              double windowStartTime, double windowEndTime,
+                              uint width, uint height,
+                              float posEnd,
+                              float farFadeEnd, float farFadeLen, float farFadeCurve);
+
 private:
     uint width = 0, height = 0;
     float posEnd = 0;
@@ -40,7 +47,7 @@ private:
     LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
                               float sizeScale, float fretboardScale = 1.0f)
     {
-        bool isDrums = activePart == Part::DRUMS;
+        bool isDrums = isDrumLike(activePart);
         return PositionMath::getColumnPosition(isDrums, position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);

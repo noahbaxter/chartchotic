@@ -1,30 +1,27 @@
 #pragma once
 #include <JuceHeader.h>
-#include "../../Utils/Utils.h"
-#include "../../Utils/TimeConverter.h"
+#include "../../Utils/ChartTypes.h"
+#include "../Utils/TimeConverter.h"
 #include "../Utils/MidiTypes.h"
-#include "../Utils/ChordAnalyzer.h"
 #include "../Utils/InstrumentMapper.h"
-#include "../Utils/GemCalculator.h"
-
-// Forward declaration to avoid circular dependency
-class ReaperMidiProvider;
 
 class MidiProcessor
 {
 public:
-    MidiProcessor(juce::ValueTree &state);
-    
+    MidiProcessor(juce::ValueTree &state,
+                  NoteStateMapArray &noteStateMapArray,
+                  juce::CriticalSection &noteStateMapLock);
+
     void process(juce::MidiBuffer &midiMessages,
                  const juce::AudioPlayHead::PositionInfo &positionInfo,
                  uint blockSizeInSamples,
                  uint latencyInSamples,
                  double sampleRate);
 
-    NoteStateMapArray noteStateMapArray;
-    TempoTimeSignatureMap tempoTimeSignatureMap;
-    mutable juce::CriticalSection tempoTimeSignatureMapLock;
-    mutable juce::CriticalSection noteStateMapLock;
+    // References into MidiProject — not owned
+    NoteStateMapArray &noteStateMapArray;
+    juce::CriticalSection &noteStateMapLock;
+
     PPQ lastProcessedPPQ = 0.0;
 
     void setLastProcessedPosition(const juce::AudioPlayHead::PositionInfo &positionInfo)
@@ -32,7 +29,6 @@ public:
         lastProcessedPPQ = positionInfo.getPpqPosition().orFallback(lastProcessedPPQ);
     }
 
-    // Set the current visual window bounds to prevent cleanup from deleting visible events
     void setVisualWindowBounds(PPQ startPPQ, PPQ endPPQ)
     {
         const juce::ScopedLock lock(visualWindowLock);
@@ -40,16 +36,7 @@ public:
         visualWindowEndPPQ = endPPQ;
     }
 
-    // Recalculate gem types for all existing notes (called when settings change)
-    void refreshMidiDisplay();
-
-    // Clear note data in a specific PPQ range (for REAPER timeline refresh)
     void clearNoteDataInRange(PPQ startPPQ, PPQ endPPQ);
-
-    // Gem type calculation (exposed for REAPER timeline processing)
-    Gem getGuitarGemType(uint pitch, PPQ position);
-    Gem getDrumGemType(uint pitch, PPQ position, Dynamic dynamic);
-
 
 private:
     juce::ValueTree &state;
@@ -58,15 +45,7 @@ private:
     void cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ);
     void processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm);
     void processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ);
-    bool isChordFormed(uint pitch, PPQ position);
-    void fixChordHOPOs(uint pitch, PPQ position);
-    
-    // HOPO calculation moved from MidiInterpreter
-    bool isNoteHeld(uint pitch, PPQ position);
-    uint getGuitarGemColumn(uint pitch);
-    uint getDrumGemColumn(uint pitch);
 
-    // Visual window bounds for conservative cleanup
     PPQ visualWindowStartPPQ = PPQ(0.0);
     PPQ visualWindowEndPPQ = PPQ(0.0);
     mutable juce::CriticalSection visualWindowLock;

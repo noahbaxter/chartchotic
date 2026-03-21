@@ -44,7 +44,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
 
             if (markerImage != nullptr)
             {
-                float fadeOpacity = calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
+                float fadeOpacity = PositionMath::bemaniMode ? 1.0f : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
                 drawCallMap[static_cast<int>(DrawOrder::GRID)][0].push_back([=](juce::Graphics& g) {
                     this->drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity, gridZOffset);
                 });
@@ -65,12 +65,34 @@ void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Ima
     }
     opacity *= fadeOpacity;
 
-    const auto& fbCoords = activePart == Part::DRUMS
+    if (PositionMath::bemaniMode)
+    {
+        opacity = std::min(1.0f, opacity * bemaniConfig.gridlineBoost);
+        // Flat horizontal line instead of marker image
+        bool isDrums = isDrumLike(activePart);
+        auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
+                        PositionConstants::HIGHWAY_POS_START, posEnd);
+        float lineH = std::max(1.0f, (float)width * 0.003f);
+        float lineY = edge.centerY - lineH * 0.5f + bemaniConfig.gridlineZ;
+
+        // Gradient: brighter at center, fades at edges
+        juce::ColourGradient grad(
+            juce::Colours::white.withAlpha(opacity), (edge.leftX + edge.rightX) * 0.5f, lineY,
+            juce::Colours::white.withAlpha(opacity * 0.3f), edge.leftX, lineY, false);
+        grad.addColour(0.0, juce::Colours::white.withAlpha(opacity * 0.3f));
+        grad.addColour(0.5, juce::Colours::white.withAlpha(opacity));
+        grad.addColour(1.0, juce::Colours::white.withAlpha(opacity * 0.3f));
+        g.setGradientFill(grad);
+        g.fillRect(edge.leftX, lineY, edge.rightX - edge.leftX, lineH);
+        return;
+    }
+
+    const auto& fbCoords = isDrumLike(activePart)
         ? PositionConstants::drumFretboardCoords
         : PositionConstants::guitarFretboardCoords;
     auto edge = getColumnEdge(position, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
     float gridWidth = edge.rightX - edge.leftX;
-    auto perspParams = PositionConstants::getPerspectiveParams(activePart == Part::DRUMS);
+    auto perspParams = PositionConstants::getPerspectiveParams(isDrumLike(activePart));
     float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
 
     // Scale Z offset by perspective (ratio of current width to strikeline width)

@@ -23,6 +23,7 @@ public:
     void setButtonText(const juce::String& text) { label = text; repaint(); }
 
     std::function<void()> onClick;
+    std::function<void(bool modifierHeld)> onClickWithModifier;
 
     void paint(juce::Graphics& g) override
     {
@@ -71,7 +72,16 @@ public:
         {
             on = !on;
             repaint();
-            if (onClick) onClick();
+            if (onClickWithModifier)
+            {
+                bool mod = juce::ModifierKeys::currentModifiers.isShiftDown()
+                        || juce::ModifierKeys::currentModifiers.isAltDown();
+                onClickWithModifier(mod);
+            }
+            else if (onClick)
+            {
+                onClick();
+            }
         }
     }
 

@@ -18,6 +18,7 @@
 #include <map>
 #include <vector>
 #include <functional>
+#include "BemaniConfig.h"
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
@@ -54,13 +55,7 @@ constexpr float FAR_FADE_MAX     = 5.00f;     // Maximum user slider value
 constexpr float FAR_FADE_LEN     = 0.35f;     // Length of fade zone
 constexpr float FAR_FADE_CURVE   = 1.0f;      // Fade exponent (1=linear)
 
-// Per-instrument highway scale: farFadeEnd = userLength * scale.
-// Compensates for different perspective geometry so both instruments
-// appear visually equivalent at the same slider setting.
-constexpr float HWY_SCALE_GUITAR = 0.86f;     // 5.0 * 0.86 = 4.30
-constexpr float HWY_SCALE_DRUMS  = 1.00f;     // 5.0 * 1.00 = 5.00
-
-inline float getHwyScale(bool isDrums) { return isDrums ? HWY_SCALE_DRUMS : HWY_SCALE_GUITAR; }
+inline float getHwyScale(bool isDrums) { return bemaniConfig.hwyScale(isDrums); }
 
 
 inline float calculateFarFade(float position, float fadeEnd, float fadeLen, float fadeCurve)
@@ -85,8 +80,8 @@ enum class DrawOrder
     TRACK_SIDEBARS,
     TRACK_LANE_LINES,
     TRACK_STRIKELINE,
-    BAR,
     SUSTAIN,
+    BAR,
     NOTE,
     TRACK_CONNECTORS,
     OVERLAY,
@@ -106,6 +101,12 @@ struct TimeBasedFlipRegion {
     double endTime;
 };
 using TimeBasedFlipRegions = std::vector<TimeBasedFlipRegion>;
+
+struct TimeBasedEventMarker {
+    double time;
+    juce::String label;
+};
+using TimeBasedEventMarkers = std::vector<TimeBasedEventMarker>;
 static constexpr int MAX_DRAW_COLUMNS = 8;
 using DrawCallBucket = std::vector<std::function<void(juce::Graphics&)>>;
 using DrawCallGrid = std::array<std::array<DrawCallBucket, MAX_DRAW_COLUMNS>, DRAW_ORDER_COUNT>;

@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include "Utils/PPQ.h"
+#include "Midi/Utils/PPQ.h"
 
 TEST_CASE("Catch2 smoke test", "[smoke]")
 {

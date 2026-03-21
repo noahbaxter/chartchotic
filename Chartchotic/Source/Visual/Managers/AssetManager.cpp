@@ -21,6 +21,7 @@ AssetManager::~AssetManager()
 
 void AssetManager::initAssets()
 {
+#ifndef CHARTCHOTIC_NO_BINARY_DATA
     barKickImage = juce::ImageCache::getFromMemory(BinaryData::bar_kick_png, BinaryData::bar_kick_pngSize);
     barKick2xImage = juce::ImageCache::getFromMemory(BinaryData::bar_kick_2x_png, BinaryData::bar_kick_2x_pngSize);
     barOpenImage = juce::ImageCache::getFromMemory(BinaryData::bar_open_png, BinaryData::bar_open_pngSize);
@@ -163,6 +164,7 @@ void AssetManager::initAssets()
         {&markerBeatImage, markerBeatImage}, {&markerHalfBeatImage, markerHalfBeatImage},
         {&markerMeasureImage, markerMeasureImage},
     };
+#endif // CHARTCHOTIC_NO_BINARY_DATA
 }
 
 juce::Image AssetManager::downscale(const juce::Image& src, int targetWidth)

@@ -8,52 +8,29 @@
 
 #pragma once
 
+#include <array>
+#include <map>
+#include <set>
+#include <unordered_map>
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-#include "Midi/Processing/MidiInterpreter.h"
-#include "Visual/HighwayComponent.h"
+#include "Visual/HighwaySlot.h"
+#include "Visual/TrackImageCache.h"
 #include "Visual/Managers/GridlineGenerator.h"
-#include "Utils/Utils.h"
-#include "Utils/TimeConverter.h"
+#include "Utils/ChartTypes.h"
+#include "Midi/Utils/TimeConverter.h"
 #include "Visual/Utils/LatencySmoother.h"
-#include "UpdateChecker.h"
+#include "UI/UpdateChecker.h"
 #include "UI/LookAndFeel/ChartchoticLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
 #include "UI/UpdateBannerComponent.h"
+#include "UI/FooterComponent.h"
+#include "Editor/AssetController.h"
+#include "Editor/SessionController.h"
+#include "Editor/FrameDataBuilder.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
 #endif
-
-//==============================================================================
-
-class HighwayConstrainer : public juce::ComponentBoundsConstrainer
-{
-public:
-    std::function<int(int)> computeIdealHeight;
-    bool locked = true;
-
-    void checkBounds(juce::Rectangle<int>& bounds,
-                     const juce::Rectangle<int>& previousBounds,
-                     const juce::Rectangle<int>& limits,
-                     bool isStretchingTop, bool isStretchingLeft,
-                     bool isStretchingBottom, bool isStretchingRight) override
-    {
-        // Block top and left edge dragging — only bottom-right corner allowed
-        if (isStretchingTop)
-            bounds = bounds.withTop(previousBounds.getY());
-        if (isStretchingLeft)
-            bounds = bounds.withLeft(previousBounds.getX());
-
-        ComponentBoundsConstrainer::checkBounds(bounds, previousBounds, limits,
-            false, false, isStretchingBottom, isStretchingRight);
-
-        if (locked && computeIdealHeight)
-        {
-            int idealH = computeIdealHeight(bounds.getWidth());
-            bounds = bounds.withHeight(idealH);
-        }
-    }
-};
 
 //==============================================================================
 
@@ -79,7 +56,7 @@ public:
     bool keyPressed(const juce::KeyPress& key) override
     {
 #ifdef DEBUG
-        if (debugController.keyPressed(key, toolbar))
+        if (debug.keyPressed(key, toolbar))
             return true;
 #endif
 
@@ -90,7 +67,7 @@ public:
     {
 
 #ifdef DEBUG
-        if (debugController.mouseWheelMove(wheel, event.mods.isShiftDown(),
+        if (debug.mouseWheelMove(wheel, event.mods.isShiftDown(),
                                             SCROLL_NORMAL_BEATS, SCROLL_SHIFT_BEATS))
             return;
 #endif
@@ -120,9 +97,49 @@ private:
     juce::ValueTree& state;
 
     ChartchoticAudioProcessor& audioProcessor;
-    MidiInterpreter midiInterpreter;
     AssetManager assetManager;
-    HighwayComponent highway;
+
+    static constexpr int MAX_HIGHWAY_SLOTS = 4;
+    std::array<HighwaySlot, MAX_HIGHWAY_SLOTS> slots;
+    int activeSlotCount = 0;
+
+    // Shared track image cache (guitar + drums baked once at full resolution)
+    TrackImageCache trackImageCache;
+    std::unique_ptr<TrackRenderer> cacheRenderer;
+    void requestAsyncRebake();
+
+    HighwayComponent& primaryHighway() { return *slots[0].highway; }
+    MidiInterpreter& primaryInterpreter() { return *slots[0].interpreter; }
+
+    template <typename Fn>
+    void forEachHighway(Fn&& fn)
+    {
+        for (int i = 0; i < activeSlotCount; i++)
+            fn(*slots[i].highway);
+    }
+
+    template <typename Fn>
+    void forEachActiveSlot(Fn&& fn)
+    {
+        for (int i = 0; i < activeSlotCount; i++)
+            fn(slots[i]);
+    }
+
+    // Iterate ALL pooled highways (including inactive/hidden ones).
+    // Use for texture/asset operations that must be set on all slots upfront.
+    template <typename Fn>
+    void forAllHighways(Fn&& fn)
+    {
+        for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+            fn(*slots[i].highway);
+    }
+
+    void propagateToSlots(const juce::Identifier& prop, const juce::var& value)
+    {
+        for (int i = 0; i < activeSlotCount; i++)
+            if (slots[i].ownedState)
+                slots[i].ownedState->setProperty(prop, value, nullptr);
+    }
 
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
@@ -137,84 +154,42 @@ private:
     static constexpr int minWidth = 400;
     static constexpr int minHeight = 200;
     static constexpr double sceneAspectRatio = 4.0 / 3.0;
+    static constexpr int highwayGridPadding = 4;        // px between highways and window edges in multi-slot grid
+    static constexpr double bemaniMinAspect = 1.0 / 2.0; // minimum width:height ratio for Bemani highways
 
     // Virtual scene dimensions (maintain internal 4:3 ratio)
     int sceneWidth = defaultWidth;
     int sceneHeight = defaultHeight;
-    int sceneOffsetY = 0;
 
-    // Background Assets
-    bool showBackground = false;
-    juce::Image backgroundImageDefault;
-    juce::Image backgroundImageCurrent;
-    std::unique_ptr<juce::Drawable> reaperLogo;
+    // Asset management (backgrounds, textures, logos)
+    AssetController assets;
 
-    // Background image folder
-    juce::StringArray backgroundNames;
-    juce::File backgroundDirectory;
-    void scanBackgrounds();
-    void loadBackground(const juce::String& filename);
+    // Session/slot management (multi-highway, instrument/difficulty selection)
+    SessionController session;
 
-    struct ClickableLabel : public juce::Label
-    {
-        std::function<bool()> isClickable;
-        std::function<void()> onClick;
-        std::function<void(bool)> onHover;
-        juce::Colour normalColour, hoverColour;
-
-        void mouseDown(const juce::MouseEvent&) override
-        {
-            if (isClickable && isClickable() && onClick) onClick();
-        }
-        void mouseEnter(const juce::MouseEvent&) override
-        {
-            if (isClickable && isClickable())
-            {
-                setMouseCursor(juce::MouseCursor::PointingHandCursor);
-                setColour(juce::Label::textColourId, hoverColour);
-                repaint();
-                if (onHover) onHover(true);
-            }
-        }
-        void mouseExit(const juce::MouseEvent&) override
-        {
-            setMouseCursor(juce::MouseCursor::NormalCursor);
-            setColour(juce::Label::textColourId, normalColour);
-            repaint();
-            if (onHover) onHover(false);
-        }
-    };
-    ClickableLabel versionLabel;
-
-    UpdateChecker updateChecker;
     UpdateBannerComponent updateBanner;
+    FooterComponent footer { updateBanner };
+    UpdateChecker updateChecker;
 
     //==============================================================================
 
-    void initAssets();
     void initToolbarCallbacks();
     void initBottomBar();
     void loadState();
+#ifdef DEBUG
+    void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
+#endif
     void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
 
-    int computeMinWindowHeight(int width) const;
-    void updateMinimumHeight();
+    FrameContext buildFrameContext();
 
-    void buildReaperFrameData(HighwayFrameData& out);
-    void buildStandardFrameData(HighwayFrameData& out);
-
-    // Highway texture overlay
-    juce::StringArray highwayTextureNames;
-    juce::File highwayTextureDirectory;
-    void scanHighwayTextures();
-    void loadHighwayTexture(const juce::String& filename);
     float computeScrollOffset();
 
     float latencyInSeconds = 0.0;
 
     // Resize constraints
-    HighwayConstrainer constrainer;
+    juce::ComponentBoundsConstrainer constrainer;
 
     // Position tracking for cursor vs playhead separation
     PPQ lastKnownPosition = 0.0;
@@ -226,8 +201,9 @@ private:
     // Compute farFadeEnd from user slider value × per-instrument scale
     float computeFarFadeEnd(float userLength) const
     {
-        bool isDrums = isPart(state, Part::DRUMS);
-        return userLength * getHwyScale(isDrums);
+        bool drums = activeSlotCount == 0 ? isDrumLike(getPartFromState(state))
+                                          : isDrumLike(slots[0].part);
+        return userLength * getHwyScale(drums);
     }
 
     // VBlank-synced rendering
@@ -252,7 +228,7 @@ private:
     static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
 
 #ifdef DEBUG
-    DebugEditorController debugController;
+    DebugEditorController debug;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartchoticAudioProcessorEditor)
@@ -283,41 +259,15 @@ private:
     //==============================================================================
     // Prints
 
-    void print(const juce::String &line)
-    {
-        audioProcessor.debugText += line + "\n";
-    }
-
-    std::string gemsToString(std::array<Gem, 7> gems)
-    {
-        std::string str = "(";
-        for (const auto &gem : gems)
-        {
-            str += std::to_string((int)gem) + ",";
-        }
-        str += ")";
-        return str;
-    }
-
     void printCallback()
     {
         if (!audioProcessor.debugText.isEmpty())
         {
 #ifdef DEBUG
-            debugController.getConsole().moveCaretToEnd();
-            debugController.getConsole().insertTextAtCaret(audioProcessor.debugText);
+            debug.getConsole().moveCaretToEnd();
+            debug.getConsole().insertTextAtCaret(audioProcessor.debugText);
 #endif
             audioProcessor.debugText.clear();
         }
-    }
-
-    std::string midiMessagesToString(const std::vector<juce::MidiMessage> &messages)
-    {
-        std::string str = "";
-        for (const auto &message : messages)
-        {
-            str += message.getDescription().toStdString() + " ";
-        }
-        return str;
     }
 };

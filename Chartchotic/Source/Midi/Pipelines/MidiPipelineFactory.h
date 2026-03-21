@@ -13,16 +13,17 @@
 #include "MidiPipeline.h"
 
 class MidiProcessor;
+class MidiProject;
 class ReaperMidiProvider;
 
 class MidiPipelineFactory
 {
 public:
-    // Creates the appropriate pipeline based on the host and configuration
     static std::unique_ptr<MidiPipeline> createPipeline(
         bool isReaperHost,
         bool useReaperTimeline,
         MidiProcessor& midiProcessor,
+        MidiProject& midiProject,
         ReaperMidiProvider* reaperProvider,
         juce::ValueTree& state,
         std::function<void(const juce::String&)> printFunc = nullptr

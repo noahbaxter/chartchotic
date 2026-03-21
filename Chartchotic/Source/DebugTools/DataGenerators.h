@@ -14,8 +14,8 @@
 #ifdef DEBUG
 
 #include <JuceHeader.h>
-#include "../Utils/Utils.h"
-#include "../Utils/PPQ.h"
+#include "../Utils/ChartTypes.h"
+#include "../Midi/Utils/PPQ.h"
 
 namespace DataGenerators
 {
@@ -52,7 +52,7 @@ inline SustainWindow generateFakeSustainWindow(juce::ValueTree& state, PPQ track
 {
     SustainWindow fakeSustainWindow;
 
-    uint laneCount = isPart(state, Part::GUITAR) ? 6u : 5u;
+    uint laneCount = isGuitarLike(getPartFromState(state)) ? 6u : 5u;
     for (uint i = 0; i < laneCount; i++)
     {
         SustainEvent sustain;

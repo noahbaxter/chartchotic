@@ -29,7 +29,7 @@ SceneRenderer::~SceneRenderer()
 {
 }
 
-void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, double windowStartTime, double windowEndTime, bool isPlaying)
+void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying)
 {
     ScopedPhaseMeasure totalMeasure(lastPhaseTiming.total_us, collectPhaseTiming);
 
@@ -38,7 +38,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     width = viewportWidth;
     height = viewportHeight;
 
-    bool isDrums = activePart == Part::DRUMS;
+    bool isDrums = isDrumLike(activePart);
 
     // Propagate activePart to sub-renderers
     noteRenderer.activePart = activePart;
@@ -133,6 +133,12 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                    farFadeEnd, farFadeLen, farFadeCurve);
     }
 
+    // TODO: enable event marker rendering (tempo/timesig changes, sections, lyrics, etc.)
+    // textEventRenderer.activePart = activePart;
+    // textEventRenderer.populateEventMarkers(drawCallMap, eventMarkers, windowStartTime, windowEndTime,
+    //                                        width, height, highwayPosEnd,
+    //                                        farFadeEnd, farFadeLen, farFadeCurve);
+
     // Detect and add animations to drawCallMap (if enabled)
     {
         ScopedPhaseMeasure m(lastPhaseTiming.animation_us, collectPhaseTiming);
@@ -176,13 +182,25 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
         int vw = width, vh = height;
         int ov = overlayYOffset;
-        drawCallMap[static_cast<int>(order)][0].push_back([img, vw, vh, ov](juce::Graphics& g) {
+        int totalH = vh + ov;
+        drawCallMap[static_cast<int>(order)][0].push_back([img, vw, totalH, ov](juce::Graphics& g) {
             g.setOpacity(1.0f);
-            if (ov == 0 && img->getWidth() == vw && img->getHeight() == vh)
-                g.drawImageAt(*img, 0, 0);
-            else
+            int imgW = img->getWidth(), imgH = img->getHeight();
+            if (imgW == vw && imgH == totalH)
                 g.drawImageAt(*img, 0, -ov);
+            else
+                g.drawImage(*img, 0, -ov, vw, totalH, 0, 0, imgW, imgH);
         });
+    }
+
+    // Inject custom draw calls (e.g. bemani sidebar rails)
+    for (auto& entry : customDrawCalls)
+    {
+        if (entry.second)
+        {
+            auto& drawFn = entry.second;
+            drawCallMap[static_cast<int>(entry.first)][0].push_back([&drawFn](juce::Graphics& g) { drawFn(g); });
+        }
     }
 
     // Draw layer by layer, then column by column within each layer

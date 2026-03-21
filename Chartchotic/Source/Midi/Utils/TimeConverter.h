@@ -14,7 +14,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "Utils.h"
+#include "../../Utils/ChartTypes.h"
 #include "PPQ.h"
 
 //==============================================================================

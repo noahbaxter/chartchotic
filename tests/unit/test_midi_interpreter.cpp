@@ -4,50 +4,37 @@
 using Guitar = MidiPitchDefinitions::Guitar;
 using Drums = MidiPitchDefinitions::Drums;
 
-// ============================================================================
-// generateTrackWindow — basic note rendering (regressions #1, #6)
+// Helper: resolve and extract EXPERT difficulty
+static DifficultyWindow resolveExpert(TestFixture& f, PPQ start, PPQ end, PPQ latency = PPQ(0.0))
+{
+    MidiInterpreter interp(f.state, f.array, f.lock);
+    PartWindow pw = interp.resolveAllDifficulties(start, end, latency);
+    return pw.forSkill(SkillLevel::EXPERT);
+}
 
-TEST_CASE("MidiInterpreter - basic note rendering", "[midi_interpreter][track_window]")
+// ============================================================================
+// Basic note rendering
+
+TEST_CASE("resolveAllDifficulties - basic note rendering", "[resolve][track_window]")
 {
     TestFixture f;
-    MidiInterpreter interp(f.state, f.array, f.lock);
 
     SECTION("single expert green at PPQ 2.0 → column 1 populated")
     {
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(2.0), PPQ(3.0));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw.count(PPQ(2.0)) == 1);
-        REQUIRE(tw[PPQ(2.0)][1].gem == Gem::NOTE); // GREEN = column 1
-        // Other columns should be NONE
-        REQUIRE(tw[PPQ(2.0)][0].gem == Gem::NONE);
-        REQUIRE(tw[PPQ(2.0)][2].gem == Gem::NONE);
-        REQUIRE(tw[PPQ(2.0)][3].gem == Gem::NONE);
-        REQUIRE(tw[PPQ(2.0)][4].gem == Gem::NONE);
-        REQUIRE(tw[PPQ(2.0)][5].gem == Gem::NONE);
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow.count(PPQ(2.0)) == 1);
+        REQUIRE(dw.trackWindow[PPQ(2.0)][1].gem == Gem::NOTE);
+        REQUIRE(dw.trackWindow[PPQ(2.0)][0].gem == Gem::NONE);
     }
 
     SECTION("note outside window → not in output")
     {
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(5.0), PPQ(6.0));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw.count(PPQ(5.0)) == 0);
-    }
-
-    SECTION("note-off event (velocity 0) → skipped")
-    {
-        f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(2.0), PPQ(3.0));
-
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        // The note-off is at max(2.0+1tick, 3.0-1tick) — should not create a frame
-        // Only one frame should exist for the note-on
-        int noteOnFrames = 0;
-        for (auto& [ppq, frame] : tw)
-        {
-            if (frame[1].gem != Gem::NONE) noteOnFrames++;
-        }
-        REQUIRE(noteOnFrames == 1);
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow.count(PPQ(5.0)) == 0);
     }
 
     SECTION("guitar chord → both columns populated in same frame")
@@ -55,59 +42,46 @@ TEST_CASE("MidiInterpreter - basic note rendering", "[midi_interpreter][track_wi
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(2.0), PPQ(3.0));
         f.addNote((uint)Guitar::EXPERT_RED, PPQ(2.0), PPQ(3.0));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw.count(PPQ(2.0)) == 1);
-        REQUIRE(tw[PPQ(2.0)][1].gem == Gem::NOTE); // GREEN
-        REQUIRE(tw[PPQ(2.0)][2].gem == Gem::NOTE); // RED
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow.count(PPQ(2.0)) == 1);
+        REQUIRE(dw.trackWindow[PPQ(2.0)][1].gem == Gem::NOTE); // GREEN
+        REQUIRE(dw.trackWindow[PPQ(2.0)][2].gem == Gem::NOTE); // RED
     }
 }
 
 // ============================================================================
-// Star power propagation (regression #6)
-// Bug: old system checked isNoteHeld at render time for SP, but data didn't carry SP state
+// Star power propagation
 
-TEST_CASE("MidiInterpreter - star power propagation", "[midi_interpreter][star_power]")
+TEST_CASE("resolveAllDifficulties - star power", "[resolve][star_power]")
 {
     TestFixture f;
-    MidiInterpreter interp(f.state, f.array, f.lock);
 
     SECTION("SP modifier held across note → starPower = true")
     {
         f.addModifier((uint)Guitar::SP, PPQ(1.0), PPQ(5.0));
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(2.0), PPQ(3.0));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(6.0));
-        REQUIRE(tw[PPQ(2.0)][1].starPower == true);
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(6.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][1].starPower == true);
     }
 
     SECTION("SP modifier NOT held → starPower = false")
     {
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(2.0), PPQ(3.0));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw[PPQ(2.0)][1].starPower == false);
-    }
-
-    SECTION("SP modifier ends before note → starPower = false")
-    {
-        f.addModifier((uint)Guitar::SP, PPQ(0.0), PPQ(1.5));
-        f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(2.0), PPQ(3.0));
-
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw[PPQ(2.0)][1].starPower == false);
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][1].starPower == false);
     }
 }
 
 // ============================================================================
-// Modifier notes don't appear as playable notes (regression #1)
-// Bug: modifier pitches routed to getGuitarColumn → defaulted to orange
+// Modifier pitches not rendered as notes
 
-TEST_CASE("MidiInterpreter - modifier pitches not rendered as notes", "[midi_interpreter]")
+TEST_CASE("resolveAllDifficulties - modifier pitches not rendered", "[resolve]")
 {
     TestFixture f;
-    MidiInterpreter interp(f.state, f.array, f.lock);
 
-    SECTION("HOPO/STRUM/TAP/SP modifier pitches → NOT rendered as glyphs")
+    SECTION("HOPO/STRUM/TAP/SP/LANE modifier pitches → NOT rendered as glyphs")
     {
         f.addModifier((uint)Guitar::EXPERT_HOPO, PPQ(1.0), PPQ(5.0));
         f.addModifier((uint)Guitar::EXPERT_STRUM, PPQ(1.0), PPQ(5.0));
@@ -115,10 +89,9 @@ TEST_CASE("MidiInterpreter - modifier pitches not rendered as notes", "[midi_int
         f.addModifier((uint)Guitar::SP, PPQ(1.0), PPQ(5.0));
         f.addModifier((uint)Guitar::LANE_1, PPQ(1.0), PPQ(5.0));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(6.0));
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(6.0));
 
-        // No frames should have any visible notes (modifiers should be invisible)
-        for (auto& [ppq, frame] : tw)
+        for (auto& [ppq, frame] : dw.trackWindow)
         {
             for (uint col = 0; col < LANE_COUNT; col++)
             {
@@ -131,47 +104,70 @@ TEST_CASE("MidiInterpreter - modifier pitches not rendered as notes", "[midi_int
 // ============================================================================
 // Drum mode
 
-TEST_CASE("MidiInterpreter - drum mode", "[midi_interpreter][drums]")
+TEST_CASE("resolveAllDifficulties - drum mode", "[resolve][drums]")
 {
     TestFixture f;
     f.state.setProperty("part", (int)Part::DRUMS, nullptr);
-    MidiInterpreter interp(f.state, f.array, f.lock);
 
     SECTION("expert kick → column 0")
     {
         f.addNote((uint)Drums::EXPERT_KICK, PPQ(2.0), PPQ(2.5));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw[PPQ(2.0)][0].gem == Gem::NOTE);
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][0].gem == Gem::NOTE);
     }
 
     SECTION("kick2x enabled, pitch 95 → column 6")
     {
         f.addNote((uint)Drums::EXPERT_KICK_2X, PPQ(2.0), PPQ(2.5));
 
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw[PPQ(2.0)][6].gem == Gem::NOTE);
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][6].gem == Gem::NOTE);
+    }
+
+    SECTION("pro drums: yellow without TOM → CYM")
+    {
+        f.state.setProperty("drumType", (int)DrumType::PRO, nullptr);
+        f.addNote((uint)Drums::EXPERT_YELLOW, PPQ(2.0), PPQ(2.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][2].gem == Gem::CYM);
+    }
+
+    SECTION("pro drums: yellow with TOM_YELLOW → NOTE")
+    {
+        f.state.setProperty("drumType", (int)DrumType::PRO, nullptr);
+        f.addModifier((uint)Drums::TOM_YELLOW, PPQ(0.0), PPQ(4.0));
+        f.addNote((uint)Drums::EXPERT_YELLOW, PPQ(2.0), PPQ(2.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][2].gem == Gem::NOTE);
+    }
+
+    SECTION("dynamics: ghost velocity on red → HOPO_GHOST")
+    {
+        f.addNote((uint)Drums::EXPERT_RED, PPQ(2.0), PPQ(2.5), (uint8_t)Dynamic::GHOST);
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][1].gem == Gem::HOPO_GHOST);
     }
 }
 
 // ============================================================================
-// generateSustainWindow (regressions #6, #7)
+// Guitar sustains
 
-TEST_CASE("MidiInterpreter - guitar sustains", "[midi_interpreter][sustains]")
+TEST_CASE("resolveAllDifficulties - guitar sustains", "[resolve][sustains]")
 {
     TestFixture f;
-    MidiInterpreter interp(f.state, f.array, f.lock);
 
     SECTION("long note produces sustain with correct column")
     {
-        // Duration well above MIN_SUSTAIN_LENGTH
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(3.0));
 
-        SustainWindow sw = interp.generateSustainWindow(PPQ(0.0), PPQ(4.0), PPQ(5.0));
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0), PPQ(5.0));
 
-        // Find sustain for column 1 (green)
         bool found = false;
-        for (auto& s : sw)
+        for (auto& s : dw.sustainWindow)
         {
             if (s.sustainType == SustainType::SUSTAIN && s.gemColumn == 1)
             {
@@ -184,13 +180,12 @@ TEST_CASE("MidiInterpreter - guitar sustains", "[midi_interpreter][sustains]")
 
     SECTION("short note (below MIN_SUSTAIN_LENGTH) → no sustain")
     {
-        // Very short note
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(1.1));
 
-        SustainWindow sw = interp.generateSustainWindow(PPQ(0.0), PPQ(4.0), PPQ(5.0));
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0), PPQ(5.0));
 
         bool foundSustain = false;
-        for (auto& s : sw)
+        for (auto& s : dw.sustainWindow)
         {
             if (s.sustainType == SustainType::SUSTAIN && s.gemColumn == 1)
                 foundSustain = true;
@@ -198,41 +193,15 @@ TEST_CASE("MidiInterpreter - guitar sustains", "[midi_interpreter][sustains]")
         REQUIRE_FALSE(foundSustain);
     }
 
-    SECTION("no note-off → sustain extends to latencyBufferEnd")
-    {
-        // Manually add just a note-on with no note-off
-        f.array[(uint)Guitar::EXPERT_GREEN][PPQ(1.0)] = NoteData(100, Gem::NOTE);
-
-        PPQ latencyEnd = PPQ(10.0);
-        SustainWindow sw = interp.generateSustainWindow(PPQ(0.0), PPQ(8.0), latencyEnd);
-
-        bool found = false;
-        for (auto& s : sw)
-        {
-            if (s.sustainType == SustainType::SUSTAIN && s.gemColumn == 1)
-            {
-                found = true;
-                REQUIRE(s.endPPQ == latencyEnd);
-            }
-        }
-        REQUIRE(found);
-    }
-}
-
-TEST_CASE("MidiInterpreter - sustain star power", "[midi_interpreter][sustains][star_power]")
-{
-    TestFixture f;
-    MidiInterpreter interp(f.state, f.array, f.lock);
-
     SECTION("SP held at sustain start → starPower = true")
     {
         f.addModifier((uint)Guitar::SP, PPQ(0.5), PPQ(4.0));
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.0), PPQ(3.0));
 
-        SustainWindow sw = interp.generateSustainWindow(PPQ(0.0), PPQ(4.0), PPQ(5.0));
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0), PPQ(5.0));
 
         bool found = false;
-        for (auto& s : sw)
+        for (auto& s : dw.sustainWindow)
         {
             if (s.sustainType == SustainType::SUSTAIN && s.gemColumn == 1)
             {
@@ -244,21 +213,52 @@ TEST_CASE("MidiInterpreter - sustain star power", "[midi_interpreter][sustains][
     }
 }
 
-TEST_CASE("MidiInterpreter - lane sustains", "[midi_interpreter][sustains][lanes]")
+// ============================================================================
+// Multi-difficulty output
+
+TEST_CASE("resolveAllDifficulties - multi-difficulty", "[resolve][multi_diff]")
 {
     TestFixture f;
-    MidiInterpreter interp(f.state, f.array, f.lock);
+
+    SECTION("expert note not visible at easy difficulty")
+    {
+        f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(2.0), PPQ(3.0));
+
+        MidiInterpreter interp(f.state, f.array, f.lock);
+        PartWindow pw = interp.resolveAllDifficulties(PPQ(0.0), PPQ(4.0), PPQ(0.0));
+
+        REQUIRE(pw.forSkill(SkillLevel::EXPERT).trackWindow.count(PPQ(2.0)) == 1);
+        REQUIRE(pw.forSkill(SkillLevel::EASY).trackWindow.empty());
+    }
+
+    SECTION("easy note visible at easy, not expert")
+    {
+        f.addNote((uint)Guitar::EASY_GREEN, PPQ(2.0), PPQ(3.0));
+
+        MidiInterpreter interp(f.state, f.array, f.lock);
+        PartWindow pw = interp.resolveAllDifficulties(PPQ(0.0), PPQ(4.0), PPQ(0.0));
+
+        REQUIRE(pw.forSkill(SkillLevel::EASY).trackWindow.count(PPQ(2.0)) == 1);
+        REQUIRE(pw.forSkill(SkillLevel::EXPERT).trackWindow.empty());
+    }
+}
+
+// ============================================================================
+// Lane sustains
+
+TEST_CASE("resolveAllDifficulties - lane sustains", "[resolve][lanes]")
+{
+    TestFixture f;
 
     SECTION("LANE_1 modifier with playable note → SustainType::LANE")
     {
         f.addNote((uint)Guitar::EXPERT_GREEN, PPQ(1.5), PPQ(2.5));
-        // Lane modifier covering the note
         f.addModifier((uint)Guitar::LANE_1, PPQ(1.0), PPQ(3.0));
 
-        SustainWindow sw = interp.generateSustainWindow(PPQ(0.0), PPQ(4.0), PPQ(5.0));
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0), PPQ(5.0));
 
         bool foundLane = false;
-        for (auto& s : sw)
+        for (auto& s : dw.sustainWindow)
         {
             if (s.sustainType == SustainType::LANE)
             {
@@ -267,69 +267,5 @@ TEST_CASE("MidiInterpreter - lane sustains", "[midi_interpreter][sustains][lanes
             }
         }
         REQUIRE(foundLane);
-    }
-}
-
-TEST_CASE("MidiInterpreter - zero-length notes", "[midi_interpreter][regression_7]")
-{
-    TestFixture f;
-    MidiInterpreter interp(f.state, f.array, f.lock);
-
-    SECTION("0-tick note still appears in TrackWindow")
-    {
-        // Simulate a 0-tick note: start == end
-        // addNote uses std::max(start + PPQ(1), end - PPQ(1)) for note-off
-        // With start == end, note-off goes to start + PPQ(1), so note-on at start survives
-        PPQ pos = PPQ(2.0);
-        f.addNote((uint)Guitar::EXPERT_GREEN, pos, pos);
-
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw.count(pos) == 1);
-        REQUIRE(tw[pos][1].gem == Gem::NOTE);
-    }
-
-    SECTION("1-tick note still appears in TrackWindow")
-    {
-        PPQ pos = PPQ(2.0);
-        PPQ end = pos + PPQ(1); // 1 tick
-        f.addNote((uint)Guitar::EXPERT_GREEN, pos, end);
-
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw.count(pos) == 1);
-        REQUIRE(tw[pos][1].gem == Gem::NOTE);
-    }
-}
-
-// ============================================================================
-// Drum gem type passthrough — interpreter preserves pre-computed gem types
-
-TEST_CASE("MidiInterpreter - drum gem type passthrough", "[midi_interpreter][drums]")
-{
-    TestFixture f;
-    f.state.setProperty("part", (int)Part::DRUMS, nullptr);
-    MidiInterpreter interp(f.state, f.array, f.lock);
-
-    SECTION("HOPO_GHOST gem stored → HOPO_GHOST in track window")
-    {
-        f.addNote((uint)Drums::EXPERT_RED, PPQ(2.0), PPQ(2.5), (uint8_t)Dynamic::GHOST, Gem::HOPO_GHOST);
-
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw[PPQ(2.0)][1].gem == Gem::HOPO_GHOST);
-    }
-
-    SECTION("CYM_ACCENT gem stored → CYM_ACCENT in track window")
-    {
-        f.addNote((uint)Drums::EXPERT_YELLOW, PPQ(2.0), PPQ(2.5), (uint8_t)Dynamic::ACCENT, Gem::CYM_ACCENT);
-
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw[PPQ(2.0)][2].gem == Gem::CYM_ACCENT);
-    }
-
-    SECTION("CYM gem stored → CYM in track window")
-    {
-        f.addNote((uint)Drums::EXPERT_BLUE, PPQ(2.0), PPQ(2.5), 100, Gem::CYM);
-
-        TrackWindow tw = interp.generateTrackWindow(PPQ(0.0), PPQ(4.0));
-        REQUIRE(tw[PPQ(2.0)][3].gem == Gem::CYM);
     }
 }

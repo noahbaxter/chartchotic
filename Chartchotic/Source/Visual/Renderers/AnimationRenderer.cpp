@@ -31,7 +31,7 @@ AnimationRenderer::~AnimationRenderer()
 
 void AnimationRenderer::triggerAnimationForColumn(uint gemColumn, Gem gemType, bool starPower)
 {
-    bool isDrums = activePart != Part::GUITAR;
+    bool isDrums = isDrumLike(activePart);
     bool is2xKick = isDrums && gemColumn == 6;
     animationManager.triggerHit(gemColumn, isDrums, is2xKick, gemType, starPower);
 }
@@ -133,7 +133,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
     cachedHeight = height;
 
     const auto& animations = animationManager.getActiveAnimations();
-    bool isGuitar = activePart == Part::GUITAR;
+    bool isGuitar = isGuitarLike(activePart);
     float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
 
     for (const auto& anim : animations)
@@ -172,7 +172,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
                                              float posEnd, float strikePos)
 {
     float strikelinePosition = strikePos;
-    bool isGuitar = activePart == Part::GUITAR;
+    bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
 
     bool useWhiteSP = anim.starPower && hitTypeConfig.spWhiteFlare;
@@ -193,30 +193,79 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
             ? laneCoordsDrums[colIdx]
             : laneCoordsGuitar[colIdx];
 
-        auto edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
-                                   posEnd, PositionConstants::FRETBOARD_SCALE);
-        auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
-        float colWidth = edge.rightX - edge.leftX;
-        float colHeight = colWidth / perspParams.barNoteHeightRatio;
-        juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
+        // Kick/open = bar note — match NoteRenderer sizing exactly
+        PositionConstants::LaneCorners edge;
+        float imageAspect = (float)animFrame->getWidth() / (float)animFrame->getHeight();
 
-        // Apply hit bar scale + animation offset
-        kickRect = kickRect.withSizeKeepingCentre(
-            kickRect.getWidth() * hitBarScale.scale * hitBarScale.width * offset.widthScale,
-            kickRect.getHeight() * hitBarScale.scale * hitBarScale.height * offset.heightScale
-        ).translated(offset.xOffset, offset.yOffset);
-
-        g.setOpacity(1.0f);
-        g.drawImage(*animFrame, kickRect);
-
-        // White SP flare for bar hits
-        if (useWhiteSP)
+        if (PositionMath::bemaniMode)
         {
-            auto* flareImage = assetManager.getHitFlareWhiteImage();
-            if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
+            edge = PositionMath::getFretboardEdge(isDrums, strikelinePosition, cachedWidth, cachedHeight,
+                       PositionConstants::HIGHWAY_POS_START, posEnd);
+            // Use the bar note glyph aspect ratio (not the animation frame aspect)
+            // to match NoteRenderer sizing exactly
+            juce::Image* noteGlyph = isDrums
+                ? assetManager.getDrumGlyphImage(GemWrapper(Gem::NOTE, false), 0, false)
+                : assetManager.getGuitarGlyphImage(GemWrapper(Gem::NOTE, false), 0, false);
+            float noteAspect = (noteGlyph && noteGlyph->getHeight() > 0)
+                ? (float)noteGlyph->getWidth() / (float)noteGlyph->getHeight()
+                : imageAspect;
+            auto kickRect = PositionMath::computeBemaniBarRect(
+                isDrums, strikelinePosition, cachedWidth, cachedHeight,
+                posEnd, PositionConstants::BAR_SIZE, noteAspect);
+
+            // Match NoteRenderer: user barScale
+            float userScale = state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f;
+            float bw = bemaniConfig.barW;
+            float bh = bemaniConfig.barH;
+            float nudge = bemaniConfig.barNudge;
+            kickRect = kickRect.withSizeKeepingCentre(
+                kickRect.getWidth() * bw * userScale * offset.widthScale,
+                kickRect.getHeight() * bh * userScale * offset.heightScale
+            );
+            // Center on the strikeline pad, then apply hit bar nudge
+            float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
+            kickRect.translate(offset.xOffset, offset.yOffset + (padY - kickRect.getCentreY()) + kickRect.getHeight() * bemaniConfig.hitBarNudge(isDrums));
+
+            g.setOpacity(1.0f);
+            g.drawImage(*animFrame, kickRect);
+
+            if (useWhiteSP)
             {
-                g.setOpacity(HIT_FLARE_OPACITY);
-                g.drawImage(*flareImage, kickRect);
+                auto* flareImage = assetManager.getHitFlareWhiteImage();
+                if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
+                {
+                    g.setOpacity(HIT_FLARE_OPACITY);
+                    g.drawImage(*flareImage, kickRect);
+                }
+            }
+        }
+        else
+        {
+            edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
+                                 posEnd, PositionConstants::FRETBOARD_SCALE, -1);
+            auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
+            float colWidth = edge.rightX - edge.leftX;
+            float colHeight = colWidth / perspParams.barNoteHeightRatio;
+            juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
+
+            // Apply hit bar scale + animation offset
+            kickRect = kickRect.withSizeKeepingCentre(
+                kickRect.getWidth() * hitBarScale.scale * hitBarScale.width * offset.widthScale,
+                kickRect.getHeight() * hitBarScale.scale * hitBarScale.height * offset.heightScale
+            ).translated(offset.xOffset, offset.yOffset);
+
+            g.setOpacity(1.0f);
+            g.drawImage(*animFrame, kickRect);
+
+            // White SP flare for bar hits
+            if (useWhiteSP)
+            {
+                auto* flareImage = assetManager.getHitFlareWhiteImage();
+                if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
+                {
+                    g.setOpacity(HIT_FLARE_OPACITY);
+                    g.drawImage(*flareImage, kickRect);
+                }
             }
         }
     }
@@ -226,7 +275,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
                                              float posEnd, float strikePos)
 {
     float strikelinePosition = strikePos;
-    bool isGuitar = activePart == Part::GUITAR;
+    bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
     Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
 
@@ -253,8 +302,9 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         : laneCoordsGuitar[colIdx];
 
     float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    int bemaniIdx = barNote ? -1 : ((int)colIdx - 1);
     auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
-                               posEnd, PositionConstants::FRETBOARD_SCALE);
+                               posEnd, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
     auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
@@ -302,6 +352,14 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         hitRect.getWidth() * hs.scale * hs.width * dynScale * offset.widthScale,
         hitRect.getHeight() * hs.scale * hs.height * dynScale * offset.heightScale
     ).translated(offset.xOffset, offset.yOffset);
+
+    if (PositionMath::bemaniMode)
+    {
+        // Center on the strikeline pad (same Y as TrackRenderer::paintBemaniOverlay)
+        float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
+        float currentCenterY = hitRect.getCentreY();
+        hitRect.translate(0.0f, padY - currentCenterY);
+    }
 
     if (hitFrame)
     {
