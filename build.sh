@@ -121,8 +121,11 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
     echo "Configuring CMake (Ninja, $BUILD_CONFIG)..."
     CMAKE_EXTRA_ARGS=""
     if [ -n "$SKIN_DIR" ]; then
-        CMAKE_EXTRA_ARGS="-DSKIN_DIR=$SKIN_DIR"
+        CMAKE_EXTRA_ARGS="$CMAKE_EXTRA_ARGS -DSKIN_DIR=$SKIN_DIR"
         echo "  Skin directory: $SKIN_DIR"
+    fi
+    if [ "$BUILD_STD" = true ]; then
+        CMAKE_EXTRA_ARGS="$CMAKE_EXTRA_ARGS -DBUILD_STD=ON"
     fi
     cmake -B "$NINJA_BUILD_DIR" -G Ninja \
         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \

@@ -4,8 +4,8 @@
 #include "Midi/Utils/MidiTypes.h"
 #include "Midi/Utils/MidiConstants.h"
 #include "Midi/Utils/InstrumentMapper.h"
-#include "Utils/Utils.h"
-#include "Utils/PPQ.h"
+#include "Utils/ChartTypes.h"
+#include "Midi/Utils/PPQ.h"
 
 struct TestFixture
 {

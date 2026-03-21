@@ -366,7 +366,8 @@ if(APPLE)
     )
 endif()
 
-# --- Standard (non-REAPER) variant for testing ---
+# --- Standard (non-REAPER) variant for local dev testing only ---
+if(BUILD_STD)
 juce_add_plugin(ChartchoticStd
     VERSION ${PROJECT_VERSION}
     COMPANY_NAME "Dichotic Studios"
@@ -428,3 +429,4 @@ if(APPLE)
         -Wno-deprecated-declarations
     )
 endif()
+endif() # BUILD_STD
