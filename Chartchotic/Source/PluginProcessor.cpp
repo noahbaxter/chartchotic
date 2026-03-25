@@ -84,6 +84,7 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("textureScale", TEX_SCALE_DEFAULT_PCT / 100.0f, nullptr);
     state.setProperty("textureOpacity", TEX_OPACITY_DEFAULT / 100.0f, nullptr);
     state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
+    state.setProperty("trackDiscovery", true, nullptr);
 }
 
 void ChartchoticAudioProcessor::setLatencyInSeconds(float latencyInSeconds)

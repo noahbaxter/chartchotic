@@ -177,8 +177,9 @@ void ChartchoticAudioProcessorEditor::onFrame()
         toolbar.updateVisibility();
     }
 
-    // Create InstrumentSession on first REAPER detection
-    if (isReaperMode && !audioProcessor.getInstrumentSession())
+    // Create InstrumentSession on first REAPER detection (if multi-highway enabled)
+    bool trackDiscovery = !state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"];
+    if (isReaperMode && trackDiscovery && !audioProcessor.getInstrumentSession())
     {
         audioProcessor.createInstrumentSession();
         if (auto* instrSession = audioProcessor.getInstrumentSession())
@@ -447,6 +448,48 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onShowFpsChanged = [this](bool on) { showFps = on; };
     toolbar.onShowBackgroundChanged = [this](bool on) { assets.setBackgroundVisible(on); };
+
+    toolbar.onTrackDiscoveryChanged = [this](bool on) {
+        if (on)
+        {
+            // Re-create InstrumentSession and rebuild from discovery
+            if (!audioProcessor.getInstrumentSession())
+            {
+                audioProcessor.createInstrumentSession();
+                if (auto* instrSession = audioProcessor.getInstrumentSession())
+                    session.rebuildFromSession(*instrSession);
+            }
+        }
+        else
+        {
+            // Tear down discovery, fall back to single-instrument mode.
+            // Uses the processor's own noteStateMapArray (fed by ReaperMidiPipeline
+            // reading from the plugin's track). Multi-difficulty still works.
+            audioProcessor.destroyInstrumentSession();
+
+            for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+            {
+                slots[i].active = false;
+                slots[i].highway->setVisible(false);
+            }
+
+            auto& slot = slots[0];
+            slot.part = getPartFromState(state);
+            slot.active = true;
+            slot.ownedState.reset();
+            slot.interpreter = std::make_unique<MidiInterpreter>(
+                state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
+            slot.highway->setActivePart(slot.part);
+            slot.highway->showPartLabel = false;
+            slot.highway->showDifficultyLabel = false;
+            slot.highway->setVisible(true);
+            activeSlotCount = 1;
+
+            toolbar.setMultiInstrumentMode(false);
+            resized();
+            loadState();
+        }
+    };
 
     toolbar.onLatencyChanged = [this](int id) { state.setProperty("latency", id, nullptr); applyLatencySetting(id); };
     toolbar.onLatencyOffsetChanged = [this](int offsetMs) {

@@ -79,6 +79,8 @@ Do between features or when touching related code.
 - **NoteStateStore wrapper** — `InstrumentSlot` bundles array+lock but doesn't enforce locking via API yet. Wrap into class with scoped-lock accessors. Eliminates race condition footgun.
 - **Audio-thread hygiene** — Remove std::function, preallocated vectors. DrawCallMap done, remaining allocations TBD.
 - **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.
+- **Settings menu reorganization** — Single gear button, scrollable category list on the right, selected category expands a detail panel on the left (macOS System Settings style). Consolidate View/Chart and Settings panels into one unified menu. Centralize control labels and tooltip text into a single source of truth file.
+- **Tooltips for all controls** — Extend InfoTooltip to every control that isn't immediately obvious. Centralize tooltip strings (header with static constexpr or similar) so they're easy to maintain and translate.
 
 ---
 

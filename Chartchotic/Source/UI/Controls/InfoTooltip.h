@@ -122,20 +122,32 @@ private:
 
     std::unique_ptr<TooltipCard> card;
 
-    struct HoverListener : public juce::MouseListener
+    struct HoverListener : public juce::MouseListener, public juce::Timer
     {
         InfoTooltip& owner;
+        juce::Component* hoveredComp = nullptr;
+        static constexpr int delayMs = 500;
+
         HoverListener(InfoTooltip& o) : owner(o) {}
 
         void mouseEnter(const juce::MouseEvent& e) override
         {
-            if (auto* comp = e.eventComponent)
-                owner.show(*comp);
+            hoveredComp = e.eventComponent;
+            startTimer(delayMs);
         }
 
         void mouseExit(const juce::MouseEvent&) override
         {
+            stopTimer();
+            hoveredComp = nullptr;
             owner.hide();
+        }
+
+        void timerCallback() override
+        {
+            stopTimer();
+            if (hoveredComp)
+                owner.show(*hoveredComp);
         }
     };
 

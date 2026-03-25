@@ -158,6 +158,18 @@ void ToolbarComponent::initChartPanel()
         if (onDiscoFlipChanged) onDiscoFlipChanged(discoFlipToggle.getToggleState());
     };
 
+    discoFlipTooltip.setText(
+        "Swap red and yellow cymbal positions in disco flip "
+        "sections. Matches how Rock Band charts encode "
+        "hand-swap patterns for pro drums.");
+    discoFlipTooltip.attachTo(discoFlipToggle);
+
+    hopoThresholdTooltip.setText(
+        "Max note distance for auto hammer-on/pull-off. "
+        "170 Tick is the Clone Hero/YARG default. Shorter "
+        "values trigger HOPOs more aggressively.");
+    hopoThresholdTooltip.attachTo(hopoThresholdStepper);
+
     // --- Chart + Scene ---
 
     gemsToggle.onClick = [this]() {
@@ -381,6 +393,19 @@ void ToolbarComponent::initSettingsPanel()
         if (onStretchChanged) onStretchChanged(on);
     };
 
+    trackDiscoveryToggle.setToggleState(!state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"]);
+    trackDiscoveryToggle.onClick = [this]() {
+        bool on = trackDiscoveryToggle.getToggleState();
+        state.setProperty("trackDiscovery", on, nullptr);
+        if (onTrackDiscoveryChanged) onTrackDiscoveryChanged(on);
+    };
+    trackDiscoveryTooltip.setText(
+        "Scans the project for instrument tracks by name "
+        "(PART DRUMS, PART GUITAR, etc.). Turn off if detection picks "
+        "wrong tracks. When off, plugin reads from whatever track "
+        "it's placed on.");
+    trackDiscoveryTooltip.attachTo(trackDiscoveryToggle);
+
     bemaniModeToggle.setToggleState(false);
     bemaniModeToggle.onClick = [this]() {
         bool on = bemaniModeToggle.getToggleState();
@@ -418,6 +443,17 @@ void ToolbarComponent::initSettingsPanel()
         if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
     };
 
+    calibrationTooltip.setText(
+        "Fine-tune the visual sync to match your sound card's "
+        "latency. Most users won't need to change this.");
+    calibrationTooltip.attachTo(syncOffsetStepper);
+
+    latencyTooltip.setText(
+        "How far ahead the plugin reads MIDI. Higher values "
+        "show more notes before the strikeline, but add input "
+        "delay. 500-1000ms is a good starting point.");
+    latencyTooltip.attachTo(latencyStepper);
+
     // Register all children
     settingsButton.addPanelChild(&displayHeader);
     settingsButton.addPanelChild(&framerateButtons);
@@ -431,6 +467,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&textureOpacityStepper);
     settingsButton.addPanelChild(&stretchToggle);
     settingsButton.addPanelChild(&bemaniModeToggle);
+    settingsButton.addPanelChild(&trackDiscoveryToggle);
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&barScaleStepper);
@@ -596,6 +633,8 @@ void ToolbarComponent::loadState()
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
+    trackDiscoveryToggle.setToggleState(!state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"]);
+
     // Bemani mode (restore before stretch so we can hide it if needed)
     bool bemaniOn = state.hasProperty("bemaniMode") && (bool)state["bemaniMode"];
     bemaniModeToggle.setToggleState(bemaniOn);
@@ -872,7 +911,18 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         {
             bemaniModeToggle.setBounds(margin, y, w, stepperH);
         }
+        y += stepperH + gap;
+    }
+
+    trackDiscoveryToggle.setVisible(reaperMode);
+    if (reaperMode)
+    {
+        trackDiscoveryToggle.setBounds(margin, y, w, stepperH);
         y += stepperH + sectionGap;
+    }
+    else
+    {
+        y += sectionGap - gap;
     }
 
     // --- Sync ---
