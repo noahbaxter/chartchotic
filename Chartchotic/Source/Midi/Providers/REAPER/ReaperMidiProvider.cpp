@@ -250,6 +250,20 @@ double ReaperMidiProvider::ppqToTime(double ppq)
     );
 }
 
+double ReaperMidiProvider::timeToPpq(double timeInSeconds)
+{
+    if (!reaperApiInitialized || !apis.TimeMap2_timeToQN)
+        return timeInSeconds * (120.0 / 60.0);  // Default 120 BPM fallback
+
+    return ReaperApiHelpers::performQuery(
+        getReaperApi,
+        reaperApiInitialized,
+        apiLock,
+        [this, timeInSeconds](void* project) { return apis.TimeMap2_timeToQN(project, timeInSeconds); },
+        timeInSeconds * (120.0 / 60.0)
+    );
+}
+
 std::string ReaperMidiProvider::getTrackHash(int trackIndex, bool notesonly)
 {
     std::string emptyHash;

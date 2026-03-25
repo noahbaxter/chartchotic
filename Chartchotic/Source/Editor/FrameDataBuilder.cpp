@@ -5,10 +5,23 @@
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
 #include "../Visual/Utils/PositionMath.h"
 
-// Apply latency offset (ms → beats) to raw cursor position
+// Apply latency offset to raw cursor position.
+// In REAPER mode, uses the tempo map for accurate time-to-PPQ conversion
+// so the offset stays consistent through tempo changes.
 static PPQ applyLatencyOffset(PPQ cursorPPQ, const FrameContext& ctx)
 {
     int latencyOffsetMs = (int)ctx.state.getProperty("latencyOffsetMs");
+    if (latencyOffsetMs == 0) return cursorPPQ;
+
+    auto& reaperProvider = ctx.processor.getReaperMidiProvider();
+    if (reaperProvider.isReaperApiAvailable())
+    {
+        double cursorTime = reaperProvider.ppqToTime(cursorPPQ.toDouble());
+        double offsetTime = cursorTime - (latencyOffsetMs / 1000.0);
+        return PPQ(reaperProvider.timeToPpq(offsetTime));
+    }
+
+    // Non-REAPER fallback: use instantaneous BPM (no tempo map available)
     if (auto* playHead = ctx.processor.getPlayHead())
     {
         auto positionInfo = playHead->getPosition();
@@ -222,19 +235,8 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
         trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
     }
 
-    // Apply latency offset
-    auto* playHead = ctx.processor.getPlayHead();
-    int latencyOffsetMs = (int)ctx.state.getProperty("latencyOffsetMs");
-    if (playHead)
-    {
-        auto positionInfo = playHead->getPosition();
-        if (positionInfo.hasValue())
-        {
-            double bpm = positionInfo->getBpm().orFallback(120.0);
-            double latencyOffsetBeats = (latencyOffsetMs / 1000.0) * (bpm / 60.0);
-            trackWindowStartPPQ = trackWindowStartPPQ - PPQ(latencyOffsetBeats);
-        }
-    }
+    // Apply latency offset (uses tempo map in REAPER mode, instantaneous BPM otherwise)
+    trackWindowStartPPQ = applyLatencyOffset(trackWindowStartPPQ, ctx);
 
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + ctx.displaySizeInPPQ;
     PPQ latencyBufferEnd = trackWindowStartPPQ + ctx.smoothedLatencyInPPQ;
@@ -242,6 +244,7 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
     ctx.processor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
 
     double currentBPM = 120.0;
+    auto* playHead = ctx.processor.getPlayHead();
     if (playHead)
     {
         auto positionInfo = playHead->getPosition();
