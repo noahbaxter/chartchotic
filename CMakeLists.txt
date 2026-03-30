@@ -203,6 +203,7 @@ target_sources(Chartchotic
         Chartchotic/Source/UI/ControlConstants.h
         Chartchotic/Source/UI/FooterComponent.h
         Chartchotic/Source/UI/StatusBarComponent.h
+        Chartchotic/Source/UI/TooltipStrings.h
         Chartchotic/Source/UI/ToolbarComponent.cpp
         Chartchotic/Source/UI/ToolbarComponent.h
         Chartchotic/Source/UI/UpdateChecker.cpp
