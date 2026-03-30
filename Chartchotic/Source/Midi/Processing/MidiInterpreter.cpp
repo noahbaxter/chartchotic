@@ -50,15 +50,15 @@ PartWindow MidiInterpreter::resolveAllDifficulties(PPQ windowStart, PPQ windowEn
     cfg.bemaniMode = PositionMath::bemaniMode;
     cfg.discoFlipState = discoFlip;
 
-    int thresholdIndex = (int)state.getProperty("hopoThreshold", 2);
+    int thresholdIndex = (int)state.getProperty("hopoThreshold", HOPO_THRESHOLD_DEFAULT);
     if (cfg.autoHopo)
     {
         switch (thresholdIndex)
         {
-            case 0: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH;     break;
-            case 1: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH_DOT; break;
-            case 2: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170;   break;
-            case 3: cfg.hopoThreshold = MIDI_HOPO_EIGHTH;        break;
+            case 0: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH;   break;
+            case 1: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170;  break;
+            case 2: cfg.hopoThreshold = MIDI_HOPO_EIGHTH;       break;
+            default: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170; break;
         }
         cfg.hopoThreshold += MIDI_HOPO_THRESHOLD_BUFFER;
     }

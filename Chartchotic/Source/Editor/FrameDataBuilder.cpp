@@ -2,6 +2,7 @@
 #include "../PluginProcessor.h"
 #include "../Midi/Pipelines/ReaperMidiPipeline.h"
 #include "../Midi/Utils/MidiConstants.h"
+#include "../UI/ControlConstants.h"
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
 #include "../Visual/Utils/PositionMath.h"
 
@@ -150,15 +151,15 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
         cfg.bemaniMode = PositionMath::bemaniMode;
         cfg.discoFlipState = firstInterp.getDiscoFlipState();
 
-        int thresholdIndex = (int)firstInterp.getState().getProperty("hopoThreshold", 2);
+        int thresholdIndex = (int)firstInterp.getState().getProperty("hopoThreshold", HOPO_THRESHOLD_DEFAULT);
         if (cfg.autoHopo)
         {
             switch (thresholdIndex)
             {
-                case 0: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH;     break;
-                case 1: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH_DOT; break;
-                case 2: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170;   break;
-                case 3: cfg.hopoThreshold = MIDI_HOPO_EIGHTH;        break;
+                case 0: cfg.hopoThreshold = MIDI_HOPO_SIXTEENTH;   break;
+                case 1: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170;  break;
+                case 2: cfg.hopoThreshold = MIDI_HOPO_EIGHTH;       break;
+                default: cfg.hopoThreshold = MIDI_HOPO_CLASSIC_170; break;
             }
             cfg.hopoThreshold += MIDI_HOPO_THRESHOLD_BUFFER;
         }
