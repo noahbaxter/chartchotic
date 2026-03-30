@@ -16,6 +16,7 @@
 
 ### Quality of Life
 - Tooltips on non-obvious controls (discovery toggle, calibration, latency, disco flip, HOPO threshold)
+- HOPO threshold simplified to three levels: Tight (120), Default (170), Loose (240)
 
 ## 1.2.0
 Easily the biggest release since 1.0. Multi-highway support turns Chartchotic into a full band view (or full difficulty if you prefer).
