@@ -1,8 +1,9 @@
 #include "ToolbarComponent.h"
+#include "TooltipStrings.h"
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
 static const juce::StringArray latencyLabels = { "0ms", "250ms", "500ms", "750ms", "1000ms", "1500ms" };
-static const juce::StringArray hopoThresholdLabels = { "1/16", "Dot 1/16", "170 Tick", "1/8" };
+static const juce::StringArray hopoThresholdLabels = { "Tight", "Default", "Loose" };
 
 ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
     : state(state)
@@ -141,16 +142,10 @@ void ToolbarComponent::initChartPanel()
         if (onDiscoFlipChanged) onDiscoFlipChanged(discoFlipToggle.getToggleState());
     };
 
-    discoFlipTooltip.setText(
-        "Swap red and yellow cymbal positions in disco flip "
-        "sections. Matches how Rock Band charts encode "
-        "hand-swap patterns for pro drums.");
+    discoFlipTooltip.setText(TooltipStrings::discoFlip);
     discoFlipTooltip.attachTo(discoFlipToggle);
 
-    hopoThresholdTooltip.setText(
-        "Max note distance for auto hammer-on/pull-off. "
-        "170 Tick is the Clone Hero/YARG default. Shorter "
-        "values trigger HOPOs more aggressively.");
+    hopoThresholdTooltip.setText(TooltipStrings::hopoThreshold);
     hopoThresholdTooltip.attachTo(hopoThresholdStepper);
 
     // --- Chart + Scene ---
@@ -382,11 +377,7 @@ void ToolbarComponent::initSettingsPanel()
         state.setProperty("trackDiscovery", on, nullptr);
         if (onTrackDiscoveryChanged) onTrackDiscoveryChanged(on);
     };
-    trackDiscoveryTooltip.setText(
-        "Scans the project for instrument tracks by name "
-        "(PART DRUMS, PART GUITAR, etc.). Turn off if detection picks "
-        "wrong tracks. When off, plugin reads from whatever track "
-        "it's placed on.");
+    trackDiscoveryTooltip.setText(TooltipStrings::trackDiscovery);
     trackDiscoveryTooltip.attachTo(trackDiscoveryToggle);
 
     bemaniModeToggle.setToggleState(false);
@@ -426,15 +417,10 @@ void ToolbarComponent::initSettingsPanel()
         if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
     };
 
-    calibrationTooltip.setText(
-        "Fine-tune the visual sync to match your sound card's "
-        "latency. Most users won't need to change this.");
+    calibrationTooltip.setText(TooltipStrings::calibration);
     calibrationTooltip.attachTo(syncOffsetStepper);
 
-    latencyTooltip.setText(
-        "How far ahead the plugin reads MIDI. Higher values "
-        "show more notes before the strikeline, but add input "
-        "delay. 500-1000ms is a good starting point.");
+    latencyTooltip.setText(TooltipStrings::latency);
     latencyTooltip.attachTo(latencyStepper);
 
     // Register all children
