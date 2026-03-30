@@ -61,7 +61,7 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("latency", LATENCY_DEFAULT, nullptr);
     state.setProperty("latencyOffsetMs", CALIBRATION_DEFAULT, nullptr);
     state.setProperty("autoHopo", DEFAULT_AUTO_HOPO, nullptr);
-    state.setProperty("hopoThreshold", HOPO_THRESHOLD_DEFAULT, nullptr);
+    state.setProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT, nullptr);
     state.setProperty("hitIndicators", DEFAULT_SHOW_HIT_INDICATORS, nullptr);
     state.setProperty("starPower", DEFAULT_SHOW_STAR_POWER, nullptr);
     state.setProperty("kick2x", DEFAULT_KICK_2X, nullptr);

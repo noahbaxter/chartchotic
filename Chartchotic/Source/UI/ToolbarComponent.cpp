@@ -585,9 +585,9 @@ void ToolbarComponent::loadState()
         bool hopoOn = state.hasProperty("autoHopo") ? (bool)state["autoHopo"] : DEFAULT_AUTO_HOPO;
         autoHopoToggle.setToggleState(hopoOn);
 
-        if (state.hasProperty("hopoThreshold"))
+        if (state.hasProperty("hopoThresh"))
         {
-            hopoThresholdIndex = juce::jlimit(0, hopoThresholdLabels.size() - 1, (int)state["hopoThreshold"]);
+            hopoThresholdIndex = juce::jlimit(0, hopoThresholdLabels.size() - 1, (int)state["hopoThresh"]);
             hopoThresholdStepper.setDisplayValue(hopoThresholdLabels[hopoThresholdIndex]);
         }
     }

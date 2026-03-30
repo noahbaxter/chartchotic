@@ -411,8 +411,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         propagateToSlots("autoHopo", enabled);
     };
     toolbar.onHopoThresholdChanged = [this](int thresholdIndex) {
-        state.setProperty("hopoThreshold", thresholdIndex, nullptr);
-        propagateToSlots("hopoThreshold", thresholdIndex);
+        state.setProperty("hopoThresh", thresholdIndex, nullptr);
+        propagateToSlots("hopoThresh", thresholdIndex);
     };
 
     toolbar.onGemsChanged = [this](bool on) { state.setProperty("showGems", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowGems(on); }); };

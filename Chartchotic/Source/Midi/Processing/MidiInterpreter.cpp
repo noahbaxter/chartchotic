@@ -50,7 +50,7 @@ PartWindow MidiInterpreter::resolveAllDifficulties(PPQ windowStart, PPQ windowEn
     cfg.bemaniMode = PositionMath::bemaniMode;
     cfg.discoFlipState = discoFlip;
 
-    int thresholdIndex = (int)state.getProperty("hopoThreshold", HOPO_THRESHOLD_DEFAULT);
+    int thresholdIndex = (int)state.getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
     if (cfg.autoHopo)
     {
         switch (thresholdIndex)

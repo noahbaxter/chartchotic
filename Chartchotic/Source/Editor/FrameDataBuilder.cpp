@@ -151,7 +151,7 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
         cfg.bemaniMode = PositionMath::bemaniMode;
         cfg.discoFlipState = firstInterp.getDiscoFlipState();
 
-        int thresholdIndex = (int)firstInterp.getState().getProperty("hopoThreshold", HOPO_THRESHOLD_DEFAULT);
+        int thresholdIndex = (int)firstInterp.getState().getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
         if (cfg.autoHopo)
         {
             switch (thresholdIndex)

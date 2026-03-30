@@ -61,7 +61,7 @@ constexpr int FRAMERATE_DEFAULT = 3; // 60 FPS
 // Latency buffer: 1=0ms, 2=250ms, 3=500ms, 4=750ms, 5=1000ms, 6=1500ms
 constexpr int LATENCY_DEFAULT = 3; // 500ms
 
-// HOPO: "autoHopo" (bool) + "hopoThreshold" (0-based index: 0=Tight/120, 1=Default/170, 2=Loose/240)
+// HOPO: "autoHopo" (bool) + "hopoThresh" (0-based index: 0=Tight/120, 1=Default/170, 2=Loose/240)
 constexpr int HOPO_THRESHOLD_DEFAULT = 1; // "Default" (170 ticks)
 
 // Toggle defaults (true = on)
