@@ -51,18 +51,16 @@ public:
     void addPanelChild(juce::Component* child) { panelChildren.push_back(child); }
 
     void setPanelSize(int w, int h) { refPanelWidth = w; refPanelHeight = h; }
-    void setPanelAnchorYOffset(int offset) { panelAnchorYOffset = offset; }
+    void setPanelTopMargin(int offset) { panelTopMargin = offset; }
+    void setPanelBottomMargin(int m) { panelBottomMargin = m; }
 
     void setScale(float s)
     {
-        panelScale = s;
+        requestedScale = s;
         if (panel != nullptr)
-        {
-            panel->setSize(juce::roundToInt(refPanelWidth * panelScale), panel->getHeight());
-            if (onLayoutPanel)
-                onLayoutPanel(panel.get());
-            repositionPanel();
-        }
+            fitAndPositionPanel();
+        else
+            panelScale = s;
     }
 
     float getScale() const { return panelScale; }
@@ -126,19 +124,14 @@ private:
         auto* topLevel = getTopLevelComponent();
         if (topLevel == nullptr) return;
 
-        int scaledW = juce::roundToInt(refPanelWidth * panelScale);
-
         panel = std::make_unique<PopupPanel>();
-        panel->setSize(scaledW, refPanelHeight);
+        panel->setSize(juce::roundToInt(refPanelWidth * requestedScale), refPanelHeight);
 
         for (auto* child : panelChildren)
             panel->addAndMakeVisible(child);
 
-        if (onLayoutPanel)
-            onLayoutPanel(panel.get());
-
         topLevel->addAndMakeVisible(panel.get());
-        repositionPanel();
+        fitAndPositionPanel();
         topLevel->addComponentListener(this);
 
         // Click-outside detection
@@ -152,26 +145,44 @@ private:
         repaint();
     }
 
-    void repositionPanel()
+    // Lay out at requestedScale, then shrink if the panel overflows vertically.
+    void fitAndPositionPanel()
     {
         if (panel == nullptr) return;
         auto* topLevel = getTopLevelComponent();
         if (topLevel == nullptr) return;
 
-        auto btnBottom = topLevel->getLocalPoint(this, juce::Point<int>(0, getHeight() + panelAnchorYOffset));
         int gap = 6;
+        int panelY = panelTopMargin + gap;
+        int maxH = topLevel->getHeight() - panelY - gap - panelBottomMargin;
+
+        // First pass: lay out at the full requested scale
+        panelScale = requestedScale;
+        layoutAtCurrentScale();
+
+        // If it overflows, compute the exact scale that fits
+        if (panel->getHeight() > maxH && maxH > 0)
+        {
+            float ratio = (float)maxH / (float)panel->getHeight();
+            panelScale = requestedScale * ratio;
+            layoutAtCurrentScale();
+        }
+
         int panelX = topLevel->getWidth() - panel->getWidth() - gap;
-        int panelY = btnBottom.y + gap;
-
-        panelY = juce::jmin(panelY, topLevel->getHeight() - panel->getHeight());
-
         panel->setTopLeftPosition(panelX, panelY);
+    }
+
+    void layoutAtCurrentScale()
+    {
+        panel->setSize(juce::roundToInt(refPanelWidth * panelScale), refPanelHeight);
+        if (onLayoutPanel)
+            onLayoutPanel(panel.get());
     }
 
     void componentMovedOrResized(juce::Component&, bool, bool wasResized) override
     {
         if (wasResized && panel != nullptr)
-            repositionPanel();
+            fitAndPositionPanel();
     }
 
     MenuGroup* menuGroup = nullptr;
@@ -180,5 +191,7 @@ private:
     int refPanelWidth = 160;
     int refPanelHeight = 200;
     float panelScale = 1.0f;
-    int panelAnchorYOffset = 0;
+    float requestedScale = 1.0f;
+    int panelTopMargin = 0;
+    int panelBottomMargin = 0;
 };

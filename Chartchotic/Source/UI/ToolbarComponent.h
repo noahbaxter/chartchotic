@@ -7,6 +7,7 @@
 #include "Controls/CircleIconSelector.h"
 #include "Controls/PillToggle.h"
 #include "Controls/CheckboxToggle.h"
+#include "Controls/InfoTooltip.h"
 #include "Controls/ValueStepper.h"
 #include "Controls/SegmentedButtons.h"
 #include "Controls/PanelSectionHeader.h"
@@ -42,6 +43,11 @@ public:
     void setReaperMode(bool isReaper);
     bool isReaperModeActive() const { return reaperMode; }
     void setMultiInstrumentMode(bool multi) { multiInstrumentMode = multi; }
+    void setPanelTopMargin(int m) { chartButton.setPanelTopMargin(m); settingsButton.setPanelTopMargin(m); }
+    void setPanelBottomMargin(int m) { chartButton.setPanelBottomMargin(m); settingsButton.setPanelBottomMargin(m); }
+
+    // Reset instrument selector to simple Guitar/Drums (for discovery-off mode)
+    void resetToManualMode();
 
     // Multi-select instrument/difficulty (Global mode)
     void setDiscoveredParts(const std::vector<Part>& parts);
@@ -90,6 +96,7 @@ public:
     std::function<void(bool)> onBemaniModeChanged;
     std::function<void(bool)> onShowFpsChanged;
     std::function<void(bool)> onShowBackgroundChanged;
+    std::function<void(bool)> onTrackDiscoveryChanged;
     std::function<void()> onOpenBackgroundFolder;
     std::function<void()> onOpenTextureFolder;
 
@@ -216,6 +223,12 @@ private:
     CheckboxToggle bemaniModeToggle{juce::CharPointer_UTF8("\xe3\x83\x93\xe3\x83\xbc\xe3\x83\x9e\xe3\x83\x8b"), "Bemani Mode"}; // ビーマニ
     CheckboxToggle showFpsToggle{"Show FPS"};
     CheckboxToggle showBackgroundToggle{"Background"};
+    CheckboxToggle trackDiscoveryToggle{"Track Discovery"};
+    InfoTooltip trackDiscoveryTooltip;
+    InfoTooltip calibrationTooltip;
+    InfoTooltip latencyTooltip;
+    InfoTooltip discoFlipTooltip;
+    InfoTooltip hopoThresholdTooltip;
 
     //==============================================================================
     // Value data
@@ -257,6 +270,7 @@ private:
 #endif
 
     void initTopBar();
+    void initManualInstrumentSelector();
     void initChartPanel();
     void initSettingsPanel();
     void layoutChartPanel(juce::Component* panel);

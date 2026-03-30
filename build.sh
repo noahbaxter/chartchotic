@@ -47,6 +47,32 @@ for arg in "$@"; do
             echo "Done."
             exit 0
             ;;
+        uninstall)
+            echo "Uninstalling plugins..."
+            # User-level
+            rm -rf ~/Library/Audio/Plug-Ins/VST3/Chartchotic.vst3
+            rm -rf ~/Library/Audio/Plug-Ins/VST3/Chartchotic\ Std.vst3
+            rm -rf ~/Library/Audio/Plug-Ins/Components/Chartchotic.component
+            rm -rf ~/Library/Audio/Plug-Ins/Components/Chartchotic\ Std.component
+            # System-level (requires sudo)
+            NEED_SUDO=false
+            for p in \
+                /Library/Audio/Plug-Ins/VST3/Chartchotic.vst3 \
+                "/Library/Audio/Plug-Ins/VST3/Chartchotic Std.vst3" \
+                /Library/Audio/Plug-Ins/Components/Chartchotic.component \
+                "/Library/Audio/Plug-Ins/Components/Chartchotic Std.component"; do
+                [ -d "$p" ] && NEED_SUDO=true
+            done
+            if [ "$NEED_SUDO" = true ]; then
+                echo "System-level plugins found, removing (requires sudo)..."
+                sudo rm -rf /Library/Audio/Plug-Ins/VST3/Chartchotic.vst3
+                sudo rm -rf "/Library/Audio/Plug-Ins/VST3/Chartchotic Std.vst3"
+                sudo rm -rf /Library/Audio/Plug-Ins/Components/Chartchotic.component
+                sudo rm -rf "/Library/Audio/Plug-Ins/Components/Chartchotic Std.component"
+            fi
+            echo "Done."
+            exit 0
+            ;;
         --reaper)       OPEN_REAPER=true ;;
         --vst3-only)    BUILD_AU=false; BUILD_STANDALONE=false ;;
         --au-only)      BUILD_VST3=false; BUILD_STANDALONE=false ;;
@@ -55,7 +81,7 @@ for arg in "$@"; do
         --std)          BUILD_STD=true ;;
         --skin-dir)     NEXT_IS_SKIN_DIR=true ;;
         -h|--help)
-            echo "Usage: ./build.sh [release|clean] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--std] [--skin-dir <path>]"
+            echo "Usage: ./build.sh [release|clean|uninstall] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--std] [--skin-dir <path>]"
             exit 0
             ;;
         *)
@@ -116,6 +142,14 @@ if [ "$NEEDS_CONFIGURE" = false ] && [ -f "$NINJA_BUILD_DIR/CMakeCache.txt" ]; t
     fi
 fi
 
+# Reconfigure if BUILD_STD changed
+if [ "$NEEDS_CONFIGURE" = false ] && [ -f "$NINJA_BUILD_DIR/CMakeCache.txt" ]; then
+    CACHED_BUILD_STD=$(grep "^BUILD_STD:" "$NINJA_BUILD_DIR/CMakeCache.txt" 2>/dev/null | cut -d= -f2-)
+    if [ "$BUILD_STD" = true ] && [ "$CACHED_BUILD_STD" != "ON" ]; then
+        NEEDS_CONFIGURE=true
+    fi
+fi
+
 if [ "$NEEDS_CONFIGURE" = true ]; then
     echo ""
     echo "Configuring CMake (Ninja, $BUILD_CONFIG)..."
@@ -129,7 +163,7 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
     fi
     cmake -B "$NINJA_BUILD_DIR" -G Ninja \
         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
-        -DCMAKE_OSX_ARCHITECTURES="arm64" \
+        -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
         -DBUILD_CHANNEL="$BUILD_CHANNEL" \
         $CMAKE_EXTRA_ARGS \

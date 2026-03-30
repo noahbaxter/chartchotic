@@ -8,6 +8,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Host/ReaperTrackDetector.h"
 #include "Midi/Processing/NoteProcessor.h"
 #include "Visual/Utils/PositionMath.h"
 
@@ -177,8 +178,11 @@ void ChartchoticAudioProcessorEditor::onFrame()
         toolbar.updateVisibility();
     }
 
-    // Create InstrumentSession on first REAPER detection
-    if (isReaperMode && !audioProcessor.getInstrumentSession())
+    updateTrackInfoDisplay();
+
+    // Create InstrumentSession on first REAPER detection (if multi-highway enabled)
+    bool trackDiscovery = !state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"];
+    if (isReaperMode && trackDiscovery && !audioProcessor.getInstrumentSession())
     {
         audioProcessor.createInstrumentSession();
         if (auto* instrSession = audioProcessor.getInstrumentSession())
@@ -407,8 +411,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         propagateToSlots("autoHopo", enabled);
     };
     toolbar.onHopoThresholdChanged = [this](int thresholdIndex) {
-        state.setProperty("hopoThreshold", thresholdIndex, nullptr);
-        propagateToSlots("hopoThreshold", thresholdIndex);
+        state.setProperty("hopoThresh", thresholdIndex, nullptr);
+        propagateToSlots("hopoThresh", thresholdIndex);
     };
 
     toolbar.onGemsChanged = [this](bool on) { state.setProperty("showGems", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowGems(on); }); };
@@ -447,6 +451,54 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
     toolbar.onShowFpsChanged = [this](bool on) { showFps = on; };
     toolbar.onShowBackgroundChanged = [this](bool on) { assets.setBackgroundVisible(on); };
+
+    toolbar.onTrackDiscoveryChanged = [this](bool on) {
+        lastDisplayedTrackNumber = -1; // force status bar refresh
+        lastDisplayedTrackName = {};
+        if (on)
+        {
+            // Re-create InstrumentSession and rebuild from discovery
+            if (!audioProcessor.getInstrumentSession())
+            {
+                audioProcessor.createInstrumentSession();
+                if (auto* instrSession = audioProcessor.getInstrumentSession())
+                    session.rebuildFromSession(*instrSession);
+            }
+        }
+        else
+        {
+            // Tear down discovery, fall back to single-instrument mode.
+            // Uses the processor's own noteStateMapArray (fed by ReaperMidiPipeline
+            // reading from the plugin's track). Multi-difficulty still works.
+            audioProcessor.destroyInstrumentSession();
+
+            for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+            {
+                slots[i].active = false;
+                slots[i].highway->setVisible(false);
+            }
+
+            auto& slot = slots[0];
+            Part currentPart = getPartFromState(state);
+            Part fallbackPart = isDrumLike(currentPart) ? Part::DRUMS : Part::GUITAR;
+            state.setProperty("part", (int)fallbackPart, nullptr);
+            slot.part = fallbackPart;
+            slot.active = true;
+            slot.ownedState.reset();
+            slot.interpreter = std::make_unique<MidiInterpreter>(
+                state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock());
+            slot.highway->setActivePart(slot.part);
+            slot.highway->showPartLabel = false;
+            slot.highway->showDifficultyLabel = false;
+            slot.highway->setVisible(true);
+            activeSlotCount = 1;
+
+            toolbar.setMultiInstrumentMode(false);
+            toolbar.resetToManualMode();
+            resized();
+            loadState();
+        }
+    };
 
     toolbar.onLatencyChanged = [this](int id) { state.setProperty("latency", id, nullptr); applyLatencySetting(id); };
     toolbar.onLatencyOffsetChanged = [this](int offsetMs) {
@@ -522,6 +574,49 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
         }
     };
     updateChecker.checkForUpdates();
+}
+
+void ChartchoticAudioProcessorEditor::updateTrackInfoDisplay()
+{
+    // Prefer generic track info (works in any DAW via JUCE/VST3)
+    int trackNum = audioProcessor.detectedTrackNumber.load();
+    juce::String trackName = audioProcessor.getDetectedTrackName();
+
+    // REAPER fallback: use reaperTrack state property for track number
+    if (trackNum < 0 && audioProcessor.isReaperHost)
+        trackNum = (int)state.getProperty("reaperTrack"); // 1-based
+
+    if (trackNum < 0)
+    {
+        if (lastDisplayedTrackNumber != -1)
+        {
+            footer.getStatusBar().clearTrackInfo();
+            lastDisplayedTrackNumber = -1;
+            lastDisplayedTrackName = {};
+        }
+        return;
+    }
+
+    // REAPER fallback: use REAPER API for track name if JUCE/VST3 didn't provide one
+    if (trackName.isEmpty() && audioProcessor.isReaperHost
+        && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
+    {
+        int trackIndex = (int)state.getProperty("reaperTrack") - 1;
+        std::string reaperName = ReaperTrackDetector::getTrackName(
+            audioProcessor.reaperMidiProvider.getReaperGetFunc(), trackIndex);
+        trackName = juce::String(reaperName);
+    }
+
+    if (trackName.isEmpty())
+        trackName = "Track " + juce::String(trackNum);
+
+    // Only update UI when something changed
+    if (trackNum == lastDisplayedTrackNumber && trackName == lastDisplayedTrackName)
+        return;
+
+    lastDisplayedTrackNumber = trackNum;
+    lastDisplayedTrackName = trackName;
+    footer.getStatusBar().setTrackInfo(trackNum, trackName);
 }
 
 //==============================================================================
@@ -610,8 +705,11 @@ void ChartchoticAudioProcessorEditor::resized()
 
     // Virtual scene dimensions
     sceneWidth = getWidth();
-    int tbHeight = std::min(juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio),
-                            ToolbarComponent::maxToolbarHeight);
+    // Toolbar scales with width, but also caps by height so panels fit vertically.
+    // The 0.09 vertical ratio ensures toolbar + tallest panel + footer all fit.
+    int fromWidth = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
+    int fromHeight = juce::roundToInt(getHeight() * 0.09f);
+    int tbHeight = std::min({ fromWidth, fromHeight, ToolbarComponent::maxToolbarHeight });
     if (PositionMath::bemaniMode)
     {
         // Bemani: enforce minimum aspect ratio, but grow taller to fill available space
@@ -629,9 +727,13 @@ void ChartchoticAudioProcessorEditor::resized()
     // Toolbar at top — scales with editor width
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Footer bar height
-    int footerH = std::min(juce::roundToInt(getWidth() * FooterComponent::footerRatio),
-                           FooterComponent::maxFooterHeight);
+    // Footer bar height — same min(width, height) logic as toolbar
+    int footerFromWidth = juce::roundToInt(getWidth() * FooterComponent::footerRatio);
+    int footerFromHeight = juce::roundToInt(getHeight() * 0.06f);
+    int footerH = std::min({ footerFromWidth, footerFromHeight, FooterComponent::maxFooterHeight });
+
+    // Tell popup panels where the footer starts so they don't overlap it
+    toolbar.setPanelBottomMargin(footerH);
 
     // Layout highway slots below toolbar, above footer
     if (activeSlotCount > 0)

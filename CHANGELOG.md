@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.1
+
+### Track Discovery Toggle
+- New **Track Discovery** setting controls how the plugin decides what MIDI to render and as which instrument.
+- **On (default):** Scans the project for tracks with standard names (`PART GUITAR`, `PART DRUMS`, etc.) and populates the instrument selector with what it finds. You choose which parts to view, one at a time or multiple at once.
+- **Off:** Reads MIDI from whatever track the plugin is placed on. No name matching, no project scanning. You just tell it whether to render as a 5-lane guitar-style highway or a 4-lane drum-style highway.
+- Use discovery off for custom MIDI, non-standard track names, or if detection is picking up the wrong tracks.
+
+### Track Status Bar
+- Footer now shows the current track name and number so you always know what the plugin is reading from.
+
+### Bug Fixes
+- Fix sync calibration offset jumping when playback crosses a tempo change
+
+### Quality of Life
+- Tooltips on non-obvious controls (discovery toggle, calibration, latency, disco flip, HOPO threshold)
+- HOPO threshold simplified to three levels: Tight (120), Default (170), Loose (240)
+
 ## 1.2.0
 Easily the biggest release since 1.0. Multi-highway support turns Chartchotic into a full band view (or full difficulty if you prefer).
 

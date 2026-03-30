@@ -1,8 +1,9 @@
 #include "ToolbarComponent.h"
+#include "TooltipStrings.h"
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
 static const juce::StringArray latencyLabels = { "0ms", "250ms", "500ms", "750ms", "1000ms", "1500ms" };
-static const juce::StringArray hopoThresholdLabels = { "1/16", "Dot 1/16", "170 Tick", "1/8" };
+static const juce::StringArray hopoThresholdLabels = { "Tight", "Default", "Loose" };
 
 ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
     : state(state)
@@ -34,24 +35,7 @@ void ToolbarComponent::initTopBar()
     // Logo
     addAndMakeVisible(logo);
 
-    // Instrument selector (circle icons)
-    {
-        auto guitarImg = juce::ImageCache::getFromMemory(BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize);
-        auto drumsImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);
-        instrumentSelector.setItems({
-            { "Guitar", guitarImg },
-            { "Drums",  drumsImg }
-        });
-    }
-    instrumentSelector.onSelectionChanged = [this](int index) {
-        if (onPartChanged) onPartChanged(index + 1);
-        updateVisibility();
-        if (chartButton.isPanelVisible())
-        {
-            chartButton.dismissPanel();
-            chartButton.showPanel();
-        }
-    };
+    initManualInstrumentSelector();
     addAndMakeVisible(instrumentSelector);
 
     // Difficulty selector (text circles: X H M E)
@@ -157,6 +141,12 @@ void ToolbarComponent::initChartPanel()
     discoFlipToggle.onClick = [this]() {
         if (onDiscoFlipChanged) onDiscoFlipChanged(discoFlipToggle.getToggleState());
     };
+
+    discoFlipTooltip.setText(TooltipStrings::discoFlip);
+    discoFlipTooltip.attachTo(discoFlipToggle);
+
+    hopoThresholdTooltip.setText(TooltipStrings::hopoThreshold);
+    hopoThresholdTooltip.attachTo(hopoThresholdStepper);
 
     // --- Chart + Scene ---
 
@@ -381,6 +371,15 @@ void ToolbarComponent::initSettingsPanel()
         if (onStretchChanged) onStretchChanged(on);
     };
 
+    trackDiscoveryToggle.setToggleState(!state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"]);
+    trackDiscoveryToggle.onClick = [this]() {
+        bool on = trackDiscoveryToggle.getToggleState();
+        state.setProperty("trackDiscovery", on, nullptr);
+        if (onTrackDiscoveryChanged) onTrackDiscoveryChanged(on);
+    };
+    trackDiscoveryTooltip.setText(TooltipStrings::trackDiscovery);
+    trackDiscoveryTooltip.attachTo(trackDiscoveryToggle);
+
     bemaniModeToggle.setToggleState(false);
     bemaniModeToggle.onClick = [this]() {
         bool on = bemaniModeToggle.getToggleState();
@@ -418,6 +417,12 @@ void ToolbarComponent::initSettingsPanel()
         if (onLatencyOffsetChanged) onLatencyOffsetChanged(syncOffsetMs);
     };
 
+    calibrationTooltip.setText(TooltipStrings::calibration);
+    calibrationTooltip.attachTo(syncOffsetStepper);
+
+    latencyTooltip.setText(TooltipStrings::latency);
+    latencyTooltip.attachTo(latencyStepper);
+
     // Register all children
     settingsButton.addPanelChild(&displayHeader);
     settingsButton.addPanelChild(&framerateButtons);
@@ -431,6 +436,7 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&textureOpacityStepper);
     settingsButton.addPanelChild(&stretchToggle);
     settingsButton.addPanelChild(&bemaniModeToggle);
+    settingsButton.addPanelChild(&trackDiscoveryToggle);
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&barScaleStepper);
@@ -502,6 +508,8 @@ void ToolbarComponent::resized()
     int gearW = juce::roundToInt(32.0f * scale);
     int rx = getWidth() - margin;
 
+    chartButton.setPanelTopMargin(getHeight());
+    settingsButton.setPanelTopMargin(getHeight());
     chartButton.setScale(scale);
     settingsButton.setScale(scale);
 
@@ -517,7 +525,8 @@ void ToolbarComponent::resized()
     int sqSize = (h - juce::roundToInt(2.0f * scale)) / 2;
     rx -= (gap + sqSize);
     debugPanel.getButton().setBounds(rx, y, sqSize, sqSize);
-    debugPanel.getButton().setPanelAnchorYOffset(h - sqSize);
+    debugPanel.getButton().setPanelTopMargin(getHeight());
+    tuningPanel.getButton().setPanelTopMargin(getHeight());
     tuningPanel.getButton().setBounds(rx, y + h - sqSize, sqSize, sqSize);
 #endif
 
@@ -556,10 +565,15 @@ void ToolbarComponent::loadState()
             difficultySelector.setSelectedIndex(4 - skill);
     }
 
-    // Part (1-based → 0-based)
-    int part = (int)state["part"];
-    if (part >= 1 && part <= 2)
-        instrumentSelector.setSelectedIndex(part - 1);
+    // Part — only applies in manual (non-discovery) mode
+    if (!showMultiInstrument)
+    {
+        int part = (int)state["part"];
+        if (part == (int)Part::DRUMS)
+            instrumentSelector.setSelectedIndex(1);
+        else if (part == (int)Part::GUITAR)
+            instrumentSelector.setSelectedIndex(0);
+    }
 
     // Note speed
     noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
@@ -574,9 +588,9 @@ void ToolbarComponent::loadState()
         bool hopoOn = state.hasProperty("autoHopo") ? (bool)state["autoHopo"] : DEFAULT_AUTO_HOPO;
         autoHopoToggle.setToggleState(hopoOn);
 
-        if (state.hasProperty("hopoThreshold"))
+        if (state.hasProperty("hopoThresh"))
         {
-            hopoThresholdIndex = juce::jlimit(0, hopoThresholdLabels.size() - 1, (int)state["hopoThreshold"]);
+            hopoThresholdIndex = juce::jlimit(0, hopoThresholdLabels.size() - 1, (int)state["hopoThresh"]);
             hopoThresholdStepper.setDisplayValue(hopoThresholdLabels[hopoThresholdIndex]);
         }
     }
@@ -596,6 +610,8 @@ void ToolbarComponent::loadState()
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
+    trackDiscoveryToggle.setToggleState(!state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"]);
+
     // Bemani mode (restore before stretch so we can hide it if needed)
     bool bemaniOn = state.hasProperty("bemaniMode") && (bool)state["bemaniMode"];
     bemaniModeToggle.setToggleState(bemaniOn);
@@ -872,7 +888,18 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         {
             bemaniModeToggle.setBounds(margin, y, w, stepperH);
         }
+        y += stepperH + gap;
+    }
+
+    trackDiscoveryToggle.setVisible(reaperMode);
+    if (reaperMode)
+    {
+        trackDiscoveryToggle.setBounds(margin, y, w, stepperH);
         y += stepperH + sectionGap;
+    }
+    else
+    {
+        y += sectionGap - gap;
     }
 
     // --- Sync ---
@@ -894,6 +921,46 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
 
     y += stepperH;
     panel->setSize(panel->getWidth(), y + margin);
+}
+
+void ToolbarComponent::initManualInstrumentSelector()
+{
+    auto guitarImg = juce::ImageCache::getFromMemory(BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize);
+    auto drumsImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);
+    instrumentSelector.setMultiSelectMode(false);
+    instrumentSelector.setItems({
+        { "Guitar", guitarImg },
+        { "Drums",  drumsImg }
+    });
+    instrumentSelector.onSelectionChanged = [this](int index) {
+        static constexpr int selectorToPart[] = { (int)Part::GUITAR, (int)Part::DRUMS };
+        if (onPartChanged && index >= 0 && index < 2)
+            onPartChanged(selectorToPart[index]);
+        updateVisibility();
+        if (chartButton.isPanelVisible())
+        {
+            chartButton.dismissPanel();
+            chartButton.showPanel();
+        }
+    };
+}
+
+void ToolbarComponent::resetToManualMode()
+{
+    showMultiInstrument = false;
+    discoveredParts.clear();
+    enabledParts.clear();
+
+    initManualInstrumentSelector();
+
+    // Set selector to match current state
+    int part = (int)state["part"];
+    if (part == (int)Part::DRUMS)
+        instrumentSelector.setSelectedIndex(1);
+    else
+        instrumentSelector.setSelectedIndex(0);
+
+    resized();
 }
 
 void ToolbarComponent::setDiscoveredParts(const std::vector<Part>& parts)

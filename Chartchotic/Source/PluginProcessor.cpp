@@ -61,7 +61,7 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("latency", LATENCY_DEFAULT, nullptr);
     state.setProperty("latencyOffsetMs", CALIBRATION_DEFAULT, nullptr);
     state.setProperty("autoHopo", DEFAULT_AUTO_HOPO, nullptr);
-    state.setProperty("hopoThreshold", HOPO_THRESHOLD_DEFAULT, nullptr);
+    state.setProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT, nullptr);
     state.setProperty("hitIndicators", DEFAULT_SHOW_HIT_INDICATORS, nullptr);
     state.setProperty("starPower", DEFAULT_SHOW_STAR_POWER, nullptr);
     state.setProperty("kick2x", DEFAULT_KICK_2X, nullptr);
@@ -84,6 +84,7 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("textureScale", TEX_SCALE_DEFAULT_PCT / 100.0f, nullptr);
     state.setProperty("textureOpacity", TEX_OPACITY_DEFAULT / 100.0f, nullptr);
     state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
+    state.setProperty("trackDiscovery", true, nullptr);
 }
 
 void ChartchoticAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
@@ -118,6 +119,12 @@ void ChartchoticAudioProcessor::invalidateReaperCache()
             reaperPipeline->refetchAllMidiData();
         }
     }
+}
+
+void ChartchoticAudioProcessor::updateTrackProperties(const TrackProperties& properties)
+{
+    if (properties.name.has_value())
+        setDetectedTrackName(*properties.name);
 }
 
 void ChartchoticAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased)

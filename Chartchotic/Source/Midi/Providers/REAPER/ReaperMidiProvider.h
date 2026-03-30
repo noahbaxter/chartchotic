@@ -85,6 +85,9 @@ public:
     // This uses REAPER's timeline which handles ALL tempo changes correctly
     double ppqToTime(double ppq);
 
+    // Convert absolute time in seconds to PPQ (quarter note position)
+    double timeToPpq(double timeInSeconds);
+
     // Get the REAPER API function pointer (for use with ReaperTrackDetector)
     std::function<void*(const char*)> getReaperGetFunc() const {
         if (getReaperApi) {
