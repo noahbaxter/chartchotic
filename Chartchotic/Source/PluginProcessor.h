@@ -95,10 +95,15 @@ public:
     // VST3 REAPER Integration
     juce::VST3ClientExtensions* getVST3ClientExtensions() override;
 
+    // Track info (generic, from any DAW via JUCE or VST3)
+    std::atomic<int> detectedTrackNumber{-1};  // 1-based track index from VST3, -1 = unknown
+    juce::String getDetectedTrackName() const { const juce::ScopedLock l(trackNameLock); return detectedTrackName; }
+    void setDetectedTrackName(const juce::String& name) { const juce::ScopedLock l(trackNameLock); detectedTrackName = name; }
+    void updateTrackProperties(const TrackProperties& properties) override;
+
     // REAPER API function pointers (populated via VST2 or VST3)
     void* (*reaperGetFunc)(const char*) = nullptr;
     bool isReaperHost = false;
-    std::atomic<int> detectedTrackNumber{-1};  // 1-based track index from VST3, -1 = unknown
     bool attemptReaperConnection();
     void* getReaperApi(const char* funcname);
     std::string getHostInfo();
@@ -140,6 +145,10 @@ public:
     MidiProject midiProject;
     MidiProcessor midiProcessor;
     DebugTools::Logger debugLogger;
+
+    // Track name from host (guarded -- written from VST3 thread, read from GUI)
+    mutable juce::CriticalSection trackNameLock;
+    juce::String detectedTrackName;
 
     // MIDI processing pipeline (created based on host)
     std::unique_ptr<MidiPipeline> midiPipeline;

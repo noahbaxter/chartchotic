@@ -8,6 +8,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Host/ReaperTrackDetector.h"
 #include "Midi/Processing/NoteProcessor.h"
 #include "Visual/Utils/PositionMath.h"
 
@@ -176,6 +177,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
         toolbar.setReaperMode(true);
         toolbar.updateVisibility();
     }
+
+    updateTrackInfoDisplay();
 
     // Create InstrumentSession on first REAPER detection (if multi-highway enabled)
     bool trackDiscovery = !state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"];
@@ -450,6 +453,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onShowBackgroundChanged = [this](bool on) { assets.setBackgroundVisible(on); };
 
     toolbar.onTrackDiscoveryChanged = [this](bool on) {
+        lastDisplayedTrackNumber = -1; // force status bar refresh
+        lastDisplayedTrackName = {};
         if (on)
         {
             // Re-create InstrumentSession and rebuild from discovery
@@ -474,7 +479,10 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
             }
 
             auto& slot = slots[0];
-            slot.part = getPartFromState(state);
+            Part currentPart = getPartFromState(state);
+            Part fallbackPart = isDrumLike(currentPart) ? Part::DRUMS : Part::GUITAR;
+            state.setProperty("part", (int)fallbackPart, nullptr);
+            slot.part = fallbackPart;
             slot.active = true;
             slot.ownedState.reset();
             slot.interpreter = std::make_unique<MidiInterpreter>(
@@ -486,6 +494,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
             activeSlotCount = 1;
 
             toolbar.setMultiInstrumentMode(false);
+            toolbar.resetToManualMode();
             resized();
             loadState();
         }
@@ -565,6 +574,49 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
         }
     };
     updateChecker.checkForUpdates();
+}
+
+void ChartchoticAudioProcessorEditor::updateTrackInfoDisplay()
+{
+    // Prefer generic track info (works in any DAW via JUCE/VST3)
+    int trackNum = audioProcessor.detectedTrackNumber.load();
+    juce::String trackName = audioProcessor.getDetectedTrackName();
+
+    // REAPER fallback: use reaperTrack state property for track number
+    if (trackNum < 0 && audioProcessor.isReaperHost)
+        trackNum = (int)state.getProperty("reaperTrack"); // 1-based
+
+    if (trackNum < 0)
+    {
+        if (lastDisplayedTrackNumber != -1)
+        {
+            footer.getStatusBar().clearTrackInfo();
+            lastDisplayedTrackNumber = -1;
+            lastDisplayedTrackName = {};
+        }
+        return;
+    }
+
+    // REAPER fallback: use REAPER API for track name if JUCE/VST3 didn't provide one
+    if (trackName.isEmpty() && audioProcessor.isReaperHost
+        && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
+    {
+        int trackIndex = (int)state.getProperty("reaperTrack") - 1;
+        std::string reaperName = ReaperTrackDetector::getTrackName(
+            audioProcessor.reaperMidiProvider.getReaperGetFunc(), trackIndex);
+        trackName = juce::String(reaperName);
+    }
+
+    if (trackName.isEmpty())
+        trackName = "Track " + juce::String(trackNum);
+
+    // Only update UI when something changed
+    if (trackNum == lastDisplayedTrackNumber && trackName == lastDisplayedTrackName)
+        return;
+
+    lastDisplayedTrackNumber = trackNum;
+    lastDisplayedTrackName = trackName;
+    footer.getStatusBar().setTrackInfo(trackNum, trackName);
 }
 
 //==============================================================================

@@ -121,6 +121,12 @@ void ChartchoticAudioProcessor::invalidateReaperCache()
     }
 }
 
+void ChartchoticAudioProcessor::updateTrackProperties(const TrackProperties& properties)
+{
+    if (properties.name.has_value())
+        setDetectedTrackName(*properties.name);
+}
+
 void ChartchoticAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased)
 {
     // Convert 0-based to 1-based for storage in state

@@ -39,6 +39,14 @@ tresult TrackInfoListener::setChannelContextInfos(Vst::IAttributeList* list)
         }
     }
 
+    // Try to get channel name (standard VST3 info, works in any compliant host)
+    Steinberg::Vst::String128 nameBuffer = {};
+    if (list->getString(Vst::ChannelContext::kChannelNameKey, nameBuffer, sizeof(nameBuffer)) == kResultTrue)
+    {
+        processor->setDetectedTrackName(juce::String(juce::CharPointer_UTF16(
+            reinterpret_cast<const juce::CharPointer_UTF16::CharType*>(nameBuffer))));
+    }
+
     return kResultTrue;
 }
 

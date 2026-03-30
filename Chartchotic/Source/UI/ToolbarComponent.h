@@ -44,6 +44,9 @@ public:
     bool isReaperModeActive() const { return reaperMode; }
     void setMultiInstrumentMode(bool multi) { multiInstrumentMode = multi; }
 
+    // Reset instrument selector to simple Guitar/Drums (for discovery-off mode)
+    void resetToManualMode();
+
     // Multi-select instrument/difficulty (Global mode)
     void setDiscoveredParts(const std::vector<Part>& parts);
     void setEnabledParts(const std::set<Part>& parts);
@@ -265,6 +268,7 @@ private:
 #endif
 
     void initTopBar();
+    void initManualInstrumentSelector();
     void initChartPanel();
     void initSettingsPanel();
     void layoutChartPanel(juce::Component* panel);

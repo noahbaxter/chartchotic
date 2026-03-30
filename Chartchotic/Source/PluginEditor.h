@@ -176,6 +176,7 @@ private:
     void initToolbarCallbacks();
     void initBottomBar();
     void loadState();
+    void updateTrackInfoDisplay();
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif
@@ -222,6 +223,10 @@ private:
 
     // Cache invalidation throttling (for REAPER MIDI edit detection while paused)
     juce::int64 lastCacheInvalidationTicks = 0;
+
+    // Track info display (footer status bar)
+    int lastDisplayedTrackNumber = -1;
+    juce::String lastDisplayedTrackName;
 
     // Scroll wheel timeline control
     static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note

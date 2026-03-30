@@ -34,24 +34,7 @@ void ToolbarComponent::initTopBar()
     // Logo
     addAndMakeVisible(logo);
 
-    // Instrument selector (circle icons)
-    {
-        auto guitarImg = juce::ImageCache::getFromMemory(BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize);
-        auto drumsImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);
-        instrumentSelector.setItems({
-            { "Guitar", guitarImg },
-            { "Drums",  drumsImg }
-        });
-    }
-    instrumentSelector.onSelectionChanged = [this](int index) {
-        if (onPartChanged) onPartChanged(index + 1);
-        updateVisibility();
-        if (chartButton.isPanelVisible())
-        {
-            chartButton.dismissPanel();
-            chartButton.showPanel();
-        }
-    };
+    initManualInstrumentSelector();
     addAndMakeVisible(instrumentSelector);
 
     // Difficulty selector (text circles: X H M E)
@@ -593,10 +576,15 @@ void ToolbarComponent::loadState()
             difficultySelector.setSelectedIndex(4 - skill);
     }
 
-    // Part (1-based → 0-based)
-    int part = (int)state["part"];
-    if (part >= 1 && part <= 2)
-        instrumentSelector.setSelectedIndex(part - 1);
+    // Part — only applies in manual (non-discovery) mode
+    if (!showMultiInstrument)
+    {
+        int part = (int)state["part"];
+        if (part == (int)Part::DRUMS)
+            instrumentSelector.setSelectedIndex(1);
+        else if (part == (int)Part::GUITAR)
+            instrumentSelector.setSelectedIndex(0);
+    }
 
     // Note speed
     noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
@@ -944,6 +932,46 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
 
     y += stepperH;
     panel->setSize(panel->getWidth(), y + margin);
+}
+
+void ToolbarComponent::initManualInstrumentSelector()
+{
+    auto guitarImg = juce::ImageCache::getFromMemory(BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize);
+    auto drumsImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);
+    instrumentSelector.setMultiSelectMode(false);
+    instrumentSelector.setItems({
+        { "Guitar", guitarImg },
+        { "Drums",  drumsImg }
+    });
+    instrumentSelector.onSelectionChanged = [this](int index) {
+        static constexpr int selectorToPart[] = { (int)Part::GUITAR, (int)Part::DRUMS };
+        if (onPartChanged && index >= 0 && index < 2)
+            onPartChanged(selectorToPart[index]);
+        updateVisibility();
+        if (chartButton.isPanelVisible())
+        {
+            chartButton.dismissPanel();
+            chartButton.showPanel();
+        }
+    };
+}
+
+void ToolbarComponent::resetToManualMode()
+{
+    showMultiInstrument = false;
+    discoveredParts.clear();
+    enabledParts.clear();
+
+    initManualInstrumentSelector();
+
+    // Set selector to match current state
+    int part = (int)state["part"];
+    if (part == (int)Part::DRUMS)
+        instrumentSelector.setSelectedIndex(1);
+    else
+        instrumentSelector.setSelectedIndex(0);
+
+    resized();
 }
 
 void ToolbarComponent::setDiscoveredParts(const std::vector<Part>& parts)

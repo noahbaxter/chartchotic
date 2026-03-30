@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "Theme.h"
+#include "StatusBarComponent.h"
 #include "UpdateBannerComponent.h"
 
 class FooterComponent : public juce::Component
@@ -19,6 +20,7 @@ public:
         versionGroup.addAndMakeVisible(banner);
         versionGroup.addAndMakeVisible(label);
         label.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(statusBar);
     }
 
     void init(const juce::String& versionText)
@@ -37,7 +39,9 @@ public:
         resized(); // re-layout to show badge and resize group
     }
 
-    void setDawIcon(juce::Drawable* icon) { dawIcon = icon; repaint(); }
+    void setDawIcon(juce::Drawable* icon) { dawIcon = icon; resized(); repaint(); }
+
+    StatusBarComponent& getStatusBar() { return statusBar; }
 
     void resized() override
     {
@@ -51,6 +55,12 @@ public:
         int labelW = (int)label.getFont().getStringWidthFloat(label.getText()) + labelPad;
         int groupW = badgeW + labelW;
         versionGroup.setBounds(pad, 0, groupW, h);
+
+        // Status bar: right-aligned, leaving room for DAW icon
+        int iconRoom = dawIcon ? h + pad : 0;
+        int statusW = area.getWidth() - groupW - pad * 2 - iconRoom;
+        if (statusW > 0)
+            statusBar.setBounds(groupW + pad, 0, statusW, h);
     }
 
     void paint(juce::Graphics& g) override
@@ -71,6 +81,7 @@ public:
 
 private:
     UpdateBannerComponent& banner;
+    StatusBarComponent statusBar;
     juce::Drawable* dawIcon = nullptr;
 
     // Groups badge + label with unified hover/click for update prompt
