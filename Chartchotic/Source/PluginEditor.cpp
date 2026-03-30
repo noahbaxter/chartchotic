@@ -705,8 +705,11 @@ void ChartchoticAudioProcessorEditor::resized()
 
     // Virtual scene dimensions
     sceneWidth = getWidth();
-    int tbHeight = std::min(juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio),
-                            ToolbarComponent::maxToolbarHeight);
+    // Toolbar scales with width, but also caps by height so panels fit vertically.
+    // The 0.09 vertical ratio ensures toolbar + tallest panel + footer all fit.
+    int fromWidth = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
+    int fromHeight = juce::roundToInt(getHeight() * 0.09f);
+    int tbHeight = std::min({ fromWidth, fromHeight, ToolbarComponent::maxToolbarHeight });
     if (PositionMath::bemaniMode)
     {
         // Bemani: enforce minimum aspect ratio, but grow taller to fill available space
@@ -724,9 +727,13 @@ void ChartchoticAudioProcessorEditor::resized()
     // Toolbar at top — scales with editor width
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Footer bar height
-    int footerH = std::min(juce::roundToInt(getWidth() * FooterComponent::footerRatio),
-                           FooterComponent::maxFooterHeight);
+    // Footer bar height — same min(width, height) logic as toolbar
+    int footerFromWidth = juce::roundToInt(getWidth() * FooterComponent::footerRatio);
+    int footerFromHeight = juce::roundToInt(getHeight() * 0.06f);
+    int footerH = std::min({ footerFromWidth, footerFromHeight, FooterComponent::maxFooterHeight });
+
+    // Tell popup panels where the footer starts so they don't overlap it
+    toolbar.setPanelBottomMargin(footerH);
 
     // Layout highway slots below toolbar, above footer
     if (activeSlotCount > 0)

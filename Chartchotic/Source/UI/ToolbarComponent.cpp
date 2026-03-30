@@ -508,6 +508,8 @@ void ToolbarComponent::resized()
     int gearW = juce::roundToInt(32.0f * scale);
     int rx = getWidth() - margin;
 
+    chartButton.setPanelTopMargin(getHeight());
+    settingsButton.setPanelTopMargin(getHeight());
     chartButton.setScale(scale);
     settingsButton.setScale(scale);
 
@@ -523,7 +525,8 @@ void ToolbarComponent::resized()
     int sqSize = (h - juce::roundToInt(2.0f * scale)) / 2;
     rx -= (gap + sqSize);
     debugPanel.getButton().setBounds(rx, y, sqSize, sqSize);
-    debugPanel.getButton().setPanelAnchorYOffset(h - sqSize);
+    debugPanel.getButton().setPanelTopMargin(getHeight());
+    tuningPanel.getButton().setPanelTopMargin(getHeight());
     tuningPanel.getButton().setBounds(rx, y + h - sqSize, sqSize, sqSize);
 #endif
 

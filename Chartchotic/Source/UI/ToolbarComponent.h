@@ -43,6 +43,8 @@ public:
     void setReaperMode(bool isReaper);
     bool isReaperModeActive() const { return reaperMode; }
     void setMultiInstrumentMode(bool multi) { multiInstrumentMode = multi; }
+    void setPanelTopMargin(int m) { chartButton.setPanelTopMargin(m); settingsButton.setPanelTopMargin(m); }
+    void setPanelBottomMargin(int m) { chartButton.setPanelBottomMargin(m); settingsButton.setPanelBottomMargin(m); }
 
     // Reset instrument selector to simple Guitar/Drums (for discovery-off mode)
     void resetToManualMode();
