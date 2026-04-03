@@ -128,6 +128,9 @@ public:
     void setDisplayWindowSize(PPQ size) { displayWindowSize = size; }
     PPQ getDisplayWindowSize() const { return displayWindowSize; }
 
+    // Update prompt state (persists across editor rebuilds)
+    bool updatePromptDismissed = false;
+
     // Public state access for pipelines
     juce::ValueTree& getState() { return state; }
 
