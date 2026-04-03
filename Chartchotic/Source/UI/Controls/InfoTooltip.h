@@ -38,7 +38,7 @@ public:
     {
         if (tooltipText.isEmpty()) return;
 
-        auto* topLevel = relativeTo.getTopLevelComponent();
+        auto* topLevel = Theme::getOverlayParent(&relativeTo);
         if (!topLevel) return;
 
         card = std::make_unique<TooltipCard>();
