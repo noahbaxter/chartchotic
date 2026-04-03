@@ -113,7 +113,7 @@ public:
             menuGroup->deactivate(this);
         if (panel != nullptr)
         {
-            if (auto* topLevel = getTopLevelComponent())
+            if (auto* topLevel = Theme::getOverlayParent(this))
                 topLevel->removeComponentListener(this);
             panel.reset();
         }
@@ -239,7 +239,7 @@ public:
         if (menuGroup != nullptr)
             menuGroup->activate(this);
 
-        auto* topLevel = getTopLevelComponent();
+        auto* topLevel = Theme::getOverlayParent(this);
         if (topLevel == nullptr) return;
 
         float d = (float)juce::jmin(getWidth(), getHeight());
@@ -490,10 +490,10 @@ private:
             juce::Path clipPath;
             clipPath.addEllipse(bounds);
             g.reduceClipRegion(clipPath);
-            g.drawImageWithin(item.image,
-                (int)reduced.getX(), (int)reduced.getY(),
-                (int)reduced.getWidth(), (int)reduced.getHeight(),
-                juce::RectanglePlacement::centred);
+            auto imgBounds = juce::Rectangle<float>(0, 0, (float)item.image.getWidth(), (float)item.image.getHeight());
+            auto transform = juce::RectanglePlacement(juce::RectanglePlacement::centred)
+                .getTransformToFit(imgBounds, reduced);
+            g.drawImageTransformed(item.image, transform);
             g.restoreState();
         }
         else if (item.label.isNotEmpty())
@@ -517,7 +517,7 @@ private:
     void repositionPanel()
     {
         if (panel == nullptr) return;
-        auto* topLevel = getTopLevelComponent();
+        auto* topLevel = Theme::getOverlayParent(this);
         if (topLevel == nullptr) return;
 
         float d = (float)juce::jmin(getWidth(), getHeight());
