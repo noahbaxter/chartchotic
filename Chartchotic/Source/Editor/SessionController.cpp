@@ -76,11 +76,26 @@ void SessionController::updateSessionData(InstrumentSession& session)
     std::sort(discoveredParts.begin(), discoveredParts.end(),
               [](Part a, Part b) { return getPartSortOrder(a) < getPartSortOrder(b); });
 
-    // First discovery: enable all parts
+    // First discovery: restore from state, or enable all parts
     if (enabledParts.empty())
     {
-        for (auto p : discoveredParts)
-            enabledParts.insert(p);
+        restoreEnabledParts();
+
+        // Remove any restored parts that aren't in current discovery
+        for (auto it = enabledParts.begin(); it != enabledParts.end(); )
+        {
+            if (std::find(discoveredParts.begin(), discoveredParts.end(), *it) == discoveredParts.end())
+                it = enabledParts.erase(it);
+            else
+                ++it;
+        }
+
+        // If still empty (no saved state or all stale), enable everything
+        if (enabledParts.empty())
+        {
+            for (auto p : discoveredParts)
+                enabledParts.insert(p);
+        }
     }
     else
     {
@@ -105,11 +120,16 @@ void SessionController::updateSessionData(InstrumentSession& session)
         }
     }
 
-    // Default to current skill level if no difficulties enabled yet
+    // First discovery: restore from state, or default to current skill level
     if (enabledDifficulties.empty())
     {
-        SkillLevel current = (SkillLevel)((int)state->getProperty("skillLevel"));
-        enabledDifficulties.insert(current);
+        restoreEnabledDifficulties();
+
+        if (enabledDifficulties.empty())
+        {
+            SkillLevel current = (SkillLevel)((int)state->getProperty("skillLevel"));
+            enabledDifficulties.insert(current);
+        }
     }
 
     // Enable multi-select mode for difficulty in any session mode
@@ -243,7 +263,10 @@ void SessionController::updateVisibleSlots()
     }
     toolbar->setMultiInstrumentMode(*activeSlotCount > 1);
 
-    // Layout only — no loadState, no rebuildTrack
+    saveEnabledParts();
+    saveEnabledDifficulties();
+
+    // Layout only -- no loadState, no rebuildTrack
     cb.resized();
 
     // Apply visual settings directly (NOT via loadState which triggers disk I/O + full rebuild)
@@ -295,6 +318,56 @@ void SessionController::applyVisualState()
         cb.forAllHighways([to](auto& hw) { hw.getTrackRenderer().textureOpacity = to; });
     }
 
-    // Point overlays at cache — rebuildTrack handles this via the cache path
+    // Point overlays at cache -- rebuildTrack handles this via the cache path
     cb.forEachHighway([](auto& hw) { hw.rebuildTrack(); });
+}
+
+void SessionController::saveEnabledParts()
+{
+    if (state == nullptr) return;
+    juce::String s;
+    for (auto p : enabledParts)
+    {
+        if (s.isNotEmpty()) s += ",";
+        s += juce::String((int)p);
+    }
+    state->setProperty("enabledParts", s, nullptr);
+}
+
+void SessionController::restoreEnabledParts()
+{
+    if (state == nullptr || !state->hasProperty("enabledParts")) return;
+    juce::String s = state->getProperty("enabledParts").toString();
+    if (s.isEmpty()) return;
+
+    juce::StringArray tokens;
+    tokens.addTokens(s, ",", "");
+    enabledParts.clear();
+    for (auto& t : tokens)
+        enabledParts.insert((Part)t.getIntValue());
+}
+
+void SessionController::saveEnabledDifficulties()
+{
+    if (state == nullptr) return;
+    juce::String s;
+    for (auto d : enabledDifficulties)
+    {
+        if (s.isNotEmpty()) s += ",";
+        s += juce::String((int)d);
+    }
+    state->setProperty("enabledDifficulties", s, nullptr);
+}
+
+void SessionController::restoreEnabledDifficulties()
+{
+    if (state == nullptr || !state->hasProperty("enabledDifficulties")) return;
+    juce::String s = state->getProperty("enabledDifficulties").toString();
+    if (s.isEmpty()) return;
+
+    juce::StringArray tokens;
+    tokens.addTokens(s, ",", "");
+    enabledDifficulties.clear();
+    for (auto& t : tokens)
+        enabledDifficulties.insert((SkillLevel)t.getIntValue());
 }
