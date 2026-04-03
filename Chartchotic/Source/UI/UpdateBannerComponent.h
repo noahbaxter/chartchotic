@@ -29,6 +29,7 @@ public:
     bool hasUpdate() const { return updateVersion.isNotEmpty(); }
     const juce::String& getDownloadUrl() const { return downloadUrl; }
     void setBadgeHovered(bool h) { badge.setHovered(h); }
+    std::function<void()> onPromptDismissed;
 
     void showPrompt()
     {
@@ -39,17 +40,19 @@ public:
         overlay->setVersion(updateVersion);
         auto urlCopy = downloadUrl.isNotEmpty() ? downloadUrl
             : juce::String("https://github.com/noahbaxter/chartchotic/releases");
-        overlay->onDownload = [overlay, urlCopy]()
+        auto dismissedCb = onPromptDismissed;
+        overlay->onDownload = [overlay, urlCopy, dismissedCb]()
         {
-            // Defer deletion — button is a child of overlay, can't delete mid-callback
+            if (dismissedCb) dismissedCb();
             juce::MessageManager::callAsync([overlay, urlCopy]()
             {
                 delete overlay;
                 juce::URL(urlCopy).launchInDefaultBrowser();
             });
         };
-        overlay->onDismiss = [overlay]()
+        overlay->onDismiss = [overlay, dismissedCb]()
         {
+            if (dismissedCb) dismissedCb();
             juce::MessageManager::callAsync([overlay]() { delete overlay; });
         };
         editor->addAndMakeVisible(overlay);

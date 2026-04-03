@@ -70,4 +70,9 @@ private:
 
     void updateSessionData(InstrumentSession& session);
     void updateVisibleSlots();
+
+    void saveEnabledParts();
+    void restoreEnabledParts();
+    void saveEnabledDifficulties();
+    void restoreEnabledDifficulties();
 };

@@ -308,7 +308,7 @@ private:
 
     void showTooltip()
     {
-        auto* topLevel = getTopLevelComponent();
+        auto* topLevel = Theme::getOverlayParent(this);
         if (!topLevel) return;
 
         tooltipLabel = std::make_unique<TooltipLabel>();

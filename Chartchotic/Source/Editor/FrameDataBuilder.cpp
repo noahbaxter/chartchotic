@@ -215,6 +215,7 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
                 }
             }
 
+            frameData.builtForPart = interp.instrumentPart;
             if (idx == 0)
                 primaryOut = frameData;
             slot.highway->setFrameData(frameData);
@@ -278,4 +279,5 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
     out.windowEndTime = ctx.displayWindowTimeSeconds;
     out.isPlaying = ctx.processor.isPlaying;
     out.scrollOffset = ctx.scrollOffset;
+    out.builtForPart = interpreter.instrumentPart;
 }

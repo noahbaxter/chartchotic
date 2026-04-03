@@ -34,6 +34,7 @@ struct HighwayFrameData {
     double deltaSeconds = 0.0;
     bool isPlaying = false;
     bool discoFlipActive = false;
+    Part builtForPart = Part::GUITAR;
 };
 
 class HighwayComponent : public juce::Component, private juce::Timer
@@ -103,6 +104,8 @@ private:
     static constexpr int rebuildDebounceMs = 500;
 
     Part activePart = Part::GUITAR;
+    Part pendingPart = Part::GUITAR;
+    void commitPendingPart();
     juce::ValueTree& state;
     AssetManager& assetManager;
     SceneRenderer sceneRenderer;

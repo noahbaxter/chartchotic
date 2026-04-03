@@ -79,7 +79,7 @@ public:
             menuGroup->deactivate(this);
         if (panel != nullptr)
         {
-            if (auto* topLevel = getTopLevelComponent())
+            if (auto* topLevel = Theme::getOverlayParent(this))
             {
                 topLevel->removeComponentListener(this);
                 topLevel->removeMouseListener(panel.get());
@@ -121,7 +121,7 @@ private:
         if (menuGroup != nullptr)
             menuGroup->activate(this);
 
-        auto* topLevel = getTopLevelComponent();
+        auto* topLevel = Theme::getOverlayParent(this);
         if (topLevel == nullptr) return;
 
         panel = std::make_unique<PopupPanel>();
@@ -149,7 +149,7 @@ private:
     void fitAndPositionPanel()
     {
         if (panel == nullptr) return;
-        auto* topLevel = getTopLevelComponent();
+        auto* topLevel = Theme::getOverlayParent(this);
         if (topLevel == nullptr) return;
 
         int gap = 6;

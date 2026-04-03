@@ -30,6 +30,18 @@ public:
     static constexpr juce::uint32 orange = 0xFFE8853A;
 
     //==========================================================================
+    // Overlay parent — returns the AudioProcessorEditor so overlays inherit
+    // the host DPI scale transform. Falls back to getTopLevelComponent() for
+    // standalone mode where the editor IS the top-level.
+
+    static inline juce::Component* getOverlayParent(juce::Component* child)
+    {
+        if (auto* editor = child->findParentComponentOfClass<juce::AudioProcessorEditor>())
+            return editor;
+        return child->getTopLevelComponent();
+    }
+
+    //==========================================================================
     // Fixed constants (not scale-dependent)
 
     static constexpr float panelBgAlpha    = 0.88f;

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.2
+
+### Bug Fixes
+- Fix instrument icon drifting off-center at small window sizes (#22)
+- Fix instrument and difficulty selection not persisting across UI reloads (#23)
+- Fix wrong-color note flash when switching between instruments
+- Overlay menus and tooltips now inherit host DPI scaling (shouuuld fix #21)
+- Update prompt no longer nags every time the plugin window is opened
+
+### Quality of Life
+- Minimum window width reduced to 200px for tighter multi-instance layouts (#20)
+
 ## 1.2.1
 
 ### Track Discovery Toggle

@@ -242,6 +242,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
                                        primaryInterpreter(), displaySizeInPPQ.toDouble(),
                                        displayWindowTimeSeconds);
         frameData.scrollOffset = computeScrollOffset();
+        frameData.builtForPart = primaryInterpreter().instrumentPart;
         primaryFrameData = frameData;
         slots[0].highway->setFrameData(frameData);
         slots[0].highway->repaint();
@@ -262,6 +263,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
                 FrameDataBuilder::buildReaper(frameData, ctx, *slot.interpreter);
             else
                 FrameDataBuilder::buildStandard(frameData, ctx, *slot.interpreter);
+            frameData.builtForPart = slot.interpreter->instrumentPart;
 
             if (i == 0)
                 primaryFrameData = frameData;
@@ -564,11 +566,13 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
     footer.init(juce::String("v") + CHARTCHOTIC_VERSION);
     addAndMakeVisible(footer);
 
+    updateBanner.onPromptDismissed = [this]() { audioProcessor.updatePromptDismissed = true; };
     updateChecker.onUpdateCheckComplete = [this](const UpdateChecker::UpdateInfo& info)
     {
         if (info.available)
         {
-            updateBanner.setUpdateInfo(info.version, info.downloadUrl);
+            bool autoPrompt = !audioProcessor.updatePromptDismissed;
+            updateBanner.setUpdateInfo(info.version, info.downloadUrl, autoPrompt);
             footer.setUpdateAvailable();
             resized();
         }

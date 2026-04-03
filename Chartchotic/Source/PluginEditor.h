@@ -151,7 +151,7 @@ private:
     // UI Elements
     static constexpr int defaultWidth = 600;
     static constexpr int defaultHeight = 600;
-    static constexpr int minWidth = 400;
+    static constexpr int minWidth = 200;
     static constexpr int minHeight = 200;
     static constexpr double sceneAspectRatio = 4.0 / 3.0;
     static constexpr int highwayGridPadding = 4;        // px between highways and window edges in multi-slot grid
