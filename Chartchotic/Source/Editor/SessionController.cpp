@@ -245,7 +245,6 @@ void SessionController::updateVisibleSlots()
                 slot.interpreter->setDiscoFlipState(cached.discoFlipState);
 
             slot.highway->setActivePart(cached.part);
-            slot.highway->setVisible(true);
             slotIdx++;
         }
     }
@@ -271,6 +270,10 @@ void SessionController::updateVisibleSlots()
 
     // Apply visual settings directly (NOT via loadState which triggers disk I/O + full rebuild)
     applyVisualState();
+
+    // Show highways only after data is ready (avoids blank/stale frame flash)
+    for (int i = 0; i < *activeSlotCount; i++)
+        slots[i].highway->setVisible(true);
 }
 
 void SessionController::applyVisualState()

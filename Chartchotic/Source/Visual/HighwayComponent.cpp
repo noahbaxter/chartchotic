@@ -28,9 +28,18 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
 
 void HighwayComponent::setActivePart(Part part)
 {
-    activePart = part;
-    sceneRenderer.activePart = part;
-    trackRenderer.activePart = part;
+    pendingPart = part;
+    // Defer renderer update until matching frame data arrives (avoids
+    // wrong-color flash where activePart changes but frameData is stale)
+}
+
+void HighwayComponent::commitPendingPart()
+{
+    if (activePart == pendingPart) return;
+    activePart = pendingPart;
+    sceneRenderer.activePart = pendingPart;
+    trackRenderer.activePart = pendingPart;
+    rebuildTrack();
 }
 
 void HighwayComponent::paint(juce::Graphics& g)
@@ -276,6 +285,8 @@ void HighwayComponent::timerCallback()
 void HighwayComponent::setFrameData(const HighwayFrameData& data)
 {
     frameData = data;
+    if (frameData.builtForPart == pendingPart)
+        commitPendingPart();
 }
 
 void HighwayComponent::updateOverflow()
