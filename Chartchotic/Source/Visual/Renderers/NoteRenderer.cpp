@@ -80,6 +80,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
 
     bool starPowerActive = state.getProperty("starPower");
     const auto* config = getRenderTypeConfig(getRenderType(activePart));
+    bool isDrums = isDrumLike(activePart);
 
     if (isGuitarLike(activePart))
     {
@@ -123,7 +124,6 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     if (barNote)
     {
         // Bar notes span the full fretboard polygon (no FRETBOARD_SCALE)
-        bool isDrums = isDrumLike(activePart);
         if (PositionMath::bemaniMode)
         {
             glyphRect = PositionMath::computeBemaniBarRect(
@@ -192,7 +192,6 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     }
 
     float opacity = calculateOpacity(position);
-    bool isDrums = isDrumLike(activePart);
     float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
     float baseCurv = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
     float curvature = PositionMath::bemaniMode ? baseCurv * bemaniConfig.curvature : baseCurv;
@@ -288,7 +287,6 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
             float strikeWidth;
             if (barNote)
             {
-                bool isDrums = isDrumLike(activePart);
                 auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
                                                                 PositionConstants::HIGHWAY_POS_START, posEnd);
                 strikeWidth = (fbStrike.rightX - fbStrike.leftX) * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
