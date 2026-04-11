@@ -10,6 +10,7 @@
 */
 
 #include "SustainRenderer.h"
+#include "../Utils/RenderTypeConfig.h"
 
 using namespace PositionConstants;
 
@@ -149,6 +150,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
     bool isDrums = isDrumLike(activePart);
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
     bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
 
     // Look up lane coords
@@ -190,7 +192,7 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
         // Pixel-based lane padding — extends lane past note edges by fixed pixels
         if (isLane)
         {
-            float laneEndPxVal = isBar ? bemaniConfig.barLaneEndPx(isDrums) : bemaniConfig.laneEndPx(isDrums);
+            float laneEndPxVal = isBar ? config->bemaniBarLaneEndPx() : config->bemaniLaneEndPx();
             topY -= laneEndPxVal;
             botY += isBar ? bemaniConfig.barLaneStartPx : bemaniConfig.laneStartPx;
         }
@@ -277,9 +279,7 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
         endCurve = SUSTAIN_END_CURVE;
     }
 
-    const auto& fbCoords = isDrums
-        ? PositionConstants::drumFretboardCoords
-        : PositionConstants::guitarFretboardCoords;
+    const auto& fbCoords = *config->fretboardCoords;
     auto startFretboard = getColumnEdge(startPosition, fbCoords, 1.0f);
     auto endFretboard = getColumnEdge(endPosition, fbCoords, 1.0f);
 

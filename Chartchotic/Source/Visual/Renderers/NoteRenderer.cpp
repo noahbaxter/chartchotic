@@ -10,6 +10,7 @@
 */
 
 #include "NoteRenderer.h"
+#include "../Utils/RenderTypeConfig.h"
 
 using namespace PositionConstants;
 
@@ -78,6 +79,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     bool barNote;
 
     bool starPowerActive = state.getProperty("starPower");
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
 
     if (isGuitarLike(activePart))
     {
@@ -110,11 +112,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float foreshorten = 1.0f;
     if (depthForeshorten > 0.0f && !PositionMath::bemaniMode)
     {
-#ifdef DEBUG
-        const auto& pp = PositionMath::perspParams(isDrumLike(activePart));
-#else
-        auto pp = PositionConstants::getPerspectiveParams(isDrumLike(activePart));
-#endif
+        auto pp = config->getPerspectiveParams();
         float depth = std::max(0.0f, adjustedPosition) / pp.vanishingPointDepth;
         float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
         float psCur = scaleNear / (1.0f + depth * (scaleNear - 1.0f));
@@ -187,8 +185,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     // (pixelsPerUnit is constant regardless of viewport dimensions)
     if (PositionMath::bemaniMode)
     {
-        bool isDrumsHere = isDrumLike(activePart);
-        float nudge = barNote ? bemaniConfig.barNudge : bemaniConfig.gemNudge(isDrumsHere);
+        float nudge = barNote ? bemaniConfig.barNudge : config->bemaniGemNudge();
         float pixelsPerUnit = PositionConstants::REFERENCE_HEIGHT * bemaniConfig.strikelinePos
                             / std::max(0.1f, PositionMath::bemaniHwyScale);
         glyphRect.translate(0.0f, pixelsPerUnit * nudge);
@@ -277,11 +274,7 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         }
 
         // Per-column scale: interpolate uniform scale, multiply with per-axis
-#ifdef DEBUG
-        float vpDepth = PositionMath::perspParams(isDrumLike(activePart)).vanishingPointDepth;
-#else
-        float vpDepth = PositionConstants::getPerspectiveParams(isDrumLike(activePart)).vanishingPointDepth;
-#endif
+        float vpDepth = config->getPerspectiveParams().vanishingPointDepth;
         float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
         float colScale = colSNear + (colSFar - colSNear) * t;
         wScale *= colScale * colW;

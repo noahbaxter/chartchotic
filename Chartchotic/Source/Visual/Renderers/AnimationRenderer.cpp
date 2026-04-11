@@ -11,6 +11,7 @@
 */
 
 #include "AnimationRenderer.h"
+#include "../Utils/RenderTypeConfig.h"
 
 using namespace AnimationConstants;
 using namespace PositionConstants;
@@ -133,7 +134,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
     cachedHeight = height;
 
     const auto& animations = animationManager.getActiveAnimations();
-    bool isGuitar = isGuitarLike(activePart);
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
     float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
 
     for (const auto& anim : animations)
@@ -143,9 +144,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
         if (anim.isBar)
         {
             uint column = anim.is2xKick ? 6 : 0;
-            CoordinateOffset offset = isGuitar
-                ? GUITAR_ANIMATION_OFFSETS[0]
-                : DRUM_ANIMATION_OFFSETS[0];
+            CoordinateOffset offset = config->animOffsets[0];
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
@@ -155,9 +154,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
         }
         else
         {
-            CoordinateOffset offset = isGuitar
-                ? GUITAR_ANIMATION_OFFSETS[anim.lane]
-                : DRUM_ANIMATION_OFFSETS[anim.lane];
+            CoordinateOffset offset = config->animOffsets[anim.lane];
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
@@ -174,6 +171,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
     float strikelinePosition = strikePos;
     bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
 
     bool useWhiteSP = anim.starPower && hitTypeConfig.spWhiteFlare;
 
@@ -224,7 +222,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
             );
             // Center on the strikeline pad, then apply hit bar nudge
             float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
-            kickRect.translate(offset.xOffset, offset.yOffset + (padY - kickRect.getCentreY()) + kickRect.getHeight() * bemaniConfig.hitBarNudge(isDrums));
+            kickRect.translate(offset.xOffset, offset.yOffset + (padY - kickRect.getCentreY()) + kickRect.getHeight() * config->bemaniHitBarNudge());
 
             g.setOpacity(1.0f);
             g.drawImage(*animFrame, kickRect);
@@ -243,7 +241,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
         {
             edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
                                  posEnd, PositionConstants::FRETBOARD_SCALE, -1);
-            auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
+            auto perspParams = config->getPerspectiveParams();
             float colWidth = edge.rightX - edge.leftX;
             float colHeight = colWidth / perspParams.barNoteHeightRatio;
             juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
@@ -278,6 +276,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
     Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
 
     auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
 
@@ -305,7 +304,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     int bemaniIdx = barNote ? -1 : ((int)colIdx - 1);
     auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
                                posEnd, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
-    auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
+    auto perspParams = config->getPerspectiveParams();
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
 
@@ -320,7 +319,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     float arcOffset = 0.0f;
     if (noteCurvature != 0.0f && !barNote)
     {
-        const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+        const auto& fbCoords = *config->fretboardCoords;
         float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
         float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
         float colCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
