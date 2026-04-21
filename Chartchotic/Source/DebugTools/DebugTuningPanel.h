@@ -234,11 +234,12 @@ private:
     DebugTunable hitTypeTunables[HIT_TYPE_FLOAT_COUNT];
     ScrollableLabel hitTypeBoolLabels[HIT_TYPE_BOOL_COUNT];
 
-    // --- Z Offsets table (5 rows x 2 cols: Guitar, Drums) ---
+    // --- Z Offsets table (6 rows x 2 cols: Guitar, Drums) ---
+    // Cym is drums-only; for guitar it's effectively dead (cymZ unused).
     SectionHeader zOffsetsHeader;
-    static constexpr int Z_ROWS = 5;
+    static constexpr int Z_ROWS = 6;
     static constexpr int Z_COLS = 2;
-    static constexpr const char* zRowNames[Z_ROWS] = {"Grid", "Gem", "Bar", "HitN", "HitB"};
+    static constexpr const char* zRowNames[Z_ROWS] = {"Grid", "Gem", "Cym", "Bar", "HitN", "HitB"};
     static constexpr const char* zColNames[Z_COLS] = {"Gtr", "Drm"};
     juce::Label zColHdrLabels[Z_COLS];
     juce::Label zRowLabels[Z_ROWS];

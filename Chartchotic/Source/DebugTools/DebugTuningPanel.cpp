@@ -225,6 +225,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
 
     // --- Curvature section (data-driven) ---
     setupSectionHeader(curvatureHeader, "Curvature");
+    curvatureHeader.expanded = true;  // depthForeshorten lives here — show by default
     {
         static constexpr const char* names[CURVATURE_COUNT] = {"Guitar", "Drums", "Depth"};
         float* ptrs[CURVATURE_COUNT] = {&guitarCurvature, &drumCurvature, &depthForeshorten};
@@ -355,8 +356,9 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
-    // --- Z Offsets table (5 rows x 2 cols: Guitar/Drums) ---
+    // --- Z Offsets table (6 rows x 2 cols: Guitar/Drums) ---
     setupSectionHeader(zOffsetsHeader, "Z Offsets");
+    zOffsetsHeader.expanded = true;  // most-touched section — show by default
 
     for (int c = 0; c < Z_COLS; c++)
         setupTableHeader(zColHdrLabels[c]);
@@ -366,8 +368,9 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         switch (r) {
         case 0: return &o->gridZ;
         case 1: return &o->gemZ;
-        case 2: return &o->barZ;
-        case 3: return &o->hitGemZ;
+        case 2: return &o->cymZ;   // Drums only; guitar cymZ is dead weight
+        case 3: return &o->barZ;
+        case 4: return &o->hitGemZ;
         default: return &o->hitBarZ;
         }
     };
@@ -1035,8 +1038,8 @@ void DebugTuningPanel::refreshLabels()
     {
         const auto& g = guitarOffsets;
         const auto& d = drumOffsets;
-        const float gVals[] = {g.gridZ, g.gemZ, g.barZ, g.hitGemZ, g.hitBarZ};
-        const float dVals[] = {d.gridZ, d.gemZ, d.barZ, d.hitGemZ, d.hitBarZ};
+        const float gVals[] = {g.gridZ, g.gemZ, g.cymZ, g.barZ, g.hitGemZ, g.hitBarZ};
+        const float dVals[] = {d.gridZ, d.gemZ, d.cymZ, d.barZ, d.hitGemZ, d.hitBarZ};
         zParams[r][0].setText(juce::String(gVals[r], 1), juce::dontSendNotification);
         zParams[r][1].setText(juce::String(dVals[r], 1), juce::dontSendNotification);
     }
@@ -1137,6 +1140,28 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
         }
     };
 
+    // --- Z Offsets table (most-used — surface at the top) ---
+    zOffsetsHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    if (zOffsetsHeader.expanded)
+    {
+        y = layoutTable(y, margin, w, rowHeight, gap,
+                        zColHdrLabels, Z_COLS,
+                        zRowLabels, &zParams[0][0],
+                        Z_ROWS, Z_COLS, 34);
+    }
+    else
+    {
+        hideTable(zColHdrLabels, Z_COLS, zRowLabels, &zParams[0][0], Z_ROWS, Z_COLS);
+    }
+    y += headerGap;
+
+    // --- Curvature (guitar/drums curvature + depthForeshorten) ---
+    curvatureHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    layoutTunableRows(curvatureLabels, CURVATURE_COUNT, curvatureHeader.expanded, margin, w, rowHeight, gap, y);
+    y += headerGap;
+
     // --- Perspective section ---
     perspectiveHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
@@ -1212,11 +1237,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     }
     y += headerGap;
 
-    // Curvature
-    curvatureHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    layoutTunableRows(curvatureLabels, CURVATURE_COUNT, curvatureHeader.expanded, margin, w, rowHeight, gap, y);
-    y += headerGap;
+    // Curvature section moved to the top (above Perspective) — no second render here.
 
     // Base Scale table
     baseScaleHeader.setBounds(margin, y, w, rowHeight);
@@ -1259,21 +1280,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     }
     y += headerGap;
 
-    // Z Offsets table
-    zOffsetsHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (zOffsetsHeader.expanded)
-    {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        zColHdrLabels, Z_COLS,
-                        zRowLabels, &zParams[0][0],
-                        Z_ROWS, Z_COLS, 34);
-    }
-    else
-    {
-        hideTable(zColHdrLabels, Z_COLS, zRowLabels, &zParams[0][0], Z_ROWS, Z_COLS);
-    }
-    y += headerGap;
+    // Z Offsets section moved to the top of the panel — no second render here.
 
     // Strike Position table
     strikeHeader.setBounds(margin, y, w, rowHeight);
