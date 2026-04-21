@@ -164,6 +164,7 @@ public:
 
     // Track REAPER connection state per-instance (not static!)
     bool lastReaperConnected = false;
+    bool hasLoggedSuccessfulReaperConnection = false;
 
     void initializeDefaultState();
 

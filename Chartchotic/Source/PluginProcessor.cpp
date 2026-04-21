@@ -390,16 +390,24 @@ juce::VST2ClientExtensions* ChartchoticAudioProcessor::getVST2ClientExtensions()
 bool ChartchoticAudioProcessor::attemptReaperConnection()
 {
     if (!isReaperHost || !reaperGetFunc)
+    {
+        hasLoggedSuccessfulReaperConnection = false;
         return false;
+    }
 
     // Test the connection by getting a simple REAPER function
     auto GetPlayState = (int(*)())reaperGetFunc("GetPlayState");
     if (GetPlayState)
     {
-        DBG("Successfully connected to REAPER API via VST2!");
+        if (!hasLoggedSuccessfulReaperConnection)
+        {
+            DBG("Successfully connected to REAPER API via VST2!");
+            hasLoggedSuccessfulReaperConnection = true;
+        }
         return true;
     }
 
+    hasLoggedSuccessfulReaperConnection = false;
     return false;
 }
 
