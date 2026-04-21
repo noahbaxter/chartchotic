@@ -30,6 +30,12 @@ public:
         if (onOutsideMouseDown)
             onOutsideMouseDown(e);
     }
+
+    // Consume wheel events over the panel — including over section headers,
+    // row labels, and empty space — so they never reach the underlying
+    // highway. Only ScrollableLabel overrides mouseWheelMove for value
+    // tweaks; everything else would otherwise pass the wheel through.
+    void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override {}
 };
 
 // A button that toggles a PopupPanel below itself.
