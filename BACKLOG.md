@@ -81,6 +81,18 @@ Do between features or when touching related code.
 - **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.
 - **Settings menu reorganization** — Single gear button, scrollable category list on the right, selected category expands a detail panel on the left (macOS System Settings style). Consolidate View/Chart and Settings panels into one unified menu. Centralize control labels and tooltip text into a single source of truth file.
 - **Tooltips for all controls** — Extend InfoTooltip to every control that isn't immediately obvious. Centralize tooltip strings (header with static constexpr or similar) so they're easy to maintain and translate.
+- **Auto-detect stale CMake build dirs** — `build.sh`, `build-reapertest.sh`, and `scripts/test.sh` should compare `CMAKE_HOME_DIRECTORY` from any existing `CMakeCache.txt` against the current script dir and auto-`rm -rf` the build tree on mismatch before configuring. Bit us twice in one session after moving the repo from `plugins/` to `charting/`.
+- **`build-reapertest.sh` should force-quit REAPER** — The "Quitting REAPER..." step hangs when REAPER has unsaved-changes or end-of-session prompts open, forcing a manual Ctrl-C. Replace graceful quit with `kill -9` / `killall -9 REAPER` so the relaunch step always makes progress.
+
+### Rendering — perspective limits (do not iterate further without a true-3D plan)
+
+**True-3D pipeline rewrite (parking-lot / future major version).** The fake-3D trapezoid in `PositionMath::createPerspectiveGlyphRect` runs two independent 1/z curves (one for X/Y/width, one for sprite height). Any "above the bar plane" element therefore can't keep a constant gap-to-sprite ratio across depth without distorting aspect or breaking lane fit. Two attempted reworks (Apr 11–12 `9128b93`+`49f71a0` and the Apr 20–21 lift-mode/crosshair session) both hit the same wall and have been reverted. Full postmortem in `docs/Z_POSITIONING.md`. Experimental code on `experiment/z-position-rework`. **Do not attempt another scalar-tweak fix.** The right path is a real view-projection matrix.
+
+The following items are subsumed by that rewrite and only worth fixing in isolation if they bite for some specific reason:
+- `PositionMath.cpp:99` — `progress` goes negative past `vanishingPointDepth (1.0)` while `HIGHWAY_POS_END = 1.12` and `FAR_FADE_DEFAULT = 1.20` render past that. Slight extrapolation artifacts at the far end.
+- `NoteRenderer.cpp` guitar gem branch — reads `sNear/sFar/w/h` from per-column adjusts but never adds `ca.z` to zOff (drum branch does). All guitar Z values are 0 anyway, so no visible impact.
+- `SustainRenderer.cpp` — uses raw lane `centerY` with no Z nudge, so guitar notes (when `gemZ` is non-zero) are vertically disconnected from their sustain tails.
+- `getFretboardEdge` / `getColumnPosition` accept `posStart`/`posEnd` but ignore them. Highway-end tuning doesn't reach perspective math.
 
 ---
 
