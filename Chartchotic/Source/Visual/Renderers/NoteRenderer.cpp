@@ -259,7 +259,13 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float zOff = 0.0f;
     if (!PositionMath::bemaniMode)
     {
-        zOff = barNote ? barZOffset : gemZOffset;
+        // Cymbals get their own Z so they can be tuned independently from toms
+        // (cym artwork sits higher in the rect, so it tends to need a different lift).
+        bool isCymbalGem = !barNote && isDrums
+            && (gemWrapper.gem == Gem::CYM
+                || gemWrapper.gem == Gem::CYM_GHOST
+                || gemWrapper.gem == Gem::CYM_ACCENT);
+        zOff = barNote ? barZOffset : (isCymbalGem ? cymZOffset : gemZOffset);
         float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
         if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
             const auto& ca = guitarColAdjust[gemColumn];

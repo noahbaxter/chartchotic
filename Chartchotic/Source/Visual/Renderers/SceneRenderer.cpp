@@ -76,6 +76,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     noteRenderer.showGems = showGems;
     noteRenderer.showBars = showBars;
     noteRenderer.gemZOffset = offsets.gemZ * resScale;
+    noteRenderer.cymZOffset = offsets.cymZ * resScale;
     noteRenderer.barZOffset = offsets.barZ * resScale;
     noteRenderer.strikePosGem = strikePosGem;
     noteRenderer.strikePosBar = strikePosBar;

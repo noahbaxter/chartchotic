@@ -80,7 +80,8 @@ namespace PositionConstants
     struct InstrumentOffsets
     {
         float gridZ;
-        float gemZ;
+        float gemZ;     // Toms / regular strum notes
+        float cymZ;     // Cymbals (drums) — tunable independently from toms
         float barZ;
         float hitGemZ;
         float hitBarZ;
@@ -258,6 +259,7 @@ namespace PositionConstants
     constexpr InstrumentOffsets GUITAR_OFFSETS = {
         0.0f,       // gridZ
         9.0f,       // gemZ
+        0.0f,       // cymZ (unused — guitars have no cymbals)
         0.0f,       // barZ
         14.0f,      // hitGemZ
         9.0f,       // hitBarZ
@@ -266,7 +268,8 @@ namespace PositionConstants
     };
     constexpr InstrumentOffsets DRUM_OFFSETS = {
         0.0f,       // gridZ
-        4.0f,       // gemZ
+        4.0f,       // gemZ (toms)
+        4.0f,       // cymZ (cymbals — tunable independently)
         0.0f,       // barZ
         6.0f,       // hitGemZ
         10.0f,      // hitBarZ

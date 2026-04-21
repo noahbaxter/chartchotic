@@ -43,6 +43,7 @@ public:
     const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
     const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
     float gemZOffset = 0.0f;
+    float cymZOffset = 0.0f;  // Drums only — cymbals tuned separately from toms
     float barZOffset = 0.0f;
     float strikePosGem = 0.0f;
     float strikePosBar = 0.0f;
