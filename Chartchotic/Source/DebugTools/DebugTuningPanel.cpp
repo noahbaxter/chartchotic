@@ -1192,6 +1192,23 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     layoutRow(laneOpenWidthLabel, true);
     y += headerGap;
 
+    // --- Overlay Adjust (accent/ghost cap positioning) ---
+    overlayAdjustHeader.setVisible(true);
+    overlayAdjustHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    if (overlayAdjustHeader.expanded)
+    {
+        y = layoutTable(y, margin, w, rowHeight, gap,
+                        overlayColHeaderLabels, OVERLAY_PARAMS,
+                        overlayRowNameLabels, &overlayParamLabels[0][0],
+                        NUM_OVERLAY_TYPES, OVERLAY_PARAMS, /*nameW*/ 40);
+    }
+    else
+    {
+        hideTable(overlayColHeaderLabels, OVERLAY_PARAMS, overlayRowNameLabels, &overlayParamLabels[0][0], NUM_OVERLAY_TYPES, OVERLAY_PARAMS);
+    }
+    y += headerGap;
+
     // --- Everything below is "advanced" — hidden by default to declutter the
     //     panel. The headers + their content are still wired and tunable; they
     //     just don't render here. To re-expose any section, add a layoutRow /
@@ -1238,9 +1255,6 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
 
     laneShapeHeader.setVisible(false);
     hideTable(laneShapeColHdrLabels, LANE_SHAPE_COLS, laneShapeRowLabels, &laneShapeParams[0][0], LANE_SHAPE_ROWS, LANE_SHAPE_COLS);
-
-    overlayAdjustHeader.setVisible(false);
-    hideTable(overlayColHeaderLabels, OVERLAY_PARAMS, overlayRowNameLabels, &overlayParamLabels[0][0], NUM_OVERLAY_TYPES, OVERLAY_PARAMS);
 
     panel->setSize(panel->getWidth(), y + margin);
 }
