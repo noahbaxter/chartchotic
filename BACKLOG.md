@@ -197,6 +197,7 @@ Unordered. Pull into Up Next when the time comes.
 **Architecture (do when it hurts):**
 - AudioProcessorValueTreeState migration
 - Double-buffered snapshots for renderer
+- **Pop-out highway windows (one plugin, many viewports)** — Today "two windows" = two plugin instances on the same track = duplicated REAPER API traffic, duplicated polling, duplicated InstrumentSession. Replace with "Pop out" action in the toolbar that spawns a `juce::DocumentWindow` hosting an additional `HighwayComponent` off the same `SessionController`/`SlotData`. One processor, one session, one REAPER poll — N viewports. Makes the "6 instances on one track" perf cliff go away by removing the reason to do that. Side-steps the shared-project-scan-cache design (not needed if there's only one consumer). Leaves the real multi-instance case (independent tracks) as the only path where cross-instance caching would matter, which is rare enough to defer indefinitely. REAPER duplicate-track hang (fixed in `fix/reaper-duplicate-hang`, commit `da1d115`) was the forcing function.
 
 ---
 
