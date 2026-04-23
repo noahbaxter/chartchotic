@@ -269,7 +269,7 @@ namespace PositionConstants
     constexpr InstrumentOffsets DRUM_OFFSETS = {
         0.0f,       // gridZ
         4.0f,       // gemZ (toms)
-        4.0f,       // cymZ (cymbals — tunable independently)
+        12.0f,      // cymZ (cymbals — tuned for visible overhang above bar)
         0.0f,       // barZ
         6.0f,       // hitGemZ
         10.0f,      // hitBarZ
