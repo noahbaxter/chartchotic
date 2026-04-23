@@ -580,7 +580,9 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
             resized();
         }
     };
+#ifndef DEBUG
     updateChecker.checkForUpdates();
+#endif
 }
 
 void ChartchoticAudioProcessorEditor::updateTrackInfoDisplay()
