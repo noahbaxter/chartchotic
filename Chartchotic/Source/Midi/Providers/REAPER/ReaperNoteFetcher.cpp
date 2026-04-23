@@ -29,6 +29,12 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperNoteFetcher::fetchAllNotes
 
 std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperNoteFetcher::fetchNotesInRange(double startPPQ, double endPPQ, int trackIndex)
 {
+    // REAPER API is main-thread-only for functions that touch project state
+    // (CountMediaItems, GetMediaItem, MIDI_GetNote, etc.). Calling from the
+    // audio thread can deadlock against REAPER's own project/track locks —
+    // this fired as a hang when duplicating a track (fix/reaper-duplicate-hang).
+    JUCE_ASSERT_MESSAGE_THREAD
+
     std::vector<ReaperMidiProvider::ReaperMidiNote> notes;
 
     if (!apis.isLoaded() || !getReaperApi)
@@ -109,6 +115,8 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperNoteFetcher::iterateAndExt
 
 TrackTextEvents ReaperNoteFetcher::fetchAllTextEvents(int trackIndex)
 {
+    JUCE_ASSERT_MESSAGE_THREAD
+
     TrackTextEvents events;
 
     if (!apis.isLoaded() || !getReaperApi || !apis.MIDI_GetTextSysexEvt)

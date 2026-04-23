@@ -41,6 +41,10 @@ public:
 
     void refetchAllMidiData();
 
+    // Main-thread only. Checks track hash; if changed, refetches.
+    // Replaces the audio-thread hash check that was removed from process().
+    void pollForHashChange();
+
     void fetchAllNoteEvents();
     void fetchAllTempoTimeSignatureEvents();
     void fetchAllTextEvents();

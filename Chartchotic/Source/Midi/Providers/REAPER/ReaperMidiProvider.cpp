@@ -124,6 +124,8 @@ ReaperMidiProvider::MusicalPosition ReaperMidiProvider::queryMusicalPositionFrom
 
 std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getAllTempoTimeSignatureEvents()
 {
+    JUCE_ASSERT_MESSAGE_THREAD  // Iterates tempo markers via REAPER API — main-thread only.
+
     std::vector<TempoTimeSignatureEvent> events;
 
     if (!reaperApiInitialized || !apis.TimeMap2_QNToTime)
@@ -266,6 +268,8 @@ double ReaperMidiProvider::timeToPpq(double timeInSeconds)
 
 std::string ReaperMidiProvider::getTrackHash(int trackIndex, bool notesonly)
 {
+    JUCE_ASSERT_MESSAGE_THREAD  // MIDI_GetTrackHash touches project MIDI state — main-thread only.
+
     std::string emptyHash;
 
     if (!reaperApiInitialized || !apis.MIDI_GetTrackHash)

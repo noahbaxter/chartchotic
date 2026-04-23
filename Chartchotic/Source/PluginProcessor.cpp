@@ -121,6 +121,16 @@ void ChartchoticAudioProcessor::invalidateReaperCache()
     }
 }
 
+void ChartchoticAudioProcessor::pollReaperMidiHash()
+{
+    if (midiPipeline)
+    {
+        auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(midiPipeline.get());
+        if (reaperPipeline)
+            reaperPipeline->pollForHashChange();
+    }
+}
+
 void ChartchoticAudioProcessor::updateTrackProperties(const TrackProperties& properties)
 {
     if (properties.name.has_value())

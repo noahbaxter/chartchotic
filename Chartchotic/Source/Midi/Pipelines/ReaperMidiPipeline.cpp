@@ -34,12 +34,20 @@ void ReaperMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& positi
     currentPosition = newPosition;
     playing = nowPlaying;
 
-    if (checkMidiHashChanged())
-    {
-        refetchAllMidiData();
-    }
-
+    // Audio thread: touch ONLY cached data. Hash-check + refetch moved to
+    // pollForHashChange() driven by the editor's VBlank. Calling REAPER API
+    // from here could deadlock when REAPER holds project locks (e.g. during
+    // track duplication).
     processCachedNotesIntoState(currentPosition);
+}
+
+void ReaperMidiPipeline::pollForHashChange()
+{
+    if (!reaperProvider.isReaperApiAvailable())
+        return;
+
+    if (checkMidiHashChanged())
+        refetchAllMidiData();
 }
 
 void ReaperMidiPipeline::setDisplayWindow(PPQ start, PPQ end)
