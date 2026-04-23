@@ -13,15 +13,22 @@ void DebugTuningPanel::initTunableSliders(ScrollableLabel* labels, const DebugTu
     {
         const auto& t = tunables[i];
         setupScrollLabel(labels[i]);
+        // Monospace so name + value columns line up across rows.
+        static const auto monoFont = juce::Font(juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain);
+        labels[i].setFont(monoFont);
         if (t.featured)
-        {
-            labels[i].setFont(juce::Font(13.0f).boldened());
             labels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
-        }
-        labels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
-        labels[i].onScroll = [this, i, &t = tunables[i], onChange, labels](int delta) {
+        auto fmtRow = [](const char* name, float v, int dec) {
+            juce::String s;
+            s << "  " << name;
+            while (s.length() < 24) s << " ";
+            s << juce::String(v, dec);
+            return s;
+        };
+        labels[i].setText(fmtRow(t.name, *t.value, t.decimals), juce::dontSendNotification);
+        labels[i].onScroll = [this, i, &t = tunables[i], onChange, labels, fmtRow](int delta) {
             *t.value = juce::jlimit(t.min, t.max, *t.value + delta * t.step);
-            labels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
+            labels[i].setText(fmtRow(t.name, *t.value, t.decimals), juce::dontSendNotification);
             if (onChange) onChange();
         };
     }
@@ -49,8 +56,15 @@ void DebugTuningPanel::layoutTunableRows(ScrollableLabel* labels, int count, boo
 
 void DebugTuningPanel::refreshTunableLabels(ScrollableLabel* labels, const DebugTunable* tunables, int count)
 {
+    auto fmtRow = [](const char* name, float v, int dec) {
+        juce::String s;
+        s << "  " << name;
+        while (s.length() < 24) s << " ";
+        s << juce::String(v, dec);
+        return s;
+    };
     for (int i = 0; i < count; i++)
-        labels[i].setText(juce::String(tunables[i].name) + ": " + juce::String(*tunables[i].value, tunables[i].decimals), juce::dontSendNotification);
+        labels[i].setText(fmtRow(tunables[i].name, *tunables[i].value, tunables[i].decimals), juce::dontSendNotification);
 }
 
 // ==========================================================================
@@ -225,7 +239,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
 
     // --- Curvature section (data-driven) ---
     setupSectionHeader(curvatureHeader, "Curvature");
-    curvatureHeader.expanded = true;  // depthForeshorten lives here — show by default
+    curvatureHeader.setExpanded(true);  // depthForeshorten lives here — show by default
     {
         static constexpr const char* names[CURVATURE_COUNT] = {"Guitar", "Drums", "Depth"};
         float* ptrs[CURVATURE_COUNT] = {&guitarCurvature, &drumCurvature, &depthForeshorten};
@@ -358,7 +372,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
 
     // --- Z Offsets table (6 rows x 2 cols: Guitar/Drums) ---
     setupSectionHeader(zOffsetsHeader, "Z Offsets");
-    zOffsetsHeader.expanded = true;  // most-touched section — show by default
+    zOffsetsHeader.setExpanded(true);  // most-touched section — show by default
 
     for (int c = 0; c < Z_COLS; c++)
         setupTableHeader(zColHdrLabels[c]);
@@ -380,12 +394,12 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         zRowLabels[r].setText(zRowNames[r], juce::dontSendNotification);
         zRowLabels[r].setJustificationType(juce::Justification::centredLeft);
         zRowLabels[r].setColour(juce::Label::textColourId, juce::Colours::white);
-        zRowLabels[r].setFont(juce::Font(10.0f));
+        zRowLabels[r].setFont(juce::Font(13.0f).boldened());
 
         for (int c = 0; c < Z_COLS; c++)
         {
             setupScrollLabel(zParams[r][c]);
-            zParams[r][c].setFont(juce::Font(10.0f));
+            zParams[r][c].setFont(juce::Font(13.0f));
             zParams[r][c].setJustificationType(juce::Justification::centred);
             zParams[r][c].onScroll = [this, r, c, getZPtr](int delta) {
                 float* val = getZPtr(r, c);
@@ -584,19 +598,30 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     }
 
     // --- Lane Width sliders ---
+    static const auto laneMonoFont = juce::Font(juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain);
+    auto fmtLane = [](const char* name, float v) {
+        juce::String s;
+        s << "  " << name;
+        while (s.length() < 24) s << " ";
+        s << juce::String(v, 2);
+        return s;
+    };
+
     setupScrollLabel(laneWidthLabel);
-    laneWidthLabel.setText(">>> LANE W: " + juce::String(PositionConstants::LANE_WIDTH, 2), juce::dontSendNotification);
-    laneWidthLabel.onScroll = [this](int delta) {
+    laneWidthLabel.setFont(laneMonoFont);
+    laneWidthLabel.setText(fmtLane("Lane Width", PositionConstants::LANE_WIDTH), juce::dontSendNotification);
+    laneWidthLabel.onScroll = [this, fmtLane](int delta) {
         PositionConstants::LANE_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_WIDTH + delta * 0.02f);
-        laneWidthLabel.setText(">>> LANE W: " + juce::String(PositionConstants::LANE_WIDTH, 2), juce::dontSendNotification);
+        laneWidthLabel.setText(fmtLane("Lane Width", PositionConstants::LANE_WIDTH), juce::dontSendNotification);
         fireChanged();
     };
 
     setupScrollLabel(laneOpenWidthLabel);
-    laneOpenWidthLabel.setText(">>> LANE OPEN W: " + juce::String(PositionConstants::LANE_OPEN_WIDTH, 2), juce::dontSendNotification);
-    laneOpenWidthLabel.onScroll = [this](int delta) {
+    laneOpenWidthLabel.setFont(laneMonoFont);
+    laneOpenWidthLabel.setText(fmtLane("Lane Open Width", PositionConstants::LANE_OPEN_WIDTH), juce::dontSendNotification);
+    laneOpenWidthLabel.onScroll = [this, fmtLane](int delta) {
         PositionConstants::LANE_OPEN_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_OPEN_WIDTH + delta * 0.02f);
-        laneOpenWidthLabel.setText(">>> LANE OPEN W: " + juce::String(PositionConstants::LANE_OPEN_WIDTH, 2), juce::dontSendNotification);
+        laneOpenWidthLabel.setText(fmtLane("Lane Open Width", PositionConstants::LANE_OPEN_WIDTH), juce::dontSendNotification);
         fireChanged();
     };
 
@@ -834,7 +859,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             tuningButton.addPanelChild(&overlayParamLabels[r][c]);
     }
 
-    tuningButton.setPanelSize(320, 500);
+    tuningButton.setPanelSize(340, 580);
     tuningButton.onLayoutPanel = [this](juce::Component* panel) { layoutPanel(panel); };
 }
 
@@ -1065,10 +1090,10 @@ void DebugTuningPanel::setupTableHeader(juce::Label& label)
 
 void DebugTuningPanel::setupSectionHeader(SectionHeader& header, const juce::String& text)
 {
-    header.setTitle(text);
-    header.setJustificationType(juce::Justification::centred);
-    header.setColour(juce::Label::textColourId, juce::Colours::grey);
-    header.setFont(juce::Font(14.0f));
+    header.setTitle(text.toUpperCase());
+    header.setJustificationType(juce::Justification::centredLeft);
+    header.setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+    header.setFont(juce::Font(14.0f).boldened());
     header.setInterceptsMouseClicks(true, true);
     header.onToggle = [this]() {
         if (tuningButton.isPanelVisible())
@@ -1116,10 +1141,10 @@ int DebugTuningPanel::layoutTable(int y, int x, int w, int rowHeight, int gap,
 
 void DebugTuningPanel::layoutPanel(juce::Component* panel)
 {
-    const int margin = 8;
-    const int rowHeight = 26;
-    const int gap = 4;
-    const int headerGap = 8;
+    const int margin = 12;
+    const int rowHeight = 30;
+    const int gap = 6;
+    const int headerGap = 14;
     int y = margin;
     int w = panel->getWidth() - margin * 2;
 
@@ -1162,229 +1187,60 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     layoutTunableRows(curvatureLabels, CURVATURE_COUNT, curvatureHeader.expanded, margin, w, rowHeight, gap, y);
     y += headerGap;
 
-    // --- Perspective section ---
-    perspectiveHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    layoutTunableRows(perspLabels, PERSP_COUNT, perspectiveHeader.expanded, margin, w, rowHeight, gap, y);
-    y += headerGap;
-
-    // --- Track section (layers table + tiling) ---
-    trackHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (trackHeader.expanded)
-    {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        layerColHdrLabels, LAYER_COLS,
-                        layerRowLabels, &layerParams[0][0],
-                        NUM_DISPLAY_LAYERS, LAYER_COLS, 40);
-        // Track individual sliders: first 4 (tileStep, tileScaleStep, texScale, texOpacity)
-        for (int i = 0; i < 4; i++)
-            layoutRow(trackSliderLabels[i], true);
-        layoutRow(polyShadeToggle, true);
-        layoutRow(debugColourToggle, true);
-        // Stretch + Bemani toggles side by side
-        {
-            int halfW = (w - gap) / 2;
-            stretchToggle.setVisible(true);
-            stretchToggle.setBounds(margin, y, halfW, rowHeight);
-            bemaniToggle.setVisible(true);
-            bemaniToggle.setBounds(margin + halfW + gap, y, halfW, rowHeight);
-            y += rowHeight + gap;
-        }
-        // Remaining track sliders: hwyGtr, hwyDrm, logoPad, dotNudge, grid
-        for (int i = 4; i < TRACK_SLIDER_COUNT; i++)
-            layoutRow(trackSliderLabels[i], true);
-    }
-    else
-    {
-        hideTable(layerColHdrLabels, LAYER_COLS, layerRowLabels, &layerParams[0][0], NUM_DISPLAY_LAYERS, LAYER_COLS);
-        layoutTunableRows(trackSliderLabels, TRACK_SLIDER_COUNT, false, margin, w, rowHeight, gap, y);
-        polyShadeToggle.setVisible(false);
-        debugColourToggle.setVisible(false);
-        stretchToggle.setVisible(false);
-        bemaniToggle.setVisible(false);
-    }
-    y += headerGap;
-
-    // --- Bemani section (data-driven) ---
-    bemaniHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (bemaniHeader.expanded)
-    {
-        const char* lastGroup = nullptr;
-        int groupIdx = 0;
-        for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++)
-        {
-            const char* group = bemaniTunables[i].group;
-            if (lastGroup == nullptr || std::strcmp(group, lastGroup) != 0)
-            {
-                // Map group name to header index
-                if (std::strcmp(group, "Position") == 0) groupIdx = 0;
-                else if (std::strcmp(group, "Sustains") == 0) groupIdx = 1;
-                else groupIdx = 2;
-                layoutRow(bemaniGroupHeaders[groupIdx], true);
-                lastGroup = group;
-            }
-            layoutRow(bemaniLabels[i], true);
-        }
-    }
-    else
-    {
-        for (int g = 0; g < 3; g++)
-            bemaniGroupHeaders[g].setVisible(false);
-        for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++)
-            bemaniLabels[i].setVisible(false);
-    }
-    y += headerGap;
-
-    // Curvature section moved to the top (above Perspective) — no second render here.
-
-    // Base Scale table
-    baseScaleHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (baseScaleHeader.expanded)
-    {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        baseScaleColHdrLabels, BASE_SCALE_COLS,
-                        baseScaleRowLabels, &baseScaleParams[0][0],
-                        BASE_SCALE_ROWS, BASE_SCALE_COLS, 34);
-        // Gem type scales
-        layoutTunableRows(gemTypeLabels, GEM_TYPE_COUNT, true, margin, w, rowHeight, gap, y);
-    }
-    else
-    {
-        hideTable(baseScaleColHdrLabels, BASE_SCALE_COLS, baseScaleRowLabels, &baseScaleParams[0][0], BASE_SCALE_ROWS, BASE_SCALE_COLS);
-        layoutTunableRows(gemTypeLabels, GEM_TYPE_COUNT, false, margin, w, rowHeight, gap, y);
-    }
-    y += headerGap;
-
-    // Hit Scale table
-    hitScaleHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (hitScaleHeader.expanded)
-    {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        hitScaleColHdrLabels, HIT_SCALE_COLS,
-                        hitScaleRowLabels, &hitScaleParams[0][0],
-                        HIT_SCALE_ROWS, HIT_SCALE_COLS, 34);
-        layoutTunableRows(hitTypeLabels, HIT_TYPE_FLOAT_COUNT, true, margin, w, rowHeight, gap, y);
-        for (int i = 0; i < HIT_TYPE_BOOL_COUNT; i++)
-            layoutRow(hitTypeBoolLabels[i], true);
-    }
-    else
-    {
-        hideTable(hitScaleColHdrLabels, HIT_SCALE_COLS, hitScaleRowLabels, &hitScaleParams[0][0], HIT_SCALE_ROWS, HIT_SCALE_COLS);
-        layoutTunableRows(hitTypeLabels, HIT_TYPE_FLOAT_COUNT, false, margin, w, rowHeight, gap, y);
-        for (int i = 0; i < HIT_TYPE_BOOL_COUNT; i++)
-            hitTypeBoolLabels[i].setVisible(false);
-    }
-    y += headerGap;
-
-    // Z Offsets section moved to the top of the panel — no second render here.
-
-    // Strike Position table
-    strikeHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (strikeHeader.expanded)
-    {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        strikeColHdrLabels, STRIKE_COLS,
-                        strikeRowLabels, &strikeParams[0][0],
-                        STRIKE_ROWS, STRIKE_COLS, 34);
-    }
-    else
-    {
-        hideTable(strikeColHdrLabels, STRIKE_COLS, strikeRowLabels, &strikeParams[0][0], STRIKE_ROWS, STRIKE_COLS);
-    }
-    y += headerGap;
-
-    // Guitar Cols (notes table + lanes table under one header)
-    guitarColsHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (guitarColsHeader.expanded)
-    {
-        layoutRow(gcolSubNoteLabel, true);
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        gcolNoteHdrLabels, COL_NOTE_COLS,
-                        gcolNoteRowLabels, &gcolNoteParams[0][0],
-                        GUITAR_LANES, COL_NOTE_COLS, 28);
-        y += headerGap;
-        layoutRow(gcolSubLaneLabel, true);
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        gcolLaneHdrLabels, COL_LANE_COLS,
-                        gcolLaneRowLabels, &gcolLaneParams[0][0],
-                        GUITAR_LANES, COL_LANE_COLS, 34);
-    }
-    else
-    {
-        gcolSubNoteLabel.setVisible(false);
-        gcolSubLaneLabel.setVisible(false);
-        hideTable(gcolNoteHdrLabels, COL_NOTE_COLS, gcolNoteRowLabels, &gcolNoteParams[0][0], GUITAR_LANES, COL_NOTE_COLS);
-        hideTable(gcolLaneHdrLabels, COL_LANE_COLS, gcolLaneRowLabels, &gcolLaneParams[0][0], GUITAR_LANES, COL_LANE_COLS);
-    }
-    y += headerGap;
-
-    // Drum Cols (notes table + lanes table under one header)
-    drumColsHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (drumColsHeader.expanded)
-    {
-        layoutRow(dcolSubNoteLabel, true);
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        dcolNoteHdrLabels, COL_NOTE_COLS,
-                        dcolNoteRowLabels, &dcolNoteParams[0][0],
-                        DRUM_LANES, COL_NOTE_COLS, 28);
-        y += headerGap;
-        layoutRow(dcolSubLaneLabel, true);
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        dcolLaneHdrLabels, COL_LANE_COLS,
-                        dcolLaneRowLabels, &dcolLaneParams[0][0],
-                        DRUM_LANES, COL_LANE_COLS, 34);
-    }
-    else
-    {
-        dcolSubNoteLabel.setVisible(false);
-        dcolSubLaneLabel.setVisible(false);
-        hideTable(dcolNoteHdrLabels, COL_NOTE_COLS, dcolNoteRowLabels, &dcolNoteParams[0][0], DRUM_LANES, COL_NOTE_COLS);
-        hideTable(dcolLaneHdrLabels, COL_LANE_COLS, dcolLaneRowLabels, &dcolLaneParams[0][0], DRUM_LANES, COL_LANE_COLS);
-    }
-    y += headerGap;
-
-    // Lane Width sliders (always visible)
+    // --- Lane Width sliders (always visible — quick tune) ---
     layoutRow(laneWidthLabel, true);
     layoutRow(laneOpenWidthLabel, true);
-
-    // Lane Shape (table layout)
-    laneShapeHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
-    if (laneShapeHeader.expanded)
-    {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        laneShapeColHdrLabels, LANE_SHAPE_COLS,
-                        laneShapeRowLabels, &laneShapeParams[0][0],
-                        LANE_SHAPE_ROWS, LANE_SHAPE_COLS, 40);
-    }
-    else
-    {
-        hideTable(laneShapeColHdrLabels, LANE_SHAPE_COLS, laneShapeRowLabels, &laneShapeParams[0][0], LANE_SHAPE_ROWS, LANE_SHAPE_COLS);
-    }
     y += headerGap;
 
-    // Overlay Adjust (table layout)
-    overlayAdjustHeader.setBounds(margin, y, w, rowHeight);
-    y += rowHeight + gap;
+    // --- Everything below is "advanced" — hidden by default to declutter the
+    //     panel. The headers + their content are still wired and tunable; they
+    //     just don't render here. To re-expose any section, add a layoutRow /
+    //     setBounds call for its header above. Pre-existing data and callbacks
+    //     are intact, so nothing breaks if they come back.
+    perspectiveHeader.setVisible(false);
+    layoutTunableRows(perspLabels, PERSP_COUNT, false, margin, w, rowHeight, gap, y);
 
-    if (overlayAdjustHeader.expanded)
-    {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        overlayColHeaderLabels, OVERLAY_PARAMS,
-                        overlayRowNameLabels, &overlayParamLabels[0][0],
-                        NUM_OVERLAY_TYPES, OVERLAY_PARAMS, 34);
-    }
-    else
-    {
-        hideTable(overlayColHeaderLabels, OVERLAY_PARAMS, overlayRowNameLabels, &overlayParamLabels[0][0], NUM_OVERLAY_TYPES, OVERLAY_PARAMS);
-    }
+    trackHeader.setVisible(false);
+    hideTable(layerColHdrLabels, LAYER_COLS, layerRowLabels, &layerParams[0][0], NUM_DISPLAY_LAYERS, LAYER_COLS);
+    layoutTunableRows(trackSliderLabels, TRACK_SLIDER_COUNT, false, margin, w, rowHeight, gap, y);
+    polyShadeToggle.setVisible(false);
+    debugColourToggle.setVisible(false);
+    stretchToggle.setVisible(false);
+    bemaniToggle.setVisible(false);
+
+    bemaniHeader.setVisible(false);
+    for (int g = 0; g < 3; g++) bemaniGroupHeaders[g].setVisible(false);
+    for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++) bemaniLabels[i].setVisible(false);
+
+    baseScaleHeader.setVisible(false);
+    hideTable(baseScaleColHdrLabels, BASE_SCALE_COLS, baseScaleRowLabels, &baseScaleParams[0][0], BASE_SCALE_ROWS, BASE_SCALE_COLS);
+    layoutTunableRows(gemTypeLabels, GEM_TYPE_COUNT, false, margin, w, rowHeight, gap, y);
+
+    hitScaleHeader.setVisible(false);
+    hideTable(hitScaleColHdrLabels, HIT_SCALE_COLS, hitScaleRowLabels, &hitScaleParams[0][0], HIT_SCALE_ROWS, HIT_SCALE_COLS);
+    layoutTunableRows(hitTypeLabels, HIT_TYPE_FLOAT_COUNT, false, margin, w, rowHeight, gap, y);
+    for (int i = 0; i < HIT_TYPE_BOOL_COUNT; i++) hitTypeBoolLabels[i].setVisible(false);
+
+    strikeHeader.setVisible(false);
+    hideTable(strikeColHdrLabels, STRIKE_COLS, strikeRowLabels, &strikeParams[0][0], STRIKE_ROWS, STRIKE_COLS);
+
+    guitarColsHeader.setVisible(false);
+    gcolSubNoteLabel.setVisible(false);
+    gcolSubLaneLabel.setVisible(false);
+    hideTable(gcolNoteHdrLabels, COL_NOTE_COLS, gcolNoteRowLabels, &gcolNoteParams[0][0], GUITAR_LANES, COL_NOTE_COLS);
+    hideTable(gcolLaneHdrLabels, COL_LANE_COLS, gcolLaneRowLabels, &gcolLaneParams[0][0], GUITAR_LANES, COL_LANE_COLS);
+
+    drumColsHeader.setVisible(false);
+    dcolSubNoteLabel.setVisible(false);
+    dcolSubLaneLabel.setVisible(false);
+    hideTable(dcolNoteHdrLabels, COL_NOTE_COLS, dcolNoteRowLabels, &dcolNoteParams[0][0], DRUM_LANES, COL_NOTE_COLS);
+    hideTable(dcolLaneHdrLabels, COL_LANE_COLS, dcolLaneRowLabels, &dcolLaneParams[0][0], DRUM_LANES, COL_LANE_COLS);
+
+    laneShapeHeader.setVisible(false);
+    hideTable(laneShapeColHdrLabels, LANE_SHAPE_COLS, laneShapeRowLabels, &laneShapeParams[0][0], LANE_SHAPE_ROWS, LANE_SHAPE_COLS);
+
+    overlayAdjustHeader.setVisible(false);
+    hideTable(overlayColHeaderLabels, OVERLAY_PARAMS, overlayRowNameLabels, &overlayParamLabels[0][0], NUM_OVERLAY_TYPES, OVERLAY_PARAMS);
 
     panel->setSize(panel->getWidth(), y + margin);
 }
