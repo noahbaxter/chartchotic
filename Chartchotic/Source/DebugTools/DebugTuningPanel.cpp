@@ -26,11 +26,15 @@ void DebugTuningPanel::initTunableSliders(ScrollableLabel* labels, const DebugTu
             return s;
         };
         labels[i].setText(fmtRow(t.name, *t.value, t.decimals), juce::dontSendNotification);
-        labels[i].onScroll = [this, i, &t = tunables[i], onChange, labels, fmtRow](int delta) {
-            *t.value = juce::jlimit(t.min, t.max, *t.value + delta * t.step);
+        auto apply = [this, i, &t = tunables[i], onChange, labels, fmtRow](float newVal) {
+            *t.value = juce::jlimit(t.min, t.max, newVal);
             labels[i].setText(fmtRow(t.name, *t.value, t.decimals), juce::dontSendNotification);
             if (onChange) onChange();
         };
+        labels[i].onScroll = [&t = tunables[i], apply](int delta) {
+            apply(*t.value + delta * t.step);
+        };
+        labels[i].onSet = apply;
     }
 }
 
@@ -130,12 +134,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(layerParams[r][c]);
             layerParams[r][c].setFont(juce::Font(10.0f));
             layerParams[r][c].setJustificationType(juce::Justification::centred);
-            layerParams[r][c].onScroll = [this, r, c, getLayerPtr](int delta) {
+            auto apply = [this, r, c, getLayerPtr](float newVal) {
                 float* val = getLayerPtr(r, c);
-                *val = juce::jlimit(layerLo[c], layerHi[c], *val + delta * layerStep[c]);
+                *val = juce::jlimit(layerLo[c], layerHi[c], newVal);
                 layerParams[r][c].setText(juce::String(*val, layerDec[c]), juce::dontSendNotification);
                 fireLayer(r);
             };
+            layerParams[r][c].onScroll = [c, getLayerPtr, r, apply](int delta) {
+                apply(*getLayerPtr(r, c) + delta * layerStep[c]);
+            };
+            layerParams[r][c].onSet = apply;
         }
     }
 
@@ -175,12 +183,17 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             const auto& t = trackSliderTunables[i];
             setupScrollLabel(trackSliderLabels[i]);
             trackSliderLabels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
-            trackSliderLabels[i].onScroll = [this, i, cb = std::move(callbacks[i])](int delta) {
+            auto apply = [this, i, cb = callbacks[i]](float newVal) {
                 const auto& t = trackSliderTunables[i];
-                *t.value = juce::jlimit(t.min, t.max, *t.value + delta * t.step);
+                *t.value = juce::jlimit(t.min, t.max, newVal);
                 trackSliderLabels[i].setText(juce::String(t.name) + ": " + juce::String(*t.value, t.decimals), juce::dontSendNotification);
                 if (cb) cb();
             };
+            trackSliderLabels[i].onScroll = [this, i, apply](int delta) {
+                const auto& t = trackSliderTunables[i];
+                apply(*t.value + delta * t.step);
+            };
+            trackSliderLabels[i].onSet = apply;
         }
     }
 
@@ -229,12 +242,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
         float& val = bemaniConfig.*t.field;
         bemaniLabels[i].setText(juce::String(t.name) + ": " + juce::String(val, t.decimals), juce::dontSendNotification);
-        bemaniLabels[i].onScroll = [this, i, &t = bemaniTunables[i]](int delta) {
+        auto apply = [this, i, &t = bemaniTunables[i]](float newVal) {
             float& v = bemaniConfig.*t.field;
-            v = juce::jlimit(t.min, t.max, v + delta * t.step);
+            v = juce::jlimit(t.min, t.max, newVal);
             bemaniLabels[i].setText(juce::String(t.name) + ": " + juce::String(v, t.decimals), juce::dontSendNotification);
             if (onBemaniTuningChanged) onBemaniTuningChanged();
         };
+        bemaniLabels[i].onScroll = [this, &t = bemaniTunables[i], apply](int delta) {
+            apply(bemaniConfig.*t.field + delta * t.step);
+        };
+        bemaniLabels[i].onSet = apply;
     }
 
     // --- Curvature section (data-driven) ---
@@ -278,12 +295,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(baseScaleParams[r][c]);
             baseScaleParams[r][c].setFont(juce::Font(10.0f));
             baseScaleParams[r][c].setJustificationType(juce::Justification::centred);
-            baseScaleParams[r][c].onScroll = [this, r, c, getBaseScalePtr](int delta) {
+            auto apply = [this, r, c, getBaseScalePtr](float newVal) {
                 float* val = getBaseScalePtr(r, c);
-                *val = juce::jlimit(0.50f, 2.00f, *val + delta * 0.01f);
+                *val = juce::jlimit(0.50f, 2.00f, newVal);
                 baseScaleParams[r][c].setText(juce::String(*val, 2), juce::dontSendNotification);
                 fireChanged();
             };
+            baseScaleParams[r][c].onScroll = [r, c, getBaseScalePtr, apply](int delta) {
+                apply(*getBaseScalePtr(r, c) + delta * 0.01f);
+            };
+            baseScaleParams[r][c].onSet = apply;
         }
     }
 
@@ -329,12 +350,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(hitScaleParams[r][c]);
             hitScaleParams[r][c].setFont(juce::Font(10.0f));
             hitScaleParams[r][c].setJustificationType(juce::Justification::centred);
-            hitScaleParams[r][c].onScroll = [this, r, c, getHitScalePtr](int delta) {
+            auto apply = [this, r, c, getHitScalePtr](float newVal) {
                 float* val = getHitScalePtr(r, c);
-                *val = juce::jlimit(0.50f, 3.00f, *val + delta * 0.01f);
+                *val = juce::jlimit(0.50f, 3.00f, newVal);
                 hitScaleParams[r][c].setText(juce::String(*val, 2), juce::dontSendNotification);
                 fireChanged();
             };
+            hitScaleParams[r][c].onScroll = [r, c, getHitScalePtr, apply](int delta) {
+                apply(*getHitScalePtr(r, c) + delta * 0.01f);
+            };
+            hitScaleParams[r][c].onSet = apply;
         }
     }
 
@@ -401,12 +426,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(zParams[r][c]);
             zParams[r][c].setFont(juce::Font(13.0f));
             zParams[r][c].setJustificationType(juce::Justification::centred);
-            zParams[r][c].onScroll = [this, r, c, getZPtr](int delta) {
+            auto apply = [this, r, c, getZPtr](float newVal) {
                 float* val = getZPtr(r, c);
-                *val = juce::jlimit(-50.0f, 50.0f, *val + delta * 0.5f);
+                *val = juce::jlimit(-50.0f, 50.0f, newVal);
                 zParams[r][c].setText(juce::String(*val, 1), juce::dontSendNotification);
                 fireChanged();
             };
+            zParams[r][c].onScroll = [r, c, getZPtr, apply](int delta) {
+                apply(*getZPtr(r, c) + delta * 0.5f);
+            };
+            zParams[r][c].onSet = apply;
         }
     }
 
@@ -433,12 +462,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(strikeParams[r][c]);
             strikeParams[r][c].setFont(juce::Font(10.0f));
             strikeParams[r][c].setJustificationType(juce::Justification::centred);
-            strikeParams[r][c].onScroll = [this, r, c, getStrikePtr](int delta) {
+            auto apply = [this, r, c, getStrikePtr](float newVal) {
                 float* val = getStrikePtr(r, c);
-                *val = juce::jlimit(-0.10f, 0.10f, *val + delta * 0.002f);
+                *val = juce::jlimit(-0.10f, 0.10f, newVal);
                 strikeParams[r][c].setText(juce::String(*val, 3), juce::dontSendNotification);
                 fireChanged();
             };
+            strikeParams[r][c].onScroll = [r, c, getStrikePtr, apply](int delta) {
+                apply(*getStrikePtr(r, c) + delta * 0.002f);
+            };
+            strikeParams[r][c].onSet = apply;
         }
     }
 
@@ -490,12 +523,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(gcolNoteParams[r][c]);
             gcolNoteParams[r][c].setFont(juce::Font(10.0f));
             gcolNoteParams[r][c].setJustificationType(juce::Justification::centred);
-            gcolNoteParams[r][c].onScroll = [this, r, c, getColAdjustField](int delta) {
+            auto apply = [this, r, c, getColAdjustField](float newVal) {
                 float* val = getColAdjustField(guitarColAdjust[r], c);
-                *val = juce::jlimit(noteLo[c], noteHi[c], *val + delta * noteStep[c]);
+                *val = juce::jlimit(noteLo[c], noteHi[c], newVal);
                 gcolNoteParams[r][c].setText(juce::String(*val, noteDec[c]), juce::dontSendNotification);
                 fireChanged();
             };
+            gcolNoteParams[r][c].onScroll = [this, r, c, getColAdjustField, apply](int delta) {
+                apply(*getColAdjustField(guitarColAdjust[r], c) + delta * noteStep[c]);
+            };
+            gcolNoteParams[r][c].onSet = apply;
         }
     }
 
@@ -524,12 +561,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(gcolLaneParams[r][c]);
             gcolLaneParams[r][c].setFont(juce::Font(10.0f));
             gcolLaneParams[r][c].setJustificationType(juce::Justification::centred);
-            gcolLaneParams[r][c].onScroll = [this, r, c, getGcolLanePtr](int delta) {
+            auto apply = [this, r, c, getGcolLanePtr](float newVal) {
                 float* val = getGcolLanePtr(r, c);
-                *val = juce::jlimit(0.0f, 1.0f, *val + delta * 0.001f);
+                *val = juce::jlimit(0.0f, 1.0f, newVal);
                 gcolLaneParams[r][c].setText(juce::String(*val, 3), juce::dontSendNotification);
                 fireLaneChanged();
             };
+            gcolLaneParams[r][c].onScroll = [r, c, getGcolLanePtr, apply](int delta) {
+                apply(*getGcolLanePtr(r, c) + delta * 0.001f);
+            };
+            gcolLaneParams[r][c].onSet = apply;
         }
     }
 
@@ -554,12 +595,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(dcolNoteParams[r][c]);
             dcolNoteParams[r][c].setFont(juce::Font(10.0f));
             dcolNoteParams[r][c].setJustificationType(juce::Justification::centred);
-            dcolNoteParams[r][c].onScroll = [this, r, c, getColAdjustField](int delta) {
+            auto apply = [this, r, c, getColAdjustField](float newVal) {
                 float* val = getColAdjustField(drumColAdjust[r], c);
-                *val = juce::jlimit(noteLo[c], noteHi[c], *val + delta * noteStep[c]);
+                *val = juce::jlimit(noteLo[c], noteHi[c], newVal);
                 dcolNoteParams[r][c].setText(juce::String(*val, noteDec[c]), juce::dontSendNotification);
                 fireChanged();
             };
+            dcolNoteParams[r][c].onScroll = [this, r, c, getColAdjustField, apply](int delta) {
+                apply(*getColAdjustField(drumColAdjust[r], c) + delta * noteStep[c]);
+            };
+            dcolNoteParams[r][c].onSet = apply;
         }
     }
 
@@ -588,12 +633,16 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(dcolLaneParams[r][c]);
             dcolLaneParams[r][c].setFont(juce::Font(10.0f));
             dcolLaneParams[r][c].setJustificationType(juce::Justification::centred);
-            dcolLaneParams[r][c].onScroll = [this, r, c, getDcolLanePtr](int delta) {
+            auto apply = [this, r, c, getDcolLanePtr](float newVal) {
                 float* val = getDcolLanePtr(r, c);
-                *val = juce::jlimit(0.0f, 1.0f, *val + delta * 0.001f);
+                *val = juce::jlimit(0.0f, 1.0f, newVal);
                 dcolLaneParams[r][c].setText(juce::String(*val, 3), juce::dontSendNotification);
                 fireLaneChanged();
             };
+            dcolLaneParams[r][c].onScroll = [r, c, getDcolLanePtr, apply](int delta) {
+                apply(*getDcolLanePtr(r, c) + delta * 0.001f);
+            };
+            dcolLaneParams[r][c].onSet = apply;
         }
     }
 
@@ -610,20 +659,28 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     setupScrollLabel(laneWidthLabel);
     laneWidthLabel.setFont(laneMonoFont);
     laneWidthLabel.setText(fmtLane("Lane Width", PositionConstants::LANE_WIDTH), juce::dontSendNotification);
-    laneWidthLabel.onScroll = [this, fmtLane](int delta) {
-        PositionConstants::LANE_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_WIDTH + delta * 0.02f);
+    auto applyLaneWidth = [this, fmtLane](float newVal) {
+        PositionConstants::LANE_WIDTH = juce::jlimit(0.20f, 2.00f, newVal);
         laneWidthLabel.setText(fmtLane("Lane Width", PositionConstants::LANE_WIDTH), juce::dontSendNotification);
         fireChanged();
     };
+    laneWidthLabel.onScroll = [applyLaneWidth](int delta) {
+        applyLaneWidth(PositionConstants::LANE_WIDTH + delta * 0.02f);
+    };
+    laneWidthLabel.onSet = applyLaneWidth;
 
     setupScrollLabel(laneOpenWidthLabel);
     laneOpenWidthLabel.setFont(laneMonoFont);
     laneOpenWidthLabel.setText(fmtLane("Lane Open Width", PositionConstants::LANE_OPEN_WIDTH), juce::dontSendNotification);
-    laneOpenWidthLabel.onScroll = [this, fmtLane](int delta) {
-        PositionConstants::LANE_OPEN_WIDTH = juce::jlimit(0.20f, 2.00f, PositionConstants::LANE_OPEN_WIDTH + delta * 0.02f);
+    auto applyLaneOpenWidth = [this, fmtLane](float newVal) {
+        PositionConstants::LANE_OPEN_WIDTH = juce::jlimit(0.20f, 2.00f, newVal);
         laneOpenWidthLabel.setText(fmtLane("Lane Open Width", PositionConstants::LANE_OPEN_WIDTH), juce::dontSendNotification);
         fireChanged();
     };
+    laneOpenWidthLabel.onScroll = [applyLaneOpenWidth](int delta) {
+        applyLaneOpenWidth(PositionConstants::LANE_OPEN_WIDTH + delta * 0.02f);
+    };
+    laneOpenWidthLabel.onSet = applyLaneOpenWidth;
 
     // --- Lane Shape section ---
     setupSectionHeader(laneShapeHeader, "Lane Shape");
@@ -657,15 +714,19 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(laneShapeParams[r][c]);
             laneShapeParams[r][c].setFont(juce::Font(10.0f));
             laneShapeParams[r][c].setJustificationType(juce::Justification::centred);
-            laneShapeParams[r][c].onScroll = [this, r, c, getLaneShapePtr](int delta) {
-                float step = (c == 0) ? 0.002f : 0.005f;
+            auto apply = [this, r, c, getLaneShapePtr](float newVal) {
                 float lo = (c == 0) ? -0.10f : -0.20f;
                 float hi = (c == 0) ?  0.10f :  0.20f;
                 float* val = getLaneShapePtr(r, c);
-                *val = juce::jlimit(lo, hi, *val + delta * step);
+                *val = juce::jlimit(lo, hi, newVal);
                 laneShapeParams[r][c].setText(juce::String(*val, 3), juce::dontSendNotification);
                 fireChanged();
             };
+            laneShapeParams[r][c].onScroll = [r, c, getLaneShapePtr, apply](int delta) {
+                float step = (c == 0) ? 0.002f : 0.005f;
+                apply(*getLaneShapePtr(r, c) + delta * step);
+            };
+            laneShapeParams[r][c].onSet = apply;
         }
     }
 
@@ -688,22 +749,27 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             setupScrollLabel(overlayParamLabels[r][c]);
             overlayParamLabels[r][c].setFont(juce::Font(10.0f));
             overlayParamLabels[r][c].setJustificationType(juce::Justification::centred);
-            overlayParamLabels[r][c].onScroll = [this, r, c](int delta) {
-                float step = (c < 2) ? 0.01f : 0.01f;
+            auto getOverlayPtr = [this, r, c]() -> float* {
+                switch (c) {
+                case 0: return &overlayAdjusts[r].offsetX;
+                case 1: return &overlayAdjusts[r].offsetY;
+                case 2: return &overlayAdjusts[r].scaleX;
+                case 3: return &overlayAdjusts[r].scaleY;
+                default: return &overlayAdjusts[r].scale;
+                }
+            };
+            auto apply = [this, r, c, getOverlayPtr](float newVal) {
                 float lo = (c < 2) ? -1.0f : 0.10f;
                 float hi = (c < 2) ?  1.0f : 3.00f;
-                float* val = nullptr;
-                switch (c) {
-                case 0: val = &overlayAdjusts[r].offsetX; break;
-                case 1: val = &overlayAdjusts[r].offsetY; break;
-                case 2: val = &overlayAdjusts[r].scaleX; break;
-                case 3: val = &overlayAdjusts[r].scaleY; break;
-                case 4: val = &overlayAdjusts[r].scale; break;
-                }
-                *val = juce::jlimit(lo, hi, *val + delta * step);
+                float* val = getOverlayPtr();
+                *val = juce::jlimit(lo, hi, newVal);
                 overlayParamLabels[r][c].setText(juce::String(*val, 2), juce::dontSendNotification);
                 fireChanged();
             };
+            overlayParamLabels[r][c].onScroll = [getOverlayPtr, apply](int delta) {
+                apply(*getOverlayPtr() + delta * 0.01f);
+            };
+            overlayParamLabels[r][c].onSet = apply;
         }
     }
 

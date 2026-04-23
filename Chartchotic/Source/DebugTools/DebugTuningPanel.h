@@ -112,15 +112,32 @@ private:
     class ScrollableLabel : public juce::Label
     {
     public:
+        // Scroll / drag: adjust by one step per delta tick.
         std::function<void(int delta)> onScroll;
+        // Double-click-to-edit commit: absolute value typed by user.
+        // Each site that cares about precise entry should wire both onScroll + onSet.
+        std::function<void(float absolute)> onSet;
+
+        ScrollableLabel()
+        {
+            // Double-click to edit; keep typed value on focus loss (don't discard).
+            setEditable(false, true, false);
+        }
+
         void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& wheel) override
         {
+            if (isBeingEdited()) return;
             int delta = (wheel.deltaY > 0) ? 1 : -1;
             if (onScroll) onScroll(delta);
         }
-        void mouseDown(const juce::MouseEvent& e) override { lastDragY = e.y; }
+        void mouseDown(const juce::MouseEvent& e) override
+        {
+            if (isBeingEdited()) { juce::Label::mouseDown(e); return; }
+            lastDragY = e.y;
+        }
         void mouseDrag(const juce::MouseEvent& e) override
         {
+            if (isBeingEdited()) { juce::Label::mouseDrag(e); return; }
             int diff = lastDragY - e.y;
             int steps = diff / dragPixelsPerStep;
             if (steps != 0 && onScroll)
@@ -130,6 +147,29 @@ private:
                 lastDragY -= steps * dragPixelsPerStep;
             }
         }
+
+    protected:
+        // When the editor opens, strip the padded "  name     value" rows down to
+        // just the numeric token so the user doesn't have to edit around the label.
+        // Grid cells (text is already just "1.23") keep their text as-is.
+        void editorShown(juce::TextEditor* ed) override
+        {
+            juce::Label::editorShown(ed);
+            if (ed == nullptr) return;
+            auto text = getText().trim();
+            auto lastSpace = text.lastIndexOfAnyOf(" \t");
+            if (lastSpace > 0)
+                ed->setText(text.substring(lastSpace + 1), juce::dontSendNotification);
+            ed->selectAll();
+        }
+
+        void textWasEdited() override
+        {
+            juce::Label::textWasEdited();
+            if (onSet)
+                onSet(getText().trim().getFloatValue());
+        }
+
     private:
         int lastDragY = 0;
         static constexpr int dragPixelsPerStep = 3;
