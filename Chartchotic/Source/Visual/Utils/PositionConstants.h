@@ -180,8 +180,8 @@ namespace PositionConstants
         { 0.0f, -0.03f, 1.0f, 1.0f, 1.0f },  // GUITAR_TAP
         { 0.0f, -0.03f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_GHOST
         { 0.0f, -0.10f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_ACCENT
-        {},                                     // DRUM_CYM_GHOST
-        {},                                     // DRUM_CYM_ACCENT
+        { 0.0f, -0.05f, 1.0f, 1.0f, 1.0f },  // DRUM_CYM_GHOST
+        { 0.0f, -0.08f, 1.0f, 1.0f, 1.0f },  // DRUM_CYM_ACCENT
     };
 
     //==============================================================================

@@ -112,7 +112,7 @@ private:
     class ScrollableLabel : public juce::Label
     {
     public:
-        // Scroll / drag: adjust by one step per delta tick.
+        // Scroll / drag / arrow-key: adjust by one step per delta tick.
         std::function<void(int delta)> onScroll;
         // Double-click-to-edit commit: absolute value typed by user.
         // Each site that cares about precise entry should wire both onScroll + onSet.
@@ -122,6 +122,9 @@ private:
         {
             // Double-click to edit; keep typed value on focus loss (don't discard).
             setEditable(false, true, false);
+            // Single click focuses the cell so arrow keys nudge the value.
+            setWantsKeyboardFocus(true);
+            setMouseClickGrabsKeyboardFocus(true);
         }
 
         void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& wheel) override
@@ -145,6 +148,35 @@ private:
                 for (int i = 0; i < std::abs(steps); i++)
                     onScroll(steps > 0 ? 1 : -1);
                 lastDragY -= steps * dragPixelsPerStep;
+            }
+        }
+
+        // Arrow keys nudge the value when the cell has keyboard focus (set by
+        // clicking the cell). Routes through onScroll so the step size matches
+        // wheel/drag. Ignored while the text editor is open — the editor
+        // consumes arrow keys for cursor navigation.
+        bool keyPressed(const juce::KeyPress& key) override
+        {
+            if (isBeingEdited()) return false;
+            const int code = key.getKeyCode();
+            if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey)
+            {
+                if (onScroll) onScroll(code == juce::KeyPress::upKey ? 1 : -1);
+                return true;
+            }
+            return juce::Label::keyPressed(key);
+        }
+
+        void focusGained(juce::Component::FocusChangeType) override { repaint(); }
+        void focusLost(juce::Component::FocusChangeType) override   { repaint(); }
+
+        void paint(juce::Graphics& g) override
+        {
+            juce::Label::paint(g);
+            if (hasKeyboardFocus(false) && !isBeingEdited())
+            {
+                g.setColour(juce::Colour(Theme::coral).withAlpha(0.7f));
+                g.drawRect(getLocalBounds(), 1);
             }
         }
 

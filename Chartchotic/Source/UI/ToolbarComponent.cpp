@@ -521,7 +521,7 @@ void ToolbarComponent::resized()
 #ifdef DEBUG
     // Debug (D) and Tuning (T) as small stacked squares
     debugPanel.getButton().setScale(scale);
-    tuningPanel.getButton().setScale(scale);
+    // Tuning panel intentionally doesn't scale — content is fixed-size, scaling just wastes chart width.
     int sqSize = (h - juce::roundToInt(2.0f * scale)) / 2;
     rx -= (gap + sqSize);
     debugPanel.getButton().setBounds(rx, y, sqSize, sqSize);

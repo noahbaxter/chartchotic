@@ -925,7 +925,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             tuningButton.addPanelChild(&overlayParamLabels[r][c]);
     }
 
-    tuningButton.setPanelSize(340, 580);
+    tuningButton.setPanelSize(280, 580);
     tuningButton.onLayoutPanel = [this](juce::Component* panel) { layoutPanel(panel); };
 }
 
