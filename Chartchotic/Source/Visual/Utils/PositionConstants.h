@@ -180,7 +180,7 @@ namespace PositionConstants
         { 0.0f, -0.03f, 1.0f, 1.0f, 1.0f },  // GUITAR_TAP
         { 0.0f, -0.03f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_GHOST
         { 0.0f, -0.10f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_ACCENT
-        { 0.0f, -0.05f, 1.0f, 1.0f, 1.0f },  // DRUM_CYM_GHOST
+        { 0.0f, -0.04f, 1.0f, 1.0f, 1.33f }, // DRUM_CYM_GHOST
         { 0.0f, -0.08f, 1.0f, 1.0f, 1.0f },  // DRUM_CYM_ACCENT
     };
 
@@ -335,7 +335,7 @@ namespace PositionConstants
     //==============================================================================
     // Gem/bar base scales (ElementScale: width, height)
     constexpr ElementScale GEM_SCALE = {1.0f, 1.15f};
-    constexpr ElementScale BAR_SCALE = {1.0f, 1.0f};
+    constexpr ElementScale BAR_SCALE = {1.05f, 1.05f};
 
     //==============================================================================
     // Hit animation scales (HitScale: uniform scale, width, height)

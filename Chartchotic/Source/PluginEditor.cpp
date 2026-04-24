@@ -91,6 +91,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
+#ifdef DEBUG
+    toolbar.getTuningPanel().setAssetManager(assetManager);
+#endif
+
     // Wire and add all pooled highway slots to component tree (hidden by default).
     // In standalone debug mode, rebuildSlots may have already replaced
     // the default slot during init — just re-wire to be safe.

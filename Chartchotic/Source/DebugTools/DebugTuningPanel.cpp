@@ -2,6 +2,7 @@
 
 #include "DebugTuningPanel.h"
 #include "../Visual/Renderers/SceneRenderer.h"
+#include "../Visual/Managers/AssetManager.h"
 #include <cstring>
 
 // --- Shared helpers for data-driven slider sections ---
@@ -773,9 +774,63 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         }
     }
 
+    // --- Unified Adjust table ---
+    setupSectionHeader(adjustHeader, "Adjust (X,Y=offset  W,H,S=scale)");
+    adjustHeader.setExpanded(true);
+
+    for (int c = 0; c < ADJUST_COLS; c++)
+    {
+        setupTableHeader(adjustColHdrLabels[c]);
+        adjustColHdrLabels[c].setText(adjustColNames[c], juce::dontSendNotification);
+    }
+
+    for (int r = 0; r < ADJUST_ROWS; r++)
+    {
+        adjustRowNameLabels[r].setText(adjustRowNames[r], juce::dontSendNotification);
+        adjustRowNameLabels[r].setJustificationType(juce::Justification::centredLeft);
+        adjustRowNameLabels[r].setColour(juce::Label::textColourId, juce::Colours::white);
+        adjustRowNameLabels[r].setFont(juce::Font(10.0f));
+
+        for (int c = 0; c < ADJUST_COLS; c++)
+        {
+            auto& cell = adjustParams[r][c];
+            setupScrollLabel(cell);
+            cell.setFont(juce::Font(10.0f));
+            cell.setJustificationType(juce::Justification::centred);
+
+            if (getAdjustPtr(r, c) == nullptr)
+            {
+                cell.setText("-", juce::dontSendNotification);
+                cell.setColour(juce::Label::textColourId, juce::Colours::grey);
+                cell.setEditable(false, false, false);
+                cell.setWantsKeyboardFocus(false);
+                cell.setInterceptsMouseClicks(false, false);
+                continue;
+            }
+
+            auto apply = [this, r, c](float newVal) {
+                float* val = getAdjustPtr(r, c);
+                if (val == nullptr) return;
+                // Offset rows get a tight range; scale cells use a wider one.
+                const float lo = (c < 2) ? -1.0f : 0.10f;
+                const float hi = (c < 2) ?  1.0f : 3.00f;
+                *val = juce::jlimit(lo, hi, newVal);
+                adjustParams[r][c].setText(juce::String(*val, 2), juce::dontSendNotification);
+                fireChanged();
+            };
+            cell.onScroll = [this, r, c, apply](int delta) {
+                float* val = getAdjustPtr(r, c);
+                if (val == nullptr) return;
+                apply(*val + delta * 0.01f);
+            };
+            cell.onSet = apply;
+        }
+    }
+
     refreshLabels();
     refreshTrackLabels();
     refreshColLabels();
+    refreshAdjustLabels();
 
     // =========================================================================
     // Register panel children
@@ -914,7 +969,8 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
             tuningButton.addPanelChild(&laneShapeParams[r][c]);
     }
 
-    // Overlay Adjust table
+    // Overlay Adjust table (legacy — hidden in layoutPanel; retained so the
+    // OverlayAdjust* data syncing doesn't require a reshuffle yet.)
     tuningButton.addPanelChild(&overlayAdjustHeader);
     for (int c = 0; c < OVERLAY_PARAMS; c++)
         tuningButton.addPanelChild(&overlayColHeaderLabels[c]);
@@ -923,6 +979,18 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         tuningButton.addPanelChild(&overlayRowNameLabels[r]);
         for (int c = 0; c < OVERLAY_PARAMS; c++)
             tuningButton.addPanelChild(&overlayParamLabels[r][c]);
+    }
+
+    // Unified Adjust table
+    tuningButton.addPanelChild(&adjustHeader);
+    for (int c = 0; c < ADJUST_COLS; c++)
+        tuningButton.addPanelChild(&adjustColHdrLabels[c]);
+    for (int r = 0; r < ADJUST_ROWS; r++)
+    {
+        tuningButton.addPanelChild(&adjustRowIcons[r]);
+        tuningButton.addPanelChild(&adjustRowNameLabels[r]);
+        for (int c = 0; c < ADJUST_COLS; c++)
+            tuningButton.addPanelChild(&adjustParams[r][c]);
     }
 
     tuningButton.setPanelSize(280, 580);
@@ -1054,6 +1122,86 @@ void DebugTuningPanel::fireChanged()
     if (onTuningChanged) onTuningChanged();
 }
 
+float* DebugTuningPanel::getAdjustPtr(int r, int c)
+{
+    // Overlay rows (4-8) map to OVERLAY_* enums — columns are X/Y/W/H/S in order.
+    if (r >= 4 && r <= 8)
+    {
+        static constexpr int overlayIdx[5] = {
+            PositionConstants::OVERLAY_GUITAR_TAP,
+            PositionConstants::OVERLAY_DRUM_NOTE_GHOST,
+            PositionConstants::OVERLAY_DRUM_NOTE_ACCENT,
+            PositionConstants::OVERLAY_DRUM_CYM_GHOST,
+            PositionConstants::OVERLAY_DRUM_CYM_ACCENT
+        };
+        auto& ov = overlayAdjusts[overlayIdx[r - 4]];
+        switch (c) {
+        case 0: return &ov.offsetX;
+        case 1: return &ov.offsetY;
+        case 2: return &ov.scaleX;
+        case 3: return &ov.scaleY;
+        case 4: return &ov.scale;
+        }
+        return nullptr;
+    }
+    switch (r)
+    {
+    case 0: // Note — W/H from baseScale.gem, S from gemTypeScales.normal
+        if (c == 2) return &gemScale.width;
+        if (c == 3) return &gemScale.height;
+        if (c == 4) return &gemTypeScales.normal;
+        break;
+    case 1: // Cymbal
+        if (c == 4) return &gemTypeScales.cymbal; break;
+    case 2: // HOPO
+        if (c == 4) return &gemTypeScales.hopo; break;
+    case 3: // Bar (kicks + opens) — W/H from baseScale.bar
+        if (c == 2) return &barScale.width;
+        if (c == 3) return &barScale.height;
+        break;
+    case 9: // SP Gem
+        if (c == 4) return &gemTypeScales.spGem; break;
+    case 10: // SP Bar
+        if (c == 4) return &gemTypeScales.spBar; break;
+    }
+    return nullptr;
+}
+
+void DebugTuningPanel::refreshAdjustLabels()
+{
+    for (int r = 0; r < ADJUST_ROWS; r++)
+        for (int c = 0; c < ADJUST_COLS; c++)
+        {
+            float* p = getAdjustPtr(r, c);
+            if (p != nullptr)
+                adjustParams[r][c].setText(juce::String(*p, 2), juce::dontSendNotification);
+        }
+}
+
+void DebugTuningPanel::setAssetManager(AssetManager& am)
+{
+    assetManager = &am;
+    // Row order: Note, Cymbal, HOPO, Bar, Gtr Tap, Drm Gho, Drm Acc, Cym Gho, Cym Acc, SP Gem, SP Bar
+    juce::Image* icons[ADJUST_ROWS] = {
+        am.getNoteBlueImage(),            // Note (pick any note color — blue stands out)
+        am.getCymYellowImage(),           // Cymbal
+        am.getHopoBlueImage(),            // HOPO
+        am.getBarKickImage(),             // Bar (kick graphic represents bar notes)
+        am.getOverlayNoteTapImage(),      // Gtr Tap
+        am.getOverlayNoteGhostImage(),    // Drm Ghost
+        am.getOverlayNoteAccentImage(),   // Drm Accent
+        am.getOverlayCymGhostImage(),     // Cym Ghost
+        am.getOverlayCymAccentImage(),    // Cym Accent
+        am.getNoteWhiteImage(),           // SP Gem (white = star power)
+        am.getBarWhiteImage(),            // SP Bar
+    };
+    for (int r = 0; r < ADJUST_ROWS; r++)
+    {
+        adjustRowIcons[r].icon = icons[r];
+        adjustRowIcons[r].repaint();
+    }
+}
+
 void DebugTuningPanel::refreshLaneShapeLabels()
 {
     for (int c = 0; c < LANE_SHAPE_COLS; c++)
@@ -1145,6 +1293,7 @@ void DebugTuningPanel::refreshLabels()
 
     refreshLaneShapeLabels();
     refreshOverlayLabels();
+    refreshAdjustLabels();
 }
 
 void DebugTuningPanel::setupTableHeader(juce::Label& label)
@@ -1258,22 +1407,57 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     layoutRow(laneOpenWidthLabel, true);
     y += headerGap;
 
-    // --- Overlay Adjust (accent/ghost cap positioning) ---
-    overlayAdjustHeader.setVisible(true);
-    overlayAdjustHeader.setBounds(margin, y, w, rowHeight);
+    // --- Unified Adjust: position + scale for every tunable element type ---
+    // Inlined (not layoutTable) because row names have a sibling icon component
+    // that needs its own position slot in the layout.
+    adjustHeader.setVisible(true);
+    adjustHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
-    if (overlayAdjustHeader.expanded)
+    if (adjustHeader.expanded)
     {
-        y = layoutTable(y, margin, w, rowHeight, gap,
-                        overlayColHeaderLabels, OVERLAY_PARAMS,
-                        overlayRowNameLabels, &overlayParamLabels[0][0],
-                        NUM_OVERLAY_TYPES, OVERLAY_PARAMS, /*nameW*/ 40);
+        const int iconW = 22;
+        const int nameTextW = 44;
+        const int nameW = iconW + nameTextW;
+        const int cellW = (w - nameW) / ADJUST_COLS;
+
+        for (int c = 0; c < ADJUST_COLS; c++)
+        {
+            adjustColHdrLabels[c].setVisible(true);
+            adjustColHdrLabels[c].setBounds(margin + nameW + c * cellW, y, cellW, rowHeight);
+        }
+        y += rowHeight + gap;
+
+        for (int r = 0; r < ADJUST_ROWS; r++)
+        {
+            adjustRowIcons[r].setVisible(true);
+            adjustRowIcons[r].setBounds(margin, y, iconW, rowHeight);
+            adjustRowNameLabels[r].setVisible(true);
+            adjustRowNameLabels[r].setBounds(margin + iconW, y, nameTextW, rowHeight);
+            for (int c = 0; c < ADJUST_COLS; c++)
+            {
+                adjustParams[r][c].setVisible(true);
+                adjustParams[r][c].setBounds(margin + nameW + c * cellW, y, cellW, rowHeight);
+            }
+            y += rowHeight + gap;
+        }
     }
     else
     {
-        hideTable(overlayColHeaderLabels, OVERLAY_PARAMS, overlayRowNameLabels, &overlayParamLabels[0][0], NUM_OVERLAY_TYPES, OVERLAY_PARAMS);
+        for (int c = 0; c < ADJUST_COLS; c++) adjustColHdrLabels[c].setVisible(false);
+        for (int r = 0; r < ADJUST_ROWS; r++)
+        {
+            adjustRowIcons[r].setVisible(false);
+            adjustRowNameLabels[r].setVisible(false);
+            for (int c = 0; c < ADJUST_COLS; c++) adjustParams[r][c].setVisible(false);
+        }
     }
     y += headerGap;
+
+    // Legacy sections (data still wired, UI hidden — covered by unified Adjust above)
+    overlayAdjustHeader.setVisible(false);
+    hideTable(overlayColHeaderLabels, OVERLAY_PARAMS, overlayRowNameLabels, &overlayParamLabels[0][0], NUM_OVERLAY_TYPES, OVERLAY_PARAMS);
+    baseScaleHeader.setVisible(false);
+    hideTable(baseScaleColHdrLabels, BASE_SCALE_COLS, baseScaleRowLabels, &baseScaleParams[0][0], BASE_SCALE_ROWS, BASE_SCALE_COLS);
 
     // --- Everything below is "advanced" — hidden by default to declutter the
     //     panel. The headers + their content are still wired and tunable; they
@@ -1295,8 +1479,6 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     for (int g = 0; g < 3; g++) bemaniGroupHeaders[g].setVisible(false);
     for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++) bemaniLabels[i].setVisible(false);
 
-    baseScaleHeader.setVisible(false);
-    hideTable(baseScaleColHdrLabels, BASE_SCALE_COLS, baseScaleRowLabels, &baseScaleParams[0][0], BASE_SCALE_ROWS, BASE_SCALE_COLS);
     layoutTunableRows(gemTypeLabels, GEM_TYPE_COUNT, false, margin, w, rowHeight, gap, y);
 
     hitScaleHeader.setVisible(false);

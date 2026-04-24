@@ -12,6 +12,7 @@
 #include "../Visual/Renderers/TrackRenderer.h"
 
 class SceneRenderer;
+class AssetManager;
 
 // Universal descriptor for a single debug tuning slider
 struct DebugTunable
@@ -39,6 +40,9 @@ public:
 
     // Switch layer states between guitar/drums
     void setDrums(bool isDrums);
+
+    // Hook up AssetManager so row-name labels show the element's glyph.
+    void setAssetManager(AssetManager& am);
 
     // Callbacks
     std::function<void()> onTuningChanged;
@@ -370,7 +374,7 @@ private:
     ScrollableLabel laneShapeParams[LANE_SHAPE_ROWS][LANE_SHAPE_COLS];
     void refreshLaneShapeLabels();
 
-    // --- Overlay Adjust section ---
+    // --- Overlay Adjust section (legacy, hidden — covered by unified Adjust below) ---
     SectionHeader overlayAdjustHeader;
     static constexpr int NUM_OVERLAY_TYPES = PositionConstants::NUM_OVERLAY_TYPES;
     static constexpr int OVERLAY_PARAMS = 5;
@@ -380,6 +384,46 @@ private:
     juce::Label overlayRowNameLabels[NUM_OVERLAY_TYPES];
     ScrollableLabel overlayParamLabels[NUM_OVERLAY_TYPES][OVERLAY_PARAMS];
     void refreshOverlayLabels();
+
+    // --- Unified Adjust table: position + scale for every tunable element type.
+    //     Rows pull from baseScale (gem/bar), gemTypeScales, and overlayAdjusts.
+    //     Cells for data that doesn't exist render as "—" and do nothing.
+    SectionHeader adjustHeader;
+    static constexpr int ADJUST_ROWS = 11;
+    static constexpr int ADJUST_COLS = 5;
+    static constexpr const char* adjustRowNames[ADJUST_ROWS] = {
+        "Note", "Cymbal", "HOPO", "Bar",
+        "Gtr Tap", "Drm Gho", "Drm Acc", "Cym Gho", "Cym Acc",
+        "SP Gem", "SP Bar"
+    };
+    static constexpr const char* adjustColNames[ADJUST_COLS] = {"X", "Y", "W", "H", "S"};
+
+    // Small image component used as a sibling icon beside each row-name label.
+    // Kept as a juce::Component (not a Label subclass) so layoutTable's
+    // pointer-arithmetic on juce::Label* stays valid.
+    class IconImg : public juce::Component
+    {
+    public:
+        juce::Image* icon = nullptr;
+        void paint(juce::Graphics& g) override
+        {
+            if (icon == nullptr || !icon->isValid()) return;
+            const int size = juce::jmin(getWidth(), getHeight()) - 2;
+            if (size <= 0) return;
+            const int x = (getWidth() - size) / 2;
+            const int y = (getHeight() - size) / 2;
+            g.drawImage(*icon, juce::Rectangle<int>(x, y, size, size).toFloat(),
+                        juce::RectanglePlacement::centred);
+        }
+    };
+
+    juce::Label adjustColHdrLabels[ADJUST_COLS];
+    juce::Label adjustRowNameLabels[ADJUST_ROWS];
+    IconImg adjustRowIcons[ADJUST_ROWS];
+    ScrollableLabel adjustParams[ADJUST_ROWS][ADJUST_COLS];
+    float* getAdjustPtr(int row, int col);
+    void refreshAdjustLabels();
+    AssetManager* assetManager = nullptr;
 
     void refreshColLabels();
     void fireLaneChanged();
