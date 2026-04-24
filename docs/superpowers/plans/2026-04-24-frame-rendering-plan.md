@@ -36,8 +36,7 @@ Each phase is its own commit. Phases 1, 3, 4, 5 have no behavior change (scaffol
 - Create: `Chartchotic/Source/Visual/Utils/FrameRenderer.cpp`
 - Create: `tests/unit/test_frame.cpp`
 - Modify: `tests/unit/CMakeLists.txt`
-- Modify: `CMakeLists.txt` (root) — add new files to the source list around line 176–182 (the `Visual/Utils/` group).
-- Modify: `Chartchotic/plugin.jucer` — add new files to the Projucer `Source/Visual/Utils` group (Projucer drives the VST3/AU build).
+- Modify: `CMakeLists.txt` (root) — add new files to the source list around line 176–182 (the `Visual/Utils/` group). This repo builds via `juce_add_plugin`, not Projucer — root `CMakeLists.txt` is the only build-config edit needed.
 
 No existing source files modified. No callers yet.
 
@@ -389,13 +388,7 @@ Edit the root `CMakeLists.txt`. Find the `Visual/Utils/` source group (around li
 
 (Alphabetical order is preserved; new entries: `Frame.h`, `FrameRenderer.cpp`, `FrameRenderer.h`.)
 
-### - [ ] Step 1.7: Wire new files into `Chartchotic/plugin.jucer`
-
-The plugin build (VST3/AU) is driven by Projucer. New source files must also be added to `Chartchotic/plugin.jucer` inside the `Source/Visual/Utils` group. Projucer's XML is hand-editable but fragile — safest to let the user do it via the GUI:
-
-> **Ask the user:** "Please open `Chartchotic/plugin.jucer` in Projucer, add `Frame.h`, `FrameRenderer.h`, `FrameRenderer.cpp` under `Source/Visual/Utils`, re-save, and run the Projucer re-generate. Confirm the `.jucer` diff looks reasonable."
-
-### - [ ] Step 1.8: Build and run the unit tests
+### - [ ] Step 1.7: Build and run the unit tests
 
 ```bash
 cmake -S tests/unit -B tests/unit/build
@@ -408,7 +401,7 @@ Expected:
 - `[frame]` filter: all 7 tests pass.
 - Full suite: no regressions.
 
-### - [ ] Step 1.9: Commit
+### - [ ] Step 1.8: Commit
 
 ```bash
 git add Chartchotic/Source/Visual/Utils/Frame.h \
@@ -416,8 +409,7 @@ git add Chartchotic/Source/Visual/Utils/Frame.h \
         Chartchotic/Source/Visual/Utils/FrameRenderer.cpp \
         tests/unit/test_frame.cpp \
         tests/unit/CMakeLists.txt \
-        CMakeLists.txt \
-        Chartchotic/plugin.jucer
+        CMakeLists.txt
 git commit -m "$(cat <<'EOF'
 frame: scaffold Frame/FrameSprite types and drawFrame helper
 
@@ -916,6 +908,6 @@ The scaffold (Phase 1) is harmless to keep around if individual migration phases
 - **Do** run `cmake --build tests/unit/build --target unit_tests` and the compiled test binary directly.
 - **Do not touch `createPerspectiveGlyphRect`** — explicit spec constraint.
 - **Do not touch sustains or text-event rendering** — out of scope.
-- **Ask before** introducing new Projucer file entries (plugin.jucer edits are hand-editing hostile). Prefer one batched ask at Phase 1.
+- This repo uses CMake (`juce_add_plugin`), not Projucer. New source files only need to be added to root `CMakeLists.txt` and (for tests) `tests/unit/CMakeLists.txt`. No `plugin.jucer` exists.
 - If `drawGem`'s bar branch is already cleanly handled in Phase 2, skip Phase 3's rewrite and note it in the Phase 4 commit body.
 - Phase 5 is optional — hit animations have no drift issue (they're strikeline-only). Migrate only if time permits or for consistency.
