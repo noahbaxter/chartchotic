@@ -4,9 +4,9 @@
 #include "Visual/Utils/FrameRenderer.h"
 #include "Visual/Utils/DrawingConstants.h"
 
-using PositionConstants::Frame;
-using PositionConstants::FrameSprite;
-using PositionConstants::drawFrame;
+using Render::Frame;
+using Render::FrameSprite;
+using Render::drawFrame;
 
 namespace {
     juce::Image makeSentinelImage()

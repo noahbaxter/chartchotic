@@ -10,7 +10,7 @@
 
 #include "FrameRenderer.h"
 
-namespace PositionConstants
+namespace Render
 {
     void drawFrame(const Frame& frame,
                    juce::Point<float> anchor,

@@ -18,7 +18,7 @@
 #include <JuceHeader.h>
 #include <vector>
 
-namespace PositionConstants
+namespace Render
 {
     /** One sprite in a frame. Offset + size are in pixels at the frame's
         strike reference scale. Multiplied by frameScale at render time. */

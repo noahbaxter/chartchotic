@@ -13,6 +13,7 @@
 #include "../Utils/RenderTypeConfig.h"
 
 using namespace PositionConstants;
+using namespace Render;
 
 namespace {
     float gemTypeScale(Gem gem, bool isDrums, const GemTypeScales& s)
@@ -153,7 +154,7 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
     ctx.fbStrikeWidth = fbStrikeWidth;
     ctx.fbStrikeCenterX = fbStrikeCenterX;
 
-    PositionConstants::Frame composite;
+    Render::Frame composite;
 
     uint drawSequence[] = {0, 6, 1, 2, 3, 4, 5};
     for (int i = 0; i < gems.size(); i++)
@@ -166,12 +167,12 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
     }
 
     if (!composite.sprites.empty())
-        PositionConstants::drawFrame(composite, ctx.anchor, ctx.frameScale, *currentDrawCallMap);
+        Render::drawFrame(composite, ctx.anchor, ctx.frameScale, *currentDrawCallMap);
 }
 
 void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                                      double frameTime, const SharedFrameContext& ctx,
-                                     PositionConstants::Frame& outFrame)
+                                     Render::Frame& outFrame)
 {
     juce::Image* glyphImage;
     bool barNote;
@@ -293,7 +294,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // --- Append gem sprite ---
     int gemIdx = (int)outFrame.sprites.size();
     {
-        PositionConstants::FrameSprite s;
+        Render::FrameSprite s;
         s.image     = glyphImage;
         s.offsetX   = strikeOffsetX;
         s.offsetY   = zOff + arcOffsetStrike;
@@ -318,7 +319,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
         float ovlRectSY = overlayAdj.scaleY * overlayAdj.scale;
 
-        PositionConstants::FrameSprite s;
+        Render::FrameSprite s;
         s.image     = overlayImage;
         s.width     = strikeColWidth  * wScale * ovlRectSX;
         s.height    = strikeColHeight * hScale * ovlRectSY;
@@ -428,11 +429,11 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     float curvature = baseCurv * bemaniConfig.curvature;
 
     // --- Single-gem Frame, scale = 1 (flat). zOff folds into sprite-level offsets. ---
-    PositionConstants::Frame frame;
+    Render::Frame frame;
 
     int gemIdx = (int)frame.sprites.size();
     {
-        PositionConstants::FrameSprite s;
+        Render::FrameSprite s;
         s.image = glyphImage;
         s.offsetX = 0.0f;
         s.offsetY = 0.0f;
@@ -456,7 +457,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
         float ovlRectSY = overlayAdj.scaleY * overlayAdj.scale;
 
-        PositionConstants::FrameSprite ov;
+        Render::FrameSprite ov;
         ov.image = overlayImage;
         ov.width = glyphRect.getWidth() * wScale * ovlRectSX;
         ov.height = glyphRect.getHeight() * hScale * ovlRectSY;
@@ -482,7 +483,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
 
     juce::Point<float> bemaniAnchor(glyphRect.getCentreX(), glyphRect.getCentreY());
     juce::Point<float> bemaniScale(1.0f, 1.0f);
-    PositionConstants::drawFrame(frame, bemaniAnchor, bemaniScale, *currentDrawCallMap);
+    Render::drawFrame(frame, bemaniAnchor, bemaniScale, *currentDrawCallMap);
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)

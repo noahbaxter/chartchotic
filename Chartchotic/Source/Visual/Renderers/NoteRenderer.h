@@ -111,7 +111,7 @@ private:
     void drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime);
     void appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                           double frameTime, const SharedFrameContext& ctx,
-                          PositionConstants::Frame& outFrame);
+                          Render::Frame& outFrame);
     // Bemani path: flat / no perspective. Builds and draws its own single-gem
     // Frame directly (anchor at gem's screen position, scale 1.0). Doesn't
     // contribute to the shared composite — bemani has no chord-stack drift.
@@ -137,7 +137,7 @@ private:
         float overlayAnchorX;      // overlay offsetX baseline
         float overlayAnchorY;      // overlay offsetY baseline
     };
-    void applyCurvedImageSwap(PositionConstants::Frame& frame, int gemIdx, int ovlIdx,
+    void applyCurvedImageSwap(Render::Frame& frame, int gemIdx, int ovlIdx,
                               const CurvedSwapArgs& args);
 
     // Curved note image cache (per (image, column, isDrums))

@@ -15,6 +15,7 @@
 #include "../Utils/FrameRenderer.h"
 
 using namespace PositionConstants;
+using namespace Render;
 
 GridlineRenderer::GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager)
     : state(state), assetManager(assetManager)

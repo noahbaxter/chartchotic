@@ -16,7 +16,7 @@
 #include "Frame.h"
 #include "DrawingConstants.h"
 
-namespace PositionConstants
+namespace Render
 {
     /** Enqueue draw calls for every sprite in `frame` into `drawCalls`.
         Each sprite's pixel center = `anchor + (offsetX * scale.x, offsetY * scale.y)`.
