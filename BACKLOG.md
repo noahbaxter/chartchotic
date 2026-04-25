@@ -29,6 +29,20 @@ Work from the top.
 - **Info display** — BPM, time sig, measure, beat position.
 - **Disco ball animation upgrade** — Replace static disco ball JPG with rotating disco ball (quarter-turn loop), "DISCO FLIP" text underneath in disco/rainbow colors. Fun polish.
 
+### Done (1.2.3)
+
+**Rendering reorg:**
+- ~~Gem-on-bar drift fix~~ — Frame system: sprites in a row share one anchor + scale, drift gone by construction. See `docs/RENDERING_REFACTOR.md` and `docs/Z_POSITIONING.md` Resolution section.
+- ~~Cymbal/tom Z separation~~ — `cymZ` (perspective) + `cymNudge` (bemani) tunable independently from toms.
+- ~~Bar widths fit highway~~ — `BAR_FRETBOARD_FIT` 1.15 → 1.0 (the kicks-too-wide complaint from Discord).
+- ~~Cymbal modifier alignment~~ — Ghost/accent overlay offsets baked from tuned values.
+- ~~Ghost cymbals scaled~~ — Cymbal ghost/accent inherit the cymbal base shrink.
+- ~~RenderTypeConfig data layer~~ — `isDrums?a:b` paired-table lookups replaced with single config indirection.
+
+**Bug fixes:**
+- ~~REAPER duplicate-track hang~~ — Audio thread no longer calls REAPER project-state APIs.
+- ~~Popup wheel scrolling highway~~ — PopupPanel consumes wheel events.
+
 ### Done (1.2)
 
 **Bemani mode:**
@@ -87,9 +101,11 @@ Do between features or when touching related code.
 
 ### Rendering — perspective limits (do not iterate further without a true-3D plan)
 
-**True-3D pipeline rewrite (parking-lot / future major version).** The fake-3D trapezoid in `PositionMath::createPerspectiveGlyphRect` runs two independent 1/z curves (one for X/Y/width, one for sprite height). Any "above the bar plane" element therefore can't keep a constant gap-to-sprite ratio across depth without distorting aspect or breaking lane fit. Two attempted reworks (Apr 11–12 `9128b93`+`49f71a0` and the Apr 20–21 lift-mode/crosshair session) both hit the same wall and have been reverted. Full postmortem in `docs/Z_POSITIONING.md`. Experimental code on `experiment/z-position-rework`. **Do not attempt another scalar-tweak fix.** The right path is a real view-projection matrix.
+**True-3D pipeline rewrite (parking-lot / future major version).** The fake-3D trapezoid in `PositionMath::createPerspectiveGlyphRect` runs two independent 1/z curves (one for X/Y/width, one for sprite height). Any "above the bar plane" element therefore can't keep a constant gap-to-sprite ratio across depth without distorting aspect or breaking lane fit. Two attempted scalar-tweak reworks (Apr 11–12 `9128b93`+`49f71a0` and the Apr 20–21 lift-mode/crosshair session) both hit the same wall and were reverted. Full postmortem in `docs/Z_POSITIONING.md`. **Do not attempt another scalar-tweak fix.** The right path is a real view-projection matrix.
 
-The following items are subsumed by that rewrite and only worth fixing in isolation if they bite for some specific reason:
+**Status (post-1.2.3):** the gem-on-bar drift symptom is fixed by the Frame system (`docs/RENDERING_REFACTOR.md`) — sprites in a row share one scale, so their offset-to-size ratio is depth-invariant by construction. True-3D is still the right answer for any future feature that needs *individual* world-Y offsets between elements (animated lifts, depth-based ordering effects).
+
+The following items are subsumed by the eventual rewrite and only worth fixing in isolation if they bite for some specific reason:
 - `PositionMath.cpp:99` — `progress` goes negative past `vanishingPointDepth (1.0)` while `HIGHWAY_POS_END = 1.12` and `FAR_FADE_DEFAULT = 1.20` render past that. Slight extrapolation artifacts at the far end.
 - `NoteRenderer.cpp` guitar gem branch — reads `sNear/sFar/w/h` from per-column adjusts but never adds `ca.z` to zOff (drum branch does). All guitar Z values are 0 anyway, so no visible impact.
 - `SustainRenderer.cpp` — uses raw lane `centerY` with no Z nudge, so guitar notes (when `gemZ` is non-zero) are vertically disconnected from their sustain tails.
@@ -188,7 +204,7 @@ Unordered. Pull into Up Next when the time comes.
 - Refactored MIDI parsing (supports reductions, benefits all instruments)
 
 **Authoring & Vocals (way out):**
-- Moonscraper-style note placement, grid snapping, note eraser
+- Moonscraper-style note placement, grid snapping, note eraser. **In progress** on `wip/authoring` (25 commits, last touched 2026-04-11). Includes draw/edit modes, sustain drag with cascade + snap-to-note, right-drag erase, shift-paint, ghost cursor with neck curvature, painter refactor (NotePainter / WriteController extraction), PPQ-based selection. Parked while 1.2.3 shipped.
 - INI generation/export
 - 2D pitch-based karaoke display, lyrics with rhythm timing
 
