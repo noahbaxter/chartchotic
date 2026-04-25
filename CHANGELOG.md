@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.3
+
+### Bug Fixes
+- REAPER no longer hangs when duplicating a track containing chartchotic
+- Rendering engine improvements to prevent note drift
+- Bar widths fit more cleanly within the highway
+- Realigned cymbal modifier assets for ghosts/accents
+- Scrolling on popup windows no longer moves the highways
+
 ## 1.2.2
 
 ### Bug Fixes
