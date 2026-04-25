@@ -67,32 +67,23 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
-    noteRenderer.gemScale = gemScale;
-    noteRenderer.barScale = barScale;
-    noteRenderer.depthForeshorten = depthForeshorten;
+    noteRenderer.gemScale = isDrums ? drumGemScale : guitarGemScale;
+    noteRenderer.barScale = isDrums ? drumBarScale : guitarBarScale;
     float strikePosGem = offsets.strikePosGem;
     float strikePosBar = offsets.strikePosBar;
 
     noteRenderer.showGems = showGems;
     noteRenderer.showBars = showBars;
     noteRenderer.gemZOffset = offsets.gemZ * resScale;
+    noteRenderer.cymZOffset = offsets.cymZ * resScale;
     noteRenderer.barZOffset = offsets.barZ * resScale;
     noteRenderer.strikePosGem = strikePosGem;
     noteRenderer.strikePosBar = strikePosBar;
     noteRenderer.gemTypeScales = gemTypeScales;
-    std::copy_n(overlayAdjusts, PositionConstants::NUM_OVERLAY_TYPES, noteRenderer.overlayAdjusts);
-    for (int i = 0; i < 6; i++) {
-        const auto& ca = guitarColAdjust[i];
-        noteRenderer.guitarColAdjust[i] = {
-            ca.z * resScale,
-            ca.sNear, ca.sFar, ca.w, ca.h };
-    }
-    for (int i = 0; i < 5; i++) {
-        const auto& ca = drumColAdjust[i];
-        noteRenderer.drumColAdjust[i] = {
-            ca.z * resScale,
-            ca.sNear, ca.sFar, ca.w, ca.h };
-    }
+    noteRenderer.overlayAdjusts = overlayAdjusts;       // pointer to scene-side array
+    noteRenderer.guitarColAdjust = guitarColAdjust;
+    noteRenderer.drumColAdjust = drumColAdjust;
+    noteRenderer.resScale = resScale;                    // applied to ColumnAdjust::z reads
     noteRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
     noteRenderer.laneCoordsDrums = drumLaneCoordsLocal;
 
@@ -157,8 +148,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             animationRenderer.hitGemScale = hitGemScale;
             animationRenderer.hitBarScale = hitBarScale;
             animationRenderer.hitTypeConfig = hitTypeConfig;
-            for (int i = 0; i < 5; i++)
-                animationRenderer.drumColZAdjust[i] = drumColAdjust[i].z * resScale;
+            animationRenderer.drumColAdjust = drumColAdjust;
+            animationRenderer.resScale = resScale;
 
             animationRenderer.renderToDrawCallMap(drawCallMap, width, height, highwayPosEnd,
                                                 strikePosGem);

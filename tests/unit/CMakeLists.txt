@@ -27,10 +27,12 @@ target_sources(unit_tests PRIVATE
     test_midi_interpreter.cpp
     test_gridline_generator.cpp
     test_instrument_mapper.cpp
+    test_frame.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp
     ${SOURCE_ROOT}/Midi/Processing/TrackResolver.cpp
     ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
+    ${SOURCE_ROOT}/Visual/Utils/FrameRenderer.cpp
 )
 
 target_include_directories(unit_tests PRIVATE

@@ -12,6 +12,7 @@
 #include "../Visual/Renderers/TrackRenderer.h"
 
 class SceneRenderer;
+class AssetManager;
 
 // Universal descriptor for a single debug tuning slider
 struct DebugTunable
@@ -40,6 +41,9 @@ public:
     // Switch layer states between guitar/drums
     void setDrums(bool isDrums);
 
+    // Hook up AssetManager so row-name labels show the element's glyph.
+    void setAssetManager(AssetManager& am);
+
     // Callbacks
     std::function<void()> onTuningChanged;
     std::function<void(int, float, float, float)> onLayerChanged;
@@ -57,12 +61,14 @@ public:
 
     // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
-    float drumCurvature = PositionConstants::NOTE_CURVATURE;
-    float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
+    float drumCurvature = PositionConstants::NOTE_CURVATURE_DRUMS;
 
-    // Base note/bar scale (ElementScale table: 2 rows x 2 cols)
-    PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
-    PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
+    // Base note/bar scale, per-instrument. Adjust table edits the active one
+    // (selected by setDrums()); applyTo() syncs both pairs to SceneRenderer.
+    PositionConstants::ElementScale guitarGemScale = PositionConstants::GUITAR_GEM_SCALE;
+    PositionConstants::ElementScale drumGemScale   = PositionConstants::DRUM_GEM_SCALE;
+    PositionConstants::ElementScale guitarBarScale = PositionConstants::GUITAR_BAR_SCALE;
+    PositionConstants::ElementScale drumBarScale   = PositionConstants::DRUM_BAR_SCALE;
 
     // Hit animation scale (HitScale table: 2 rows x 3 cols)
     PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
@@ -112,15 +118,35 @@ private:
     class ScrollableLabel : public juce::Label
     {
     public:
+        // Scroll / drag / arrow-key: adjust by one step per delta tick.
         std::function<void(int delta)> onScroll;
+        // Double-click-to-edit commit: absolute value typed by user.
+        // Each site that cares about precise entry should wire both onScroll + onSet.
+        std::function<void(float absolute)> onSet;
+
+        ScrollableLabel()
+        {
+            // Double-click to edit; keep typed value on focus loss (don't discard).
+            setEditable(false, true, false);
+            // Single click focuses the cell so arrow keys nudge the value.
+            setWantsKeyboardFocus(true);
+            setMouseClickGrabsKeyboardFocus(true);
+        }
+
         void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& wheel) override
         {
+            if (isBeingEdited()) return;
             int delta = (wheel.deltaY > 0) ? 1 : -1;
             if (onScroll) onScroll(delta);
         }
-        void mouseDown(const juce::MouseEvent& e) override { lastDragY = e.y; }
+        void mouseDown(const juce::MouseEvent& e) override
+        {
+            if (isBeingEdited()) { juce::Label::mouseDown(e); return; }
+            lastDragY = e.y;
+        }
         void mouseDrag(const juce::MouseEvent& e) override
         {
+            if (isBeingEdited()) { juce::Label::mouseDrag(e); return; }
             int diff = lastDragY - e.y;
             int steps = diff / dragPixelsPerStep;
             if (steps != 0 && onScroll)
@@ -130,6 +156,58 @@ private:
                 lastDragY -= steps * dragPixelsPerStep;
             }
         }
+
+        // Arrow keys nudge the value when the cell has keyboard focus (set by
+        // clicking the cell). Routes through onScroll so the step size matches
+        // wheel/drag. Ignored while the text editor is open — the editor
+        // consumes arrow keys for cursor navigation.
+        bool keyPressed(const juce::KeyPress& key) override
+        {
+            if (isBeingEdited()) return false;
+            const int code = key.getKeyCode();
+            if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey)
+            {
+                if (onScroll) onScroll(code == juce::KeyPress::upKey ? 1 : -1);
+                return true;
+            }
+            return juce::Label::keyPressed(key);
+        }
+
+        void focusGained(juce::Component::FocusChangeType) override { repaint(); }
+        void focusLost(juce::Component::FocusChangeType) override   { repaint(); }
+
+        void paint(juce::Graphics& g) override
+        {
+            juce::Label::paint(g);
+            if (hasKeyboardFocus(false) && !isBeingEdited())
+            {
+                g.setColour(juce::Colour(Theme::coral).withAlpha(0.7f));
+                g.drawRect(getLocalBounds(), 1);
+            }
+        }
+
+    protected:
+        // When the editor opens, strip the padded "  name     value" rows down to
+        // just the numeric token so the user doesn't have to edit around the label.
+        // Grid cells (text is already just "1.23") keep their text as-is.
+        void editorShown(juce::TextEditor* ed) override
+        {
+            juce::Label::editorShown(ed);
+            if (ed == nullptr) return;
+            auto text = getText().trim();
+            auto lastSpace = text.lastIndexOfAnyOf(" \t");
+            if (lastSpace > 0)
+                ed->setText(text.substring(lastSpace + 1), juce::dontSendNotification);
+            ed->selectAll();
+        }
+
+        void textWasEdited() override
+        {
+            juce::Label::textWasEdited();
+            if (onSet)
+                onSet(getText().trim().getFloatValue());
+        }
+
     private:
         int lastDragY = 0;
         static constexpr int dragPixelsPerStep = 3;
@@ -162,6 +240,9 @@ private:
     LayerTransform guitarStates[NUM_TRACK_LAYERS];
     LayerTransform drumStates[NUM_TRACK_LAYERS];
     LayerTransform* layerStates = guitarStates;
+
+    // Tracks the active instrument for getAdjustPtr() routing
+    bool panelIsDrums = false;
 
     juce::Label layerColHdrLabels[LAYER_COLS];
     juce::Label layerRowLabels[NUM_DISPLAY_LAYERS];
@@ -198,7 +279,7 @@ private:
 
     // --- Curvature section ---
     SectionHeader curvatureHeader;
-    static constexpr int CURVATURE_COUNT = 3;
+    static constexpr int CURVATURE_COUNT = 2;
     ScrollableLabel curvatureLabels[CURVATURE_COUNT];
     DebugTunable curvatureTunables[CURVATURE_COUNT];
 
@@ -234,11 +315,12 @@ private:
     DebugTunable hitTypeTunables[HIT_TYPE_FLOAT_COUNT];
     ScrollableLabel hitTypeBoolLabels[HIT_TYPE_BOOL_COUNT];
 
-    // --- Z Offsets table (5 rows x 2 cols: Guitar, Drums) ---
+    // --- Z Offsets table (6 rows x 2 cols: Guitar, Drums) ---
+    // Cym is drums-only; for guitar it's effectively dead (cymZ unused).
     SectionHeader zOffsetsHeader;
-    static constexpr int Z_ROWS = 5;
+    static constexpr int Z_ROWS = 6;
     static constexpr int Z_COLS = 2;
-    static constexpr const char* zRowNames[Z_ROWS] = {"Grid", "Gem", "Bar", "HitN", "HitB"};
+    static constexpr const char* zRowNames[Z_ROWS] = {"Grid", "Gem", "Cym", "Bar", "HitN", "HitB"};
     static constexpr const char* zColNames[Z_COLS] = {"Gtr", "Drm"};
     juce::Label zColHdrLabels[Z_COLS];
     juce::Label zRowLabels[Z_ROWS];
@@ -297,7 +379,7 @@ private:
     ScrollableLabel laneShapeParams[LANE_SHAPE_ROWS][LANE_SHAPE_COLS];
     void refreshLaneShapeLabels();
 
-    // --- Overlay Adjust section ---
+    // --- Overlay Adjust section (legacy, hidden — covered by unified Adjust below) ---
     SectionHeader overlayAdjustHeader;
     static constexpr int NUM_OVERLAY_TYPES = PositionConstants::NUM_OVERLAY_TYPES;
     static constexpr int OVERLAY_PARAMS = 5;
@@ -307,6 +389,46 @@ private:
     juce::Label overlayRowNameLabels[NUM_OVERLAY_TYPES];
     ScrollableLabel overlayParamLabels[NUM_OVERLAY_TYPES][OVERLAY_PARAMS];
     void refreshOverlayLabels();
+
+    // --- Unified Adjust table: position + scale for every tunable element type.
+    //     Rows pull from baseScale (gem/bar), gemTypeScales, and overlayAdjusts.
+    //     Cells for data that doesn't exist render as "—" and do nothing.
+    SectionHeader adjustHeader;
+    static constexpr int ADJUST_ROWS = 11;
+    static constexpr int ADJUST_COLS = 5;
+    static constexpr const char* adjustRowNames[ADJUST_ROWS] = {
+        "Note", "Cymbal", "HOPO", "Bar",
+        "Gtr Tap", "Drm Gho", "Drm Acc", "Cym Gho", "Cym Acc",
+        "SP Gem", "SP Bar"
+    };
+    static constexpr const char* adjustColNames[ADJUST_COLS] = {"X", "Y", "W", "H", "S"};
+
+    // Small image component used as a sibling icon beside each row-name label.
+    // Kept as a juce::Component (not a Label subclass) so layoutTable's
+    // pointer-arithmetic on juce::Label* stays valid.
+    class IconImg : public juce::Component
+    {
+    public:
+        juce::Image* icon = nullptr;
+        void paint(juce::Graphics& g) override
+        {
+            if (icon == nullptr || !icon->isValid()) return;
+            const int size = juce::jmin(getWidth(), getHeight()) - 2;
+            if (size <= 0) return;
+            const int x = (getWidth() - size) / 2;
+            const int y = (getHeight() - size) / 2;
+            g.drawImage(*icon, juce::Rectangle<int>(x, y, size, size).toFloat(),
+                        juce::RectanglePlacement::centred);
+        }
+    };
+
+    juce::Label adjustColHdrLabels[ADJUST_COLS];
+    juce::Label adjustRowNameLabels[ADJUST_ROWS];
+    IconImg adjustRowIcons[ADJUST_ROWS];
+    ScrollableLabel adjustParams[ADJUST_ROWS][ADJUST_COLS];
+    float* getAdjustPtr(int row, int col);
+    void refreshAdjustLabels();
+    AssetManager* assetManager = nullptr;
 
     void refreshColLabels();
     void fireLaneChanged();

@@ -174,9 +174,14 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Renderers/SustainRenderer.h
         # Visual / Utils
         Chartchotic/Source/Visual/Utils/DrawingConstants.h
+        Chartchotic/Source/Visual/Utils/Frame.h
+        Chartchotic/Source/Visual/Utils/FrameRenderer.cpp
+        Chartchotic/Source/Visual/Utils/FrameRenderer.h
         Chartchotic/Source/Visual/Utils/PositionConstants.h
         Chartchotic/Source/Visual/Utils/PositionMath.cpp
         Chartchotic/Source/Visual/Utils/PositionMath.h
+        Chartchotic/Source/Visual/Utils/RenderTypeConfig.cpp
+        Chartchotic/Source/Visual/Utils/RenderTypeConfig.h
         Chartchotic/Source/Visual/Utils/RenderTiming.h
         Chartchotic/Source/Visual/Renderers/TrackFade.h
         # Visual / Managers

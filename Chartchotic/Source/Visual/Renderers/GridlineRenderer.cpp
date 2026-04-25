@@ -10,8 +10,12 @@
 */
 
 #include "GridlineRenderer.h"
+#include "../Utils/RenderTypeConfig.h"
+#include "../Utils/Frame.h"
+#include "../Utils/FrameRenderer.h"
 
 using namespace PositionConstants;
+using namespace Render;
 
 GridlineRenderer::GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager)
     : state(state), assetManager(assetManager)
@@ -29,6 +33,18 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
     this->height = height;
     this->posEnd = posEnd;
 
+    bool isDrums = isDrumLike(activePart);
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
+    const auto& fbCoords = *config->fretboardCoords;
+    auto perspParams = config->getPerspectiveParams();
+
+    // Strike-reference geometry — same for every gridline at this resolution.
+    auto strikeEdge = getColumnEdge(0.0f, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
+    float strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+    float strikeHeight = (perspParams.barNoteHeightRatio > 0.0f)
+                       ? (strikeWidth / perspParams.barNoteHeightRatio)
+                       : strikeWidth;
+
     double windowTimeSpan = windowEndTime - windowStartTime;
 
     for (const auto& gridline : gridlines)
@@ -38,74 +54,74 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
 
         float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
 
-        if (normalizedPosition >= HIGHWAY_POS_START && normalizedPosition <= farFadeEnd)
-        {
-            juce::Image* markerImage = assetManager.getGridlineImage(gridlineType);
+        if (normalizedPosition < HIGHWAY_POS_START || normalizedPosition > farFadeEnd)
+            continue;
 
-            if (markerImage != nullptr)
-            {
-                float fadeOpacity = PositionMath::bemaniMode ? 1.0f : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
-                drawCallMap[static_cast<int>(DrawOrder::GRID)][0].push_back([=](juce::Graphics& g) {
-                    this->drawGridline(g, normalizedPosition, markerImage, gridlineType, fadeOpacity, gridZOffset);
-                });
-            }
+        juce::Image* markerImage = assetManager.getGridlineImage(gridlineType);
+        if (markerImage == nullptr)
+            continue;
+
+        float baseOpacity = 1.0f;
+        switch (gridlineType) {
+            case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;   break;
+            case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;      break;
+            case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY; break;
         }
+        float fadeOpacity = PositionMath::bemaniMode
+                          ? 1.0f
+                          : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
+        float opacity = baseOpacity * fadeOpacity;
+
+        if (PositionMath::bemaniMode)
+        {
+            // Bemani gridline = horizontal gradient line, no marker image. Push
+            // the draw call directly; doesn't fit the Frame model.
+            float bemaniOpacity = std::min(1.0f, opacity * bemaniConfig.gridlineBoost);
+            uint w = width;
+            uint h = height;
+            float pe = posEnd;
+            Part part = activePart;
+            float pos = normalizedPosition;
+            drawCallMap[(int)DrawOrder::GRID][0].push_back([w, h, pe, part, pos, bemaniOpacity](juce::Graphics& g) {
+                bool drums = isDrumLike(part);
+                auto edge = PositionMath::getFretboardEdge(drums, pos, w, h,
+                                PositionConstants::HIGHWAY_POS_START, pe);
+                float lineH = std::max(1.0f, (float)w * 0.003f);
+                float lineY = edge.centerY - lineH * 0.5f + bemaniConfig.gridlineZ;
+
+                juce::ColourGradient grad(
+                    juce::Colours::white.withAlpha(bemaniOpacity), (edge.leftX + edge.rightX) * 0.5f, lineY,
+                    juce::Colours::white.withAlpha(bemaniOpacity * 0.3f), edge.leftX, lineY, false);
+                grad.addColour(0.0, juce::Colours::white.withAlpha(bemaniOpacity * 0.3f));
+                grad.addColour(0.5, juce::Colours::white.withAlpha(bemaniOpacity));
+                grad.addColour(1.0, juce::Colours::white.withAlpha(bemaniOpacity * 0.3f));
+                g.setGradientFill(grad);
+                g.fillRect(edge.leftX, lineY, edge.rightX - edge.leftX, lineH);
+            });
+            continue;
+        }
+
+        // Perspective path: single-sprite Frame at the gridline's depth.
+        auto edge = getColumnEdge(normalizedPosition, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
+        float curWidth = edge.rightX - edge.leftX;
+        float widthRatio = (strikeWidth > 0.0f) ? (curWidth / strikeWidth) : 1.0f;
+
+        juce::Point<float> anchor((edge.leftX + edge.rightX) * 0.5f, edge.centerY);
+        juce::Point<float> frameScale(widthRatio, widthRatio);
+
+        Frame frame;
+
+        FrameSprite s;
+        s.image     = markerImage;
+        s.offsetX   = 0.0f;
+        s.offsetY   = gridZOffset;
+        s.width     = strikeWidth;
+        s.height    = strikeHeight;
+        s.drawOrder = (int)DrawOrder::GRID;
+        s.drawColumn = 0;
+        s.opacity   = opacity;
+        frame.sprites.push_back(s);
+
+        drawFrame(frame, anchor, frameScale, drawCallMap);
     }
-}
-
-void GridlineRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity, float gridZOffset)
-{
-    if (!markerImage) return;
-
-    float opacity = 1.0f;
-    switch (gridlineType) {
-        case Gridline::MEASURE: opacity = MEASURE_OPACITY; break;
-        case Gridline::BEAT: opacity = BEAT_OPACITY; break;
-        case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
-    }
-    opacity *= fadeOpacity;
-
-    if (PositionMath::bemaniMode)
-    {
-        opacity = std::min(1.0f, opacity * bemaniConfig.gridlineBoost);
-        // Flat horizontal line instead of marker image
-        bool isDrums = isDrumLike(activePart);
-        auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
-                        PositionConstants::HIGHWAY_POS_START, posEnd);
-        float lineH = std::max(1.0f, (float)width * 0.003f);
-        float lineY = edge.centerY - lineH * 0.5f + bemaniConfig.gridlineZ;
-
-        // Gradient: brighter at center, fades at edges
-        juce::ColourGradient grad(
-            juce::Colours::white.withAlpha(opacity), (edge.leftX + edge.rightX) * 0.5f, lineY,
-            juce::Colours::white.withAlpha(opacity * 0.3f), edge.leftX, lineY, false);
-        grad.addColour(0.0, juce::Colours::white.withAlpha(opacity * 0.3f));
-        grad.addColour(0.5, juce::Colours::white.withAlpha(opacity));
-        grad.addColour(1.0, juce::Colours::white.withAlpha(opacity * 0.3f));
-        g.setGradientFill(grad);
-        g.fillRect(edge.leftX, lineY, edge.rightX - edge.leftX, lineH);
-        return;
-    }
-
-    const auto& fbCoords = isDrumLike(activePart)
-        ? PositionConstants::drumFretboardCoords
-        : PositionConstants::guitarFretboardCoords;
-    auto edge = getColumnEdge(position, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
-    float gridWidth = edge.rightX - edge.leftX;
-    auto perspParams = PositionConstants::getPerspectiveParams(isDrumLike(activePart));
-    float gridHeight = gridWidth / perspParams.barNoteHeightRatio;
-
-    // Scale Z offset by perspective (ratio of current width to strikeline width)
-    float scaledZOffset = gridZOffset;
-    if (std::abs(gridZOffset) > 0.001f)
-    {
-        auto strikeEdge = getColumnEdge(0.0f, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
-        float strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
-        if (strikeWidth > 0.0f)
-            scaledZOffset *= (gridWidth / strikeWidth);
-    }
-
-    juce::Rectangle<float> rect(edge.leftX, edge.centerY - gridHeight * 0.5f + scaledZOffset, gridWidth, gridHeight);
-    g.setOpacity(opacity);
-    g.drawImage(*markerImage, rect);
 }

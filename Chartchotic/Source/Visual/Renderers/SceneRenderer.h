@@ -66,10 +66,12 @@ class SceneRenderer
 
         // Note curvature and scaling (runtime-adjustable for debug UI)
         float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
-        float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
-        PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
-        PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
-        float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
+        float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE_DRUMS;
+        // Per-instrument base scales — paint() picks the active one.
+        PositionConstants::ElementScale guitarGemScale = PositionConstants::GUITAR_GEM_SCALE;
+        PositionConstants::ElementScale drumGemScale   = PositionConstants::DRUM_GEM_SCALE;
+        PositionConstants::ElementScale guitarBarScale = PositionConstants::GUITAR_BAR_SCALE;
+        PositionConstants::ElementScale drumBarScale   = PositionConstants::DRUM_BAR_SCALE;
         PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
         PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
         PositionConstants::HitTypeConfig hitTypeConfig;
@@ -132,19 +134,6 @@ class SceneRenderer
 
         uint width = 0, height = 0;
         double lastFrameTimeSeconds = 0.0;
-
-        // Bezier positioning helper (kept for future callers)
-        using LaneCorners = PositionConstants::LaneCorners;
-        using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-        LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                                  float sizeScale, float fretboardScale = 1.0f)
-        {
-            bool isDrums = isDrumLike(activePart);
-            return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                                   PositionConstants::HIGHWAY_POS_START, highwayPosEnd,
-                                                   colCoords, sizeScale, fretboardScale);
-        }
 
         DrawCallMap drawCallMap;
 

@@ -17,19 +17,20 @@ struct BemaniConfig
 {
     // Position group
     float strikelinePos      = 0.90f;
-    float gemNudgeGuitar     = 0.01f;
-    float gemNudgeDrums      = 0.01f;
-    float barNudge           = 0.0f;
+    float gemNudgeGuitar     = -0.010f;
+    float gemNudgeDrums      = -0.010f;
+    float cymNudge           = -0.010f;   // Drums only — cymbals tuned separately from toms (mirrors perspective cymZ)
+    float barNudge           = 0.015f;
     float barFit             = 1.00f;
     float curvature          = 0.0f;
-    float gemW               = 0.95f;
+    float gemW               = 0.75f;
     float gemH               = 0.90f;
     float barW               = 1.12f;
     float barH               = 0.80f;
 
     // Sustains group
     float sustainWidth       = 0.20f;
-    float barSustainWidth    = 0.90f;
+    float barSustainWidth    = 1.00f;
     float sustainCap         = 0.21f;
     float sustStartOff       = -0.020f;
     float sustEndOff         = -0.025f;
@@ -96,6 +97,7 @@ inline constexpr BemaniTunable bemaniTunables[] = {
     {"Strike Y",       "Position", &BemaniConfig::strikelinePos,      0.70f, 0.99f, 0.01f,  2},
     {"Gem Nudge Gtr",  "Position", &BemaniConfig::gemNudgeGuitar,    -0.50f, 1.00f, 0.005f, 3},
     {"Gem Nudge Drm",  "Position", &BemaniConfig::gemNudgeDrums,    -0.50f, 1.00f, 0.005f, 3},
+    {"Cym Nudge",      "Position", &BemaniConfig::cymNudge,         -0.50f, 1.00f, 0.005f, 3},
     {"Bar Nudge",      "Position", &BemaniConfig::barNudge,         -0.50f, 0.50f, 0.005f, 3},
     {"Bar Fit",        "Position", &BemaniConfig::barFit,             0.50f, 1.50f, 0.01f,  2},
     {"Curvature",      "Position", &BemaniConfig::curvature,          0.00f, 1.00f, 0.05f,  2},

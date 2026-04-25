@@ -24,6 +24,15 @@ public:
         updateText();
     }
 
+    // Set initial expanded state and refresh the +/- prefix.
+    // Use this instead of writing `header.expanded = true` directly so the
+    // displayed text matches the actual state on first paint.
+    void setExpanded(bool e)
+    {
+        expanded = e;
+        updateText();
+    }
+
 private:
     juce::String sectionTitle;
     void updateText()

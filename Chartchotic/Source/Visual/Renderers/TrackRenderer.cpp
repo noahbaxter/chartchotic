@@ -8,6 +8,7 @@
 */
 
 #include "TrackRenderer.h"
+#include "../Utils/RenderTypeConfig.h"
 
 using namespace PositionConstants;
 
@@ -55,6 +56,7 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
     if (!PositionMath::bemaniMode) return;
 
     bool isDrums = isDrumLike(activePart);
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
     auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
@@ -68,7 +70,7 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
 
     if (showLaneSeps)
     {
-        int numCols = isDrums ? 4 : 5;
+        int numCols = (int)config->laneCount - 1;
         float laneAlpha = bemaniConfig.laneOpacity;
         g.setColour(juce::Colours::white.withAlpha(laneAlpha));
         float divW = std::max(1.0f, bemaniConfig.laneDivW);
@@ -84,7 +86,7 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
     {
         float strikeAlpha = bemaniConfig.strikelineOpacity;
         float strikeFrac = bemaniConfig.strikelinePos;
-        int numCols = isDrums ? 4 : 5;
+        int numCols = (int)config->laneCount - 1;
         float colW = fbWidth / (float)numCols;
         float strikeY = h * strikeFrac;
         float padH = colW * 0.55f;   // square-ish pads
@@ -487,7 +489,8 @@ void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool is
 
     out = juce::Image(juce::Image::ARGB, w, h, true);
 
-    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
+    const auto& fbCoords = *config->fretboardCoords;
 
     // Compute boundary fractions between adjacent inner lanes (skip bar lane 0)
     std::vector<float> boundaryFracs;

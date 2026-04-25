@@ -56,18 +56,30 @@ public:
         float sizeScale, float fretboardScale = 1.0f,
         int bemaniLaneIdx = -1);
 
+    // Distance of a column center from the fretboard center, normalized to half
+    // the fretboard width. Range [-1, 1] — used by curvature math (arc = curv*(1-d²)).
+    static float columnDistFromCenter(
+        const PositionConstants::NormalizedCoordinates& fbCoords,
+        const PositionConstants::NormalizedCoordinates& colCoords)
+    {
+        float fbCenter = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
+        float fbHalfW = fbCoords.normWidth1 * 0.5f;
+        float colCenter = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
+        return (colCenter - fbCenter) / fbHalfW;
+    }
+
     // Compute a Bemani bar rectangle centered on the fretboard at a given position.
-    // sizeScale = BAR_SIZE, imageAspect = glyph width/height, foreshorten = 1.0 for flat.
+    // sizeScale = BAR_SIZE, imageAspect = glyph width/height. Bemani is flat (no foreshorten).
     static juce::Rectangle<float> computeBemaniBarRect(
         bool isDrums, float position, uint width, uint height,
-        float posEnd, float sizeScale, float imageAspect, float foreshorten = 1.0f)
+        float posEnd, float sizeScale, float imageAspect)
     {
         auto fbEdge = getFretboardEdge(isDrums, position, width, height,
                                         PositionConstants::HIGHWAY_POS_START, posEnd);
         float fbWidth = fbEdge.rightX - fbEdge.leftX;
         float barFit = bemaniConfig.barFit * bemaniConfig.barLaneW;
         float colWidth = fbWidth * barFit * sizeScale;
-        float colHeight = (colWidth / imageAspect) * foreshorten;
+        float colHeight = colWidth / imageAspect;
         float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
         return juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
     }

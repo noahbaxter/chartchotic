@@ -19,6 +19,8 @@
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 
+namespace PositionConstants { struct RenderTypeConfig; }
+
 class SustainRenderer
 {
 public:
@@ -42,6 +44,7 @@ private:
 
     // Cached per-populate call
     DrawCallMap* currentDrawCallMap = nullptr;
+    const PositionConstants::RenderTypeConfig* currentConfig = nullptr;
     uint width = 0, height = 0;
     float posEnd = 0;
     float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;

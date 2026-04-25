@@ -17,6 +17,7 @@ Work from the top.
 - **Video export** — Render chart playback as video for YouTube previews. Multiple community requests. Could be a standalone tool or a feature in the standalone build. Separate project scope.
 - **Unglued MIDI items show overlapping notes** — Reported by Easyfan: split/unglued MIDI items in REAPER render notes from multiple sections at once. Gluing fixes it. Unclear whether this is a bug in the plugin's MIDI fetching (reading across item boundaries) or expected REAPER behavior (unglued items expose all takes). Needs investigation.
 - **Live MIDI edits not reflecting** — Reported by Galexio: HOPO changes not updating without removing/re-adding plugin. Could not reproduce. Unclear if this is a REAPER MIDI cache staleness issue, a plugin polling gap, or user error. May be fixed by 1.2's live track detection. Monitor for further reports.
+- **Native framerate caps at 60Hz on multi-monitor Windows** — Reported by Monty: primary 144Hz + secondary 60Hz. Native FPS setting caps at 60 instead of 144. Regression from `f176e65` (Timer → VBlankAttachment). Root cause: JUCE 8's `VBlankAttachment` binds to the peer's monitor at creation via `MonitorFromWindow`; a 1-second `monitorUpdateTimer` re-checks but only when `parentToAddTo != nullptr`. When a plugin opens on the secondary display, it can get stuck on 60Hz even after moving to 144Hz. Not a quick fix — options are (a) revert to `juce::Timer` (loses display sync), (b) dual-path Timer+VBlank, (c) document as known limitation. Needs a Windows machine to verify any fix. Single report so far.
 - **Non-REAPER DAW support broken** — Standard pipeline (ChartchoticStd) doesn't work in Ableton as of 1.2. Plugin loads but no functionality. Needs investigation into what the standard MIDI pipeline is actually missing without REAPER APIs.
 - **Standalone mode** — Proper standalone build that loads a chart/MIDI file, displays the highway, and supports video export. Pairs with video export and standalone chart loading items.
 - **Audio playback** — Metronome click, guitar note sounds, drum hit sounds for listening back to charts. Assets mostly ready. Needs audio output from plugin + sync.
@@ -81,6 +82,18 @@ Do between features or when touching related code.
 - **Minimize REAPER API calls** — Profiler/DrawCallMap work done, REAPER call frequency still unaudited.
 - **Settings menu reorganization** — Single gear button, scrollable category list on the right, selected category expands a detail panel on the left (macOS System Settings style). Consolidate View/Chart and Settings panels into one unified menu. Centralize control labels and tooltip text into a single source of truth file.
 - **Tooltips for all controls** — Extend InfoTooltip to every control that isn't immediately obvious. Centralize tooltip strings (header with static constexpr or similar) so they're easy to maintain and translate.
+- **Auto-detect stale CMake build dirs** — `build.sh`, `build-reapertest.sh`, and `scripts/test.sh` should compare `CMAKE_HOME_DIRECTORY` from any existing `CMakeCache.txt` against the current script dir and auto-`rm -rf` the build tree on mismatch before configuring. Bit us twice in one session after moving the repo from `plugins/` to `charting/`.
+- **`build-reapertest.sh` should force-quit REAPER** — The "Quitting REAPER..." step hangs when REAPER has unsaved-changes or end-of-session prompts open, forcing a manual Ctrl-C. Replace graceful quit with `kill -9` / `killall -9 REAPER` so the relaunch step always makes progress.
+
+### Rendering — perspective limits (do not iterate further without a true-3D plan)
+
+**True-3D pipeline rewrite (parking-lot / future major version).** The fake-3D trapezoid in `PositionMath::createPerspectiveGlyphRect` runs two independent 1/z curves (one for X/Y/width, one for sprite height). Any "above the bar plane" element therefore can't keep a constant gap-to-sprite ratio across depth without distorting aspect or breaking lane fit. Two attempted reworks (Apr 11–12 `9128b93`+`49f71a0` and the Apr 20–21 lift-mode/crosshair session) both hit the same wall and have been reverted. Full postmortem in `docs/Z_POSITIONING.md`. Experimental code on `experiment/z-position-rework`. **Do not attempt another scalar-tweak fix.** The right path is a real view-projection matrix.
+
+The following items are subsumed by that rewrite and only worth fixing in isolation if they bite for some specific reason:
+- `PositionMath.cpp:99` — `progress` goes negative past `vanishingPointDepth (1.0)` while `HIGHWAY_POS_END = 1.12` and `FAR_FADE_DEFAULT = 1.20` render past that. Slight extrapolation artifacts at the far end.
+- `NoteRenderer.cpp` guitar gem branch — reads `sNear/sFar/w/h` from per-column adjusts but never adds `ca.z` to zOff (drum branch does). All guitar Z values are 0 anyway, so no visible impact.
+- `SustainRenderer.cpp` — uses raw lane `centerY` with no Z nudge, so guitar notes (when `gemZ` is non-zero) are vertically disconnected from their sustain tails.
+- `getFretboardEdge` / `getColumnPosition` accept `posStart`/`posEnd` but ignore them. Highway-end tuning doesn't reach perspective math.
 
 ---
 
@@ -185,6 +198,7 @@ Unordered. Pull into Up Next when the time comes.
 **Architecture (do when it hurts):**
 - AudioProcessorValueTreeState migration
 - Double-buffered snapshots for renderer
+- **Pop-out highway windows (one plugin, many viewports)** — Today "two windows" = two plugin instances on the same track = duplicated REAPER API traffic, duplicated polling, duplicated InstrumentSession. Replace with "Pop out" action in the toolbar that spawns a `juce::DocumentWindow` hosting an additional `HighwayComponent` off the same `SessionController`/`SlotData`. One processor, one session, one REAPER poll — N viewports. Makes the "6 instances on one track" perf cliff go away by removing the reason to do that. Side-steps the shared-project-scan-cache design (not needed if there's only one consumer). Leaves the real multi-instance case (independent tracks) as the only path where cross-instance caching would matter, which is rare enough to defer indefinitely. REAPER duplicate-track hang (fixed in `fix/reaper-duplicate-hang`, commit `da1d115`) was the forcing function.
 
 ---
 

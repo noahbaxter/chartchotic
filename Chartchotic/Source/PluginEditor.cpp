@@ -91,6 +91,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
+#ifdef DEBUG
+    toolbar.getTuningPanel().setAssetManager(assetManager);
+#endif
+
     // Wire and add all pooled highway slots to component tree (hidden by default).
     // In standalone debug mode, rebuildSlots may have already replaced
     // the default slot during init — just re-wire to be safe.
@@ -199,9 +203,12 @@ void ChartchoticAudioProcessorEditor::onFrame()
             lastKnownPosition = currentPosition;
             lastPlayingState = isCurrentlyPlaying;
 
-            // In REAPER mode, throttled cache invalidation while paused to pick up MIDI edits
-            // Time-based: ~50ms interval regardless of display refresh rate
-            if (isReaperMode && !isCurrentlyPlaying)
+            // REAPER mode: single owner of REAPER API traffic. Must run whether
+            // playing or paused — the audio thread no longer calls REAPER API
+            // (would deadlock during track duplication).
+            // Hash-gated: pollReaperMidiHash only refetches when the track hash
+            // actually changes, so the hot path is cheap during playback.
+            if (isReaperMode)
             {
                 juce::int64 now = juce::Time::getHighResolutionTicks();
                 double elapsed = (now - lastCacheInvalidationTicks)
@@ -209,7 +216,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
                 if (elapsed >= 0.05)
                 {
                     lastCacheInvalidationTicks = now;
-                    audioProcessor.invalidateReaperCache();
+                    audioProcessor.pollReaperMidiHash();
 
                     // Poll InstrumentSession for changes (re-fetch affected tracks)
                     if (auto* instrSession = audioProcessor.getInstrumentSession())
@@ -577,7 +584,9 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
             resized();
         }
     };
+#ifndef DEBUG
     updateChecker.checkForUpdates();
+#endif
 }
 
 void ChartchoticAudioProcessorEditor::updateTrackInfoDisplay()

@@ -53,6 +53,7 @@ public:
     // Set visual window bounds for conservative cleanup during tempo changes
     void setMidiProcessorVisualWindowBounds(PPQ startPPQ, PPQ endPPQ) { midiProcessor.setVisualWindowBounds(startPPQ, endPPQ); }
     void invalidateReaperCache();  // Clear cache and force re-fetch (for track changes)
+    void pollReaperMidiHash();     // Main-thread: hash-check and refetch if MIDI changed
     void applyTrackNumberChange(int trackNumberZeroBased);  // Auto-apply track number from VST3 detection
 
     // Debug
@@ -164,6 +165,7 @@ public:
 
     // Track REAPER connection state per-instance (not static!)
     bool lastReaperConnected = false;
+    bool hasLoggedSuccessfulReaperConnection = false;
 
     void initializeDefaultState();
 
