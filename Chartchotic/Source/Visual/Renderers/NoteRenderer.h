@@ -24,6 +24,8 @@
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
 
+namespace PositionConstants { struct RenderTypeConfig; }
+
 class NoteRenderer
 {
 public:
@@ -38,11 +40,17 @@ public:
     PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
     PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
     PositionConstants::GemTypeScales gemTypeScales;
-    PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
-    PositionConstants::ColumnAdjust guitarColAdjust[6] = {};
-    PositionConstants::ColumnAdjust drumColAdjust[5] = {};
+    // Scene-side arrays referenced via const-pointer — no per-frame copy.
+    // Initialized to compile-time defaults; SceneRenderer::paint repoints
+    // to its (mutable) arrays so debug-panel edits flow through.
+    const PositionConstants::OverlayAdjust* overlayAdjusts = PositionConstants::OVERLAY_DEFAULTS;
+    const PositionConstants::ColumnAdjust* guitarColAdjust = PositionConstants::GUITAR_COL_ADJUST;
+    const PositionConstants::ColumnAdjust* drumColAdjust   = PositionConstants::DRUM_COL_ADJUST;
     const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
     const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
+    // Z values in ColumnAdjust are tuned at REFERENCE_HEIGHT — multiply by
+    // resScale at the read site instead of pre-baking per-frame.
+    float resScale = 1.0f;
     float gemZOffset = 0.0f;
     float cymZOffset = 0.0f;  // Drums only — cymbals tuned separately from toms
     float barZOffset = 0.0f;
@@ -63,6 +71,9 @@ private:
 
     // Cached per-populate call
     DrawCallMap* currentDrawCallMap = nullptr;
+    const PositionConstants::RenderTypeConfig* currentConfig = nullptr;
+    float currentVpDepth = 1.0f;
+    float currentNoteCurvature = PositionConstants::NOTE_CURVATURE;
     uint width = 0, height = 0;
     float posEnd = 0;
     float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
@@ -97,7 +108,7 @@ private:
         float fbStrikeCenterX = 0.0f;      // fretboard center X at strike (pixels)
     };
 
-    void drawFrame(const TimeBasedTrackFrame& gems, float position, double frameTime);
+    void drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime);
     void appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                           double frameTime, const SharedFrameContext& ctx,
                           PositionConstants::Frame& outFrame);
@@ -107,21 +118,49 @@ private:
     void drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
                        juce::Image* glyphImage, bool barNote, float opacity);
 
-    // Overlay positioning (absorbed from GlyphRenderer)
-    static juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect,
-                                                       const PositionConstants::OverlayAdjust& adj);
+    const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums) const;
 
-    // Curved note image cache
+    // Replace gem (and optional overlay) sprite images with cached curved variants
+    // and adjust their height/offsetY accordingly. Shared between perspective and
+    // bemani paths — anchorX/anchorY supply the path-specific overlay baseline
+    // (strikeOffsetX / zOff+arc for perspective; 0 / 0 for bemani).
+    struct CurvedSwapArgs
+    {
+        juce::Image* glyphImage;
+        juce::Image* overlayImage;       // nullable
+        const PositionConstants::OverlayAdjust* overlayAdj;  // nullable
+        int   gemColumn;
+        bool  isDrums;
+        float gemBaseW;            // base width before scale
+        float gemBaseH;            // base height before scale
+        float hScale;              // height scale multiplier
+        float overlayAnchorX;      // overlay offsetX baseline
+        float overlayAnchorY;      // overlay offsetY baseline
+    };
+    void applyCurvedImageSwap(PositionConstants::Frame& frame, int gemIdx, int ovlIdx,
+                              const CurvedSwapArgs& args);
+
+    // Curved note image cache (per (image, column, isDrums))
     struct CurvedImageEntry
     {
         juce::Image image;
         float yOffsetFraction;  // baseline shift as fraction of dest height
     };
 
-    using CurveKey = std::tuple<juce::Image*, int, bool>;  // sourcePtr, column, isDrums
+    // Cache key includes curvature (quantized to 1e-4) so dragging the curvature
+    // slider between two values doesn't thrash the cache on every change.
+    struct CurveKey
+    {
+        juce::Image* src;
+        int column;
+        bool isDrums;
+        int curvatureQ;   // curvature * 10000, rounded
+        bool operator<(const CurveKey& o) const {
+            return std::tie(src, column, isDrums, curvatureQ)
+                 < std::tie(o.src, o.column, o.isDrums, o.curvatureQ);
+        }
+    };
     std::map<CurveKey, CurvedImageEntry> curvedCache;
-    float lastCachedCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
-    float lastCachedCurvatureDrums = PositionConstants::NOTE_CURVATURE;
 
     const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
     float getColumnDistFromCenter(int column, bool isDrums);

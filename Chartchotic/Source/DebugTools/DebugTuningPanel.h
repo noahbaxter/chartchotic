@@ -63,9 +63,12 @@ public:
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
     float drumCurvature = PositionConstants::NOTE_CURVATURE_DRUMS;
 
-    // Base note/bar scale (ElementScale table: 2 rows x 2 cols)
-    PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
-    PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
+    // Base note/bar scale, per-instrument. Adjust table edits the active one
+    // (selected by setDrums()); applyTo() syncs both pairs to SceneRenderer.
+    PositionConstants::ElementScale guitarGemScale = PositionConstants::GUITAR_GEM_SCALE;
+    PositionConstants::ElementScale drumGemScale   = PositionConstants::DRUM_GEM_SCALE;
+    PositionConstants::ElementScale guitarBarScale = PositionConstants::GUITAR_BAR_SCALE;
+    PositionConstants::ElementScale drumBarScale   = PositionConstants::DRUM_BAR_SCALE;
 
     // Hit animation scale (HitScale table: 2 rows x 3 cols)
     PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
@@ -237,6 +240,9 @@ private:
     LayerTransform guitarStates[NUM_TRACK_LAYERS];
     LayerTransform drumStates[NUM_TRACK_LAYERS];
     LayerTransform* layerStates = guitarStates;
+
+    // Tracks the active instrument for getAdjustPtr() routing
+    bool panelIsDrums = false;
 
     juce::Label layerColHdrLabels[LAYER_COLS];
     juce::Label layerRowLabels[NUM_DISPLAY_LAYERS];

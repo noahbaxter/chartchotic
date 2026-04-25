@@ -56,6 +56,18 @@ public:
         float sizeScale, float fretboardScale = 1.0f,
         int bemaniLaneIdx = -1);
 
+    // Distance of a column center from the fretboard center, normalized to half
+    // the fretboard width. Range [-1, 1] — used by curvature math (arc = curv*(1-d²)).
+    static float columnDistFromCenter(
+        const PositionConstants::NormalizedCoordinates& fbCoords,
+        const PositionConstants::NormalizedCoordinates& colCoords)
+    {
+        float fbCenter = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
+        float fbHalfW = fbCoords.normWidth1 * 0.5f;
+        float colCenter = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
+        return (colCenter - fbCenter) / fbHalfW;
+    }
+
     // Compute a Bemani bar rectangle centered on the fretboard at a given position.
     // sizeScale = BAR_SIZE, imageAspect = glyph width/height. Bemani is flat (no foreshorten).
     static juce::Rectangle<float> computeBemaniBarRect(

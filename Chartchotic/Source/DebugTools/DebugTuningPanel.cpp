@@ -280,7 +280,9 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         setupTableHeader(baseScaleColHdrLabels[c]);
 
     auto getBaseScalePtr = [this](int r, int c) -> float* {
-        auto* s = (r == 0) ? &gemScale : &barScale;
+        auto* s = (r == 0)
+            ? (panelIsDrums ? &drumGemScale : &guitarGemScale)
+            : (panelIsDrums ? &drumBarScale : &guitarBarScale);
         return (c == 0) ? &s->width : &s->height;
     };
 
@@ -1006,8 +1008,10 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
 {
     sr.noteCurvatureGuitar = guitarCurvature;
     sr.noteCurvatureDrums = drumCurvature;
-    sr.gemScale = gemScale;
-    sr.barScale = barScale;
+    sr.guitarGemScale = guitarGemScale;
+    sr.drumGemScale   = drumGemScale;
+    sr.guitarBarScale = guitarBarScale;
+    sr.drumBarScale   = drumBarScale;
     sr.hitGemScale = hitGemScale;
     sr.hitBarScale = hitBarScale;
     sr.hitTypeConfig = hitTypeConfig;
@@ -1040,7 +1044,9 @@ void DebugTuningPanel::initDefaults(const TrackRenderer& trackRenderer)
 void DebugTuningPanel::setDrums(bool isDrums)
 {
     layerStates = isDrums ? drumStates : guitarStates;
+    panelIsDrums = isDrums;
     refreshTrackLabels();
+    refreshAdjustLabels();   // Note/Bar W/H rows now route to the new instrument
 }
 
 void DebugTuningPanel::fireLayer(int displayIdx)
@@ -1143,20 +1149,22 @@ float* DebugTuningPanel::getAdjustPtr(int r, int c)
         }
         return nullptr;
     }
+    auto& gemS = panelIsDrums ? drumGemScale : guitarGemScale;
+    auto& barS = panelIsDrums ? drumBarScale : guitarBarScale;
     switch (r)
     {
-    case 0: // Note — W/H from baseScale.gem, S from gemTypeScales.normal
-        if (c == 2) return &gemScale.width;
-        if (c == 3) return &gemScale.height;
+    case 0: // Note — W/H from baseScale.gem (per-instrument), S from gemTypeScales.normal
+        if (c == 2) return &gemS.width;
+        if (c == 3) return &gemS.height;
         if (c == 4) return &gemTypeScales.normal;
         break;
     case 1: // Cymbal
         if (c == 4) return &gemTypeScales.cymbal; break;
     case 2: // HOPO
         if (c == 4) return &gemTypeScales.hopo; break;
-    case 3: // Bar (kicks + opens) — W/H from baseScale.bar
-        if (c == 2) return &barScale.width;
-        if (c == 3) return &barScale.height;
+    case 3: // Bar (kicks + opens) — W/H from baseScale.bar (per-instrument)
+        if (c == 2) return &barS.width;
+        if (c == 3) return &barS.height;
         break;
     case 9: // SP Gem
         if (c == 4) return &gemTypeScales.spGem; break;
@@ -1235,10 +1243,12 @@ void DebugTuningPanel::refreshLabels()
     // Curvature labels
     refreshTunableLabels(curvatureLabels, curvatureTunables, CURVATURE_COUNT);
 
-    // Base Scale table
+    // Base Scale table — reflects the active instrument's scales
     for (int r = 0; r < BASE_SCALE_ROWS; r++)
     {
-        const auto& s = (r == 0) ? gemScale : barScale;
+        const auto& s = (r == 0)
+            ? (panelIsDrums ? drumGemScale : guitarGemScale)
+            : (panelIsDrums ? drumBarScale : guitarBarScale);
         baseScaleParams[r][0].setText(juce::String(s.width, 2), juce::dontSendNotification);
         baseScaleParams[r][1].setText(juce::String(s.height, 2), juce::dontSendNotification);
         baseScaleColHdrLabels[0].setText(baseScaleColNames[0], juce::dontSendNotification);
@@ -1458,6 +1468,36 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     baseScaleHeader.setVisible(false);
     hideTable(baseScaleColHdrLabels, BASE_SCALE_COLS, baseScaleRowLabels, &baseScaleParams[0][0], BASE_SCALE_ROWS, BASE_SCALE_COLS);
 
+    // --- Bemani section (visible — these knobs are the only way to tune
+    //     bemani mode; the unified Adjust table only covers perspective). ---
+    bemaniHeader.setVisible(true);
+    bemaniHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    if (bemaniHeader.expanded)
+    {
+        // Group bemani tunables under their subheaders (Position / Sustains / Visual)
+        const char* groupNames[3] = {"Position", "Sustains", "Visual"};
+        for (int g = 0; g < 3; g++)
+        {
+            bemaniGroupHeaders[g].setVisible(true);
+            bemaniGroupHeaders[g].setBounds(margin, y, w, rowHeight);
+            y += rowHeight + gap;
+            for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++)
+            {
+                if (juce::String(bemaniTunables[i].group) != groupNames[g]) continue;
+                bemaniLabels[i].setVisible(true);
+                bemaniLabels[i].setBounds(margin, y, w, rowHeight);
+                y += rowHeight + gap;
+            }
+        }
+    }
+    else
+    {
+        for (int g = 0; g < 3; g++) bemaniGroupHeaders[g].setVisible(false);
+        for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++) bemaniLabels[i].setVisible(false);
+    }
+    y += headerGap;
+
     // --- Everything below is "advanced" — hidden by default to declutter the
     //     panel. The headers + their content are still wired and tunable; they
     //     just don't render here. To re-expose any section, add a layoutRow /
@@ -1473,10 +1513,6 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     debugColourToggle.setVisible(false);
     stretchToggle.setVisible(false);
     bemaniToggle.setVisible(false);
-
-    bemaniHeader.setVisible(false);
-    for (int g = 0; g < 3; g++) bemaniGroupHeaders[g].setVisible(false);
-    for (int i = 0; i < BEMANI_TUNABLE_COUNT; i++) bemaniLabels[i].setVisible(false);
 
     layoutTunableRows(gemTypeLabels, GEM_TYPE_COUNT, false, margin, w, rowHeight, gap, y);
 

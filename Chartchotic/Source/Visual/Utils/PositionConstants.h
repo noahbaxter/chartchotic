@@ -151,9 +151,6 @@ namespace PositionConstants
     };
     constexpr LaneShapeConfig LANE_SHAPE_DEFAULT = {};
 
-    // Legacy aliases for non-lane sustain code
-    constexpr float LANE_SIDE_CURVE = 0.0f;             // Side edge curvature (disabled)
-
     //==============================================================================
     // Overlay adjustment params (per overlay type)
     struct OverlayAdjust

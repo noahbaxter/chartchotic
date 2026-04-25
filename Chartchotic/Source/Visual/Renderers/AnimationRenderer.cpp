@@ -312,7 +312,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     float zOff = barNote ? hitBarZOffset : hitGemZOffset;
     if (!barNote && isDrums) {
         uint drumIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
-        zOff += drumColZAdjust[drumIdx];
+        zOff += drumColAdjust[drumIdx].z * resScale;   // .z is at REFERENCE_HEIGHT
     }
 
     // Arc offset to match note curvature (same formula as NoteRenderer)
@@ -320,10 +320,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     if (noteCurvature != 0.0f && !barNote)
     {
         const auto& fbCoords = *config->fretboardCoords;
-        float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
-        float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
-        float colCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
-        float dist = (colCenterNorm - fbCenterNorm) / fbHalfWNorm;
+        float dist = PositionMath::columnDistFromCenter(fbCoords, colCoords);
         float fbWidthPx = colWidth * (fbCoords.normWidth1 / colCoords.normWidth1);
         arcOffset = fbWidthPx * noteCurvature * (1.0f - dist * dist);
     }
@@ -354,10 +351,18 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
 
     if (PositionMath::bemaniMode)
     {
-        // Center on the strikeline pad (same Y as TrackRenderer::paintBemaniOverlay)
+        // Center on the strikeline pad, then apply the same Y nudge the gem
+        // received in NoteRenderer::drawGemBemani so the hit lands where the
+        // gem sat (cymbals tracked separately from toms).
         float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
-        float currentCenterY = hitRect.getCentreY();
-        hitRect.translate(0.0f, padY - currentCenterY);
+        bool isCymbalGem = isDrums && (anim.gemType == Gem::CYM
+                                       || anim.gemType == Gem::CYM_GHOST
+                                       || anim.gemType == Gem::CYM_ACCENT);
+        float nudge = isCymbalGem ? bemaniConfig.cymNudge : bemaniConfig.gemNudge(isDrums);
+        float pixelsPerUnit = PositionConstants::REFERENCE_HEIGHT * bemaniConfig.strikelinePos
+                            / std::max(0.1f, PositionMath::bemaniHwyScale);
+        float targetY = padY + pixelsPerUnit * nudge;
+        hitRect.translate(0.0f, targetY - hitRect.getCentreY());
     }
 
     if (hitFrame)

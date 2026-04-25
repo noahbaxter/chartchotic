@@ -34,14 +34,11 @@ namespace PositionConstants
         float opacity   = 1.0f;
     };
 
-    /** A rhythm-game object. Only the sprites list carries layout info;
-        position/column/isBar are metadata for the caller's convenience
-        (the caller projects the anchor and computes frameScale). */
+    /** A rhythm-game object: a list of sprites sharing one anchor + scale.
+        The caller projects the anchor and computes frameScale from depth;
+        drawFrame applies them uniformly so members can't drift apart. */
     struct Frame
     {
-        float position = 0.0f;   // music position (depth along highway)
-        int   column   = -1;     // -1 = full-width (bar/gridline)
-        bool  isBar    = false;  // selects fretboard vs lane perspective path
         std::vector<FrameSprite> sprites;
     };
 }

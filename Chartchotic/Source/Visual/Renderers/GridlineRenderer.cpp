@@ -109,9 +109,6 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         juce::Point<float> frameScale(widthRatio, widthRatio);
 
         Frame frame;
-        frame.position = normalizedPosition;
-        frame.column = -1;
-        frame.isBar = true;
 
         FrameSprite s;
         s.image     = markerImage;

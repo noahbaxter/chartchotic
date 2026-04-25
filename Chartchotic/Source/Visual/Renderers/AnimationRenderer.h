@@ -54,7 +54,10 @@ public:
     PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
     PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
     PositionConstants::HitTypeConfig hitTypeConfig;
-    float drumColZAdjust[5] = {};
+    // Pointer into scene-side drumColAdjust + resScale — multiply ca.z * resScale
+    // at use site so we don't pre-bake the full array per frame.
+    const PositionConstants::ColumnAdjust* drumColAdjust = PositionConstants::DRUM_COL_ADJUST;
+    float resScale = 1.0f;
 
     /**
      * Populate drawCallMap with animation render calls.
@@ -87,7 +90,7 @@ private:
     // Helper: Trigger animation for a specific gem column
     void triggerAnimationForColumn(uint gemColumn, Gem gemType = Gem::NOTE, bool starPower = false);
 
-    // Bezier column edge helper (mirrors SceneRenderer::getColumnEdge)
+    // Bezier column edge helper
     PositionConstants::LaneCorners getColumnEdge(float position, const PositionConstants::NormalizedCoordinates& colCoords,
                                                   float sizeScale, float posEnd,
                                                   float fretboardScale = 1.0f,

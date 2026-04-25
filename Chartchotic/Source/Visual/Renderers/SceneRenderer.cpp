@@ -67,24 +67,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
-    // Per-instrument base scales — guitar gems are smaller/narrower than drum gems,
-    // guitar bars are wider than drum kicks. The DebugTuningPanel still writes to
-    // sceneRenderer.{gemScale,barScale}; if the user has tuned them off-default we
-    // honor that, otherwise we use the per-instrument constant for the active part.
-    bool gemScaleAtGuitarDefault = std::abs(gemScale.width  - PositionConstants::GUITAR_GEM_SCALE.width)  < 0.001f
-                                && std::abs(gemScale.height - PositionConstants::GUITAR_GEM_SCALE.height) < 0.001f;
-    bool barScaleAtGuitarDefault = std::abs(barScale.width  - PositionConstants::GUITAR_BAR_SCALE.width)  < 0.001f
-                                && std::abs(barScale.height - PositionConstants::GUITAR_BAR_SCALE.height) < 0.001f;
-    if (isDrums)
-    {
-        noteRenderer.gemScale = gemScaleAtGuitarDefault ? PositionConstants::DRUM_GEM_SCALE : gemScale;
-        noteRenderer.barScale = barScaleAtGuitarDefault ? PositionConstants::DRUM_BAR_SCALE : barScale;
-    }
-    else
-    {
-        noteRenderer.gemScale = gemScale;
-        noteRenderer.barScale = barScale;
-    }
+    noteRenderer.gemScale = isDrums ? drumGemScale : guitarGemScale;
+    noteRenderer.barScale = isDrums ? drumBarScale : guitarBarScale;
     float strikePosGem = offsets.strikePosGem;
     float strikePosBar = offsets.strikePosBar;
 
@@ -96,19 +80,10 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     noteRenderer.strikePosGem = strikePosGem;
     noteRenderer.strikePosBar = strikePosBar;
     noteRenderer.gemTypeScales = gemTypeScales;
-    std::copy_n(overlayAdjusts, PositionConstants::NUM_OVERLAY_TYPES, noteRenderer.overlayAdjusts);
-    for (int i = 0; i < 6; i++) {
-        const auto& ca = guitarColAdjust[i];
-        noteRenderer.guitarColAdjust[i] = {
-            ca.z * resScale,
-            ca.sNear, ca.sFar, ca.w, ca.h };
-    }
-    for (int i = 0; i < 5; i++) {
-        const auto& ca = drumColAdjust[i];
-        noteRenderer.drumColAdjust[i] = {
-            ca.z * resScale,
-            ca.sNear, ca.sFar, ca.w, ca.h };
-    }
+    noteRenderer.overlayAdjusts = overlayAdjusts;       // pointer to scene-side array
+    noteRenderer.guitarColAdjust = guitarColAdjust;
+    noteRenderer.drumColAdjust = drumColAdjust;
+    noteRenderer.resScale = resScale;                    // applied to ColumnAdjust::z reads
     noteRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
     noteRenderer.laneCoordsDrums = drumLaneCoordsLocal;
 
@@ -173,8 +148,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             animationRenderer.hitGemScale = hitGemScale;
             animationRenderer.hitBarScale = hitBarScale;
             animationRenderer.hitTypeConfig = hitTypeConfig;
-            for (int i = 0; i < 5; i++)
-                animationRenderer.drumColZAdjust[i] = drumColAdjust[i].z * resScale;
+            animationRenderer.drumColAdjust = drumColAdjust;
+            animationRenderer.resScale = resScale;
 
             animationRenderer.renderToDrawCallMap(drawCallMap, width, height, highwayPosEnd,
                                                 strikePosGem);

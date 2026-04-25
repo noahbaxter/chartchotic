@@ -28,6 +28,7 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
                                const NormalizedCoordinates* laneCoordsDrums)
 {
     currentDrawCallMap = &drawCallMap;
+    currentConfig = getRenderTypeConfig(getRenderType(activePart));
     this->width = width;
     this->height = height;
     this->showLanes = showLanes;
@@ -150,7 +151,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
     bool isDrums = isDrumLike(activePart);
-    const auto* config = getRenderTypeConfig(getRenderType(activePart));
+    const auto* config = currentConfig;
     bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
 
     // Look up lane coords
@@ -309,31 +310,11 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
 
     float startMidX = (startLeftX + startRightX) * 0.5f;
     path.quadraticTo(startMidX, adjStartY + startArcY, startRightX, adjStartY);
-
-    if (isLane && std::abs(LANE_SIDE_CURVE) > 0.001f)
-    {
-        float sideMidY = (adjStartY + adjEndY) * 0.5f;
-        float sideArc = LANE_SIDE_CURVE * (startFretboardWidth + endFretboardWidth) * 0.5f;
-        path.quadraticTo(startRightX + sideArc, sideMidY, endRightX, adjEndY);
-    }
-    else
-    {
-        path.lineTo(endRightX, adjEndY);
-    }
+    path.lineTo(endRightX, adjEndY);
 
     float endMidX = (endLeftX + endRightX) * 0.5f;
     path.quadraticTo(endMidX, adjEndY + endArcY, endLeftX, adjEndY);
-
-    if (isLane && std::abs(LANE_SIDE_CURVE) > 0.001f)
-    {
-        float sideMidY = (adjStartY + adjEndY) * 0.5f;
-        float sideArc = LANE_SIDE_CURVE * (startFretboardWidth + endFretboardWidth) * 0.5f;
-        path.quadraticTo(endLeftX - sideArc, sideMidY, startLeftX, adjStartY);
-    }
-    else
-    {
-        path.closeSubPath();
-    }
+    path.closeSubPath();
 
     // Fill the path — use gradient if sustain extends into the fade zone
     float fadeStart = farFadeEnd - farFadeLen;
