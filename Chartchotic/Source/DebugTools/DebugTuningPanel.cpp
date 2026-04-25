@@ -257,14 +257,14 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
 
     // --- Curvature section (data-driven) ---
     setupSectionHeader(curvatureHeader, "Curvature");
-    curvatureHeader.setExpanded(true);  // depthForeshorten lives here — show by default
+    curvatureHeader.setExpanded(true);
     {
-        static constexpr const char* names[CURVATURE_COUNT] = {"Guitar", "Drums", "Depth"};
-        float* ptrs[CURVATURE_COUNT] = {&guitarCurvature, &drumCurvature, &depthForeshorten};
-        static constexpr float lo[CURVATURE_COUNT]   = {-0.20f, -0.20f, 0.0f};
-        static constexpr float hi[CURVATURE_COUNT]   = {0.20f, 0.20f, 1.0f};
-        static constexpr float steps[CURVATURE_COUNT] = {0.002f, 0.002f, 0.02f};
-        static constexpr int   dec[CURVATURE_COUNT]   = {3, 3, 2};
+        static constexpr const char* names[CURVATURE_COUNT] = {"Guitar", "Drums"};
+        float* ptrs[CURVATURE_COUNT] = {&guitarCurvature, &drumCurvature};
+        static constexpr float lo[CURVATURE_COUNT]   = {-0.20f, -0.20f};
+        static constexpr float hi[CURVATURE_COUNT]   = {0.20f, 0.20f};
+        static constexpr float steps[CURVATURE_COUNT] = {0.002f, 0.002f};
+        static constexpr int   dec[CURVATURE_COUNT]   = {3, 3};
 
         for (int i = 0; i < CURVATURE_COUNT; i++)
             curvatureTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i]};
@@ -1006,7 +1006,6 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
 {
     sr.noteCurvatureGuitar = guitarCurvature;
     sr.noteCurvatureDrums = drumCurvature;
-    sr.depthForeshorten = depthForeshorten;
     sr.gemScale = gemScale;
     sr.barScale = barScale;
     sr.hitGemScale = hitGemScale;
@@ -1396,7 +1395,7 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     }
     y += headerGap;
 
-    // --- Curvature (guitar/drums curvature + depthForeshorten) ---
+    // --- Curvature (guitar / drums) ---
     curvatureHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
     layoutTunableRows(curvatureLabels, CURVATURE_COUNT, curvatureHeader.expanded, margin, w, rowHeight, gap, y);

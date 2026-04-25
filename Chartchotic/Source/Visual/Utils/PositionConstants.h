@@ -112,7 +112,6 @@ namespace PositionConstants
     constexpr float TEXT_EVENT_WIDTH_SCALE = 1.00f;    // Text event marker width relative to fretboard
     constexpr float GRIDLINE_POS_OFFSET = -0.020f;      // Nudge gridlines forward in position space
     constexpr float BAR_FRETBOARD_FIT = 1.0f;            // Bar note base scale to fill fretboard polygon
-    constexpr float BAR_NOTE_POS_OFFSET = -0.020f;      // Nudge bar notes forward in position space
     constexpr float SUSTAIN_WIDTH = 0.15f;              // Sustain width multiplier
     constexpr float SUSTAIN_OPEN_WIDTH = 0.7f;          // Open sustain width multiplier (narrower)
     inline float LANE_WIDTH = 1.0f;                       // Lane width multiplier (mutable for debug tuning)
@@ -242,14 +241,10 @@ namespace PositionConstants
 
     //==============================================================================
     // Curved Note Rendering (pre-baked image cache)
-    constexpr float NOTE_CURVATURE = -0.02f;       // Arc height as fraction of fretboard width
+    constexpr float NOTE_CURVATURE = -0.02f;        // Arc height as fraction of fretboard width (guitar)
+    constexpr float NOTE_CURVATURE_DRUMS = -0.016f; // Drum default (slightly less bow than guitar)
     constexpr float BAR_CURVATURE = 0.0f;          // Bars stay flat (span full fretboard)
     constexpr int NOTE_CACHE_DOWNSAMPLE = 2;       // Source resolution divisor (2 = 1/2 res)
-
-    //==============================================================================
-    // Perspective depth foreshortening (normalized, no window-size dependency)
-    // Blend strength: 0 = no foreshortening, 1 = full perspective height correction
-    constexpr float NOTE_DEPTH_FORESHORTEN = 0.80f;
 
     //==============================================================================
     // Per-instrument Z offsets (reference pixels at 720px height, positive = down)
@@ -258,9 +253,9 @@ namespace PositionConstants
 
     constexpr InstrumentOffsets GUITAR_OFFSETS = {
         0.0f,       // gridZ
-        9.0f,       // gemZ
+        4.0f,       // gemZ
         0.0f,       // cymZ (unused — guitars have no cymbals)
-        0.0f,       // barZ
+        16.0f,      // barZ
         14.0f,      // hitGemZ
         9.0f,       // hitBarZ
         0.0f,       // strikePosGem
@@ -268,9 +263,9 @@ namespace PositionConstants
     };
     constexpr InstrumentOffsets DRUM_OFFSETS = {
         0.0f,       // gridZ
-        4.0f,       // gemZ (toms)
+        0.0f,       // gemZ (toms)
         12.0f,      // cymZ (cymbals — tuned for visible overhang above bar)
-        0.0f,       // barZ
+        14.0f,      // barZ
         6.0f,       // hitGemZ
         10.0f,      // hitBarZ
         0.0f,       // strikePosGem
@@ -296,7 +291,7 @@ namespace PositionConstants
         {0, 1.05f, 1, 1, 1}             // Orange
     };
     constexpr ColumnAdjust DRUM_COL_ADJUST[5] = {
-        {0, 0.99f, 1, 1, 1},            // Kick
+        {0, 1, 1, 1, 1},                // Kick
         {0, 1, 1, 1, 1},                // Red
         {0, 1, 1, 1, 1},                // Yellow
         {0, 1, 1, 1, 1},                // Blue
@@ -333,9 +328,14 @@ namespace PositionConstants
     };
 
     //==============================================================================
-    // Gem/bar base scales (ElementScale: width, height)
-    constexpr ElementScale GEM_SCALE = {1.0f, 1.15f};
-    constexpr ElementScale BAR_SCALE = {1.05f, 1.05f};
+    // Gem/bar base scales (ElementScale: width, height) — per-instrument
+    constexpr ElementScale GUITAR_GEM_SCALE = {0.9f, 1.035f};   // 0.9 × {1.0, 1.15}
+    constexpr ElementScale GUITAR_BAR_SCALE = {1.10f, 1.10f};
+    constexpr ElementScale DRUM_GEM_SCALE   = {0.9f, 1.035f};   // matches guitar
+    constexpr ElementScale DRUM_BAR_SCALE   = {1.05f, 1.05f};
+    // Legacy single-value aliases (still referenced by SceneRenderer/DebugTuningPanel)
+    constexpr ElementScale GEM_SCALE = GUITAR_GEM_SCALE;
+    constexpr ElementScale BAR_SCALE = GUITAR_BAR_SCALE;
 
     //==============================================================================
     // Hit animation scales (HitScale: uniform scale, width, height)

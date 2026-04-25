@@ -61,20 +61,51 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
 
 void NoteRenderer::drawFrame(const TimeBasedTrackFrame& gems, float position, double frameTime)
 {
+    bool isDrums = isDrumLike(activePart);
+
+    // Shared anchor + scale for the whole row: one projection of the lane plane
+    // at the musical position. Every sprite (bar + gems + overlays) is laid out
+    // in strike-reference pixels relative to this anchor and scaled by the same
+    // frameScale, so the row renders as a single composite — no per-sprite
+    // depth offset, no drift between stacked elements.
+    auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
+                                                    PositionConstants::HIGHWAY_POS_START, posEnd);
+    auto fbCur = PositionMath::getFretboardEdge(isDrums, position, width, height,
+                                                  PositionConstants::HIGHWAY_POS_START, posEnd);
+    float fbStrikeWidth = fbStrike.rightX - fbStrike.leftX;
+    float fbStrikeCenterX = (fbStrike.leftX + fbStrike.rightX) * 0.5f;
+    float fbCurWidth = fbCur.rightX - fbCur.leftX;
+    float fbCurCenterX = (fbCur.leftX + fbCur.rightX) * 0.5f;
+    float widthRatio = (fbStrikeWidth > 0.0f) ? (fbCurWidth / fbStrikeWidth) : 1.0f;
+
+    SharedFrameContext ctx;
+    ctx.anchor = juce::Point<float>(fbCurCenterX, fbCur.centerY);
+    ctx.frameScale = juce::Point<float>(widthRatio, widthRatio);
+    ctx.fbStrikeWidth = fbStrikeWidth;
+    ctx.fbStrikeCenterX = fbStrikeCenterX;
+
+    PositionConstants::Frame composite;
+    composite.position = position;
+    composite.column = -1;
+
     uint drawSequence[] = {0, 6, 1, 2, 3, 4, 5};
     for (int i = 0; i < gems.size(); i++)
     {
         int gemColumn = drawSequence[i];
         if (gems[gemColumn].gem != Gem::NONE)
         {
-            drawGem(gemColumn, gems[gemColumn], position, frameTime);
+            appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite);
         }
     }
+
+    if (!composite.sprites.empty())
+        PositionConstants::drawFrame(composite, ctx.anchor, ctx.frameScale, *currentDrawCallMap);
 }
 
-void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float position, double frameTime)
+void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
+                                     double frameTime, const SharedFrameContext& ctx,
+                                     PositionConstants::Frame& outFrame)
 {
-    juce::Rectangle<float> glyphRect;
     juce::Image* glyphImage;
     bool barNote;
 
@@ -104,166 +135,211 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         return;
 
     float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
+    float opacity = calculateOpacity(position);
 
-    float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-    float adjustedPosition = barNote ? position + PositionConstants::BAR_NOTE_POS_OFFSET : position;
-
-    // Perspective foreshortening: reduce note height toward the far end.
-    // Normalized against vanishingPointDepth for consistent perspective.
-    float foreshorten = 1.0f;
-    if (depthForeshorten > 0.0f && !PositionMath::bemaniMode)
+    // ============================================================================
+    // BEMANI PATH: flat / no perspective — keep the legacy per-gem direct-draw
+    // path. Bemani mode doesn't have the chord-drift problem and uses its own
+    // bar-rect math + nudge constants that don't fit the composite model.
+    // ============================================================================
+    if (PositionMath::bemaniMode)
     {
-        auto pp = config->getPerspectiveParams();
-        float depth = std::max(0.0f, adjustedPosition) / pp.vanishingPointDepth;
-        float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
-        float psCur = scaleNear / (1.0f + depth * (scaleNear - 1.0f));
-        float rawRatio = psCur / scaleNear;
-        foreshorten = 1.0f - (1.0f - rawRatio) * depthForeshorten;
-    }
+        float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+        juce::Rectangle<float> glyphRect;
 
-    if (barNote)
-    {
-        // Bar notes span the full fretboard polygon (no FRETBOARD_SCALE)
-        if (PositionMath::bemaniMode)
+        if (barNote)
         {
             glyphRect = PositionMath::computeBemaniBarRect(
-                isDrums, adjustedPosition, width, height, posEnd,
-                sizeScale, imageAspect, foreshorten);
+                isDrums, position, width, height, posEnd,
+                sizeScale, imageAspect);
+        }
+        else if (isGuitarLike(activePart))
+        {
+            int idx = (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1;
+            const auto& colCoords = laneCoordsGuitar[idx];
+            int bemaniIdx = idx - 1;
+            auto edge = getColumnEdge(position, colCoords, 1.0f,
+                                      PositionConstants::FRETBOARD_SCALE, bemaniIdx);
+            float laneWidth = edge.rightX - edge.leftX;
+            float colWidth = laneWidth * sizeScale;
+            float colHeight = colWidth / imageAspect;
+            float cx = (edge.leftX + edge.rightX) * 0.5f;
+            glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
         }
         else
         {
-            auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
-                                                          PositionConstants::HIGHWAY_POS_START, posEnd);
-            float fbWidth = fbEdge.rightX - fbEdge.leftX;
-            float colWidth = fbWidth * BAR_FRETBOARD_FIT * sizeScale;
-            float colHeight = (colWidth / imageAspect) * foreshorten;
-            float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
-            glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, fbEdge.centerY - colHeight * 0.5f, colWidth, colHeight);
+            uint drumIdx = drumColumnIndex(gemColumn);
+            const auto& colCoords = laneCoordsDrums[drumIdx];
+            int bemaniIdx = (int)drumIdx - 1;
+            auto edge = getColumnEdge(position, colCoords, 1.0f,
+                                      PositionConstants::FRETBOARD_SCALE, bemaniIdx);
+            float laneWidth = edge.rightX - edge.leftX;
+            float colWidth = laneWidth * sizeScale;
+            float colHeight = colWidth / imageAspect;
+            float cx = (edge.leftX + edge.rightX) * 0.5f;
+            glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
         }
-    }
-    else if (isGuitarLike(activePart))
-    {
-        int idx = (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1;
-        const auto& colCoords = laneCoordsGuitar[idx];
-        int bemaniIdx = idx - 1;  // skip open (0) → green=0, red=1, yel=2, blu=3, org=4
-        auto edge = getColumnEdge(adjustedPosition, colCoords, 1.0f,
-                                  PositionConstants::FRETBOARD_SCALE, bemaniIdx);
-        float laneWidth = edge.rightX - edge.leftX;
-        float colWidth = laneWidth * sizeScale;
-        float colHeight = (colWidth / imageAspect) * foreshorten;
-        float cx = (edge.leftX + edge.rightX) * 0.5f;
-        glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
-    }
-    else
-    {
-        uint drumIdx = drumColumnIndex(gemColumn);
-        const auto& colCoords = laneCoordsDrums[drumIdx];
-        int bemaniIdx = (int)drumIdx - 1;  // skip kick (0) → red=0, yel=1, blu=2, grn=3
-        auto edge = getColumnEdge(adjustedPosition, colCoords, 1.0f,
-                                  PositionConstants::FRETBOARD_SCALE, bemaniIdx);
-        float laneWidth = edge.rightX - edge.leftX;
-        float colWidth = laneWidth * sizeScale;
-        float colHeight = (colWidth / imageAspect) * foreshorten;
-        float cx = (edge.leftX + edge.rightX) * 0.5f;
-        glyphRect = juce::Rectangle<float>(cx - colWidth * 0.5f, edge.centerY - colHeight * 0.5f, colWidth, colHeight);
-    }
 
-    // Apply user gem/bar scale (from Settings popup)
-    float userScale = barNote
-        ? (state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f)
-        : (state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f);
-    if (std::abs(userScale - 1.0f) > 0.001f)
-    {
-        float cx = glyphRect.getCentreX();
-        float cy = glyphRect.getCentreY();
-        float newW = glyphRect.getWidth() * userScale;
-        float newH = glyphRect.getHeight() * userScale;
-        glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
-    }
+        float userScale = barNote
+            ? (state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f)
+            : (state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f);
+        if (std::abs(userScale - 1.0f) > 0.001f)
+        {
+            float cx = glyphRect.getCentreX();
+            float cy = glyphRect.getCentreY();
+            float newW = glyphRect.getWidth() * userScale;
+            float newH = glyphRect.getHeight() * userScale;
+            glyphRect = juce::Rectangle<float>(cx - newW / 2.0f, cy - newH / 2.0f, newW, newH);
+        }
 
-    // Bemani mode: nudge gems/bars using a width-independent reference
-    // (pixelsPerUnit is constant regardless of viewport dimensions)
-    if (PositionMath::bemaniMode)
-    {
         float nudge = barNote ? bemaniConfig.barNudge : config->bemaniGemNudge();
         float pixelsPerUnit = PositionConstants::REFERENCE_HEIGHT * bemaniConfig.strikelinePos
                             / std::max(0.1f, PositionMath::bemaniHwyScale);
         glyphRect.translate(0.0f, pixelsPerUnit * nudge);
-    }
 
-    float opacity = calculateOpacity(position);
-    float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
-    float baseCurv = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
-    float curvature = PositionMath::bemaniMode ? baseCurv * bemaniConfig.curvature : baseCurv;
+        float baseW = barNote ? bemaniConfig.barW : bemaniConfig.gemW;
+        float baseH = barNote ? bemaniConfig.barH : bemaniConfig.gemH;
 
-    // Debug scale factors (separate note vs bar)
-    const auto& baseScale = barNote ? barScale : gemScale;
-    float baseW, baseH;
-    if (PositionMath::bemaniMode)
-    {
-        baseW = barNote ? bemaniConfig.barW : bemaniConfig.gemW;
-        baseH = barNote ? bemaniConfig.barH : bemaniConfig.gemH;
-    }
-    else
-    {
-        baseW = baseScale.width;
-        baseH = baseScale.height;
-    }
-
-    // Per-note-type scale (applied uniformly to base + overlay)
-    float typeScale = 1.0f;
-    if (!isDrums)
-    {
-        switch (gemWrapper.gem) {
-        case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
-        case Gem::HOPO_GHOST:  typeScale = gemTypeScales.hopo; break;
-        case Gem::TAP_ACCENT:  typeScale = gemTypeScales.gTap; break;
-        default: break;
+        float typeScale = 1.0f;
+        if (!barNote)
+        {
+            if (!isDrums)
+            {
+                switch (gemWrapper.gem) {
+                case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+                case Gem::HOPO_GHOST:  typeScale = gemTypeScales.hopo; break;
+                case Gem::TAP_ACCENT:  typeScale = gemTypeScales.gTap; break;
+                default: break;
+                }
+            }
+            else
+            {
+                switch (gemWrapper.gem) {
+                case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+                case Gem::HOPO_GHOST:  typeScale = gemTypeScales.dGhost; break;
+                case Gem::TAP_ACCENT:  typeScale = gemTypeScales.dAccent; break;
+                case Gem::CYM:         typeScale = gemTypeScales.cymbal; break;
+                case Gem::CYM_GHOST:   typeScale = gemTypeScales.cGhost; break;
+                case Gem::CYM_ACCENT:  typeScale = gemTypeScales.cAccent; break;
+                default: break;
+                }
+            }
         }
-    }
-    else
-    {
-        switch (gemWrapper.gem) {
-        case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
-        case Gem::HOPO_GHOST:  typeScale = gemTypeScales.dGhost; break;
-        case Gem::TAP_ACCENT:  typeScale = gemTypeScales.dAccent; break;
-        case Gem::CYM:         typeScale = gemTypeScales.cymbal; break;
-        case Gem::CYM_GHOST:   typeScale = gemTypeScales.cGhost; break;
-        case Gem::CYM_ACCENT:  typeScale = gemTypeScales.cAccent; break;
-        default: break;
-        }
-    }
 
-    // Bar notes maintain constant size regardless of SP or gem-type scaling
-    float spMul = 1.0f;
-    if (!barNote)
-    {
-        if (gemWrapper.starPower)
+        float spMul = 1.0f;
+        if (!barNote && gemWrapper.starPower)
         {
             float spScale = gemTypeScales.spGem;
-            if (std::abs(spScale - 1.0f) > 0.001f)
-                spMul = spScale;
+            if (std::abs(spScale - 1.0f) > 0.001f) spMul = spScale;
         }
-    }
-    else
-    {
-        typeScale = 1.0f;
-    }
-    float wScale = baseW * typeScale * spMul;
-    float hScale = baseH * typeScale * spMul;
-    float oWScale = wScale;
-    float oHScale = hScale;
 
-    // --- Compute strike-reference sprite dimensions ---
-    // Strike-reference = sprite dimensions at position=0 (strikeline) before
-    // perspective foreshorten. frameScale below is the ratio of current → strike.
-    float strikeColWidth;
+        float wScale = baseW * typeScale * spMul;
+        float hScale = baseH * typeScale * spMul;
+
+        float baseCurv = barNote ? PositionConstants::BAR_CURVATURE
+                                  : (isDrums ? noteCurvatureDrums : noteCurvatureGuitar);
+        float curvature = baseCurv * bemaniConfig.curvature;
+
+        // Single-sprite frame, scale = 1 (flat). zOff packed as a sprite-level offsetY.
+        PositionConstants::Frame frame;
+        frame.position = position;
+        frame.column = (int)gemColumn;
+        frame.isBar = barNote;
+
+        PositionConstants::FrameSprite s;
+        s.image = glyphImage;
+        s.offsetX = 0.0f;
+        s.offsetY = 0.0f;
+        s.width = glyphRect.getWidth() * wScale;
+        s.height = glyphRect.getHeight() * hScale;
+        s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
+        s.drawColumn = (int)gemColumn;
+        s.opacity = opacity;
+        frame.sprites.push_back(s);
+
+        juce::Image* overlayImage = assetManager.getOverlayImage(
+            gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
+        const OverlayAdjust* overlayAdjPtr = nullptr;
+        if (overlayImage != nullptr)
+        {
+            const auto& overlayAdj = [&]() -> const OverlayAdjust& {
+                if (!isDrums) return overlayAdjusts[OVERLAY_GUITAR_TAP];
+                switch (gemWrapper.gem) {
+                case Gem::HOPO_GHOST: return overlayAdjusts[OVERLAY_DRUM_NOTE_GHOST];
+                case Gem::TAP_ACCENT: return overlayAdjusts[OVERLAY_DRUM_NOTE_ACCENT];
+                case Gem::CYM_GHOST:  return overlayAdjusts[OVERLAY_DRUM_CYM_GHOST];
+                case Gem::CYM_ACCENT: return overlayAdjusts[OVERLAY_DRUM_CYM_ACCENT];
+                default: { static const OverlayAdjust none; return none; }
+                }
+            }();
+            overlayAdjPtr = &overlayAdj;
+
+            float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
+            float ovlRectSY = overlayAdj.scaleY * overlayAdj.scale;
+
+            PositionConstants::FrameSprite ov;
+            ov.image = overlayImage;
+            ov.width = glyphRect.getWidth() * wScale * ovlRectSX;
+            ov.height = glyphRect.getHeight() * hScale * ovlRectSY;
+            ov.offsetX = overlayAdj.offsetX * ov.width;
+            ov.offsetY = overlayAdj.offsetY * ov.height;
+            ov.drawOrder = (int)DrawOrder::OVERLAY;
+            ov.drawColumn = (int)gemColumn;
+            ov.opacity = opacity;
+            frame.sprites.push_back(ov);
+        }
+
+        if (curvature != 0.0f)
+        {
+            const auto& gemEntry = getCurvedImage(glyphImage, gemColumn, isDrums);
+            float gemCurvedAspect = (float)gemEntry.image.getWidth()
+                                  / (float)gemEntry.image.getHeight();
+            float gemCurvedH = (glyphRect.getWidth() / gemCurvedAspect) * hScale;
+            frame.sprites[0].image = const_cast<juce::Image*>(&gemEntry.image);
+            frame.sprites[0].height = gemCurvedH;
+            frame.sprites[0].offsetY += gemEntry.yOffsetFraction * glyphRect.getHeight();
+
+            if (overlayImage != nullptr && overlayAdjPtr != nullptr)
+            {
+                const auto& ovlEntry = getCurvedImage(overlayImage, gemColumn, isDrums);
+                float ovlCurvedAspect = (float)ovlEntry.image.getWidth()
+                                      / (float)ovlEntry.image.getHeight();
+                auto& ovlSprite = frame.sprites[1];
+                float ovlRectSX = overlayAdjPtr->scaleX * overlayAdjPtr->scale;
+                float ovlRectSY = overlayAdjPtr->scaleY * overlayAdjPtr->scale;
+                float ovlCurvedH = (glyphRect.getWidth() * ovlRectSX) / ovlCurvedAspect * hScale;
+                float ovlContentYBase = glyphRect.getHeight() * ovlRectSY;
+
+                ovlSprite.image = const_cast<juce::Image*>(&ovlEntry.image);
+                ovlSprite.height = ovlCurvedH;
+                ovlSprite.offsetX = overlayAdjPtr->offsetX * ovlSprite.width;
+                ovlSprite.offsetY = ovlEntry.yOffsetFraction * ovlContentYBase
+                                  + overlayAdjPtr->offsetY * ovlSprite.height;
+            }
+        }
+
+        juce::Point<float> bemaniAnchor(glyphRect.getCentreX(), glyphRect.getCentreY());
+        juce::Point<float> bemaniScale(1.0f, 1.0f);
+        PositionConstants::drawFrame(frame, bemaniAnchor, bemaniScale, *currentDrawCallMap);
+        return;
+    }
+
+    // ============================================================================
+    // PERSPECTIVE PATH: append sprites to the shared composite frame.
+    // The shared anchor + frameScale come from ctx (one projection of the lane
+    // plane at this musical position). All sprite offsets and sizes below are
+    // expressed in strike-reference pixels relative to ctx.anchor; drawFrame
+    // applies ctx.frameScale uniformly so the bar and its stacked gems can't
+    // drift apart.
+    // ============================================================================
+
+    // Strike-reference width + horizontal offset from shared anchor
+    float strikeColWidth, strikeOffsetX;
     if (barNote)
     {
-        auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
-                                                        PositionConstants::HIGHWAY_POS_START, posEnd);
-        strikeColWidth = (fbStrike.rightX - fbStrike.leftX)
+        strikeColWidth = ctx.fbStrikeWidth
                        * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
+        strikeOffsetX = 0.0f;  // bar is centered on fretboard
     }
     else
     {
@@ -273,102 +349,112 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE,
                                          PositionConstants::FRETBOARD_SCALE);
         strikeColWidth = strikeEdge.rightX - strikeEdge.leftX;
+        strikeOffsetX = (strikeEdge.leftX + strikeEdge.rightX) * 0.5f - ctx.fbStrikeCenterX;
     }
     float strikeColHeight = strikeColWidth / imageAspect;
 
-    // --- Compute per-axis frameScale ---
-    // Width tracks the lane-width curve; height tracks lane-width × foreshorten
-    // (legacy non-isotropic perspective — sprites get squatter at depth).
-    // Both axes multiply offsetX/Y and width/height symmetrically inside drawFrame,
-    // so the drift invariant offsetY/height = constant holds at every depth.
-    //
-    // depthForeshorten (debug-tunable) controls how much height compresses
-    // beyond width: 0 = no compression (heights match widths), 1 = full
-    // foreshorten. Default 0.80.
-    //
-    // curWidthPx already includes userScale (applied to glyphRect above);
-    // strikeColWidth does not — so frameScale naturally encodes userScale.
-    float curWidthPx = glyphRect.getWidth();
-    float widthRatio = (strikeColWidth > 0.0f) ? (curWidthPx / strikeColWidth) : 1.0f;
-    juce::Point<float> frameScale(widthRatio, widthRatio * foreshorten);
+    // userScale (settings popup) — sprite-size multiplier; center stays at lane
+    float userScale = barNote
+        ? (state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f)
+        : (state.hasProperty("gemScale") ? (float)state["gemScale"] : 1.0f);
 
-    // --- Per-column adjustments + zOff (in strike-reference pixels) ---
-    // In Bemani mode: no perspective Z offsets or depth-based column scaling — everything is flat.
-    float zOff = 0.0f;
-    if (!PositionMath::bemaniMode)
+    // Per-gem-type scale + star-power multiplier
+    float typeScale = 1.0f;
+    if (!barNote)
     {
-        // Cymbals get their own Z so they can be tuned independently from toms
-        // (cym artwork sits higher in the rect, so it tends to need a different lift).
-        bool isCymbalGem = !barNote && isDrums
-            && (gemWrapper.gem == Gem::CYM
-                || gemWrapper.gem == Gem::CYM_GHOST
-                || gemWrapper.gem == Gem::CYM_ACCENT);
-        zOff = barNote ? barZOffset : (isCymbalGem ? cymZOffset : gemZOffset);
-        float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
-        if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
-            const auto& ca = guitarColAdjust[gemColumn];
-            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-        } else if (isDrums) {
-            uint drumIdx = drumColumnIndex(gemColumn);
-            const auto& ca = drumColAdjust[drumIdx];
-            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-            if (!barNote)
-                zOff += ca.z;
+        if (!isDrums)
+        {
+            switch (gemWrapper.gem) {
+            case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+            case Gem::HOPO_GHOST:  typeScale = gemTypeScales.hopo; break;
+            case Gem::TAP_ACCENT:  typeScale = gemTypeScales.gTap; break;
+            default: break;
+            }
         }
-
-        // Per-column scale: interpolate uniform scale, multiply with per-axis
-        float vpDepth = config->getPerspectiveParams().vanishingPointDepth;
-        float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
-        float colScale = colSNear + (colSFar - colSNear) * t;
-        wScale *= colScale * colW;
-        hScale *= colScale * colH;
-        oWScale *= colScale * colW;
-        oHScale *= colScale * colH;
+        else
+        {
+            switch (gemWrapper.gem) {
+            case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+            case Gem::HOPO_GHOST:  typeScale = gemTypeScales.dGhost; break;
+            case Gem::TAP_ACCENT:  typeScale = gemTypeScales.dAccent; break;
+            case Gem::CYM:         typeScale = gemTypeScales.cymbal; break;
+            case Gem::CYM_GHOST:   typeScale = gemTypeScales.cymbal * gemTypeScales.cGhost; break;
+            case Gem::CYM_ACCENT:  typeScale = gemTypeScales.cymbal * gemTypeScales.cAccent; break;
+            default: break;
+            }
+        }
+    }
+    float spMul = 1.0f;
+    if (!barNote && gemWrapper.starPower)
+    {
+        float spScale = gemTypeScales.spGem;
+        if (std::abs(spScale - 1.0f) > 0.001f) spMul = spScale;
     }
 
-    // Compute global arc Y offset so adjacent notes form a continuous parabola.
-    // Fretboard width is queried directly (not scaled from per-lane normWidth1)
-    // so the arc amplitude is independent of lane coordinate tuning.
-    // arcOffset is in current-pixel space, so it's applied to the anchor (not
-    // subject to frameScale — matches legacy behavior).
-    float arcOffset = 0.0f;
+    const auto& baseScale = barNote ? barScale : gemScale;
+    float wScale = baseScale.width  * typeScale * spMul * userScale;
+    float hScale = baseScale.height * typeScale * spMul * userScale;
+    float oWScale = wScale;
+    float oHScale = hScale;
+
+    // zOff (Z lift in strike-reference pixels) + per-column adjustment
+    bool isCymbalGem = !barNote && isDrums
+        && (gemWrapper.gem == Gem::CYM
+            || gemWrapper.gem == Gem::CYM_GHOST
+            || gemWrapper.gem == Gem::CYM_ACCENT);
+    float zOff = barNote ? barZOffset : (isCymbalGem ? cymZOffset : gemZOffset);
+
+    float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
+    if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
+        const auto& ca = guitarColAdjust[gemColumn];
+        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+    } else if (isDrums) {
+        uint drumIdx = drumColumnIndex(gemColumn);
+        const auto& ca = drumColAdjust[drumIdx];
+        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+        if (!barNote) zOff += ca.z;
+    }
+
+    float vpDepth = config->getPerspectiveParams().vanishingPointDepth;
+    float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
+    float colScale = colSNear + (colSFar - colSNear) * t;
+    wScale *= colScale * colW;
+    hScale *= colScale * colH;
+    oWScale *= colScale * colW;
+    oHScale *= colScale * colH;
+
+    // Curvature arc, in strike-reference pixels (ctx.frameScale carries it to
+    // current pixels at draw time, matching legacy current-pixel-space arc).
+    float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
+    float curvature = barNote ? PositionConstants::BAR_CURVATURE : noteCurv;
+    float arcOffsetStrike = 0.0f;
     if (curvature != 0.0f && !barNote)
     {
         float dist = getColumnDistFromCenter(gemColumn, isDrums);
-        auto fbEdge = PositionMath::getFretboardEdge(isDrums, adjustedPosition, width, height,
-                                                      PositionConstants::HIGHWAY_POS_START, posEnd);
-        float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * PositionConstants::FRETBOARD_SCALE;
-        arcOffset = fbWidthPx * curvature * (1.0f - dist * dist);
+        arcOffsetStrike = ctx.fbStrikeWidth * PositionConstants::FRETBOARD_SCALE
+                        * curvature * (1.0f - dist * dist);
     }
 
-    // --- Anchor: screen-space origin of this frame ---
-    juce::Point<float> anchor(glyphRect.getCentreX(),
-                              glyphRect.getCentreY() + arcOffset);
-
-    // --- Build the frame in strike-reference pixel space ---
-    PositionConstants::Frame frame;
-    frame.position = position;
-    frame.column   = (int)gemColumn;
-    frame.isBar    = barNote;
-
-    // Gem sprite
+    // --- Append gem sprite ---
+    int gemIdx = (int)outFrame.sprites.size();
     {
         PositionConstants::FrameSprite s;
-        s.image      = glyphImage;
-        s.offsetX    = 0.0f;
-        s.offsetY    = zOff;  // strike-reference pixel lift; drawFrame scales uniformly
-        s.width      = strikeColWidth  * wScale;
-        s.height     = strikeColHeight * hScale;
-        s.drawOrder  = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
+        s.image     = glyphImage;
+        s.offsetX   = strikeOffsetX;
+        s.offsetY   = zOff + arcOffsetStrike;
+        s.width     = strikeColWidth  * wScale;
+        s.height    = strikeColHeight * hScale;
+        s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
         s.drawColumn = (int)gemColumn;
-        s.opacity    = opacity;
-        frame.sprites.push_back(s);
+        s.opacity   = opacity;
+        outFrame.sprites.push_back(s);
     }
 
-    // Overlay sprite (accent/ghost ring) — present for specific gem types
+    // --- Append overlay sprite if present ---
     juce::Image* overlayImage = assetManager.getOverlayImage(
         gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
     const OverlayAdjust* overlayAdjPtr = nullptr;
+    int ovlIdx = -1;
     if (overlayImage != nullptr)
     {
         const auto& overlayAdj = [&]() -> const OverlayAdjust& {
@@ -383,23 +469,20 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         }();
         overlayAdjPtr = &overlayAdj;
 
-        // Overlay's "rect scale" (from getOverlayGlyphRect) = scaleX*scale × scaleY*scale
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
         float ovlRectSY = overlayAdj.scaleY * overlayAdj.scale;
 
         PositionConstants::FrameSprite s;
-        s.image      = overlayImage;
-        // Width/height in strike-reference pixels, before offsetX/offsetY translation
-        s.width      = strikeColWidth  * oWScale * ovlRectSX;
-        s.height     = strikeColHeight * oHScale * ovlRectSY;
-        // offsetX/offsetY are expressed as a fraction of the overlay's own drawn
-        // width/height; they translate with frameScale because sprite size does too.
-        s.offsetX    = overlayAdj.offsetX * s.width;
-        s.offsetY    = zOff + overlayAdj.offsetY * s.height;
-        s.drawOrder  = (int)DrawOrder::OVERLAY;
+        s.image     = overlayImage;
+        s.width     = strikeColWidth  * oWScale * ovlRectSX;
+        s.height    = strikeColHeight * oHScale * ovlRectSY;
+        s.offsetX   = strikeOffsetX + overlayAdj.offsetX * s.width;
+        s.offsetY   = zOff + arcOffsetStrike + overlayAdj.offsetY * s.height;
+        s.drawOrder = (int)DrawOrder::OVERLAY;
         s.drawColumn = (int)gemColumn;
-        s.opacity    = opacity;
-        frame.sprites.push_back(s);
+        s.opacity   = opacity;
+        ovlIdx = (int)outFrame.sprites.size();
+        outFrame.sprites.push_back(s);
     }
 
     // --- Curvature swap: replace each sprite's image with the cached curved
@@ -410,47 +493,30 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         const auto& gemEntry = getCurvedImage(glyphImage, gemColumn, isDrums);
         float gemCurvedAspect = (float)gemEntry.image.getWidth()
                               / (float)gemEntry.image.getHeight();
-        // Legacy: curvedH = glyphRect.getWidth() / cachedAspect, then scaleRect(_, wScale, hScale)
-        // → painted height = curvedH * hScale = (glyphRect.getWidth() / cachedAspect) * hScale.
-        // In strike-ref: (strikeColWidth / gemCurvedAspect) * hScale. wScale is NOT in this factor.
         float gemCurvedStrikeHeight = (strikeColWidth / gemCurvedAspect) * hScale;
-        // contentYOff multiplier in legacy = glyphRect.getHeight() = strikeColHeight at strike
-        // (NO hScale — it's the pre-scaleRect rect height).
-        float gemContentYBaseStrike = strikeColHeight;
-        frame.sprites[0].image   = const_cast<juce::Image*>(&gemEntry.image);
-        frame.sprites[0].height  = gemCurvedStrikeHeight;
-        frame.sprites[0].offsetY += gemEntry.yOffsetFraction * gemContentYBaseStrike;
+        outFrame.sprites[gemIdx].image  = const_cast<juce::Image*>(&gemEntry.image);
+        outFrame.sprites[gemIdx].height = gemCurvedStrikeHeight;
+        outFrame.sprites[gemIdx].offsetY += gemEntry.yOffsetFraction * strikeColHeight;
 
-        if (overlayImage != nullptr && overlayAdjPtr != nullptr)
+        if (overlayImage != nullptr && overlayAdjPtr != nullptr && ovlIdx >= 0)
         {
             const auto& ovlEntry = getCurvedImage(overlayImage, gemColumn, isDrums);
             float ovlCurvedAspect = (float)ovlEntry.image.getWidth()
                                   / (float)ovlEntry.image.getHeight();
-            auto& ovlSprite = frame.sprites[1];
+            auto& ovlSprite = outFrame.sprites[ovlIdx];
             float ovlRectSX = overlayAdjPtr->scaleX * overlayAdjPtr->scale;
             float ovlRectSY = overlayAdjPtr->scaleY * overlayAdjPtr->scale;
-            // Legacy contentYOff multiplier = overlayRect.getHeight() = glyphRect.getHeight()
-            // * (scaleY*scale), which in strike-ref = strikeColHeight * ovlRectSY
-            // (WITHOUT oHScale — overlayRect is pre-scaleRect).
             float ovlContentYBaseStrike = strikeColHeight * ovlRectSY;
-            // Curved overlay strike height = (strikeColWidth * scaleX*scale) / curvedAspect * oHScale
-            // (legacy: curvedH = overlayRect.getWidth() / cachedAspect, then scaleRect by oHScale).
             float ovlCurvedStrikeHeight = (strikeColWidth * ovlRectSX) / ovlCurvedAspect * oHScale;
 
             ovlSprite.image  = const_cast<juce::Image*>(&ovlEntry.image);
             ovlSprite.height = ovlCurvedStrikeHeight;
-            // offsetX uses curved width (same as straight width — width scale unchanged).
-            // offsetY uses the curved height for overlayAdj.offsetY translation
-            // (legacy used curvedOverlayRect.getHeight(), which is the curved height).
-            ovlSprite.offsetX = overlayAdjPtr->offsetX * ovlSprite.width;
-            ovlSprite.offsetY = zOff
+            ovlSprite.offsetX = strikeOffsetX + overlayAdjPtr->offsetX * ovlSprite.width;
+            ovlSprite.offsetY = zOff + arcOffsetStrike
                               + ovlEntry.yOffsetFraction * ovlContentYBaseStrike
                               + overlayAdjPtr->offsetY * ovlSprite.height;
         }
     }
-
-    // --- Hand off to frame renderer: one scale applied uniformly to all sprites ---
-    PositionConstants::drawFrame(frame, anchor, frameScale, *currentDrawCallMap);
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)

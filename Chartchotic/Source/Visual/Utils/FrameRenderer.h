@@ -22,11 +22,9 @@ namespace PositionConstants
         Each sprite's pixel center = `anchor + (offsetX * scale.x, offsetY * scale.y)`.
         Each sprite's pixel size   = `(width * scale.x, height * scale.y)`.
 
-        Per-axis scale lets the caller decouple width and height shrinkage —
-        Chartchotic's perspective shrinks sprite width with the lane curve and
-        sprite height with that curve × `foreshorten`. Both `offsetY` and
-        `height` multiply by `scale.y`, so the drift-fix invariant
-        (`offsetY / height = constant`) holds regardless of the scale values.
+        Both `offsetY` and `height` scale by the same `scale.y`, so within a
+        frame the offset-to-size ratio between any two sprites is invariant
+        with depth — composite members can't drift apart by construction.
 
         anchor: projected screen position of the frame's logical origin
         scale:  (scaleX, scaleY) — per-axis perspective scale factors */

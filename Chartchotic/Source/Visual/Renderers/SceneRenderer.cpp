@@ -67,9 +67,24 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
-    noteRenderer.gemScale = gemScale;
-    noteRenderer.barScale = barScale;
-    noteRenderer.depthForeshorten = depthForeshorten;
+    // Per-instrument base scales — guitar gems are smaller/narrower than drum gems,
+    // guitar bars are wider than drum kicks. The DebugTuningPanel still writes to
+    // sceneRenderer.{gemScale,barScale}; if the user has tuned them off-default we
+    // honor that, otherwise we use the per-instrument constant for the active part.
+    bool gemScaleAtGuitarDefault = std::abs(gemScale.width  - PositionConstants::GUITAR_GEM_SCALE.width)  < 0.001f
+                                && std::abs(gemScale.height - PositionConstants::GUITAR_GEM_SCALE.height) < 0.001f;
+    bool barScaleAtGuitarDefault = std::abs(barScale.width  - PositionConstants::GUITAR_BAR_SCALE.width)  < 0.001f
+                                && std::abs(barScale.height - PositionConstants::GUITAR_BAR_SCALE.height) < 0.001f;
+    if (isDrums)
+    {
+        noteRenderer.gemScale = gemScaleAtGuitarDefault ? PositionConstants::DRUM_GEM_SCALE : gemScale;
+        noteRenderer.barScale = barScaleAtGuitarDefault ? PositionConstants::DRUM_BAR_SCALE : barScale;
+    }
+    else
+    {
+        noteRenderer.gemScale = gemScale;
+        noteRenderer.barScale = barScale;
+    }
     float strikePosGem = offsets.strikePosGem;
     float strikePosBar = offsets.strikePosBar;
 

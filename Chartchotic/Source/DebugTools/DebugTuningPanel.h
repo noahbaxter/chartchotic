@@ -61,8 +61,7 @@ public:
 
     // Current tuning values (read by applyTo)
     float guitarCurvature = PositionConstants::NOTE_CURVATURE;
-    float drumCurvature = PositionConstants::NOTE_CURVATURE;
-    float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
+    float drumCurvature = PositionConstants::NOTE_CURVATURE_DRUMS;
 
     // Base note/bar scale (ElementScale table: 2 rows x 2 cols)
     PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
@@ -274,7 +273,7 @@ private:
 
     // --- Curvature section ---
     SectionHeader curvatureHeader;
-    static constexpr int CURVATURE_COUNT = 3;
+    static constexpr int CURVATURE_COUNT = 2;
     ScrollableLabel curvatureLabels[CURVATURE_COUNT];
     DebugTunable curvatureTunables[CURVATURE_COUNT];
 

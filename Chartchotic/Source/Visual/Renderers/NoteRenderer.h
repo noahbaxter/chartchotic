@@ -37,7 +37,6 @@ public:
     float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
     PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
     PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
-    float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
     PositionConstants::GemTypeScales gemTypeScales;
     PositionConstants::OverlayAdjust overlayAdjusts[PositionConstants::NUM_OVERLAY_TYPES];
     PositionConstants::ColumnAdjust guitarColAdjust[6] = {};
@@ -88,8 +87,20 @@ private:
         return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
     }
 
+    // Per-time-slice composite context: one anchor + one scale shared by every
+    // sprite in the row, so the bar and its stacked gems can't drift apart.
+    struct SharedFrameContext
+    {
+        juce::Point<float> anchor;        // projected screen-space center of the lane plane at this depth
+        juce::Point<float> frameScale;    // uniform (x == y); applied to all offsets and sprite sizes
+        float fbStrikeWidth = 0.0f;        // fretboard width at strike (pixels)
+        float fbStrikeCenterX = 0.0f;      // fretboard center X at strike (pixels)
+    };
+
     void drawFrame(const TimeBasedTrackFrame& gems, float position, double frameTime);
-    void drawGem(uint gemColumn, const GemWrapper& gemWrapper, float position, double frameTime);
+    void appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
+                          double frameTime, const SharedFrameContext& ctx,
+                          PositionConstants::Frame& outFrame);
 
     // Overlay positioning (absorbed from GlyphRenderer)
     static juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect,

@@ -66,10 +66,9 @@ class SceneRenderer
 
         // Note curvature and scaling (runtime-adjustable for debug UI)
         float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
-        float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
+        float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE_DRUMS;
         PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
         PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
-        float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
         PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
         PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
         PositionConstants::HitTypeConfig hitTypeConfig;
