@@ -254,7 +254,45 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
     float oWScale = wScale;
     float oHScale = hScale;
 
-    // Per-column adjustments from ColumnAdjust struct
+    // --- Compute strike-reference sprite dimensions ---
+    // Strike-reference = sprite dimensions at position=0 (strikeline) before
+    // perspective foreshorten. frameScale below is the ratio of current → strike.
+    float strikeColWidth;
+    if (barNote)
+    {
+        auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
+                                                        PositionConstants::HIGHWAY_POS_START, posEnd);
+        strikeColWidth = (fbStrike.rightX - fbStrike.leftX)
+                       * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
+    }
+    else
+    {
+        const auto& colCoordsRef = isGuitarLike(activePart)
+            ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
+            : laneCoordsDrums[drumColumnIndex(gemColumn)];
+        auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE,
+                                         PositionConstants::FRETBOARD_SCALE);
+        strikeColWidth = strikeEdge.rightX - strikeEdge.leftX;
+    }
+    float strikeColHeight = strikeColWidth / imageAspect;
+
+    // --- Compute per-axis frameScale ---
+    // Width tracks the lane-width curve; height tracks lane-width × foreshorten
+    // (legacy non-isotropic perspective — sprites get squatter at depth).
+    // Both axes multiply offsetX/Y and width/height symmetrically inside drawFrame,
+    // so the drift invariant offsetY/height = constant holds at every depth.
+    //
+    // depthForeshorten (debug-tunable) controls how much height compresses
+    // beyond width: 0 = no compression (heights match widths), 1 = full
+    // foreshorten. Default 0.80.
+    //
+    // curWidthPx already includes userScale (applied to glyphRect above);
+    // strikeColWidth does not — so frameScale naturally encodes userScale.
+    float curWidthPx = glyphRect.getWidth();
+    float widthRatio = (strikeColWidth > 0.0f) ? (curWidthPx / strikeColWidth) : 1.0f;
+    juce::Point<float> frameScale(widthRatio, widthRatio * foreshorten);
+
+    // --- Per-column adjustments + zOff (in strike-reference pixels) ---
     // In Bemani mode: no perspective Z offsets or depth-based column scaling — everything is flat.
     float zOff = 0.0f;
     if (!PositionMath::bemaniMode)
@@ -286,33 +324,13 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         hScale *= colScale * colH;
         oWScale *= colScale * colW;
         oHScale *= colScale * colH;
-
-        // Scale Z offset by perspective
-        {
-            float curWidth = glyphRect.getWidth();
-            float strikeWidth;
-            if (barNote)
-            {
-                auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
-                                                                PositionConstants::HIGHWAY_POS_START, posEnd);
-                strikeWidth = (fbStrike.rightX - fbStrike.leftX) * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
-            }
-            else
-            {
-                const auto& colCoordsRef = isGuitarLike(activePart)
-                    ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
-                    : laneCoordsDrums[drumColumnIndex(gemColumn)];
-                auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE, PositionConstants::FRETBOARD_SCALE);
-                strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
-            }
-            if (strikeWidth > 0.0f)
-                zOff *= curWidth / strikeWidth;
-        }
     }
 
     // Compute global arc Y offset so adjacent notes form a continuous parabola.
     // Fretboard width is queried directly (not scaled from per-lane normWidth1)
     // so the arc amplitude is independent of lane coordinate tuning.
+    // arcOffset is in current-pixel space, so it's applied to the anchor (not
+    // subject to frameScale — matches legacy behavior).
     float arcOffset = 0.0f;
     if (curvature != 0.0f && !barNote)
     {
@@ -323,48 +341,34 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
         arcOffset = fbWidthPx * curvature * (1.0f - dist * dist);
     }
 
-    DrawOrder layer = barNote ? DrawOrder::BAR : DrawOrder::NOTE;
+    // --- Anchor: screen-space origin of this frame ---
+    juce::Point<float> anchor(glyphRect.getCentreX(),
+                              glyphRect.getCentreY() + arcOffset);
 
-    // Helper: scale a rect around its center with w/h factors and Y offset
-    auto scaleRect = [](juce::Rectangle<float> r, float ws, float hs, float yOff) {
-        float cx = r.getCentreX();
-        float cy = r.getCentreY() + yOff;
-        float fw = r.getWidth() * ws;
-        float fh = r.getHeight() * hs;
-        return juce::Rectangle<float>(cx - fw * 0.5f, cy - fh * 0.5f, fw, fh);
-    };
+    // --- Build the frame in strike-reference pixel space ---
+    PositionConstants::Frame frame;
+    frame.position = position;
+    frame.column   = (int)gemColumn;
+    frame.isBar    = barNote;
 
-    if (curvature != 0.0f)
+    // Gem sprite
     {
-        const auto& entry = getCurvedImage(glyphImage, gemColumn, isDrums);
-        const juce::Image* curvedImgPtr = &entry.image;
-        float contentYOff = entry.yOffsetFraction;
-
-        float cachedAspect = (float)curvedImgPtr->getWidth() / (float)curvedImgPtr->getHeight();
-        float curvedH = glyphRect.getWidth() / cachedAspect;
-        float curvedY = glyphRect.getCentreY() - curvedH * 0.5f
-                        + contentYOff * glyphRect.getHeight()
-                        + arcOffset;
-        auto curvedRect = juce::Rectangle<float>(glyphRect.getX(), curvedY,
-                                                  glyphRect.getWidth(), curvedH);
-        curvedRect = scaleRect(curvedRect, wScale, hScale, zOff);
-
-        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back([curvedImgPtr, opacity, curvedRect](juce::Graphics& g) {
-            g.setOpacity(opacity);
-            g.drawImage(*curvedImgPtr, curvedRect);
-        });
-    }
-    else
-    {
-        auto drawRect = scaleRect(glyphRect, wScale, hScale, zOff);
-
-        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back([=](juce::Graphics& g) {
-            g.setOpacity(opacity);
-            g.drawImage(*glyphImage, drawRect);
-        });
+        PositionConstants::FrameSprite s;
+        s.image      = glyphImage;
+        s.offsetX    = 0.0f;
+        s.offsetY    = zOff;  // strike-reference pixel lift; drawFrame scales uniformly
+        s.width      = strikeColWidth  * wScale;
+        s.height     = strikeColHeight * hScale;
+        s.drawOrder  = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
+        s.drawColumn = (int)gemColumn;
+        s.opacity    = opacity;
+        frame.sprites.push_back(s);
     }
 
-    juce::Image* overlayImage = assetManager.getOverlayImage(gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
+    // Overlay sprite (accent/ghost ring) — present for specific gem types
+    juce::Image* overlayImage = assetManager.getOverlayImage(
+        gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
+    const OverlayAdjust* overlayAdjPtr = nullptr;
     if (overlayImage != nullptr)
     {
         const auto& overlayAdj = [&]() -> const OverlayAdjust& {
@@ -377,42 +381,76 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
             default: { static const OverlayAdjust none; return none; }
             }
         }();
-        juce::Rectangle<float> overlayRect = getOverlayGlyphRect(glyphRect, overlayAdj);
+        overlayAdjPtr = &overlayAdj;
 
-        if (curvature != 0.0f)
+        // Overlay's "rect scale" (from getOverlayGlyphRect) = scaleX*scale × scaleY*scale
+        float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
+        float ovlRectSY = overlayAdj.scaleY * overlayAdj.scale;
+
+        PositionConstants::FrameSprite s;
+        s.image      = overlayImage;
+        // Width/height in strike-reference pixels, before offsetX/offsetY translation
+        s.width      = strikeColWidth  * oWScale * ovlRectSX;
+        s.height     = strikeColHeight * oHScale * ovlRectSY;
+        // offsetX/offsetY are expressed as a fraction of the overlay's own drawn
+        // width/height; they translate with frameScale because sprite size does too.
+        s.offsetX    = overlayAdj.offsetX * s.width;
+        s.offsetY    = zOff + overlayAdj.offsetY * s.height;
+        s.drawOrder  = (int)DrawOrder::OVERLAY;
+        s.drawColumn = (int)gemColumn;
+        s.opacity    = opacity;
+        frame.sprites.push_back(s);
+    }
+
+    // --- Curvature swap: replace each sprite's image with the cached curved
+    // variant; adjust height to the curved aspect and re-add the content Y
+    // offset so the opaque cone sits where the straight asset's cone would. ---
+    if (curvature != 0.0f)
+    {
+        const auto& gemEntry = getCurvedImage(glyphImage, gemColumn, isDrums);
+        float gemCurvedAspect = (float)gemEntry.image.getWidth()
+                              / (float)gemEntry.image.getHeight();
+        // Legacy: curvedH = glyphRect.getWidth() / cachedAspect, then scaleRect(_, wScale, hScale)
+        // → painted height = curvedH * hScale = (glyphRect.getWidth() / cachedAspect) * hScale.
+        // In strike-ref: (strikeColWidth / gemCurvedAspect) * hScale. wScale is NOT in this factor.
+        float gemCurvedStrikeHeight = (strikeColWidth / gemCurvedAspect) * hScale;
+        // contentYOff multiplier in legacy = glyphRect.getHeight() = strikeColHeight at strike
+        // (NO hScale — it's the pre-scaleRect rect height).
+        float gemContentYBaseStrike = strikeColHeight;
+        frame.sprites[0].image   = const_cast<juce::Image*>(&gemEntry.image);
+        frame.sprites[0].height  = gemCurvedStrikeHeight;
+        frame.sprites[0].offsetY += gemEntry.yOffsetFraction * gemContentYBaseStrike;
+
+        if (overlayImage != nullptr && overlayAdjPtr != nullptr)
         {
-            const auto& entry = getCurvedImage(overlayImage, gemColumn, isDrums);
-            const juce::Image* curvedOverlayPtr = &entry.image;
-            float contentYOff = entry.yOffsetFraction;
+            const auto& ovlEntry = getCurvedImage(overlayImage, gemColumn, isDrums);
+            float ovlCurvedAspect = (float)ovlEntry.image.getWidth()
+                                  / (float)ovlEntry.image.getHeight();
+            auto& ovlSprite = frame.sprites[1];
+            float ovlRectSX = overlayAdjPtr->scaleX * overlayAdjPtr->scale;
+            float ovlRectSY = overlayAdjPtr->scaleY * overlayAdjPtr->scale;
+            // Legacy contentYOff multiplier = overlayRect.getHeight() = glyphRect.getHeight()
+            // * (scaleY*scale), which in strike-ref = strikeColHeight * ovlRectSY
+            // (WITHOUT oHScale — overlayRect is pre-scaleRect).
+            float ovlContentYBaseStrike = strikeColHeight * ovlRectSY;
+            // Curved overlay strike height = (strikeColWidth * scaleX*scale) / curvedAspect * oHScale
+            // (legacy: curvedH = overlayRect.getWidth() / cachedAspect, then scaleRect by oHScale).
+            float ovlCurvedStrikeHeight = (strikeColWidth * ovlRectSX) / ovlCurvedAspect * oHScale;
 
-            float cachedAspect = (float)curvedOverlayPtr->getWidth() / (float)curvedOverlayPtr->getHeight();
-            float curvedH = overlayRect.getWidth() / cachedAspect;
-            float curvedY = overlayRect.getCentreY() - curvedH * 0.5f
-                            + contentYOff * overlayRect.getHeight()
-                            + arcOffset;
-            auto curvedOverlayRect = juce::Rectangle<float>(overlayRect.getX(), curvedY,
-                                                             overlayRect.getWidth(), curvedH);
-            curvedOverlayRect = scaleRect(curvedOverlayRect, oWScale, oHScale, zOff);
-            curvedOverlayRect.translate(overlayAdj.offsetX * curvedOverlayRect.getWidth(),
-                                        overlayAdj.offsetY * curvedOverlayRect.getHeight());
-
-            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([curvedOverlayPtr, opacity, curvedOverlayRect](juce::Graphics& g) {
-                g.setOpacity(opacity);
-                g.drawImage(*curvedOverlayPtr, curvedOverlayRect);
-            });
-        }
-        else
-        {
-            auto drawRect = scaleRect(overlayRect, oWScale, oHScale, zOff);
-            drawRect.translate(overlayAdj.offsetX * drawRect.getWidth(),
-                               overlayAdj.offsetY * drawRect.getHeight());
-
-            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([=](juce::Graphics& g) {
-                g.setOpacity(opacity);
-                g.drawImage(*overlayImage, drawRect);
-            });
+            ovlSprite.image  = const_cast<juce::Image*>(&ovlEntry.image);
+            ovlSprite.height = ovlCurvedStrikeHeight;
+            // offsetX uses curved width (same as straight width — width scale unchanged).
+            // offsetY uses the curved height for overlayAdj.offsetY translation
+            // (legacy used curvedOverlayRect.getHeight(), which is the curved height).
+            ovlSprite.offsetX = overlayAdjPtr->offsetX * ovlSprite.width;
+            ovlSprite.offsetY = zOff
+                              + ovlEntry.yOffsetFraction * ovlContentYBaseStrike
+                              + overlayAdjPtr->offsetY * ovlSprite.height;
         }
     }
+
+    // --- Hand off to frame renderer: one scale applied uniformly to all sprites ---
+    PositionConstants::drawFrame(frame, anchor, frameScale, *currentDrawCallMap);
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)

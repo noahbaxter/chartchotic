@@ -21,6 +21,8 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "../Utils/Frame.h"
+#include "../Utils/FrameRenderer.h"
 
 class NoteRenderer
 {

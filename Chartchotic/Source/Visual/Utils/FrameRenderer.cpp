@@ -14,17 +14,17 @@ namespace PositionConstants
 {
     void drawFrame(const Frame& frame,
                    juce::Point<float> anchor,
-                   float frameScale,
+                   juce::Point<float> scale,
                    DrawCallMap& drawCalls)
     {
         for (const auto& sprite : frame.sprites)
         {
             if (sprite.image == nullptr) continue;
 
-            float cx = anchor.x + sprite.offsetX * frameScale;
-            float cy = anchor.y + sprite.offsetY * frameScale;
-            float w  = sprite.width  * frameScale;
-            float h  = sprite.height * frameScale;
+            float cx = anchor.x + sprite.offsetX * scale.x;
+            float cy = anchor.y + sprite.offsetY * scale.y;
+            float w  = sprite.width  * scale.x;
+            float h  = sprite.height * scale.y;
 
             juce::Rectangle<float> rect(cx - w * 0.5f, cy - h * 0.5f, w, h);
 
