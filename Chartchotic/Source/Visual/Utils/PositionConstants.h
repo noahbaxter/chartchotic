@@ -106,7 +106,7 @@ namespace PositionConstants
 
     //==============================================================================
     // Size & Scale Factors
-    constexpr float GEM_SIZE = 1.089f;                   // Regular gem/note scaling factor (0.99 × 1.10)
+    constexpr float GEM_SIZE = 1.252f;                   // Regular gem/note scaling factor (1.089 × 1.15 — the 1.15 is a baked default size bump; user-facing scales sit on top of this)
     constexpr float BAR_SIZE = 1.026f;                  // Bar note (kick/open) scaling factor
     constexpr float GRIDLINE_WIDTH_SCALE = 1.12f;       // Gridline width relative to fretboard
     constexpr float TEXT_EVENT_WIDTH_SCALE = 1.00f;    // Text event marker width relative to fretboard
@@ -262,10 +262,10 @@ namespace PositionConstants
         0.0f        // strikePosBar
     };
     constexpr InstrumentOffsets DRUM_OFFSETS = {
-        0.0f,       // gridZ
-        0.0f,       // gemZ (toms)
-        12.0f,      // cymZ (cymbals — tuned for visible overhang above bar)
-        14.0f,      // barZ
+        -20.0f,     // gridZ
+        -12.0f,     // gemZ (toms)
+        0.0f,       // cymZ (cymbals)
+        0.0f,       // barZ
         6.0f,       // hitGemZ
         10.0f,      // hitBarZ
         0.0f,       // strikePosGem
