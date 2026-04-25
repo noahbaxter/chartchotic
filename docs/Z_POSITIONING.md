@@ -1,6 +1,6 @@
 # Z Positioning Investigation — Postmortem
 
-**Status:** Reverted. Approach proven non-viable in fake-3D rendering. Revisit only if/when the renderer goes true 3D.
+**Status:** Reverted. Approach proven non-viable in fake-3D rendering. **Resolved by a different approach** (Frame system, Apr 22–25 2026) — see `docs/RENDERING_REFACTOR.md`. This doc preserved as reference for why position-space Z lifts can't work in the current pipeline.
 
 **Author:** Noah Baxter, with Claude Code (April 11–21, 2026)
 
@@ -118,10 +118,25 @@ A true 3D path would replace `createPerspectiveGlyphRect` with a proper view-pro
 
 ---
 
+## Resolution (Apr 25, 2026) — Frame system
+
+The drift problem **was solved without going true 3D**. The Frame system on `refactor/frame-rendering` shares one anchor + one scale across all sprites in a row (bar + every gem in the chord). Both `offsetY` and `height` multiply by the same `scale.y`, so the `gap_pixels / sprite_height` ratio is invariant with depth **by construction**, not by tuning.
+
+This sidesteps the two-curve mismatch entirely: instead of trying to make two different perspective curves agree at every depth, the row composites in strike-reference space (where both gap and sprite size are well-defined as constants) and projects as a unit. The two curves still disagree, but they no longer matter — every sprite in a row scales by the same factor.
+
+What this doc still teaches:
+- *Why* a position-space gemZ offset alone can't fix the drift in a fake-3D pipeline
+- The asset-padding gotcha (cymbal cone offset within its PNG) is real and unrelated to the math
+- True 3D is still the right answer for any future feature that needs *individual* world-Y offsets between elements (e.g. an animated lift effect)
+
+See `docs/RENDERING_REFACTOR.md` for the Frame system itself.
+
+---
+
 ## Decision (Apr 21, 2026)
 
 - **Revert dev to `44069d4`** (last commit before `9128b93`). Restores the pre-rework "sort of functional" pixel-space Z behavior. Keeps the `RenderTypeConfig` refactor (`ba7a4f7`, `55777d9`, `44069d4`) which is unrelated and useful.
-- **Preserve experimental work on `experiment/z-position-rework` branch.** Includes both the committed Z rework (`9128b93`, `49f71a0`) and the Apr 20–21 session's diagnostic + lift-mode work. Available if anyone wants to pick it up later or as reference for a true-3D rewrite.
+- ~~**Preserve experimental work on `experiment/z-position-rework` branch.**~~ Branch deleted Apr 25, 2026 — superseded by the Frame system (see Resolution above). The diagnostic crosshair overlay was the only piece worth keeping; if a future true-3D rewrite needs it, recover from git reflog or recreate (it's ~30 lines).
 - **Add backlog item** for the eventual 3D rewrite. Cross-reference this doc.
 
 ---
@@ -143,8 +158,8 @@ If you find yourself trying yet another formula for the foreshorten knob: **stop
 ## Files / commits / branches
 
 - This doc: `docs/Z_POSITIONING.md`
+- The fix that shipped: `docs/RENDERING_REFACTOR.md` (Frame system)
 - Pre-rework state: `git checkout 44069d4`
-- Experimental branch: `git checkout experiment/z-position-rework`
 - Memory: `~/.claude/projects/-Users-noahbaxter-Code-personal-charting-chart-preview/memory/project_zoff_investigation.md` (Apr 11–12 notes)
 - Hotfix planning: `.planning/1.2.3-hotfix.md` (Task 1 — was the trigger for the rework)
 - Affected source: `Chartchotic/Source/Visual/Utils/PositionMath.cpp`, `Chartchotic/Source/Visual/Utils/PositionConstants.h`, `Chartchotic/Source/Visual/Renderers/{NoteRenderer,AnimationRenderer,GridlineRenderer,SustainRenderer,SceneRenderer}.cpp`
