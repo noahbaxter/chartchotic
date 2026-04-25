@@ -101,6 +101,11 @@ private:
     void appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                           double frameTime, const SharedFrameContext& ctx,
                           PositionConstants::Frame& outFrame);
+    // Bemani path: flat / no perspective. Builds and draws its own single-gem
+    // Frame directly (anchor at gem's screen position, scale 1.0). Doesn't
+    // contribute to the shared composite — bemani has no chord-stack drift.
+    void drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
+                       juce::Image* glyphImage, bool barNote, float opacity);
 
     // Overlay positioning (absorbed from GlyphRenderer)
     static juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect,
