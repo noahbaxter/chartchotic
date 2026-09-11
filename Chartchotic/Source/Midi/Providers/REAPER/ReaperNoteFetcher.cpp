@@ -157,6 +157,56 @@ TrackTextEvents ReaperNoteFetcher::fetchAllTextEvents(int trackIndex)
     return events;
 }
 
+// Item extents, not note extents: an item can be trimmed well past its last note, and the
+// gap between two items is what separates one chart from the next on a shared timeline.
+std::vector<ReaperMidiProvider::ReaperItemSpan> ReaperNoteFetcher::fetchItemSpans(int trackIndex)
+{
+    JUCE_ASSERT_MESSAGE_THREAD
+
+    std::vector<ReaperMidiProvider::ReaperItemSpan> spans;
+
+    if (!apis.isLoaded() || !getReaperApi || !apis.GetMediaItemInfo_Value
+        || !apis.TimeMap2_timeToQN || !apis.CountMediaItems || !apis.GetMediaItem)
+        return spans;
+
+    try
+    {
+        juce::ScopedLock lock(apiLock);
+
+        void* project = ReaperApiHelpers::getProject(getReaperApi);
+        if (!project) return spans;
+
+        void* targetTrack = getTargetTrack(project, trackIndex);
+        if (!targetTrack) return spans;
+
+        int itemCount = apis.CountMediaItems(project);
+        for (int itemIdx = 0; itemIdx < itemCount; itemIdx++)
+        {
+            void* item = apis.GetMediaItem(project, itemIdx);
+            if (!item) continue;
+
+            void* take = apis.GetActiveTake(item);
+            if (!take) continue;
+
+            if (apis.GetMediaItemTake_Track(take) != targetTrack) continue;
+
+            double pos = apis.GetMediaItemInfo_Value(item, "D_POSITION");
+            double len = apis.GetMediaItemInfo_Value(item, "D_LENGTH");
+            if (len <= 0.0) continue;
+
+            spans.push_back({ apis.TimeMap2_timeToQN(project, pos),
+                              apis.TimeMap2_timeToQN(project, pos + len) });
+        }
+    }
+    catch (...)
+    {
+    }
+
+    std::sort(spans.begin(), spans.end(),
+              [](const auto& a, const auto& b) { return a.startQN < b.startQN; });
+    return spans;
+}
+
 void ReaperNoteFetcher::extractTextEventsFromTake(void* take, TrackTextEvents& outEvents)
 {
     if (!take || !apis.MIDI_GetTextSysexEvt || !apis.MIDI_CountEvts || !apis.MIDI_GetProjQNFromPPQPos)
