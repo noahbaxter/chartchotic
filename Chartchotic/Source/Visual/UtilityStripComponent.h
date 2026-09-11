@@ -38,14 +38,14 @@ namespace UtilityColours
     // Structure stays neutral like the neck; the section label is the one accent.
     inline const juce::Colour sectionLine  = juce::Colour(0xFF6E8FB5);
     inline const juce::Colour sectionBand  = juce::Colour(0x142F5F96);
-    inline const juce::Colour sectionBandHover = juce::Colour(0x2E3E77B8);
+    inline const juce::Colour sectionBandHover = juce::Colour(0x423E77B8);
     inline const juce::Colour sectionText  = juce::Colour(0xFF9CC4F5);
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
     inline const juce::Colour hoverLine    = juce::Colour(0xFFBFD4EC);
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
     inline const juce::Colour codaLine     = juce::Colour(0xFFC98A5A);
     inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
-    inline const juce::Colour playheadGlow = juce::Colour(0x4FFFFFFF);
+    inline const juce::Colour playheadGlow = juce::Colour(0x2AFFFFFF);
     inline const juce::Colour label        = juce::Colour(0xFF7D7D85);
     inline const juce::Colour panelFill    = juce::Colour(0xFF1B1B1F);
     inline const juce::Colour noteMark     = juce::Colour(0xFF6E6E7A);
@@ -53,6 +53,8 @@ namespace UtilityColours
     inline const juce::Colour deleteFill   = juce::Colour(0x33C04A3A);
     inline const juce::Colour loopFill     = juce::Colour(0x2FD8B65A);
     inline const juce::Colour selectedLine = juce::Colour(0xFFFFFFFF);
+    inline const juce::Colour namePlateHover = juce::Colour(0xFF2E4A72);
+
 }
 
 class UtilityStripComponent : public juce::Component
@@ -126,6 +128,8 @@ public:
 
 private:
     static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
+    // Fraction of the strip one scroll notch travels, at any zoom.
+    static constexpr double SCROLL_TRAVEL_FRACTION = 0.14;
     static constexpr float NOTE_MAP_SATURATION = 0.45f;
     static constexpr float NOTE_MAP_ALPHA = 0.55f;
     static constexpr int FOOTER_H = 20;
@@ -193,9 +197,14 @@ private:
     int measureAtQN(double qn) const;
     void drawMeasureNumber(juce::Graphics& g, float y, int measure, bool emphasised) const;
 
-    // Index of the section whose name plate is under `p`, or -1.
+    // Two targets per section: the name plate renames, the rest of its row jumps to it.
     int sectionHeaderAt(juce::Point<int> p) const;
+    int sectionNameAt(juce::Point<int> p) const;
     juce::Rectangle<int> sectionHeaderBounds(size_t index, const View& v) const;
+    juce::Rectangle<int> sectionRowBounds(size_t index, const View& v) const;
+    int stickyIndex(const View& v) const;
+
+    static constexpr int LABEL_H = 19;
 
     juce::Rectangle<int> minusBounds() const
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
@@ -220,6 +229,7 @@ private:
     int zoomIndex = DEFAULT_ZOOM_INDEX;
     int hoverY = -1;
     int hoverSection = -1;
+    int hoverName = -1;
 
     bool writeMode = false;
     StripCommandMapper mapper;
@@ -243,7 +253,6 @@ private:
     void commitRename();
     void commitSections(std::vector<SectionEdit> edits);
     std::vector<SectionEdit> currentEdits() const;
-    juce::Rectangle<int> pencilBounds(int sectionIndex, const View& v) const;
     void drawMarquee(juce::Graphics& g) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UtilityStripComponent)
