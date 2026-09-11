@@ -112,7 +112,7 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
     if (cmd >= WriteCommand::ModifierSlot1 && cmd <= WriteCommand::ModifierSlot5)
     {
         int index = (int)cmd - (int)WriteCommand::ModifierSlot1;
-        auto slots = modifierSlotsFor(getRenderType(activePart()));
+        auto slots = modifierSlotsFor(getRenderType(activePart()), writeController.layer());
         if (index >= (int)slots.size())
             return false;
 
@@ -205,6 +205,9 @@ void InteractionController::applyModifierSlot(const ModifierSlot& slot)
             if (isEditActive()) applyFlamModeToSelection(next);
             break;
         }
+        case ModifierGroup::Phrase:
+            writeController.setPhraseTarget((PhraseTarget)slot.value);
+            break;
         case ModifierGroup::Force:
         {
             auto target = (GuitarForce)slot.value;

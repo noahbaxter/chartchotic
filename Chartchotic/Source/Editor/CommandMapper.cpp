@@ -32,6 +32,7 @@ CommandMapper::CommandMapper()
         // right hand is on the mouse the whole time you are charting.
         // QWERT row: modes.
         { 'Q', ModifierFlags::None,  true,  WriteCommand::ToggleSubMode },
+        { 'R', ModifierFlags::None,  true,  WriteCommand::CycleLayer },
         { 'W', ModifierFlags::None,  false, WriteCommand::ToggleWriteMode },
         { 'E', ModifierFlags::None,  true,  WriteCommand::ToggleSnap },
         // Shift+T cycles 3/5/7, plain T toggles the last-used value on and off

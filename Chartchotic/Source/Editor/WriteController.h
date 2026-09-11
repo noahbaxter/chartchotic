@@ -8,8 +8,10 @@ class WriteController : public AuthoringControllerBase
 public:
     explicit WriteController(juce::ValueTree& state);
 
-    bool       writeModeActive() const { return writeModeActiveFlag; }
-    SubMode    subMode()         const { return currentSubMode; }
+    bool         writeModeActive() const { return writeModeActiveFlag; }
+    SubMode      subMode()         const { return currentSubMode; }
+    ChartLayer   layer()           const { return currentLayer; }
+    PhraseTarget phraseTarget()    const { return currentPhraseTarget; }
 
     // Everything worth preserving about a copied note. velocity carries drum
     // dynamics, markerMask carries note type (cymbal/tom, HOPO/strum/tap) as
@@ -35,6 +37,9 @@ public:
 
     void setWriteModeActive(bool active);
     void setSubMode(SubMode mode);
+    void setLayer(ChartLayer l);
+    void cycleLayer();
+    void setPhraseTarget(PhraseTarget t);
     void setStepDivision(int division);
     void setTuplet(int t);
     void toggleTuplet();
@@ -60,8 +65,10 @@ private:
 
     juce::ValueTree& state;
 
-    SubMode currentSubMode      = SubMode::Draw;
-    bool    writeModeActiveFlag = false;
+    SubMode      currentSubMode      = SubMode::Draw;
+    ChartLayer   currentLayer        = ChartLayer::Note;
+    PhraseTarget currentPhraseTarget = PhraseTarget::Lane1;
+    bool         writeModeActiveFlag = false;
 
     AuthoringPoint lastPoint;
     bool           lastPointValid = false;
@@ -116,6 +123,7 @@ private:
     void   clearSustainDrag();
 
     void handleBeginSustain  (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
+    void handleBeginPhrase   (const AuthoringPoint& p, int trackIdx, double clickQN);
     void handleUpdateSustain (const AuthoringPoint& p);
     void handleCommitSustain (const AuthoringPoint& p);
     void handleBeginPaint    (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
