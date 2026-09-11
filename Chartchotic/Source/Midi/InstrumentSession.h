@@ -32,6 +32,10 @@ public:
 
     const SongSections& getSongSections() const { return songSections; }
 
+    // Every track's MIDI clips merged into song-scoped spans, in order. A gap here is a gap
+    // on every track at once, ie the space between two charts sharing one timeline.
+    const std::vector<ClipSpan>& getClipSpans() const { return clipSpans; }
+
     int getTrackCount() const { return (int)tracks.size(); }
     bool isEmpty() const { return tracks.empty(); }
 
@@ -49,16 +53,19 @@ private:
         DiscoFlipState discoFlipState;
         StarPowerState starPowerState;
         StrictHatPedalState strictHatPedalState;
+        std::vector<ClipSpan> clipSpans;
         std::string lastHash;
     };
 
     void fetchTrackData(int idx);
+    void rebuildClipSpans();
 
     std::unique_ptr<TrackDiscovery> discovery;
     std::unique_ptr<TrackNoteProvider> provider;
     std::vector<InstrumentTrackInfo> tracks;
     std::vector<TrackData> trackData;
     SongSections songSections;
+    std::vector<ClipSpan> clipSpans;
 
     // Empty fallbacks for out-of-range access
     static const std::vector<MidiCache::CachedNote> emptyNotes;

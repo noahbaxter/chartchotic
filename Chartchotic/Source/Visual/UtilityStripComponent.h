@@ -23,6 +23,7 @@
 #include "../Midi/Utils/TimeConverter.h"   // defines TempoTimeSignatureMap, which the helper assumes
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
 #include "../Midi/Providers/REAPER/MidiCache.h"
+#include "../Midi/Providers/TrackNoteProvider.h"   // defines ClipSpan
 #include "../Midi/Utils/InstrumentMapper.h"
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
@@ -37,15 +38,23 @@ namespace UtilityColours
     inline const juce::Colour chunkLineBig = juce::Colour(0xFF56565F);
     // Structure stays neutral like the neck; the section label is the one accent.
     inline const juce::Colour sectionLine  = juce::Colour(0xFF6E8FB5);
-    inline const juce::Colour sectionBand  = juce::Colour(0x142F5F96);
-    inline const juce::Colour sectionBandHover = juce::Colour(0x2E3E77B8);
+    // Faint on purpose: the band sits under the note map, so anything heavier reads as a
+    // colour the notes are, rather than as ground they sit on.
+    inline const juce::Colour sectionBand  = juce::Colour(0x0D2F5F96);
+    inline const juce::Colour sectionBandHover = juce::Colour(0x2C3E77B8);
+    // Same blue as a section line but dashed and thinner: a clip edge is a fact about the
+    // timeline, not a thing you charted.
+    inline const juce::Colour clipEdge     = juce::Colour(0x996E8FB5);
     inline const juce::Colour sectionText  = juce::Colour(0xFF9CC4F5);
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
     inline const juce::Colour hoverLine    = juce::Colour(0xFFBFD4EC);
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
     inline const juce::Colour codaLine     = juce::Colour(0xFFC98A5A);
     inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
-    inline const juce::Colour playheadGlow = juce::Colour(0x4FFFFFFF);
+    // The bar-number tab is a readout, not the playhead itself, so it sits a good way
+    // below white: a solid white plate that size is the brightest thing on the strip.
+    inline const juce::Colour playheadTab  = juce::Colour(0xFF9CA1AB);
+    inline const juce::Colour playheadGlow = juce::Colour(0x2AFFFFFF);
     inline const juce::Colour label        = juce::Colour(0xFF7D7D85);
     inline const juce::Colour panelFill    = juce::Colour(0xFF1B1B1F);
     inline const juce::Colour noteMark     = juce::Colour(0xFF6E6E7A);
@@ -53,6 +62,8 @@ namespace UtilityColours
     inline const juce::Colour deleteFill   = juce::Colour(0x33C04A3A);
     inline const juce::Colour loopFill     = juce::Colour(0x2FD8B65A);
     inline const juce::Colour selectedLine = juce::Colour(0xFFFFFFFF);
+    inline const juce::Colour namePlateHover = juce::Colour(0xFF2E4A72);
+
 }
 
 class UtilityStripComponent : public juce::Component
@@ -76,6 +87,14 @@ public:
 
     void setNoteSources(std::vector<NoteSource> s) { noteSources = std::move(s); }
 
+    // Merged MIDI clip extents for the whole project. Where several charts share one
+    // timeline this is the only thing that says where each of them stops.
+    void setClipSpans(const std::vector<ClipSpan>* s) { clipSpans = s; }
+
+    // Section the playhead is inside, for the banner over the highway. Empty when there is
+    // none, or when the strip's own sections filter is off.
+    juce::String currentSectionName() const;
+
     // Lane colours come from the same place the gems and strikeline pads get them, so the
     // map cannot drift from the highway it summarises.
     void setAssetManager(AssetManager* am) { assetManager = am; }
@@ -93,9 +112,8 @@ public:
                                         : (int)std::size(ZOOM_STEPS) - 1);
     }
 
-    // Scrolling the map seeks. The jump is a fraction of the visible span rather than a
-    // fixed beat count, so one notch covers the same proportion of screen at every zoom.
-    // Clicking a bar, or scrolling a chunk, jumps there.
+    // Scrolling the map seeks, freely: the wheel's travel scaled by the visible span, so
+    // one notch covers the same proportion of screen at every zoom. Clicking snaps to a bar.
     std::function<void(double targetQN)> onSeekTo;
 
     // Whole replacement set, because renaming or inserting one section can renumber the
@@ -126,8 +144,20 @@ public:
 
 private:
     static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
-    static constexpr float NOTE_MAP_SATURATION = 0.45f;
-    static constexpr float NOTE_MAP_ALPHA = 0.55f;
+    // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
+    // 16px step), so the strip scrolls at the speed everything else in the OS does.
+    static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
+    // Far enough not to catch the section you are standing on when it is a hair behind the
+    // playhead, close enough that no real section is ever skipped.
+    static constexpr double SECTION_STEP_EPSILON = 1.0e-3;
+    // Lane colour, dimmed by alpha alone. Desaturating turned every mark towards the band
+    // behind it, so the map stopped reading as the highway it summarises.
+    static constexpr float NOTE_MAP_SATURATION = 0.9f;
+    static constexpr float NOTE_MAP_ALPHA = 0.8f;
+
+    static constexpr float CLIP_EDGE_DASH = 4.0f;
+    // A section within this of a clip edge counts as marking it, so the two never double up.
+    static constexpr double CLIP_EDGE_TOLERANCE_QN = 0.01;
     static constexpr int FOOTER_H = 20;
     static constexpr int BUTTON_W = 18;
     static constexpr int FILTER_ROW_H = 18;
@@ -171,15 +201,18 @@ private:
         return v.startQN + (trackTop() + trackHeight() - y) / trackHeight() * span;
     }
 
-    // Bar under `y`, snapped to the bar line, since bars are the unit everything here uses.
+    // Position under `y`, snapped to the grid that is drawn at this zoom, plus sections.
     double snappedBarQN(int y, const View& v) const;
     double barLineAtOrBefore(double qn) const;
-    double barLineStep(double fromQN, int bars) const;
-    double chunkLineStep(double fromQN, int direction, int chunk) const;
+    double chunkLineAtOrBefore(double qn, const View& v) const;
+    int visibleChunk(const View& v) const;
+    double sectionStep(int direction) const;
 
-    static constexpr double kBarEpsilon = 1.0e-6;
+    // Last charted QN: where the final section has to stop.
+    double contentEndQN() const;
+    double clipEndAt(double qn) const;
+
     static constexpr int MAX_BARS_WALKED = 100000;
-    static constexpr int MAX_CHUNK_SEARCH = 512;
 
     bool inTrackArea(juce::Point<int> p) const
     {
@@ -193,9 +226,26 @@ private:
     int measureAtQN(double qn) const;
     void drawMeasureNumber(juce::Graphics& g, float y, int measure, bool emphasised) const;
 
-    // Index of the section whose name plate is under `p`, or -1.
+    // Two targets per section: the name plate renames, the rest of its row jumps to it.
     int sectionHeaderAt(juce::Point<int> p) const;
+    int sectionNameAt(juce::Point<int> p) const;
     juce::Rectangle<int> sectionHeaderBounds(size_t index, const View& v) const;
+    juce::Rectangle<int> sectionRowBounds(size_t index, const View& v) const;
+    int stickyIndex(const View& v) const;
+
+    // Where a section stops: the next one, or the end of its own clip if that comes first.
+    double sectionEndQN(size_t index, const View& v) const;
+
+    // Plate per section, empty where the name was dropped for crowding.
+    std::vector<juce::Rectangle<int>> labelPlates(const View& v) const;
+
+    static constexpr int LABEL_H = 19;
+    static constexpr int LABEL_MIN_GAP = 2;
+    // Clear of the pinned plate, close enough to read as that label's own underline.
+    static constexpr float STICKY_HOVER_LINE_GAP = 2.0f;
+    static constexpr float STICKY_HOVER_LINE_H = 2.0f;
+    // A section this close to the snapped hover bar counts as the one being pointed at.
+    static constexpr double HOVER_MATCH_TOLERANCE_QN = 1.0e-3;
 
     juce::Rectangle<int> minusBounds() const
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
@@ -207,7 +257,10 @@ private:
     { return { 0, FILTER_HEADER_H + i * FILTER_ROW_H, getWidth(), FILTER_ROW_H }; }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
+    void drawSectionBands(juce::Graphics& g, const View& v) const;
     void drawSections(juce::Graphics& g, const View& v) const;
+    void drawClipEdges(juce::Graphics& g, const View& v) const;
+    int litSectionIndex(const View& v) const;
     void drawNotes(juce::Graphics& g, const View& v) const;
     void drawFilters(juce::Graphics& g) const;
     void drawFooter(juce::Graphics& g) const;
@@ -215,11 +268,13 @@ private:
     const SongSections* sections = nullptr;
     const TempoTimeSignatureMap* tempoMap = nullptr;
     std::vector<NoteSource> noteSources;
+    const std::vector<ClipSpan>* clipSpans = nullptr;
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
     int zoomIndex = DEFAULT_ZOOM_INDEX;
     int hoverY = -1;
     int hoverSection = -1;
+    int hoverName = -1;
 
     bool writeMode = false;
     StripCommandMapper mapper;
@@ -243,7 +298,6 @@ private:
     void commitRename();
     void commitSections(std::vector<SectionEdit> edits);
     std::vector<SectionEdit> currentEdits() const;
-    juce::Rectangle<int> pencilBounds(int sectionIndex, const View& v) const;
     void drawMarquee(juce::Graphics& g) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UtilityStripComponent)
