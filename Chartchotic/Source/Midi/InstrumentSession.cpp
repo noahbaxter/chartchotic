@@ -112,6 +112,10 @@ void InstrumentSession::fetchTrackData(int idx)
     td.strictHatPedalState.buildFromTextEvents(td.textEvents);
     td.starPowerState.buildFromNotes(td.notes, InstrumentMapper::starPowerPitch(tracks[idx].part));
     td.lastHash = provider->getTrackHash(tracks[idx]);
+
+    // Song-scoped, so it lives on the session rather than the track it happens to come from.
+    if (tracks[idx].part == Part::EVENTS)
+        songSections.buildFromTextEvents(td.textEvents);
 }
 
 void InstrumentSession::invalidateTrack(int trackIdx)

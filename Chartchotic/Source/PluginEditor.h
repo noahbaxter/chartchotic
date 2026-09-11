@@ -16,6 +16,7 @@
 #include "PluginProcessor.h"
 #include "Visual/HighwaySlot.h"
 #include "Visual/TrackImageCache.h"
+#include "Visual/UtilityStripComponent.h"
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/ChartTypes.h"
 #include "Midi/Utils/TimeConverter.h"
@@ -57,6 +58,18 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
+        // Ahead of the write-mode keys: the strip is editor chrome, not an authoring tool,
+        // so it toggles whether or not write mode is on.
+        if (!key.getModifiers().isAnyModifierKeyDown())
+        {
+            if (key.getKeyCode() == 'U') { toggleUtilityStrip(); return true; }
+            if (key.getKeyCode() == 'M' && utilityStripVisible)
+            {
+                utilityStrip.toggleZoom();
+                return true;
+            }
+        }
+
         if (interactionController.onKeyPress(key))
             return true;
 
@@ -226,6 +239,20 @@ private:
     // (top-left, just below the toolbar). Click toggles write mode; key
     // shortcuts (W/Q) still work via WriteController.
     WriteModeIcon writeModeIcon;
+
+    // Song-scoped time axis beside the highways. Toggleable, so the grid reflows for it
+    // rather than reserving space.
+    UtilityStripComponent utilityStrip;
+    bool utilityStripVisible = true;
+    static constexpr int utilityStripWidth = 200;
+    static constexpr int utilityStripMargin = 6;
+
+    void toggleUtilityStrip()
+    {
+        utilityStripVisible = !utilityStripVisible;
+        state.setProperty("showUtilityStrip", utilityStripVisible, nullptr);
+        resized();
+    }
 
     //==============================================================================
     // UI Elements

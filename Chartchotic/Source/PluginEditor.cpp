@@ -202,6 +202,35 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         footer.clearHelpText();
     };
     addAndMakeVisible(writeModeIcon);
+    addAndMakeVisible(utilityStrip);
+    utilityStrip.setTempoMap(&audioProcessor.getTempoTimeSignatureMap());
+    utilityStrip.setAssetManager(&assetManager);
+    utilityStrip.onSeekTo = [this](double targetQN)
+    {
+        audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, targetQN)));
+    };
+    utilityStrip.onSectionsEdited =
+        [this](const std::vector<UtilityStripComponent::SectionEdit>& edits)
+    {
+        auto* writer = audioProcessor.getReaperMidiProvider().getWriter();
+        if (writer == nullptr || !writer->isAvailable()) return;
+
+        std::vector<MidiWriter::SectionInfo> out;
+        out.reserve(edits.size());
+        for (const auto& e : edits)
+            out.push_back({ e.qn, e.name.toStdString() });
+
+        if (!writer->setSections(out)) return;
+
+        // The EVENTS track has to be re-read for the strip to show what just landed.
+        if (auto* session = audioProcessor.getInstrumentSession())
+        {
+            const auto& tracks = session->getTracks();
+            for (int i = 0; i < (int)tracks.size(); ++i)
+                if (tracks[i].part == Part::EVENTS)
+                    session->invalidateTrack(i);
+        }
+    };
     writeModeIcon.toFront(false);
 
     initBottomBar();
@@ -381,6 +410,38 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #endif
     auto ctx = buildFrameContext();
     HighwayFrameData primaryFrameData;
+
+    if (utilityStripVisible)
+    {
+        auto* instrSession = audioProcessor.getInstrumentSession();
+        utilityStrip.setSections(instrSession ? &instrSession->getSongSections() : nullptr);
+
+        // One note column per visible highway, so a single instrument spreads across the
+        // strip and a full band shares it.
+        std::vector<UtilityStripComponent::NoteSource> sources;
+        if (instrSession != nullptr)
+        {
+            const auto& tracks = instrSession->getTracks();
+            for (int s = 0; s < activeSlotCount; ++s)
+            {
+                UtilityStripComponent::NoteSource src;
+                src.part = slots[s].part;
+                src.skill = slots[s].skillLevel;
+                for (int i = 0; i < (int)tracks.size(); ++i)
+                    if (tracks[i].part == src.part)
+                    {
+                        src.notes = &instrSession->getNotes(i);
+                        break;
+                    }
+                sources.push_back(src);
+            }
+        }
+        utilityStrip.setNoteSources(std::move(sources));
+
+        utilityStrip.setWriteMode(interactionController.writeModeActive());
+        utilityStrip.setPlayhead(lastKnownPosition);
+        utilityStrip.repaint();
+    }
 
 #ifdef DEBUG
     // Standalone debug mode: bypass normal pipeline
@@ -900,8 +961,9 @@ void ChartchoticAudioProcessorEditor::resized()
     state.setProperty("editorWidth", getWidth(), nullptr);
     state.setProperty("editorHeight", getHeight(), nullptr);
 
-    // Virtual scene dimensions
-    sceneWidth = getWidth();
+    // Virtual scene dimensions. The strip is not part of the scene, so it comes off the
+    // width before the highway geometry is derived from it.
+    sceneWidth = getWidth() - (utilityStripVisible ? utilityStripWidth : 0);
     // Toolbar scales with width, but also caps by height so panels fit vertically.
     // The 0.09 vertical ratio ensures toolbar + tallest panel + footer all fit.
     int fromWidth = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
@@ -946,10 +1008,24 @@ void ChartchoticAudioProcessorEditor::resized()
     // Tell popup panels where the footer starts so they don't overlap it
     toolbar.setPanelBottomMargin(footerH);
 
+    // Utility strip claims its width off the left before the grid is computed, so the
+    // highways reflow around it rather than sitting under it.
+    int stripW = utilityStripVisible ? utilityStripWidth : 0;
+    utilityStrip.setVisible(utilityStripVisible);
+    if (utilityStripVisible)
+    {
+        // Inset from the window edge and the toolbar so the strip reads as a panel rather
+        // than as part of the chrome it sits against.
+        utilityStrip.setBounds(utilityStripMargin, tbHeight + utilityStripMargin,
+                               stripW - utilityStripMargin * 2,
+                               getHeight() - tbHeight - footerH - utilityStripMargin * 2);
+        utilityStrip.toFront(false);
+    }
+
     // Layout highway slots below toolbar, above footer
     if (activeSlotCount > 0)
     {
-        int contentW = getWidth();
+        int contentW = getWidth() - stripW;
         int contentH = getHeight() - tbHeight - footerH;
         int numSlots = activeSlotCount;
 
@@ -959,7 +1035,7 @@ void ChartchoticAudioProcessorEditor::resized()
             hw.renderWidth = sceneWidth;
             hw.renderHeight = sceneHeight;
             hw.updateOverflow();
-            hw.setBounds(0, tbHeight, contentW, contentH);
+            hw.setBounds(stripW, tbHeight, contentW, contentH);
         }
         else
         {
@@ -1011,7 +1087,7 @@ void ChartchoticAudioProcessorEditor::resized()
             for (int i = 0; i < numSlots; ++i)
                 rowWeight[(size_t)(i / cols)] += widthWeight(slots[i].part);
 
-            std::vector<int> rowX((size_t)rows, pad);   // running x per row
+            std::vector<int> rowX((size_t)rows, stripW + pad);   // running x per row
             for (int i = 0; i < numSlots; ++i)
             {
                 auto& hw = *slots[i].highway;
