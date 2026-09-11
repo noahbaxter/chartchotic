@@ -173,6 +173,13 @@ private:
 
     // Bar under `y`, snapped to the bar line, since bars are the unit everything here uses.
     double snappedBarQN(int y, const View& v) const;
+    double barLineAtOrBefore(double qn) const;
+    double barLineStep(double fromQN, int bars) const;
+    double chunkLineStep(double fromQN, int direction, int chunk) const;
+
+    static constexpr double kBarEpsilon = 1.0e-6;
+    static constexpr int MAX_BARS_WALKED = 100000;
+    static constexpr int MAX_CHUNK_SEARCH = 512;
 
     bool inTrackArea(juce::Point<int> p) const
     {
