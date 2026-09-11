@@ -78,7 +78,8 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 
     if (bars == 0)
     {
-        double end = sections ? sections->getEndPPQ().toDouble() : 0.0;
+        // Whatever the MIDI actually reaches, since most charts in the wild have no [end].
+        double end = contentEndQN();
         if (end <= 0.0) end = std::max(now, 1.0) + 64 * 4.0;
         return { 0.0, end };
     }
@@ -144,70 +145,49 @@ double UtilityStripComponent::barLineAtOrBefore(double qn) const
     return cur;
 }
 
-// Walked by index rather than by subtracting epsilons: stepping back used to ask for the
-// bar before `cur - epsilon`, which returns `cur` again whenever cur is already on a line,
-// so backwards never moved.
-double UtilityStripComponent::barLineStep(double fromQN, int bars) const
+// How many bars a drawn grid line is worth at this zoom. Snapping and the ruler read the
+// same number, so you can only ever land on a line you can see.
+int UtilityStripComponent::visibleChunk(const View& v) const
 {
-    std::vector<double> lines;
-    double cur = 0.0;
-    int here = 0;
+    double len = barLengthQN(tempoMap, v.startQN);
+    double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
+    return chunkBars(pxPerBar);
+}
 
-    for (int guard = 0; guard < MAX_BARS_WALKED; ++guard)
+// Walked from zero like every other grid question here, because chunk lines are counted in
+// measures from the section they are in, not in QN from the origin.
+double UtilityStripComponent::chunkLineAtOrBefore(double qn, const View& v) const
+{
+    int chunk = visibleChunk(v);
+    double cur = 0.0;
+    double best = 0.0;
+
+    for (int guard = 0; guard < MAX_BARS_WALKED && cur <= qn; ++guard)
     {
-        lines.push_back(cur);
-        if (cur <= fromQN + kBarEpsilon) here = (int)lines.size() - 1;
-        // One bar past the target is enough to step forward from.
-        if (cur > fromQN + kBarEpsilon && (int)lines.size() > here + std::abs(bars) + 1) break;
+        if ((measureAtQN(cur) - sectionStartMeasure(cur)) % chunk == 0) best = cur;
         cur += std::max(0.25, barLengthQN(tempoMap, cur));
     }
-
-    int target = juce::jlimit(0, (int)lines.size() - 1, here + bars);
-    return lines[(size_t)target];
+    return best;
 }
 
-// The line under `fromQN` on the grid that is actually drawn, stepped by `direction`.
-// Chunk lines are section-relative, so stepping a fixed number of bars from an arbitrary
-// position lands between them rather than on them.
-double UtilityStripComponent::chunkLineStep(double fromQN, int direction, int chunk) const
-{
-    auto onChunk = [this, chunk](double barQN)
-    {
-        return ((measureAtQN(barQN) - sectionStartMeasure(barQN)) % chunk) == 0;
-    };
-
-    double cur = barLineAtOrBefore(fromQN);
-    bool onGrid = onChunk(cur) && std::abs(cur - fromQN) <= kBarEpsilon;
-
-    if (!onGrid)
-    {
-        // Off the drawn grid: find the line behind us. Scrolling back lands on it;
-        // scrolling forward continues from it to the next one.
-        for (int i = 0; i < MAX_CHUNK_SEARCH && !onChunk(cur); ++i)
-        {
-            double prev = barLineStep(cur, -1);
-            if (prev >= cur) break;
-            cur = prev;
-        }
-        if (direction < 0) return cur;
-    }
-
-    for (int i = 0; i < MAX_CHUNK_SEARCH; ++i)
-    {
-        double next = barLineStep(cur, direction);
-        if (std::abs(next - cur) <= kBarEpsilon) return cur;   // hit either end
-        cur = next;
-        if (onChunk(cur)) return cur;
-    }
-    return std::max(0.0, cur);
-}
-
-// The bar you are in, not the nearest one. Rounding to nearest puts the indicator above
-// the cursor for the top half of every bar, which reads as pointing at the wrong thing and
-// is worst at the bottom edge where it collides with the pinned label.
+// The chunk you are in, not the nearest one. Rounding to nearest puts the indicator above
+// the cursor for the top half of every chunk, which reads as pointing at the wrong thing
+// and is worst at the bottom edge where it collides with the pinned label.
+//
+// Snapping is to the drawn chunk grid rather than to every bar: the chunk doubles each
+// time the visible span does, so the strip holds roughly the same number of snap points
+// at any zoom instead of thousands of bar lines a pixel apart. Section starts always snap
+// whatever the chunk, since they are the thing you are usually aiming for.
 double UtilityStripComponent::snappedBarQN(int y, const View& v) const
 {
-    return barLineAtOrBefore(std::max(0.0, qnForY(y, v)));
+    double qn = std::max(0.0, qnForY(y, v));
+    double snapped = chunkLineAtOrBefore(qn, v);
+
+    if (sections != nullptr)
+        if (const auto* s = sections->sectionAt(PPQ(qn)))
+            snapped = std::max(snapped, s->position.toDouble());
+
+    return snapped;
 }
 
 void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
@@ -227,9 +207,7 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
 
 void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) const
 {
-    double len = barLengthQN(tempoMap, v.startQN);
-    double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
-    int chunk = chunkBars(pxPerBar);
+    int chunk = visibleChunk(v);
 
     const float w = (float)getWidth();
 
@@ -341,18 +319,75 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     return { 3, top, tw + 6, LABEL_H };
 }
 
+// Where the charted MIDI stops: the last note end on any mapped part, the end of the last
+// clip, or an explicit [end] / [music_end] marker, whichever is later. 0 when none known.
+double UtilityStripComponent::contentEndQN() const
+{
+    double end = sections != nullptr ? sections->getEndPPQ().toDouble() : 0.0;
+
+    if (clipSpans != nullptr && !clipSpans->empty())
+        end = std::max(end, clipSpans->back().endQN);
+
+    // Last note rather than the whole sweep: this runs per paint and per mouse move, and
+    // cached notes are in time order, so the tail of each part is one lookup.
+    for (const auto& src : noteSources)
+        if (src.notes != nullptr && !src.notes->empty())
+            end = std::max(end, src.notes->back().endPPQ.toDouble());
+
+    return end;
+}
+
+// End of the MIDI clip `qn` falls in, or 0 when there are no clips or it sits in a gap
+// between them. Spans arrive merged and in order, so the first one that covers it wins.
+double UtilityStripComponent::clipEndAt(double qn) const
+{
+    if (clipSpans == nullptr) return 0.0;
+
+    for (const auto& span : *clipSpans)
+    {
+        if (span.startQN > qn) break;
+        if (qn < span.endQN) return span.endQN;
+    }
+    return 0.0;
+}
+
+// Where section `i` stops. Normally the next section, but the end of its own clip cuts it
+// short: with several charts on one timeline, the last section of one would otherwise run
+// across the gap and into the start of the next. The final section of all falls back to
+// the end of the MIDI, so it stops somewhere rather than owning the rest of the timeline.
+double UtilityStripComponent::sectionEndQN(size_t i, const View& v) const
+{
+    const auto& list = sections->getSections();
+    double qn = list[i].position.toDouble();
+    bool last = i + 1 >= list.size();
+
+    // Nothing after it, so it runs to wherever the MIDI itself stops.
+    double stop = last ? std::max(contentEndQN(), v.endQN) : list[i + 1].position.toDouble();
+
+    // Its own clip's end cuts it short, which is the only thing that does it for charts
+    // with no [end] at all: the gap to the next clip is not part of any section.
+    double clipEnd = clipEndAt(qn);
+    if (clipEnd > qn) stop = std::min(stop, clipEnd);
+
+    double marker = sections->endMarkerBetween(PPQ(qn), PPQ(stop)).toDouble();
+    if (marker > qn) stop = std::min(stop, marker);
+
+    return stop;
+}
+
 // Section containing the bottom of the view, ie the one the strip is currently inside.
 int UtilityStripComponent::stickyIndex(const View& v) const
 {
     if (sections == nullptr) return -1;
     const auto& list = sections->getSections();
-    int found = -1;
+
+    // Inside a section's own span, not merely after its line: past the end of a clip there
+    // is nothing to be inside, so nothing pins until the next chart starts.
     for (int i = 0; i < (int)list.size(); ++i)
-    {
-        if (list[(size_t)i].position.toDouble() > v.startQN) break;
-        found = i;
-    }
-    return found;
+        if (list[(size_t)i].position <= PPQ(v.startQN) && v.startQN < sectionEndQN((size_t)i, v))
+            return i;
+
+    return -1;
 }
 
 juce::Rectangle<int> UtilityStripComponent::sectionRowBounds(size_t index, const View& v) const
@@ -400,25 +435,34 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     // falls back to the playhead when the pointer is away. So a section is always lit:
     // where you are pointing, or where you are.
     double referenceQN = hoverY >= 0 ? snappedBarQN(hoverY, v) : playheadPPQ.toDouble();
-    const SongSections::Section* hovered = sections->sectionAt(PPQ(referenceQN));
+
+    // Only inside its own span: in the gap between two charts there is nothing to light,
+    // even though the section before it is still the last one behind you.
+    int hoveredIndex = -1;
+    for (size_t i = 0; i < list.size(); ++i)
+        if (list[i].position <= PPQ(referenceQN) && referenceQN < sectionEndQN(i, v))
+        {
+            hoveredIndex = (int)i;
+            break;
+        }
 
     for (size_t i = 0; i < list.size(); ++i)
     {
         double qn = list[i].position.toDouble();
-        double nextQN = (i + 1 < list.size()) ? list[i + 1].position.toDouble() : v.endQN;
-        if (nextQN < v.startQN || qn > v.endQN) continue;
+        double endQN = sectionEndQN(i, v);
+        if (endQN < v.startQN || qn > v.endQN) continue;
 
         float y = (float)yForQN(qn, v);
-        float yTop = (float)yForQN(std::min(nextQN, v.endQN), v);
+        float yTop = (float)yForQN(std::min(endQN, v.endQN), v);
 
-        // A section owns everything from its own line up to the next one. Clamped at both
+        // A section owns everything from its own line up to where it stops. Clamped at both
         // ends, so a section running off either edge fills what is visible of it rather
         // than bleeding past the track into the footer.
         const float bottom = top + (float)trackHeight();
         float bandTop = juce::jlimit(top, bottom, yTop);
         float bandBottom = juce::jlimit(top, bottom, y);
 
-        bool isHovered = (hovered != nullptr && &list[i] == hovered);
+        bool isHovered = ((int)i == hoveredIndex);
         if (bandBottom > bandTop)
         {
             g.setColour(isHovered ? UtilityColours::sectionBandHover
@@ -612,31 +656,56 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
         return;
     }
 
-    // A bare wheel steps between the chunk lines that are actually drawn, so the map moves
-    // in the same units it is ruled in. Fine positioning is the highway's job.
-    if (onSeekTo)
+    if (onSeekTo == nullptr) return;
+
+    // Shift skips structure: one notch, one section, which is the jump you actually want
+    // when reading a chart rather than scrubbing through it.
+    if (e.mods.isShiftDown())
     {
-        auto v = visibleRange();
-        double len = barLengthQN(tempoMap, playheadPPQ.toDouble());
-        double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
-        int chunk = chunkBars(pxPerBar);
-        int direction = delta > 0.0 ? 1 : -1;
-
-        // A notch should travel about the same distance on screen at every zoom, so the
-        // number of chunk steps is chosen from how tall a chunk currently is. Zoomed in
-        // that is a couple of bars, zoomed out it is many, but the sleeve moves the same.
-        double chunkPx = std::max(1.0, chunk * pxPerBar);
-        int steps = std::max(1, (int)std::lround(trackHeight() * SCROLL_TRAVEL_FRACTION / chunkPx));
-        if (e.mods.isShiftDown()) steps *= 4;
-
-        // Steps onto the lines that are actually drawn. Those are counted from each
-        // section, so stepping a fixed number of bars instead lands between them.
-        double target = playheadPPQ.toDouble();
-        for (int i = 0; i < steps; ++i)
-            target = chunkLineStep(target, direction, chunk);
-
-        onSeekTo(target);
+        onSeekTo(sectionStep(delta > 0.0 ? 1 : -1));
+        return;
     }
+
+    // A bare wheel scrolls the map free of the grid: the wheel's own travel, scaled, so a
+    // trackpad glides instead of clacking between bar lines. Snapping lives where it is
+    // aimed, on hover and on click.
+    auto v = visibleRange();
+    double qnPerPx = (v.endQN - v.startQN) / trackHeight();
+
+    double target = std::max(0.0, playheadPPQ.toDouble() + delta * WHEEL_PIXELS_PER_UNIT * qnPerPx);
+
+    // Nothing to look at past the last clip, so the wheel stops there rather than sailing
+    // off into empty timeline.
+    double contentEnd = contentEndQN();
+    if (contentEnd > 0.0) target = std::min(target, contentEnd);
+
+    onSeekTo(target);
+}
+
+// The next section line from the playhead in `direction`, or where we already are when
+// there is none that way. Stepping back from inside a section lands on its own start
+// first, the way a transport's previous-marker key does.
+double UtilityStripComponent::sectionStep(int direction) const
+{
+    double now = playheadPPQ.toDouble();
+    if (sections == nullptr) return now;
+
+    const auto& list = sections->getSections();
+
+    if (direction > 0)
+    {
+        for (const auto& s : list)
+            if (s.position > now + SECTION_STEP_EPSILON) return s.position.toDouble();
+        return now;
+    }
+
+    double best = now;
+    for (const auto& s : list)
+    {
+        if (s.position >= now - SECTION_STEP_EPSILON) break;
+        best = s.position.toDouble();
+    }
+    return best;
 }
 
 std::vector<UtilityStripComponent::SectionEdit> UtilityStripComponent::currentEdits() const

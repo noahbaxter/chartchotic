@@ -23,6 +23,7 @@
 #include "../Midi/Utils/TimeConverter.h"   // defines TempoTimeSignatureMap, which the helper assumes
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
 #include "../Midi/Providers/REAPER/MidiCache.h"
+#include "../Midi/Providers/TrackNoteProvider.h"   // defines ClipSpan
 #include "../Midi/Utils/InstrumentMapper.h"
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
@@ -78,6 +79,10 @@ public:
 
     void setNoteSources(std::vector<NoteSource> s) { noteSources = std::move(s); }
 
+    // Merged MIDI clip extents for the whole project. Where several charts share one
+    // timeline this is the only thing that says where each of them stops.
+    void setClipSpans(const std::vector<ClipSpan>* s) { clipSpans = s; }
+
     // Lane colours come from the same place the gems and strikeline pads get them, so the
     // map cannot drift from the highway it summarises.
     void setAssetManager(AssetManager* am) { assetManager = am; }
@@ -95,9 +100,8 @@ public:
                                         : (int)std::size(ZOOM_STEPS) - 1);
     }
 
-    // Scrolling the map seeks. The jump is a fraction of the visible span rather than a
-    // fixed beat count, so one notch covers the same proportion of screen at every zoom.
-    // Clicking a bar, or scrolling a chunk, jumps there.
+    // Scrolling the map seeks, freely: the wheel's travel scaled by the visible span, so
+    // one notch covers the same proportion of screen at every zoom. Clicking snaps to a bar.
     std::function<void(double targetQN)> onSeekTo;
 
     // Whole replacement set, because renaming or inserting one section can renumber the
@@ -128,8 +132,12 @@ public:
 
 private:
     static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
-    // Fraction of the strip one scroll notch travels, at any zoom.
-    static constexpr double SCROLL_TRAVEL_FRACTION = 0.14;
+    // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
+    // 16px step), so the strip scrolls at the speed everything else in the OS does.
+    static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
+    // Far enough not to catch the section you are standing on when it is a hair behind the
+    // playhead, close enough that no real section is ever skipped.
+    static constexpr double SECTION_STEP_EPSILON = 1.0e-3;
     static constexpr float NOTE_MAP_SATURATION = 0.45f;
     static constexpr float NOTE_MAP_ALPHA = 0.55f;
     static constexpr int FOOTER_H = 20;
@@ -175,15 +183,18 @@ private:
         return v.startQN + (trackTop() + trackHeight() - y) / trackHeight() * span;
     }
 
-    // Bar under `y`, snapped to the bar line, since bars are the unit everything here uses.
+    // Position under `y`, snapped to the grid that is drawn at this zoom, plus sections.
     double snappedBarQN(int y, const View& v) const;
     double barLineAtOrBefore(double qn) const;
-    double barLineStep(double fromQN, int bars) const;
-    double chunkLineStep(double fromQN, int direction, int chunk) const;
+    double chunkLineAtOrBefore(double qn, const View& v) const;
+    int visibleChunk(const View& v) const;
+    double sectionStep(int direction) const;
 
-    static constexpr double kBarEpsilon = 1.0e-6;
+    // Last charted QN: where the final section has to stop.
+    double contentEndQN() const;
+    double clipEndAt(double qn) const;
+
     static constexpr int MAX_BARS_WALKED = 100000;
-    static constexpr int MAX_CHUNK_SEARCH = 512;
 
     bool inTrackArea(juce::Point<int> p) const
     {
@@ -203,6 +214,9 @@ private:
     juce::Rectangle<int> sectionHeaderBounds(size_t index, const View& v) const;
     juce::Rectangle<int> sectionRowBounds(size_t index, const View& v) const;
     int stickyIndex(const View& v) const;
+
+    // Where a section stops: the next one, or the end of its own clip if that comes first.
+    double sectionEndQN(size_t index, const View& v) const;
 
     static constexpr int LABEL_H = 19;
 
@@ -224,6 +238,7 @@ private:
     const SongSections* sections = nullptr;
     const TempoTimeSignatureMap* tempoMap = nullptr;
     std::vector<NoteSource> noteSources;
+    const std::vector<ClipSpan>* clipSpans = nullptr;
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
     int zoomIndex = DEFAULT_ZOOM_INDEX;

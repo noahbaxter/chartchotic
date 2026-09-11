@@ -415,6 +415,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
     {
         auto* instrSession = audioProcessor.getInstrumentSession();
         utilityStrip.setSections(instrSession ? &instrSession->getSongSections() : nullptr);
+        utilityStrip.setClipSpans(instrSession ? &instrSession->getClipSpans() : nullptr);
 
         // One note column per visible highway, so a single instrument spreads across the
         // strip and a full band shares it.
