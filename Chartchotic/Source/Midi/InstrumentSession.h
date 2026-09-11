@@ -8,6 +8,7 @@
 #include "DiscoFlipState.h"
 #include "StarPowerState.h"
 #include "StrictHatPedalState.h"
+#include "SongSections.h"
 
 class InstrumentSession
 {
@@ -28,6 +29,8 @@ public:
     const DiscoFlipState& getDiscoFlipState(int trackIdx) const;
     const StarPowerState& getStarPowerState(int trackIdx) const;
     const StrictHatPedalState& getStrictHatPedalState(int trackIdx) const;
+
+    const SongSections& getSongSections() const { return songSections; }
 
     int getTrackCount() const { return (int)tracks.size(); }
     bool isEmpty() const { return tracks.empty(); }
@@ -55,6 +58,7 @@ private:
     std::unique_ptr<TrackNoteProvider> provider;
     std::vector<InstrumentTrackInfo> tracks;
     std::vector<TrackData> trackData;
+    SongSections songSections;
 
     // Empty fallbacks for out-of-range access
     static const std::vector<MidiCache::CachedNote> emptyNotes;
