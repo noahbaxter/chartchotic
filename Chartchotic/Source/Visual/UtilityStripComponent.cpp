@@ -477,16 +477,18 @@ juce::String UtilityStripComponent::currentSectionName() const
     return {};
 }
 
-// Which section is lit: the one under the hover cursor's snapped bar, the same bar the
-// hover line draws on, falling back to the playhead when the pointer is away. So a section
-// is always lit, where you are pointing or where you are. Only inside its own span though:
-// in the gap between two charts there is nothing to light, even though the section before
-// it is still the last one behind you.
+// Which section is filled: the one the playhead is inside, and only that. It says where the
+// song is, so it has to stay put while you read the rest of the strip; following the pointer
+// made the fill chase the mouse and stop meaning anything. Pointing at a section still
+// shows, through the hover band and the underline, which are separate.
+//
+// Only inside its own span though: in the gap between two charts there is nothing to light,
+// even though the section before it is still the last one behind you.
 int UtilityStripComponent::litSectionIndex(const View& v) const
 {
     if (sections == nullptr) return -1;
 
-    double referenceQN = hoverY >= 0 ? snappedBarQN(hoverY, v) : playheadPPQ.toDouble();
+    double referenceQN = playheadPPQ.toDouble();
     const auto& list = sections->getSections();
 
     for (size_t i = 0; i < list.size(); ++i)
@@ -521,7 +523,7 @@ void UtilityStripComponent::drawSectionBands(juce::Graphics& g, const View& v) c
         float bandBottom = juce::jlimit(top, bottom, (float)yForQN(qn, v));
         if (bandBottom <= bandTop) continue;
 
-        g.setColour((int)i == lit ? UtilityColours::sectionBandHover
+        g.setColour((int)i == lit ? UtilityColours::sectionBandCurrent
                                   : UtilityColours::sectionBand);
         g.fillRect(0.0f, bandTop, w, bandBottom - bandTop);
     }
@@ -781,6 +783,17 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
 {
     double delta = wheel.deltaY != 0.0f ? wheel.deltaY : wheel.deltaX;
     if (delta == 0.0) return;
+
+    // The pointer has not moved, but everything under it has. Keeping the hover where the
+    // cursor happens to sit means the highlight jumps between sections as they slide past,
+    // which reads as the strip flickering rather than scrolling.
+    //
+    // Held down by position rather than by event: a scroll is followed by a mouseMove at
+    // the same place, so simply waiting for the next move brings the hover straight back.
+    // It stays away until the pointer is somewhere it was not when the scroll began.
+    hoverHeldFrom = e.getPosition();
+    hoverHeld = true;
+    clearHover();
 
     if (e.mods.isCommandDown())
     {
@@ -1078,6 +1091,8 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 {
     auto p = e.getPosition();
 
+    hoverHeld = false;   // clicking is aiming at something, whatever the scroll left behind
+
     if (renameEditor != nullptr) commitRename();
 
     if (filterHeaderBounds().contains(p))
@@ -1150,6 +1165,14 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
 
 void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
 {
+    // Still parked where the scroll left it, so this is the scroll's own trailing move
+    // rather than the pointer going anywhere.
+    if (hoverHeld)
+    {
+        if (e.getPosition() == hoverHeldFrom) return;
+        hoverHeld = false;
+    }
+
     int y = inTrackArea(e.getPosition()) ? e.getPosition().y : -1;
     int section = y >= 0 ? sectionHeaderAt(e.getPosition()) : -1;
     int name = y >= 0 ? sectionNameAt(e.getPosition()) : -1;
@@ -1163,7 +1186,9 @@ void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
     repaint();
 }
 
-void UtilityStripComponent::mouseExit(const juce::MouseEvent&)
+// Forgets where the pointer was, so the lit section falls back to the playhead. Hover comes
+// back on the next real mouseMove.
+void UtilityStripComponent::clearHover()
 {
     if (hoverY < 0 && hoverSection < 0 && hoverName < 0) return;
     hoverY = -1;
@@ -1171,6 +1196,12 @@ void UtilityStripComponent::mouseExit(const juce::MouseEvent&)
     hoverName = -1;
     setMouseCursor(juce::MouseCursor::NormalCursor);
     repaint();
+}
+
+void UtilityStripComponent::mouseExit(const juce::MouseEvent&)
+{
+    hoverHeld = false;   // leaving and coming back is pointing again
+    clearHover();
 }
 
 // Marquee, delete span and time selection are all a band between two drag points; only the

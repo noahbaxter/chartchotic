@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChartTextEvent.h"
+#include "EventsTrackText.h"
 #include <algorithm>
 
 /**
@@ -30,31 +31,46 @@ public:
 
         for (const auto& evt : events)
         {
-            auto text = evt.text.trim();
-            if (text == "[coda]")
-            {
-                if (evt.position < codaPPQ) codaPPQ = evt.position;
-                continue;
-            }
-            if (text == "[end]" || text == "[music_end]")
-            {
-                endMarkers.push_back(evt.position);
-                if (evt.position > endPPQ) endPPQ = evt.position;
-                continue;
-            }
+            auto ev = EventsTrackText::classify(evt.text);
 
-            juce::String name;
-            if (parseSectionName(text, name))
-                sections.push_back({ evt.position, name });
+            switch (ev.kind)
+            {
+                case EventsTrackText::Kind::Coda:
+                    if (evt.position < codaPPQ) codaPPQ = evt.position;
+                    break;
+
+                case EventsTrackText::Kind::End:
+                case EventsTrackText::Kind::MusicEnd:
+                    endMarkers.push_back(evt.position);
+                    if (evt.position > endPPQ) endPPQ = evt.position;
+                    break;
+
+                case EventsTrackText::Kind::Section:
+                    sections.push_back({ evt.position, ev.value });
+                    break;
+
+                default:
+                    break;   // crowd, camera, lighting, mixes: not structure
+            }
         }
 
         std::sort(sections.begin(), sections.end(),
                   [](const Section& a, const Section& b) { return a.position < b.position; });
         std::sort(endMarkers.begin(), endMarkers.end());
+
+        collapseCoincident();
     }
 
     const std::vector<Section>& getSections() const { return sections; }
     bool hasSections() const { return !sections.empty(); }
+
+    // Two markers this close are one section written twice, not two sections.
+    //
+    // The number is measured, not picked: across the charts in assets/midi the tightest gap
+    // between two genuine consecutive sections is 4 quarter notes, and the duplicates this
+    // exists to remove sit about two ticks apart. An eighth of a quarter note sits three
+    // orders of magnitude clear of both, so no real section can be swallowed.
+    static constexpr double MIN_SECTION_SPACING_QN = 0.125;
 
     // A fill after the coda is a Big Rock Ending rather than a drum fill.
     // Last [end] / [music_end], or 0 if the chart has neither. The map zoom needs a span.
@@ -91,6 +107,29 @@ public:
             found = &s;
         }
         return found;
+    }
+
+    // Keeps the last of each run, which is the one on the true position: a marker rewritten
+    // through quarter-note-to-tick and back drifts a tick earlier each time, so the copies
+    // pile up behind the original rather than ahead of it. Last also means the newest name
+    // survives a rename.
+    void collapseCoincident()
+    {
+        if (sections.size() < 2) return;
+
+        std::vector<Section> kept;
+        kept.reserve(sections.size());
+
+        for (size_t i = 0; i < sections.size(); ++i)
+        {
+            bool lastOfRun = i + 1 == sections.size()
+                || (sections[i + 1].position.toDouble() - sections[i].position.toDouble())
+                       >= MIN_SECTION_SPACING_QN;
+
+            if (lastOfRun) kept.push_back(sections[i]);
+        }
+
+        sections.swap(kept);
     }
 
     static bool parseSectionName(const juce::String& text, juce::String& outName)
