@@ -9,9 +9,14 @@ namespace
     const juce::Identifier kWriteStepDivision { "writeStepDivision" };
     const juce::Identifier kWriteTuplet       { "writeTuplet" };
     const juce::Identifier kWriteSnap         { "writeSnap" };
+    const juce::Identifier kWriteChartLayer   { "writeChartLayer" };
 
     static const juce::String kSubModeDraw { "draw" };
     static const juce::String kSubModeEdit { "edit" };
+
+    static const juce::String kLayerNote   { "note" };
+    static const juce::String kLayerPhrase { "phrase" };
+    static const juce::String kLayerMeta   { "meta" };
 
     SubMode parseSubMode(const juce::String& s, SubMode fallback)
     {
@@ -23,6 +28,24 @@ namespace
     const juce::String& subModeToString(SubMode m)
     {
         return (m == SubMode::Edit) ? kSubModeEdit : kSubModeDraw;
+    }
+
+    ChartLayer parseLayer(const juce::String& s, ChartLayer fallback)
+    {
+        if (s == kLayerPhrase) return ChartLayer::Phrase;
+        if (s == kLayerMeta)   return ChartLayer::Meta;
+        if (s == kLayerNote)   return ChartLayer::Note;
+        return fallback;
+    }
+
+    const juce::String& layerToString(ChartLayer l)
+    {
+        switch (l)
+        {
+            case ChartLayer::Phrase: return kLayerPhrase;
+            case ChartLayer::Meta:   return kLayerMeta;
+            default:                 return kLayerNote;
+        }
     }
 }
 
@@ -38,6 +61,9 @@ void WriteController::loadPersistedState()
 {
     if (state.hasProperty(kWriteSubMode))
         currentSubMode = parseSubMode(state.getProperty(kWriteSubMode).toString(), currentSubMode);
+
+    if (state.hasProperty(kWriteChartLayer))
+        currentLayer = parseLayer(state.getProperty(kWriteChartLayer).toString(), currentLayer);
 
     if (state.hasProperty(kWriteStepDivision))
         currentStepDivision = juce::jlimit(1, 64, (int)state.getProperty(kWriteStepDivision));
@@ -205,6 +231,27 @@ void WriteController::setSubMode(SubMode mode)
     if (currentSubMode == mode) return;
     currentSubMode = mode;
     state.setProperty(kWriteSubMode, subModeToString(mode), nullptr);
+    stateDidChange();
+}
+
+void WriteController::setLayer(ChartLayer l)
+{
+    if (currentLayer == l) return;
+    currentLayer = l;
+    state.setProperty(kWriteChartLayer, layerToString(l), nullptr);
+    stateDidChange();
+}
+
+// Meta is skipped until text-event authoring exists, so the cycle cannot land somewhere inert.
+void WriteController::cycleLayer()
+{
+    setLayer(currentLayer == ChartLayer::Note ? ChartLayer::Phrase : ChartLayer::Note);
+}
+
+void WriteController::setPhraseTarget(PhraseTarget t)
+{
+    if (currentPhraseTarget == t) return;
+    currentPhraseTarget = t;
     stateDidChange();
 }
 
@@ -390,6 +437,12 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 {
     double clickQN = snapQN(p.rawProjectQN);
 
+    if (currentLayer == ChartLayer::Phrase)
+    {
+        handleBeginPhrase(p, trackIdx, clickQN);
+        return;
+    }
+
     if (!stamp.empty())
     {
         beginBatch("Chartchotic: Stamp notes");
@@ -447,6 +500,20 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
     sustainPendingClickQN = clickQN;
 }
 
+// A phrase is a bare range: no gem to place on the way down, and no markers to write.
+// Nothing is written until the drag commits, since a zero-length phrase is not a thing.
+void WriteController::handleBeginPhrase(const AuthoringPoint& p, int trackIdx, double clickQN)
+{
+    const auto* cfg = authoring();
+    if (cfg == nullptr || cfg->phrasePitch == nullptr) return;
+
+    int phrasePitch = cfg->phrasePitch(currentPhraseTarget, currentActiveSkill, p.laneIndex);
+    if (phrasePitch < 0) return;
+
+    beginBatch("Chartchotic: Phrase");
+    enterSustainDrag(trackIdx, clickQN, p.laneIndex, {{phrasePitch}, false});
+}
+
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
 {
     double dragQN  = snapQN(p.rawProjectQN);
@@ -485,7 +552,14 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
 
     if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
     {
-        if (!stamp.empty())
+        if (currentLayer == ChartLayer::Phrase)
+        {
+            // Created rather than chain-extended: a phrase has no gem under it to extend.
+            for (int pitch : sustainDragTarget.pitches)
+                createPhraseNote(sustainDragTrackIdx, sustainDragStartQN,
+                                 endQN - sustainDragStartQN, pitch);
+        }
+        else if (!stamp.empty())
         {
             bool drums = isDrums();
             for (const auto& sn : stamp)
@@ -783,6 +857,7 @@ bool WriteController::onKeyPress(const juce::KeyPress& key)
     {
         case WriteCommand::ToggleWriteMode: setWriteModeActive(!writeModeActive()); return true;
         case WriteCommand::ToggleSubMode:   setSubMode(subMode() == SubMode::Draw ? SubMode::Edit : SubMode::Draw); return true;
+        case WriteCommand::CycleLayer:      cycleLayer();                                     return true;
         case WriteCommand::ToggleSnap:      setSnapEnabled(!snapEnabled());                   return true;
         case WriteCommand::StepDown:        setStepDivision(std::max(1, stepDivision() / 2)); return true;
         case WriteCommand::StepUp:          setStepDivision(stepDivision() * 2);              return true;

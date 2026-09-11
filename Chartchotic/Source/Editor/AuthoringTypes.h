@@ -242,6 +242,7 @@ enum class WriteCommand {
     // Key commands
     ToggleWriteMode,
     ToggleSubMode,
+    CycleLayer,
     ToggleSnap,
     ToggleTuplet,
     CycleTuplet,
@@ -259,6 +260,10 @@ enum class WriteCommand {
 };
 
 enum class SubMode { Draw, Edit };
+
+// The second authoring axis, orthogonal to SubMode: Draw/Edit is how you interact, this is
+// what you interact with. Meta is text events and lands with the sections work.
+enum class ChartLayer { Note, Phrase, Meta };
 enum class DrumDynamic { Normal, Ghost, Accent };
 enum class GuitarForce { None, Hopo, Strum, Tap };
 

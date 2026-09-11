@@ -176,6 +176,15 @@ public:
     }
     static bool isEliteRollLane(uint pitch) { return getEliteRollLaneColumn(pitch) != INVALID_COLUMN; }
 
+    // Inverse of getEliteRollLaneColumn, for authoring. -1 for a column with no roll lane.
+    static int eliteRollLanePitch(int column)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        if (column == ELITE_STOMP_COLUMN) return (int)ED::ROLL_STOMP;
+        if (column < 0 || column > (int)((uint)ED::ROLL_RCRASH - (uint)ED::ROLL_KICK)) return -1;
+        return (int)ED::ROLL_KICK + column;
+    }
+
     // Hi-hat pedal-state modifiers, returning the SkillLevel index (0 Easy .. 3 Expert) the
     // modifier belongs to, or -1 if the pitch is not that modifier. Pedal Down and Indifferent
     // sit a fixed -24 per difficulty (Expert 72/88, Hard 48/64, Medium 24/40, Easy 0/16).
