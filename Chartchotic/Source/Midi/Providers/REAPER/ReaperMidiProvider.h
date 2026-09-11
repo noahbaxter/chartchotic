@@ -50,6 +50,13 @@ public:
         bool muted;
     };
 
+    // A MIDI item's extents in QN. Several charts can share one timeline, so where the
+    // items stop is the only thing that says where one chart ends and the next begins.
+    struct ReaperItemSpan {
+        double startQN;
+        double endQN;
+    };
+
     // Get notes from a specific time range (DEPRECATED - for backward compatibility)
     // Use getAllNotesFromTrack() for new code instead
     std::vector<ReaperMidiNote> getNotesInRange(double startPPQ, double endPPQ, int trackIndex = -1);
@@ -60,6 +67,9 @@ public:
 
     // Get ALL text events from a track (delegates to ReaperNoteFetcher)
     TrackTextEvents getAllTextEventsFromTrack(int trackIndex = -1);
+
+    // Get the extents of every MIDI item on a track (delegates to ReaperNoteFetcher)
+    std::vector<ReaperItemSpan> getItemSpansFromTrack(int trackIndex = -1);
 
     // Get ALL tempo and time signature events in the entire session
     // Returns events sorted by PPQ position
