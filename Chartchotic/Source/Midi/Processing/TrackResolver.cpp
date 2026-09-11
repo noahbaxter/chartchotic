@@ -14,6 +14,33 @@
 // Extract
 //==============================================================================
 
+namespace
+{
+    constexpr size_t FILL_MARKER_COUNT = 5;
+    using FillMarkers = std::array<std::vector<ModifierRange>, FILL_MARKER_COUNT>;
+
+    // Elite marks a fill with 120 alone; everything else needs all five of 120-124 over the
+    // same span, and a partial set is a charting error that resolves to nothing.
+    void collectFillRanges(const FillMarkers& markers, bool isElite,
+                           std::vector<ModifierRange>& out)
+    {
+        for (const auto& candidate : markers[0])
+        {
+            bool complete = isElite || std::all_of(
+                markers.begin() + 1, markers.end(),
+                [&candidate](const std::vector<ModifierRange>& sibling) {
+                    return std::any_of(sibling.begin(), sibling.end(),
+                        [&candidate](const ModifierRange& r) {
+                            return r.start == candidate.start && r.end == candidate.end;
+                        });
+                });
+
+            if (complete)
+                out.push_back(candidate);
+        }
+    }
+}
+
 SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                                     PPQ windowStart, PPQ windowEnd, PPQ latencyEnd,
                                     bool bemaniMode, bool isElite)
@@ -22,6 +49,9 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
     using Drums = MidiPitchDefinitions::Drums;
 
     SharedWindow shared;
+
+    // The per-pitch loop cannot correlate five pitches, so these resolve after it.
+    FillMarkers fillMarkers;
 
     for (uint pitch = MIDI_PITCH_MIN; pitch < MIDI_PITCH_COUNT; pitch++)
     {
@@ -74,6 +104,10 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                     else if (pitch == (uint)Guitar::SP || pitch == (uint)Drums::SP
                         || (isElite && pitch == (uint)MidiPitchDefinitions::EliteDrums::SP))
                         shared.modifiers.starPower.push_back(range);
+                    else if (pitch == (uint)Guitar::SOLO)
+                        shared.modifiers.solo.push_back(range);
+                    else if (pitch >= (uint)Guitar::BRE_5 && pitch <= (uint)Guitar::BRE_1)
+                        fillMarkers[pitch - (uint)Guitar::BRE_5].push_back(range);
                     else if (pitch == (uint)Guitar::TAP)
                         shared.modifiers.tap.push_back(range);
                     else if (pitch == (uint)Drums::TOM_YELLOW)
@@ -118,6 +152,8 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
             }
         }
     }
+
+    collectFillRanges(fillMarkers, isElite, shared.modifiers.fill);
 
     return shared;
 }
