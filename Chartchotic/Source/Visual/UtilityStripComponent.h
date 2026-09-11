@@ -25,6 +25,7 @@
 #include "../Midi/Providers/REAPER/MidiCache.h"
 #include "../Midi/Utils/InstrumentMapper.h"
 #include "Managers/AssetManager.h"
+#include "../Editor/StripCommandMapper.h"
 #include "../UI/ControlConstants.h"
 
 // Neutral and dark, in the same family as the neck rather than a UI blue.
@@ -37,15 +38,21 @@ namespace UtilityColours
     // Structure stays neutral like the neck; the section label is the one accent.
     inline const juce::Colour sectionLine  = juce::Colour(0xFF6E8FB5);
     inline const juce::Colour sectionBand  = juce::Colour(0x142F5F96);
+    inline const juce::Colour sectionBandHover = juce::Colour(0x2E3E77B8);
     inline const juce::Colour sectionText  = juce::Colour(0xFF9CC4F5);
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
     inline const juce::Colour hoverLine    = juce::Colour(0xFFBFD4EC);
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
     inline const juce::Colour codaLine     = juce::Colour(0xFFC98A5A);
-    inline const juce::Colour playhead     = juce::Colour(0xFFEAEAEA);
+    inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
+    inline const juce::Colour playheadGlow = juce::Colour(0x38FFFFFF);
     inline const juce::Colour label        = juce::Colour(0xFF7D7D85);
     inline const juce::Colour panelFill    = juce::Colour(0xFF1B1B1F);
     inline const juce::Colour noteMark     = juce::Colour(0xFF6E6E7A);
+    inline const juce::Colour marqueeFill  = juce::Colour(0x333E77B8);
+    inline const juce::Colour deleteFill   = juce::Colour(0x33C04A3A);
+    inline const juce::Colour loopFill     = juce::Colour(0x2FD8B65A);
+    inline const juce::Colour selectedLine = juce::Colour(0xFFFFFFFF);
 }
 
 class UtilityStripComponent : public juce::Component
@@ -88,21 +95,37 @@ public:
 
     // Scrolling the map seeks. The jump is a fraction of the visible span rather than a
     // fixed beat count, so one notch covers the same proportion of screen at every zoom.
-    std::function<void(double deltaQN)> onSeek;
-
-    // Clicking a bar in the map jumps there.
+    // Clicking a bar, or scrolling a chunk, jumps there.
     std::function<void(double targetQN)> onSeekTo;
+
+    // Whole replacement set, because renaming or inserting one section can renumber the
+    // rest and the writer takes them all at once anyway.
+    struct SectionEdit { double qn; juce::String name; };
+    std::function<void(const std::vector<SectionEdit>&)> onSectionsEdited;
+
+    std::function<void(double startQN, double endQN)> onTimeSelection;
+
+    void setWriteMode(bool on)
+    {
+        if (writeMode == on) return;
+        writeMode = on;
+        selection.clear();
+        repaint();
+    }
+
+    StripCommandMapper& commandMapper() { return mapper; }
 
     void paint(juce::Graphics& g) override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
+    void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseMove(const juce::MouseEvent&) override;
     void mouseExit(const juce::MouseEvent&) override;
 
 private:
     static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
-    // Faster than the highway's fixed 2 beats, because the map is for covering ground.
-    static constexpr double SEEK_FRACTION_PER_NOTCH = 0.05;
     static constexpr int FOOTER_H = 20;
     static constexpr int BUTTON_W = 18;
     static constexpr int FILTER_ROW_H = 18;
@@ -158,6 +181,12 @@ private:
 
     // Measure the containing section starts on, or 1 before the first section.
     int sectionStartMeasure(double qn) const;
+    int measureAtQN(double qn) const;
+    void drawMeasureNumber(juce::Graphics& g, float y, int measure, bool emphasised) const;
+
+    // Index of the section whose name plate is under `p`, or -1.
+    int sectionHeaderAt(juce::Point<int> p) const;
+    juce::Rectangle<int> sectionHeaderBounds(size_t index, const View& v) const;
 
     juce::Rectangle<int> minusBounds() const
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
@@ -181,6 +210,32 @@ private:
     PPQ playheadPPQ { 0.0 };
     int zoomIndex = DEFAULT_ZOOM_INDEX;
     int hoverY = -1;
+    int hoverSection = -1;
+
+    bool writeMode = false;
+    StripCommandMapper mapper;
+
+    std::vector<int> selection;        // indices into the section list
+    bool   dragActive = false;
+    int    dragAnchorY = 0;
+    int    dragCurrentY = 0;
+    double dragMoveDeltaQN = 0.0;
+    StripCommand dragCommand = StripCommand::None;
+
+    std::unique_ptr<juce::TextEditor> renameEditor;
+    int renameIndex = -1;
+
+    StripMode stripMode() const { return writeMode ? StripMode::Write : StripMode::Play; }
+    bool isSelected(int index) const
+    { return std::find(selection.begin(), selection.end(), index) != selection.end(); }
+
+    void dispatch(StripCommand cmd, const juce::MouseEvent& e);
+    void beginRename(int index);
+    void commitRename();
+    void commitSections(std::vector<SectionEdit> edits);
+    std::vector<SectionEdit> currentEdits() const;
+    juce::Rectangle<int> pencilBounds(int sectionIndex, const View& v) const;
+    void drawMarquee(juce::Graphics& g) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UtilityStripComponent)
 };

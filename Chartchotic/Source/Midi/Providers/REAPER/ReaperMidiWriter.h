@@ -45,7 +45,16 @@ public:
 
     bool ensureTrackTextEvent(int trackIndex, const std::string& text) override;
 
+    std::vector<SectionInfo> getSections() override;
+    bool setSections(const std::vector<SectionInfo>& sections) override;
+
 private:
+    // EVENTS is a plain REAPER track named "EVENTS" holding one MIDI item. findEventsTake
+    // only looks; ensureEventsTake creates the track and item when they are missing, which
+    // is the only path that mutates project structure rather than its contents.
+    void* findEventsTake(void* project) const;
+    void* ensureEventsTake(void* project);
+
 
     const ReaperAPIs& apis;
     std::function<void*(const char*)> getReaperApi;
