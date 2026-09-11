@@ -205,18 +205,31 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     addAndMakeVisible(utilityStrip);
     utilityStrip.setTempoMap(&audioProcessor.getTempoTimeSignatureMap());
     utilityStrip.setAssetManager(&assetManager);
-    utilityStrip.onSeek = [this](double deltaQN)
-    {
-        if (auto* playHead = audioProcessor.getPlayHead())
-            if (auto pos = playHead->getPosition(); pos.hasValue())
-            {
-                double target = pos->getPpqPosition().orFallback(0.0) + deltaQN;
-                audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, target)));
-            }
-    };
     utilityStrip.onSeekTo = [this](double targetQN)
     {
         audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, targetQN)));
+    };
+    utilityStrip.onSectionsEdited =
+        [this](const std::vector<UtilityStripComponent::SectionEdit>& edits)
+    {
+        auto* writer = audioProcessor.getReaperMidiProvider().getWriter();
+        if (writer == nullptr || !writer->isAvailable()) return;
+
+        std::vector<MidiWriter::SectionInfo> out;
+        out.reserve(edits.size());
+        for (const auto& e : edits)
+            out.push_back({ e.qn, e.name.toStdString() });
+
+        if (!writer->setSections(out)) return;
+
+        // The EVENTS track has to be re-read for the strip to show what just landed.
+        if (auto* session = audioProcessor.getInstrumentSession())
+        {
+            const auto& tracks = session->getTracks();
+            for (int i = 0; i < (int)tracks.size(); ++i)
+                if (tracks[i].part == Part::EVENTS)
+                    session->invalidateTrack(i);
+        }
     };
     writeModeIcon.toFront(false);
 
@@ -425,6 +438,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
         }
         utilityStrip.setNoteSources(std::move(sources));
 
+        utilityStrip.setWriteMode(interactionController.writeModeActive());
         utilityStrip.setPlayhead(lastKnownPosition);
         utilityStrip.repaint();
     }
