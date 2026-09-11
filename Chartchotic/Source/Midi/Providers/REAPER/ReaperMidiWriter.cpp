@@ -404,24 +404,69 @@ std::vector<MidiWriter::SectionInfo> ReaperMidiWriter::getSections()
     return out;
 }
 
-bool ReaperMidiWriter::setSections(const std::vector<SectionInfo>& sections)
+std::vector<ReaperMidiWriter::EventsTake> ReaperMidiWriter::eventsTakes(void* project) const
 {
-    juce::ScopedLock lock(writeLock);
+    std::vector<EventsTake> takes;
+    if (!apis.CountTracks || !apis.GetTrack || !apis.GetSetMediaTrackInfo_String
+        || !apis.CountTrackMediaItems || !apis.GetTrackMediaItem || !apis.GetActiveTake)
+        return takes;
 
-    void* project = ReaperApiHelpers::getProject(getReaperApi);
-    if (!project) return false;
+    int trackCount = apis.CountTracks(project);
+    for (int i = 0; i < trackCount; ++i)
+    {
+        void* track = apis.GetTrack(project, i);
+        if (!track) continue;
 
-    void* take = ensureEventsTake(project);
+        char name[512] = {};
+        if (!apis.GetSetMediaTrackInfo_String(track, "P_NAME", name, false)) continue;
+        if (!juce::String(name).trim().equalsIgnoreCase(kEventsTrackName)) continue;
+
+        int itemCount = apis.CountTrackMediaItems(track);
+        for (int n = 0; n < itemCount; ++n)
+        {
+            void* item = apis.GetTrackMediaItem(track, n);
+            if (!item) continue;
+
+            void* take = apis.GetActiveTake(item);
+            if (!take) continue;
+
+            EventsTake et;
+            et.take = take;
+            if (apis.GetMediaItemInfo_Value && apis.TimeMap2_timeToQN)
+            {
+                double pos = apis.GetMediaItemInfo_Value(item, "D_POSITION");
+                double len = apis.GetMediaItemInfo_Value(item, "D_LENGTH");
+                et.startQN = apis.TimeMap2_timeToQN(project, pos);
+                et.endQN = len > 0.0 ? apis.TimeMap2_timeToQN(project, pos + len) : et.startQN;
+            }
+            takes.push_back(et);
+        }
+    }
+    return takes;
+}
+
+void* ReaperMidiWriter::takeCovering(const std::vector<EventsTake>& takes, double qn) const
+{
+    if (takes.empty()) return nullptr;
+
+    for (const auto& et : takes)
+        if (et.endQN > et.startQN && qn >= et.startQN && qn < et.endQN)
+            return et.take;
+
+    return takes.front().take;
+}
+
+int ReaperMidiWriter::clearSections(void* take)
+{
     if (!take || !apis.MIDI_CountEvts || !apis.MIDI_GetTextSysexEvt
-        || !apis.MIDI_DeleteTextSysexEvt || !apis.MIDI_InsertTextSysexEvt
-        || !apis.MIDI_GetPPQPosFromProjQN)
-        return false;
+        || !apis.MIDI_DeleteTextSysexEvt)
+        return 0;
 
-    // Drop every existing section, then write the set back. Renaming one can renumber
-    // all the later ones, so replace-all is both simpler and a single undo point.
-    // Deleting back to front keeps the indices valid.
     int noteCount = 0, ccCount = 0, textCount = 0;
     apis.MIDI_CountEvts(take, &noteCount, &ccCount, &textCount);
+
+    // Back to front, so deleting one does not shift the indices still to be looked at.
+    int removed = 0;
     for (int i = textCount - 1; i >= 0; --i)
     {
         bool selected = false, muted = false;
@@ -436,17 +481,54 @@ bool ReaperMidiWriter::setSections(const std::vector<SectionInfo>& sections)
         if (parseSectionName(std::string(msg, (size_t)msgSize)).empty()) continue;
 
         apis.MIDI_DeleteTextSysexEvt(take, i);
+        ++removed;
     }
+    return removed;
+}
 
+bool ReaperMidiWriter::setSections(const std::vector<SectionInfo>& sections)
+{
+    juce::ScopedLock lock(writeLock);
+
+    void* project = ReaperApiHelpers::getProject(getReaperApi);
+    if (!project) return false;
+
+    if (!apis.MIDI_CountEvts || !apis.MIDI_GetTextSysexEvt
+        || !apis.MIDI_DeleteTextSysexEvt || !apis.MIDI_InsertTextSysexEvt
+        || !apis.MIDI_GetPPQPosFromProjQN)
+        return false;
+
+    // Make sure the track and an item exist before gathering, so a first edit on a project
+    // with no EVENTS track still has somewhere to write.
+    if (ensureEventsTake(project) == nullptr) return false;
+
+    auto takes = eventsTakes(project);
+    if (takes.empty()) return false;
+
+    // Cleared everywhere before anything is written. Reading gathers sections from every
+    // item, so leaving one item's markers in place is what made them accumulate.
+    // Renaming one section can renumber the later ones, so replace-all is also simpler and
+    // a single undo point.
+    for (const auto& et : takes)
+        clearSections(et.take);
+
+    // Each section goes into the item that covers it, rather than all of them into the
+    // first. On a shared timeline that keeps each chart's sections inside its own item.
     for (const auto& s : sections)
     {
+        void* take = takeCovering(takes, s.qn);
+        if (!take) continue;
+
         std::string text = std::string(kSectionPrefix) + s.name + "]";
         double ppq = apis.MIDI_GetPPQPosFromProjQN(take, s.qn);
         apis.MIDI_InsertTextSysexEvt(take, false, false, ppq, kTextEventType,
                                      text.c_str(), (int)text.size());
     }
 
-    if (apis.MIDI_Sort) apis.MIDI_Sort(take);
+    if (apis.MIDI_Sort)
+        for (const auto& et : takes)
+            apis.MIDI_Sort(et.take);
+
     endUndoBlock(project, "Chartchotic: Edit sections");
     return true;
 }
