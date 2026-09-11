@@ -59,6 +59,15 @@ struct SelectedNote
     bool   sustainOnly = false;
 };
 
+// What a range drag writes. Plural because a fill needs all five markers at once.
+struct RangeTarget
+{
+    std::vector<int> pitches;
+    bool             lockedToLane = true;
+
+    int single() const { return pitches.empty() ? -1 : pitches.front(); }
+};
+
 struct MarqueeRect
 {
     double startQN = 0.0;
@@ -159,10 +168,14 @@ public:
         double startQN = 0.0;
         int    framesLeft = 0;
         GemWrapper gem;
+        double endQN = 0.0;   // > startQN draws a sustain body
     };
 
     void addRemove(int lane, double qn) { removes.push_back({ lane, qn, kFrames }); }
-    void addAdd(int lane, double qn, const GemWrapper& gem) { adds.push_back({ lane, qn, kFrames, gem }); }
+    void addAdd(int lane, double qn, const GemWrapper& gem, double endQN = 0.0)
+    {
+        adds.push_back({ lane, qn, kFrames, gem, endQN });
+    }
 
     void tick()
     {

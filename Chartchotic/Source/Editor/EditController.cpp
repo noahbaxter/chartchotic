@@ -434,7 +434,7 @@ void EditController::handleDeleteSelection()
     for (const auto& n : selection)
     {
         if (n.sustainOnly)
-            truncateNote(n.trackIdx, n.startQN, n.pitch);
+            truncateNote(n.trackIdx, n.startQN, n.pitch, n.lane);
         else
             eraseNote(n.trackIdx, n.startQN, n.pitch, n.lane, currentActiveSkill);
     }
@@ -552,7 +552,7 @@ void EditController::applyDrumDynamicToSelection(DrumDynamic dynamic)
     for (const auto& sel : selection)
     {
         if (sel.sustainOnly) continue;
-        setNoteVelocity(trackIdx, sel.startQN, sel.pitch, velocity);
+        setNoteVelocity(trackIdx, sel.startQN, sel.pitch, velocity, sel.lane);
     }
     endBatch();
 }
