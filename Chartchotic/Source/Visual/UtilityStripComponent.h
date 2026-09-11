@@ -91,6 +91,10 @@ public:
     // timeline this is the only thing that says where each of them stops.
     void setClipSpans(const std::vector<ClipSpan>* s) { clipSpans = s; }
 
+    // Section the playhead is inside, for the banner over the highway. Empty when there is
+    // none, or when the strip's own sections filter is off.
+    juce::String currentSectionName() const;
+
     // Lane colours come from the same place the gems and strikeline pads get them, so the
     // map cannot drift from the highway it summarises.
     void setAssetManager(AssetManager* am) { assetManager = am; }
@@ -237,8 +241,11 @@ private:
 
     static constexpr int LABEL_H = 19;
     static constexpr int LABEL_MIN_GAP = 2;
-    // Clear of the pinned plate, close enough to read as that label's own line.
-    static constexpr float STICKY_HOVER_LINE_GAP = 3.0f;
+    // Clear of the pinned plate, close enough to read as that label's own underline.
+    static constexpr float STICKY_HOVER_LINE_GAP = 2.0f;
+    static constexpr float STICKY_HOVER_LINE_H = 2.0f;
+    // A section this close to the snapped hover bar counts as the one being pointed at.
+    static constexpr double HOVER_MATCH_TOLERANCE_QN = 1.0e-3;
 
     juce::Rectangle<int> minusBounds() const
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
