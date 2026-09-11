@@ -472,6 +472,31 @@ void HighwayComponent::paint(juce::Graphics& g)
                     float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
                     sceneRenderer.movePreviewGhosts.push_back({ patch.lane, pos, patch.gem });
                 }
+
+                // Not gated on alreadyExists: extending a sustain leaves the gem already parsed.
+                if (patch.endQN > patch.startQN)
+                {
+                    double endSec = projectQNToSeconds(patch.endQN);
+                    bool haveSustain = std::any_of(sustainWindow.begin(), sustainWindow.end(),
+                        [&](const auto& s) {
+                            return (int)s.gemColumn == patch.lane
+                                && std::abs(s.startTime - sec) < kTimeEpsilon
+                                && s.endTime >= endSec - kTimeEpsilon;
+                        });
+
+                    if (!haveSustain && patch.lane >= 0)
+                    {
+                        sustainWindow.erase(
+                            std::remove_if(sustainWindow.begin(), sustainWindow.end(),
+                                [&](const auto& s) {
+                                    return (int)s.gemColumn == patch.lane
+                                        && std::abs(s.startTime - sec) < kTimeEpsilon;
+                                }),
+                            sustainWindow.end());
+                        sustainWindow.push_back({ sec, endSec, (uint)patch.lane,
+                                                  SustainType::SUSTAIN, patch.gem, endSec });
+                    }
+                }
             }
         }
     }

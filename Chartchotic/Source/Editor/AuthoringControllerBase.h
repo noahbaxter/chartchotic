@@ -175,7 +175,7 @@ protected:
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
         }
-        patchAdd(lane, qn, resolveGhostWrapper(lane, qn));
+        patchNote(lane, qn, duration);
         ensureChartDynamics(trackIdx, velocity);
         ensureEnhancedOpens(trackIdx, lane);
         return true;
@@ -294,18 +294,24 @@ protected:
         // SelectedNote carries no gem, so the moved note's own dynamic isn't available here.
         // The lane still decides cymbal-ness, which is what sets the Z offset, so the preview
         // lands at the right height; only a moved ghost/accent previews as the toolbar's.
-        patchAdd(newLane, newQN, resolveGhostWrapper(newLane, newQN));
+        patchNote(newLane, newQN, newEndQN - newQN);
         return true;
     }
 
-    bool truncateNote(int trackIdx, double qn, int pitch)
+    bool truncateNote(int trackIdx, double qn, int pitch, int lane)
     {
-        return noteEditor.truncateNote(trackIdx, qn, pitch);
+        if (!noteEditor.truncateNote(trackIdx, qn, pitch)) return false;
+        // Patched as a bare gem so the old body stops drawing straight away.
+        patchRemove(lane, qn);
+        patchNote(lane, qn, 0.0);
+        return true;
     }
 
-    bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch)
+    bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch, int lane)
     {
-        return noteEditor.chainExtendNotes(trackIdx, startQN, endQN, pitch);
+        if (!noteEditor.chainExtendNotes(trackIdx, startQN, endQN, pitch)) return false;
+        patchNote(lane, startQN, endQN - startQN);
+        return true;
     }
 
     MidiWriter::NoteInfo findNote(int trackIdx, double qn, int pitch)
@@ -398,9 +404,28 @@ protected:
         return noteEditor.createNote(trackIdx, qn, pitch);
     }
 
-    bool setNoteVelocity(int trackIdx, double qn, int pitch, int velocity)
+    // No lane of its own, so the gem-erase path would blank the note the marker types.
+    bool eraseMarkerNote(int trackIdx, double qn, int pitch, int lane)
     {
-        return noteEditor.setNoteVelocity(trackIdx, qn, pitch, velocity);
+        return noteEditor.eraseNoteAt(trackIdx, qn, pitch, currentActivePart, lane,
+                                      currentActiveSkill);
+    }
+
+    // Velocity is the drum dynamic, so this retypes the gem and has to patch like a placement.
+    bool setNoteVelocity(int trackIdx, double qn, int pitch, int velocity, int lane)
+    {
+        if (!noteEditor.setNoteVelocity(trackIdx, qn, pitch, velocity)) return false;
+
+        auto existing = findNote(trackIdx, qn, pitch);
+        double duration = (existing.noteIndex >= 0) ? existing.endQN - existing.startQN : 0.0;
+
+        GemWrapper gem(GemCalculator::resolveDrumGem(
+            authorsCymbal((uint)lane, currentActivePart, cymbalModeFlag), true, (Dynamic)velocity));
+        gem.starPower = isStarPowerAt(qn);
+
+        patchRemove(lane, qn);
+        patchNote(lane, qn, duration, gem);
+        return true;
     }
 
     int resolveTomMarkerPitch(int lane) const
@@ -522,7 +547,7 @@ protected:
             if (want && existing.noteIndex < 0)
                 createMarkerNote(trackIdx, qn, candidates[i]);
             else if (!want && existing.noteIndex >= 0)
-                eraseNote(trackIdx, qn, candidates[i], lane, currentActiveSkill);
+                eraseMarkerNote(trackIdx, qn, candidates[i], lane);
         }
     }
 
@@ -609,7 +634,20 @@ protected:
     OverlayState            overlayState;
 
 private:
-    void patchAdd(int lane, double qn, const GemWrapper& gem) { if (patchBuffer) patchBuffer->addAdd(lane, qn, gem); }
+    // Every gem mutation patches through these, including length and velocity changes.
+    // Sustains only get a body when they are long enough to draw one.
+    void patchNote(int lane, double qn, double duration, const GemWrapper& gem)
+    {
+        if (patchBuffer)
+            patchBuffer->addAdd(lane, qn, gem,
+                                duration > kShortNoteDurationQN ? qn + duration : 0.0);
+    }
+
+    void patchNote(int lane, double qn, double duration)
+    {
+        patchNote(lane, qn, duration, resolveGhostWrapper(lane, qn));
+    }
+
     void patchRemove(int lane, double qn) { if (patchBuffer) patchBuffer->addRemove(lane, qn); }
 
     NoteEditor              noteEditor;

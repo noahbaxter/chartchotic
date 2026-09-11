@@ -172,13 +172,13 @@ void WriteController::beginStampCapture()
     if (onStateChanged) onStateChanged();
 }
 
-void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch)
+void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, RangeTarget target)
 {
     sustainDragActive    = true;
     sustainDragTrackIdx  = trackIdx;
     sustainDragStartQN   = startQN;
     sustainDragLane      = lane;
-    sustainDragPitch     = pitch;
+    sustainDragTarget    = std::move(target);
 }
 
 void WriteController::clearSustainDrag()
@@ -318,12 +318,12 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
         sustainPendingClick = false;
         // Replacing a note's type must not destroy its sustain, so carry the
         // existing duration across when we land on the same note.
-        auto existing = findNote(sustainDragTrackIdx, sustainPendingClickQN, sustainDragPitch);
+        auto existing = findNote(sustainDragTrackIdx, sustainPendingClickQN, sustainDragTarget.single());
         double duration = (existing.noteIndex >= 0
                            && std::abs(existing.startQN - sustainPendingClickQN) < kQNEpsilon)
                         ? existing.endQN - existing.startQN : 0.0;
         placeNote(sustainDragTrackIdx, sustainPendingClickQN,
-                  sustainDragPitch, sustainDragLane, resolveVelocity(), duration);
+                  sustainDragTarget.single(), sustainDragLane, resolveVelocity(), duration);
         endBatch();
         clearSustainDrag();
         recomputeGhost();
@@ -407,7 +407,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
             }
         }
         if (drums) { endBatch(); return; }
-        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
+        enterSustainDrag(trackIdx, clickQN, p.laneIndex, {{pitch}, true});
         return;
     }
 
@@ -437,11 +437,11 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
     if (!onExistingNote)
     {
         placeNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
-        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
+        enterSustainDrag(trackIdx, clickQN, p.laneIndex, {{pitch}, true});
         return;
     }
 
-    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, pitch);
+    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, {{pitch}, true});
     sustainPendingClick = true;
     sustainPendingClickQN = clickQN;
 }
@@ -473,7 +473,7 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
     else
     {
         overlayState.drawPreviewNotes.push_back({
-            sustainDragLane, sustainDragStartQN, dragQN, sustainDragPitch
+            sustainDragLane, sustainDragStartQN, dragQN, sustainDragTarget.single()
         });
     }
 }
@@ -494,12 +494,14 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
                 if (sp >= 0)
                     chainExtendNotes(sustainDragTrackIdx,
                                      sustainDragStartQN + sn.qnOffset,
-                                     endQN, sp);
+                                     endQN, sp, lane);
             }
         }
         else
         {
-            chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+            for (int pitch : sustainDragTarget.pitches)
+                chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, pitch,
+                                 sustainDragLane);
         }
     }
 
@@ -716,7 +718,7 @@ void WriteController::handleEndErase()
             if (eraseClickedNoteQN >= 0.0
                 && std::abs(cn.note.endQN - eraseClickedNoteQN) < kQNEpsilon)
                 continue;
-            truncateNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch);
+            truncateNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch, cn.lane);
         }
         else
             eraseNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch,
@@ -751,7 +753,7 @@ void WriteController::handleEndErase()
     {
         int pitch = resolveActivePitch(eraseClickedSustainLane);
         if (pitch >= 0)
-            truncateNote(eraseDragTrackIdx, eraseClickedSustainQN, pitch);
+            truncateNote(eraseDragTrackIdx, eraseClickedSustainQN, pitch, eraseClickedSustainLane);
     }
     endBatch();
 
