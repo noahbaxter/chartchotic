@@ -34,6 +34,14 @@ public:
         return reaperProvider.getAllTextEventsFromTrack(track.sourceTrackIndex);
     }
 
+    std::vector<ClipSpan> fetchClipSpans(const InstrumentTrackInfo& track) override
+    {
+        std::vector<ClipSpan> spans;
+        for (const auto& item : reaperProvider.getItemSpansFromTrack(track.sourceTrackIndex))
+            spans.push_back({ item.startQN, item.endQN });
+        return spans;
+    }
+
     std::string getTrackHash(const InstrumentTrackInfo& track) override
     {
         return reaperProvider.getTrackHash(track.sourceTrackIndex, true);

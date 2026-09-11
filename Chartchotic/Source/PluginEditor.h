@@ -254,6 +254,28 @@ private:
         resized();
     }
 
+    // The section the playhead is inside, spelled over the highway the way the games title
+    // it. It rides on the strip: no strip, or sections filtered off there, and it is gone.
+    bool sectionBannerVisible = true;
+
+    void toggleSectionBanner()
+    {
+        sectionBannerVisible = !sectionBannerVisible;
+        state.setProperty("showSectionBanner", sectionBannerVisible, nullptr);
+        repaint();
+    }
+
+    void drawSectionBanner(juce::Graphics& g);
+
+    static constexpr float sectionBannerHeightRatio = 0.034f;
+    static constexpr float sectionBannerMinPt = 13.0f;
+    static constexpr float sectionBannerTopGap = 0.5f;    // of its own text height
+    static constexpr int sectionBannerShadowPx = 2;
+    // The white the logo sets CHART in, over the shadow it needs to stay readable on
+    // whatever background art is loaded.
+    inline static const juce::Colour sectionBannerText = juce::Colour(Theme::textWhite);
+    inline static const juce::Colour sectionBannerShadow = juce::Colour(0x99000000);
+
     //==============================================================================
     // UI Elements
     static constexpr int defaultWidth = 600;
