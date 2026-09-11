@@ -43,12 +43,17 @@ public:
     bool operator!=(const PPQ &other) const { return scaledValue != other.scaledValue; }
 
     // Comparison operators (PPQ vs double)
-    bool operator>(double other) const { return scaledValue > static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator<(double other) const { return scaledValue < static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator>=(double other) const { return scaledValue >= static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator<=(double other) const { return scaledValue <= static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator==(double other) const { return scaledValue == static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator!=(double other) const { return scaledValue != static_cast<int64_t>(other * PPQ_RESOLUTION); }
+    //
+    // The operand keeps its full precision: quantising it first turned any tolerance finer
+    // than a tick into zero, so `pos > now + epsilon` silently asked `pos > now` and every
+    // guard written that way did nothing. Compare where we actually are against the number
+    // as given, and a caller's epsilon means what it says.
+    bool operator>(double other) const { return toDouble() > other; }
+    bool operator<(double other) const { return toDouble() < other; }
+    bool operator>=(double other) const { return toDouble() >= other; }
+    bool operator<=(double other) const { return toDouble() <= other; }
+    bool operator==(double other) const { return toDouble() == other; }
+    bool operator!=(double other) const { return toDouble() != other; }
 
     // Comparison operators (PPQ vs int64_t)
     bool operator>(int64_t other) const { return scaledValue > other; }
