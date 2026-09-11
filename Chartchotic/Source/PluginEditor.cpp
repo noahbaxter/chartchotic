@@ -893,8 +893,39 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
         footer.setDawIcon(nullptr);
 }
 
+// Dim, high and centred over the highways, so it reads at a glance without competing with
+// the gems coming at you. Centred on the highway area rather than the window, so the strip
+// does not push it off-centre.
+void ChartchoticAudioProcessorEditor::drawSectionBanner(juce::Graphics& g)
+{
+    if (!sectionBannerVisible || !utilityStripVisible || activeSlotCount == 0) return;
+
+    auto name = utilityStrip.currentSectionName();
+    if (name.isEmpty()) return;
+
+    float size = std::max(sectionBannerMinPt, getHeight() * sectionBannerHeightRatio);
+    int left = utilityStripWidth;
+    auto area = juce::Rectangle<int>(left,
+                                     toolbar.getHeight() + juce::roundToInt(size * sectionBannerTopGap),
+                                     getWidth() - left,
+                                     juce::roundToInt(size * 1.4f));
+
+    // Underscores are chart-file plumbing, not part of the name anyone reads.
+    auto text = name.replaceCharacter('_', ' ').toUpperCase();
+
+    g.setFont(Theme::getUIFont(size));
+
+    g.setColour(sectionBannerShadow);
+    g.drawText(text, area.translated(0, sectionBannerShadowPx),
+               juce::Justification::centredTop, false);
+    g.setColour(sectionBannerText);
+    g.drawText(text, area, juce::Justification::centredTop, false);
+}
+
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 {
+    drawSectionBanner(g);
+
     // "Nothing selected" or "no parts detected" placeholder
     if (activeSlotCount == 0)
     {

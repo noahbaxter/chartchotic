@@ -194,6 +194,11 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
 {
     if (hoverY < 0) return;
 
+    // Over the frozen label, that section's own line and number stand in for this one.
+    // Two numbers a few pixels apart, one for the bar under the cursor and one for the
+    // section it would jump to, reads as a glitch rather than as two facts.
+    if (hoverSection >= 0 && hoverSection == stickyIndex(v)) return;
+
     double barQN = snappedBarQN(hoverY, v);
     float y = (float)yForQN(barQN, v);
     if (y < (float)trackTop() || y > (float)(trackTop() + trackHeight())) return;
@@ -454,6 +459,24 @@ std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View&
     return plates;
 }
 
+// The section the playhead is inside, for the banner over the highway. Empty in the gap
+// between two charts, and empty when sections are filtered off: the strip's own filter is
+// what says whether sections are being shown at all.
+juce::String UtilityStripComponent::currentSectionName() const
+{
+    if (sections == nullptr || !filterOn(0)) return {};
+
+    auto v = visibleRange();
+    double now = playheadPPQ.toDouble();
+    const auto& list = sections->getSections();
+
+    for (size_t i = 0; i < list.size(); ++i)
+        if (list[i].position <= PPQ(now) && now < sectionEndQN(i, v))
+            return list[i].name;
+
+    return {};
+}
+
 // Which section is lit: the one under the hover cursor's snapped bar, the same bar the
 // hover line draws on, falling back to the playhead when the pointer is away. So a section
 // is always lit, where you are pointing or where you are. Only inside its own span though:
@@ -544,6 +567,10 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 
     auto plates = labelPlates(v);
 
+    // The bar the cursor snapped to. A section sitting on it is the thing a click would
+    // land on, so it answers in the hover's own colour rather than staying structure blue.
+    double hoverQN = hoverY >= 0 ? snappedBarQN(hoverY, v) : -1.0;
+
     for (size_t i = 0; i < list.size(); ++i)
     {
         double qn = list[i].position.toDouble();
@@ -561,6 +588,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
             drawMeasureNumber(g, y, measureAtQN(qn), false);
 
         bool selected = isSelected((int)i);
+        bool underCursor = std::abs(qn - hoverQN) <= HOVER_MATCH_TOLERANCE_QN;
 
         // A move drag previews by shifting the selected markers rather than committing.
         if (selected && dragActive && dragCommand == StripCommand::UpdateMove)
@@ -568,7 +596,9 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 
         if (y >= top && y <= top + trackHeight())
         {
-            g.setColour(selected ? UtilityColours::selectedLine : UtilityColours::sectionLine);
+            g.setColour(selected     ? UtilityColours::selectedLine
+                        : underCursor ? UtilityColours::hoverLine
+                                      : UtilityColours::sectionLine);
             g.fillRect(0.0f, y, w, selected ? 3.0f : 2.0f);
         }
 
@@ -591,19 +621,22 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
             g.setColour(UtilityColours::selectedLine);
             g.drawRect(plate, 1);
         }
-        g.setColour(nameHot ? UtilityColours::uiText : UtilityColours::sectionText);
+        g.setColour(nameHot || underCursor ? UtilityColours::uiText
+                                          : UtilityColours::sectionText);
         g.drawText(list[i].name, plate.getX() + 3, plate.getY(), plate.getWidth() - 6,
                    plate.getHeight(), juce::Justification::centredLeft, true);
 
-        // A frozen label sits nowhere near its own line, so hovering it draws that line
-        // down here with the measure it really starts on. Against the hover line a few
-        // pixels above, the number jumps a long way: that gap is the point, it says the
-        // click goes back to the start of the section rather than to where you pointed.
+        // A frozen label sits nowhere near its own line, so hovering it underlines the
+        // label in the hover's own white and hangs the measure it really starts on off the
+        // end. That number is a long way from the bar under the cursor, which is the point:
+        // the click goes back to the start of the section, not to where you pointed.
         if (sticky && (int)i == hoverSection)
         {
-            float ly = (float)plate.getBottom() + STICKY_HOVER_LINE_GAP;
-            g.setColour(UtilityColours::sectionLine);
-            g.fillRect(0.0f, ly, w, 2.0f);
+            // Kept inside the track: a line below the last row is drawn over by the footer.
+            float ly = std::min((float)plate.getBottom() + STICKY_HOVER_LINE_GAP,
+                                top + (float)trackHeight() - STICKY_HOVER_LINE_H);
+            g.setColour(UtilityColours::hoverLine);
+            g.fillRect(0.0f, ly, w, STICKY_HOVER_LINE_H);
             drawMeasureNumber(g, ly, measureAtQN(qn), true);
         }
     }
