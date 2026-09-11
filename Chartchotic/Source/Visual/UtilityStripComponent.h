@@ -45,7 +45,7 @@ namespace UtilityColours
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
     inline const juce::Colour codaLine     = juce::Colour(0xFFC98A5A);
     inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
-    inline const juce::Colour playheadGlow = juce::Colour(0x38FFFFFF);
+    inline const juce::Colour playheadGlow = juce::Colour(0x4FFFFFFF);
     inline const juce::Colour label        = juce::Colour(0xFF7D7D85);
     inline const juce::Colour panelFill    = juce::Colour(0xFF1B1B1F);
     inline const juce::Colour noteMark     = juce::Colour(0xFF6E6E7A);
@@ -126,6 +126,8 @@ public:
 
 private:
     static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
+    static constexpr float NOTE_MAP_SATURATION = 0.45f;
+    static constexpr float NOTE_MAP_ALPHA = 0.55f;
     static constexpr int FOOTER_H = 20;
     static constexpr int BUTTON_W = 18;
     static constexpr int FILTER_ROW_H = 18;

@@ -41,17 +41,33 @@ namespace
 
     // Column for a note, or -1 for anything that is not a playable gem at this skill.
     // The mappers signal that with uint(-1), which is private to InstrumentMapper.
+    // 2x kicks are always resolved so the map has a column for them.
     int noteColumn(uint pitch, Part part, SkillLevel skill)
     {
         uint col;
         if (getRenderType(part) == RenderType::ELITE_DRUMS)
-            col = InstrumentMapper::getEliteDrumColumn(pitch, skill, false);
+            col = InstrumentMapper::getEliteDrumColumn(pitch, skill, true);
         else if (isDrumLike(part))
-            col = InstrumentMapper::getDrumColumn(pitch, skill, false);
+            col = InstrumentMapper::getDrumColumn(pitch, skill, true);
         else
             col = InstrumentMapper::getGuitarColumn(pitch, skill);
 
         return col == (uint)-1 ? -1 : (int)col;
+    }
+
+    // Columns the part actually has, left to right. Gem column indices are neither
+    // contiguous nor in reading order (4-lane skips 5 and puts the 2x kick at 6), so the
+    // map needs an explicit order rather than a count. Kicks lead, loudest on the left.
+    const std::vector<int>& displayColumns(Part part)
+    {
+        static const std::vector<int> guitar { 0, 1, 2, 3, 4, 5 };                  // open GRYBO
+        static const std::vector<int> drums  { DRUM_KICK_2X_COLUMN, 0, 1, 2, 3, 4 }; // 2x 1x R Y B G
+        static const std::vector<int> elite  { ELITE_KICK_2X_COLUMN, 0, 1, 2, 3,
+                                               4, 5, 6, 7, 8 };
+
+        if (getRenderType(part) == RenderType::ELITE_DRUMS) return elite;
+        if (isDrumLike(part)) return drums;
+        return guitar;
     }
 }
 
@@ -178,12 +194,12 @@ void UtilityStripComponent::drawNotes(juce::Graphics& g, const View& v) const
         const auto& src = noteSources[s];
         if (src.notes == nullptr) continue;
 
-        int lanes = getRenderType(src.part) == RenderType::ELITE_DRUMS ? 9 : 5;
+        const auto& columns = displayColumns(src.part);
         // Guitar-likes share the 5-fret column layout, the same normalisation the renderers use.
         Part colourPart = isGuitarLike(src.part) ? Part::GUITAR : src.part;
 
         const float x0 = inset + s * sourceW;
-        const float laneW = sourceW / (float)lanes;
+        const float laneW = sourceW / (float)columns.size();
 
         if (s > 0)
         {
@@ -197,15 +213,23 @@ void UtilityStripComponent::drawNotes(juce::Graphics& g, const View& v) const
             if (qn < v.startQN || qn > v.endQN) continue;
 
             int col = noteColumn(n.pitch, src.part, src.skill);
-            if (col < 0 || col >= lanes) continue;
+            if (col < 0) continue;
+
+            auto slot = std::find(columns.begin(), columns.end(), col);
+            if (slot == columns.end()) continue;
+            int lane = (int)std::distance(columns.begin(), slot);
 
             float y = (float)yForQN(qn, v);
             if (y < top || y > bottom) continue;
 
+            // Muted hard: the map is a glance reference for "oh right, that part", not a
+            // surface you reach for. Full lane colour reads as interactive.
             g.setColour(assetManager != nullptr
                         ? assetManager->getLaneColour((uint)col, colourPart, false)
+                              .withMultipliedSaturation(NOTE_MAP_SATURATION)
+                              .withAlpha(NOTE_MAP_ALPHA)
                         : UtilityColours::noteMark);
-            g.fillRoundedRectangle(x0 + col * laneW + 0.5f, y - markH * 0.5f,
+            g.fillRoundedRectangle(x0 + lane * laneW + 0.5f, y - markH * 0.5f,
                                    std::max(1.5f, laneW - 1.5f), markH, 1.2f);
         }
     }
@@ -404,13 +428,13 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     {
         const float w = (float)getWidth();
         g.setColour(UtilityColours::playheadGlow);
-        g.fillRect(0.0f, py - 3.0f, w, 7.0f);
+        g.fillRect(0.0f, py - 6.0f, w, 13.0f);
         g.setColour(UtilityColours::playhead);
-        g.fillRect(0.0f, py - 1.0f, w, 2.5f);
+        g.fillRect(0.0f, py - 2.0f, w, 4.0f);
 
         juce::Path nub;
-        nub.addTriangle(0.0f, py - 5.0f, 0.0f, py + 5.0f, 6.0f, py);
-        nub.addTriangle(w, py - 5.0f, w, py + 5.0f, w - 6.0f, py);
+        nub.addTriangle(0.0f, py - 8.0f, 0.0f, py + 8.0f, 9.0f, py);
+        nub.addTriangle(w, py - 8.0f, w, py + 8.0f, w - 9.0f, py);
         g.fillPath(nub);
     }
 
