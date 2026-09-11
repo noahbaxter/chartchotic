@@ -97,10 +97,12 @@ void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, int me
 
     g.setFont(juce::Font(juce::FontOptions(10.0f, emphasised ? juce::Font::bold
                                                              : juce::Font::plain)));
+    // Above its line, like every other label here: time runs upward, so a number sitting
+    // below its line reads as belonging to the bar before it.
     auto text = juce::String(measure);
     int tw = g.getCurrentFont().getStringWidth(text) + 8;
     int tx = getWidth() - tw - 3;
-    int ty = (int)y + 2;
+    int ty = (int)y - 14;
 
     g.setColour(UtilityColours::background.withAlpha(0.8f));
     g.fillRect(tx, ty, tw, 12);
@@ -200,12 +202,12 @@ double UtilityStripComponent::chunkLineStep(double fromQN, int direction, int ch
     return std::max(0.0, cur);
 }
 
+// The bar you are in, not the nearest one. Rounding to nearest puts the indicator above
+// the cursor for the top half of every bar, which reads as pointing at the wrong thing and
+// is worst at the bottom edge where it collides with the pinned label.
 double UtilityStripComponent::snappedBarQN(int y, const View& v) const
 {
-    double qn = std::max(0.0, qnForY(y, v));
-    double before = barLineAtOrBefore(qn);
-    double after = barLineStep(before, 1);
-    return (qn - before) <= (after - qn) ? before : after;
+    return barLineAtOrBefore(std::max(0.0, qnForY(y, v)));
 }
 
 void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
@@ -311,12 +313,55 @@ void UtilityStripComponent::drawNotes(juce::Graphics& g, const View& v) const
 juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, const View& v) const
 {
     if (sections == nullptr || index >= sections->getSections().size()) return {};
-    const auto& s = sections->getSections()[index];
+    const auto& list = sections->getSections();
+    const auto& s = list[index];
     float y = (float)yForQN(s.position.toDouble(), v);
 
     juce::Font f(juce::FontOptions(16.0f, juce::Font::bold));
     int tw = std::min(getWidth() - 12, f.getStringWidth(s.name) + 10);
-    return { 3, (int)y - 21, tw + 6, 19 };
+    int top = (int)y - LABEL_H - 2;
+
+    // The section you are currently inside pins to the bottom once its own line has
+    // scrolled past, so its name is always readable and still clickable. The next section
+    // pushes it off from above rather than overlapping it, which is what lets it leave
+    // exactly when you cross into that section.
+    if (index == (size_t)stickyIndex(v))
+    {
+        float bottom = (float)(trackTop() + trackHeight());
+        float pinned = bottom - LABEL_H - 2;
+
+        if (index + 1 < list.size())
+        {
+            float nextY = (float)yForQN(list[index + 1].position.toDouble(), v);
+            pinned = std::max(pinned, nextY - 2.0f);
+        }
+        top = std::min(top, (int)pinned);
+    }
+
+    return { 3, top, tw + 6, LABEL_H };
+}
+
+// Section containing the bottom of the view, ie the one the strip is currently inside.
+int UtilityStripComponent::stickyIndex(const View& v) const
+{
+    if (sections == nullptr) return -1;
+    const auto& list = sections->getSections();
+    int found = -1;
+    for (int i = 0; i < (int)list.size(); ++i)
+    {
+        if (list[(size_t)i].position.toDouble() > v.startQN) break;
+        found = i;
+    }
+    return found;
+}
+
+juce::Rectangle<int> UtilityStripComponent::sectionRowBounds(size_t index, const View& v) const
+{
+    auto plate = sectionHeaderBounds(index, v);
+    if (plate.isEmpty()) return {};
+    // Full width: the whole band at a section's line is that section, so you do not have to
+    // hit a short name to act on it.
+    return { 0, plate.getY(), getWidth(), plate.getHeight() + 3 };
 }
 
 int UtilityStripComponent::sectionHeaderAt(juce::Point<int> p) const
@@ -325,12 +370,21 @@ int UtilityStripComponent::sectionHeaderAt(juce::Point<int> p) const
     auto v = visibleRange();
     const auto& list = sections->getSections();
 
+    // No range check: the pinned section's line sits outside the view while its label is
+    // still on screen, and skipping it would make that label unclickable.
     for (size_t i = 0; i < list.size(); ++i)
-    {
-        double qn = list[i].position.toDouble();
-        if (qn < v.startQN || qn > v.endQN) continue;
+        if (sectionRowBounds(i, v).contains(p)) return (int)i;
+    return -1;
+}
+
+int UtilityStripComponent::sectionNameAt(juce::Point<int> p) const
+{
+    if (sections == nullptr) return -1;
+    auto v = visibleRange();
+    const auto& list = sections->getSections();
+
+    for (size_t i = 0; i < list.size(); ++i)
         if (sectionHeaderBounds(i, v).contains(p)) return (int)i;
-    }
     return -1;
 }
 
@@ -342,11 +396,11 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     const auto& list = sections->getSections();
     const float top = (float)trackTop();
 
-    // The section the cursor is inside gets a stronger fill, so hovering tells you which
-    // region you are in, not just which bar.
-    const SongSections::Section* hovered = nullptr;
-    if (hoverY >= 0)
-        hovered = sections->sectionAt(PPQ(qnForY(hoverY, v)));
+    // Follows the hover cursor's snapped bar, the same bar the hover line draws on, and
+    // falls back to the playhead when the pointer is away. So a section is always lit:
+    // where you are pointing, or where you are.
+    double referenceQN = hoverY >= 0 ? snappedBarQN(hoverY, v) : playheadPPQ.toDouble();
+    const SongSections::Section* hovered = sections->sectionAt(PPQ(referenceQN));
 
     for (size_t i = 0; i < list.size(); ++i)
     {
@@ -357,13 +411,26 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         float y = (float)yForQN(qn, v);
         float yTop = (float)yForQN(std::min(nextQN, v.endQN), v);
 
+        // A section owns everything from its own line up to the next one. Clamped at both
+        // ends, so a section running off either edge fills what is visible of it rather
+        // than bleeding past the track into the footer.
+        const float bottom = top + (float)trackHeight();
+        float bandTop = juce::jlimit(top, bottom, yTop);
+        float bandBottom = juce::jlimit(top, bottom, y);
+
         bool isHovered = (hovered != nullptr && &list[i] == hovered);
-        g.setColour(isHovered ? UtilityColours::sectionBandHover : UtilityColours::sectionBand);
-        g.fillRect(0.0f, std::max(yTop, top), w, std::max(1.0f, y - std::max(yTop, top)));
+        if (bandBottom > bandTop)
+        {
+            g.setColour(isHovered ? UtilityColours::sectionBandHover
+                                  : UtilityColours::sectionBand);
+            g.fillRect(0.0f, bandTop, w, bandBottom - bandTop);
+        }
 
-        if (qn < v.startQN || qn > v.endQN) continue;
+        bool sticky = ((int)i == stickyIndex(v));
+        if ((qn < v.startQN || qn > v.endQN) && !sticky) continue;
 
-        drawMeasureNumber(g, y, measureAtQN(qn), false);
+        if (qn >= v.startQN && qn <= v.endQN)
+            drawMeasureNumber(g, y, measureAtQN(qn), false);
 
         bool selected = isSelected((int)i);
 
@@ -371,34 +438,33 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         if (selected && dragActive && dragCommand == StripCommand::UpdateMove)
             y = (float)yForQN(qn + dragMoveDeltaQN, v);
 
-        g.setColour(selected ? UtilityColours::selectedLine : UtilityColours::sectionLine);
-        g.fillRect(0.0f, y, w, selected ? 3.0f : 2.0f);
+        if (y >= top && y <= top + trackHeight())
+        {
+            g.setColour(selected ? UtilityColours::selectedLine : UtilityColours::sectionLine);
+            g.fillRect(0.0f, y, w, selected ? 3.0f : 2.0f);
+        }
 
         g.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
-        int textW = std::min((int)w - 12, (int)g.getCurrentFont().getStringWidth(list[i].name) + 10);
-        // Plate behind the label so it stays readable where the note map runs under it.
-        g.setColour(UtilityColours::background.withAlpha(0.82f));
-        g.fillRect(3, (int)y - 21, textW + 6, 19);
+        // Straight from the hit-test bounds, so a pinned label is clickable where it is
+        // drawn rather than where its line would have put it.
+        auto plate = sectionHeaderBounds(i, v);
+        if (plate.getY() > top + trackHeight()) continue;
+
+        // The name lighting up IS the rename affordance: hovering it fills behind the text,
+        // so the thing you click is the thing that changes.
+        bool nameHot = ((int)i == hoverName && renameIndex < 0);
+
+        g.setColour(nameHot ? UtilityColours::namePlateHover
+                            : UtilityColours::background.withAlpha(0.82f));
+        g.fillRect(plate);
         if (selected)
         {
             g.setColour(UtilityColours::selectedLine);
-            g.drawRect(3, (int)y - 21, textW + 6, 19, 1);
+            g.drawRect(plate, 1);
         }
-        g.setColour(UtilityColours::sectionText);
-        g.drawText(list[i].name, 6, (int)y - 21, (int)w - 12, 19,
-                   juce::Justification::centredLeft, true);
-
-        // Rename is an affordance, not a gesture, so it shows on hover in every mode.
-        if ((int)i == hoverSection && renameIndex < 0)
-        {
-            auto pb = pencilBounds((int)i, v);
-            g.setColour(UtilityColours::background.withAlpha(0.9f));
-            g.fillRect(pb);
-            g.setColour(UtilityColours::sectionText);
-            g.drawRect(pb, 1);
-            g.setFont(juce::Font(juce::FontOptions(9.0f)));
-            g.drawText("edit", pb, juce::Justification::centred, false);
-        }
+        g.setColour(nameHot ? UtilityColours::uiText : UtilityColours::sectionText);
+        g.drawText(list[i].name, plate.getX() + 3, plate.getY(), plate.getWidth() - 6,
+                   plate.getHeight(), juce::Justification::centredLeft, true);
     }
 
     if (sections->hasCoda())
@@ -501,14 +567,30 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     {
         const float w = (float)getWidth();
         g.setColour(UtilityColours::playheadGlow);
-        g.fillRect(0.0f, py - 6.0f, w, 13.0f);
+        g.fillRect(0.0f, py - 4.0f, w, 9.0f);
         g.setColour(UtilityColours::playhead);
-        g.fillRect(0.0f, py - 2.0f, w, 4.0f);
+        g.fillRect(0.0f, py - 1.0f, w, 2.0f);
 
         juce::Path nub;
-        nub.addTriangle(0.0f, py - 8.0f, 0.0f, py + 8.0f, 9.0f, py);
-        nub.addTriangle(w, py - 8.0f, w, py + 8.0f, w - 9.0f, py);
+        nub.addTriangle(0.0f, py - 6.0f, 0.0f, py + 6.0f, 7.0f, py);
         g.fillPath(nub);
+
+        // The current bar hangs off the right edge, always visible, so "where am I" never
+        // needs a hover. Sits above the line, the direction time runs.
+        g.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        auto text = juce::String(measureAtQN(playheadPPQ.toDouble()));
+        int tw = g.getCurrentFont().getStringWidth(text) + 12;
+        int th = 16;
+        auto tab = juce::Rectangle<int>(getWidth() - tw, (int)py - th - 3, tw, th);
+
+        juce::Path tabShape;
+        tabShape.addRoundedRectangle((float)tab.getX(), (float)tab.getY(),
+                                     (float)tab.getWidth(), (float)tab.getHeight(),
+                                     3.0f, 3.0f, true, false, true, false);
+        g.setColour(UtilityColours::playhead);
+        g.fillPath(tabShape);
+        g.setColour(UtilityColours::background);
+        g.drawText(text, tab, juce::Justification::centred, false);
     }
 
     drawFilters(g);
@@ -540,10 +622,16 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
         int chunk = chunkBars(pxPerBar);
         int direction = delta > 0.0 ? 1 : -1;
 
+        // A notch should travel about the same distance on screen at every zoom, so the
+        // number of chunk steps is chosen from how tall a chunk currently is. Zoomed in
+        // that is a couple of bars, zoomed out it is many, but the sleeve moves the same.
+        double chunkPx = std::max(1.0, chunk * pxPerBar);
+        int steps = std::max(1, (int)std::lround(trackHeight() * SCROLL_TRAVEL_FRACTION / chunkPx));
+        if (e.mods.isShiftDown()) steps *= 4;
+
         // Steps onto the lines that are actually drawn. Those are counted from each
         // section, so stepping a fixed number of bars instead lands between them.
         double target = playheadPPQ.toDouble();
-        int steps = e.mods.isShiftDown() ? 4 : 1;
         for (int i = 0; i < steps; ++i)
             target = chunkLineStep(target, direction, chunk);
 
@@ -567,13 +655,6 @@ void UtilityStripComponent::commitSections(std::vector<SectionEdit> edits)
     if (onSectionsEdited) onSectionsEdited(edits);
     selection.clear();
     repaint();
-}
-
-juce::Rectangle<int> UtilityStripComponent::pencilBounds(int sectionIndex, const View& v) const
-{
-    auto plate = sectionHeaderBounds((size_t)sectionIndex, v);
-    if (plate.isEmpty()) return {};
-    return { plate.getRight() + 2, plate.getY() + 3, 13, 13 };
 }
 
 void UtilityStripComponent::beginRename(int index)
@@ -820,11 +901,12 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
     if (plusBounds().contains(p))  { zoomIn();  return; }
     if (!inTrackArea(p)) return;
 
-    // The pencil is an affordance rather than a gesture, so it works in every mode and
-    // never competes with click or double click.
-    if (hoverSection >= 0 && pencilBounds(hoverSection, visibleRange()).contains(p))
+    // Clicking the name renames it. The rest of the section's row belongs to the mapping,
+    // which is what makes the name a distinct target rather than a mode.
+    int name = sectionNameAt(p);
+    if (name >= 0 && !e.mods.isRightButtonDown())
     {
-        beginRename(hoverSection);
+        beginRename(name);
         return;
     }
 
@@ -869,23 +951,24 @@ void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
 {
     int y = inTrackArea(e.getPosition()) ? e.getPosition().y : -1;
     int section = y >= 0 ? sectionHeaderAt(e.getPosition()) : -1;
+    int name = y >= 0 ? sectionNameAt(e.getPosition()) : -1;
 
-    // Keep the pencil up while the pointer is on it, not just on the name plate.
-    if (section < 0 && hoverSection >= 0
-        && pencilBounds(hoverSection, visibleRange()).contains(e.getPosition()))
-        section = hoverSection;
-
-    if (y == hoverY && section == hoverSection) return;
+    if (y == hoverY && section == hoverSection && name == hoverName) return;
     hoverY = y;
     hoverSection = section;
+    hoverName = name;
+    setMouseCursor(name >= 0 ? juce::MouseCursor::IBeamCursor
+                             : juce::MouseCursor::NormalCursor);
     repaint();
 }
 
 void UtilityStripComponent::mouseExit(const juce::MouseEvent&)
 {
-    if (hoverY < 0 && hoverSection < 0) return;
+    if (hoverY < 0 && hoverSection < 0 && hoverName < 0) return;
     hoverY = -1;
     hoverSection = -1;
+    hoverName = -1;
+    setMouseCursor(juce::MouseCursor::NormalCursor);
     repaint();
 }
 
