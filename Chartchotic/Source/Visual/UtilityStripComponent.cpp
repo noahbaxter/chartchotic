@@ -127,11 +127,85 @@ int UtilityStripComponent::sectionStartMeasure(double qn) const
     return s != nullptr ? measureAt(s->position.toDouble()) : 1;
 }
 
+// Bar lines are walked rather than divided. Bar length is not constant (Embedded has a 6/4
+// bar at QN 136), so qn/barLength drifts after any time signature change and lands off the
+// downbeat. Everything that snaps on the strip goes through here, so it always hits beat 1.
+double UtilityStripComponent::barLineAtOrBefore(double qn) const
+{
+    double cur = 0.0;
+    for (int guard = 0; guard < MAX_BARS_WALKED; ++guard)
+    {
+        double len = std::max(0.25, barLengthQN(tempoMap, cur));
+        if (cur + len > qn) return cur;
+        cur += len;
+    }
+    return cur;
+}
+
+// Walked by index rather than by subtracting epsilons: stepping back used to ask for the
+// bar before `cur - epsilon`, which returns `cur` again whenever cur is already on a line,
+// so backwards never moved.
+double UtilityStripComponent::barLineStep(double fromQN, int bars) const
+{
+    std::vector<double> lines;
+    double cur = 0.0;
+    int here = 0;
+
+    for (int guard = 0; guard < MAX_BARS_WALKED; ++guard)
+    {
+        lines.push_back(cur);
+        if (cur <= fromQN + kBarEpsilon) here = (int)lines.size() - 1;
+        // One bar past the target is enough to step forward from.
+        if (cur > fromQN + kBarEpsilon && (int)lines.size() > here + std::abs(bars) + 1) break;
+        cur += std::max(0.25, barLengthQN(tempoMap, cur));
+    }
+
+    int target = juce::jlimit(0, (int)lines.size() - 1, here + bars);
+    return lines[(size_t)target];
+}
+
+// The line under `fromQN` on the grid that is actually drawn, stepped by `direction`.
+// Chunk lines are section-relative, so stepping a fixed number of bars from an arbitrary
+// position lands between them rather than on them.
+double UtilityStripComponent::chunkLineStep(double fromQN, int direction, int chunk) const
+{
+    auto onChunk = [this, chunk](double barQN)
+    {
+        return ((measureAtQN(barQN) - sectionStartMeasure(barQN)) % chunk) == 0;
+    };
+
+    double cur = barLineAtOrBefore(fromQN);
+    bool onGrid = onChunk(cur) && std::abs(cur - fromQN) <= kBarEpsilon;
+
+    if (!onGrid)
+    {
+        // Off the drawn grid: find the line behind us. Scrolling back lands on it;
+        // scrolling forward continues from it to the next one.
+        for (int i = 0; i < MAX_CHUNK_SEARCH && !onChunk(cur); ++i)
+        {
+            double prev = barLineStep(cur, -1);
+            if (prev >= cur) break;
+            cur = prev;
+        }
+        if (direction < 0) return cur;
+    }
+
+    for (int i = 0; i < MAX_CHUNK_SEARCH; ++i)
+    {
+        double next = barLineStep(cur, direction);
+        if (std::abs(next - cur) <= kBarEpsilon) return cur;   // hit either end
+        cur = next;
+        if (onChunk(cur)) return cur;
+    }
+    return std::max(0.0, cur);
+}
+
 double UtilityStripComponent::snappedBarQN(int y, const View& v) const
 {
-    double qn = qnForY(y, v);
-    double len = barLengthQN(tempoMap, qn);
-    return std::max(0.0, std::round(qn / len) * len);
+    double qn = std::max(0.0, qnForY(y, v));
+    double before = barLineAtOrBefore(qn);
+    double after = barLineStep(before, 1);
+    return (qn - before) <= (after - qn) ? before : after;
 }
 
 void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
@@ -155,12 +229,11 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
     double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
     int chunk = chunkBars(pxPerBar);
 
-    double firstBar = std::floor(v.startQN / len) * len;
     const float w = (float)getWidth();
 
-    for (double qn = firstBar; qn <= v.endQN; qn += len)
+    for (double qn = barLineAtOrBefore(std::max(0.0, v.startQN)); qn <= v.endQN;
+         qn += std::max(0.25, barLengthQN(tempoMap, qn)))
     {
-        len = barLengthQN(tempoMap, qn);
         float y = (float)yForQN(qn, v);
         if (y < (float)trackTop() || y > (float)(trackTop() + trackHeight())) continue;
 
@@ -464,12 +537,17 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
         auto v = visibleRange();
         double len = barLengthQN(tempoMap, playheadPPQ.toDouble());
         double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
-        double stepQN = chunkBars(pxPerBar) * len * (e.mods.isShiftDown() ? 4.0 : 1.0);
+        int chunk = chunkBars(pxPerBar);
+        int direction = delta > 0.0 ? 1 : -1;
 
-        // Snap to the chunk grid first, so a scroll from anywhere lands on a line rather
-        // than carrying an arbitrary offset along with it.
-        double from = std::round(playheadPPQ.toDouble() / stepQN) * stepQN;
-        onSeekTo(std::max(0.0, from + (delta > 0.0 ? stepQN : -stepQN)));
+        // Steps onto the lines that are actually drawn. Those are counted from each
+        // section, so stepping a fixed number of bars instead lands between them.
+        double target = playheadPPQ.toDouble();
+        int steps = e.mods.isShiftDown() ? 4 : 1;
+        for (int i = 0; i < steps; ++i)
+            target = chunkLineStep(target, direction, chunk);
+
+        onSeekTo(target);
     }
 }
 
