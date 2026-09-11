@@ -159,3 +159,74 @@ TEST_CASE("SongSections - end markers bound each clip", "[sections]")
     // Still the last one overall, which is what the whole-song zoom spans.
     REQUIRE(s.getEndPPQ() == PPQ(264.0));
 }
+
+// A section rewritten by the plugin drifts a tick or two earlier each time it is saved, so
+// a project edited a dozen times ends up with a ladder of copies behind every real marker.
+// The numbers here are taken from a real project: everlong's [section intro] sits 12 QN
+// into a clip starting at 2048, and five drifted copies had piled up behind it.
+TEST_CASE("SongSections - markers a couple of ticks apart are one section", "[sections]")
+{
+    const double tick = 1.0 / PPQ::PPQ_RESOLUTION;
+
+    auto s = built({ {2060.0 - 10 * tick, "[section intro]"},
+                     {2060.0 -  8 * tick, "[section intro]"},
+                     {2060.0 -  6 * tick, "[section intro]"},
+                     {2060.0 -  4 * tick, "[section intro]"},
+                     {2060.0 -  2 * tick, "[section intro]"},
+                     {2060.0,             "[section intro]"} });
+
+    REQUIRE(s.getSections().size() == 1);
+
+    // The survivor is the one on the true position, not a drifted copy.
+    REQUIRE(s.getSections()[0].position == PPQ(2060.0));
+    REQUIRE(s.getSections()[0].name == "intro");
+}
+
+TEST_CASE("SongSections - a rename keeps the newest name", "[sections]")
+{
+    const double tick = 1.0 / PPQ::PPQ_RESOLUTION;
+
+    auto s = built({ {100.0 - 4 * tick, "[section old_name]"},
+                     {100.0 - 2 * tick, "[section newer_name]"},
+                     {100.0,            "[section newest_name]"} });
+
+    REQUIRE(s.getSections().size() == 1);
+    REQUIRE(s.getSections()[0].name == "newest_name");
+}
+
+// The tightest gap between two genuine consecutive sections across every chart in
+// assets/midi is 4 QN. Nothing anywhere near the collapse threshold.
+TEST_CASE("SongSections - real sections are never collapsed", "[sections]")
+{
+    auto s = built({ {0.0,   "[section intro]"},
+                     {4.0,   "[section verse_1]"},     // the tightest real spacing seen
+                     {8.0,   "[section chorus_1]"},
+                     {12.0,  "[section verse_2]"} });
+
+    REQUIRE(s.getSections().size() == 4);
+    REQUIRE(s.getSections()[1].name == "verse_1");
+
+    // Even a gap well under the tightest real one survives, so long as it clears the
+    // threshold that separates a section from a rewrite of the same section.
+    auto tight = built({ {0.0,  "[section a]"},
+                         {0.25, "[section b]"} });
+    REQUIRE(tight.getSections().size() == 2);
+}
+
+// Venue cues read exactly like section names and ship in the same track.
+TEST_CASE("SongSections - singalong cues are not sections", "[sections]")
+{
+    auto s = built({ {0.0,  "[section intro]"},
+                     {8.0,  "[chorus]"},
+                     {16.0, "[verse]"},
+                     {24.0, "[crowd_normal]"},
+                     {32.0, "[section chorus_1]"},
+                     {40.0, "[end_pg song_trainer_pg_1]"} });
+
+    REQUIRE(s.getSections().size() == 2);
+    REQUIRE(s.getSections()[0].name == "intro");
+    REQUIRE(s.getSections()[1].name == "chorus_1");
+
+    // The trainer event must not have ended the song.
+    REQUIRE(s.getEndPPQ() == PPQ(0.0));
+}
