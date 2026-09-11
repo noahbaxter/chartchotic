@@ -1,4 +1,5 @@
 #include "EditController.h"
+#include "../Midi/Utils/GridMath.h"
 
 bool EditController::canEdit(const AuthoringPoint& p) const
 {
@@ -12,7 +13,7 @@ bool EditController::canEdit(const AuthoringPoint& p) const
 bool EditController::isNoteSelected(double startQN, int pitch) const
 {
     for (const auto& n : selection)
-        if (std::abs(n.startQN - startQN) < 1e-6 && n.pitch == pitch)
+        if (GridMath::same(n.startQN, startQN) && n.pitch == pitch)
             return true;
     return false;
 }
@@ -98,7 +99,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         if (isNoteSelected(p.hitNoteStartQN, clickPitch))
         {
             for (auto& n : selection)
-                if (std::abs(n.startQN - p.hitNoteStartQN) < 1e-6 && n.pitch == clickPitch)
+                if (GridMath::same(n.startQN, p.hitNoteStartQN) && n.pitch == clickPitch)
                     n.sustainOnly = false;
             recomputeOverlay();
             dragMode = DragMode::Moving;
@@ -399,7 +400,7 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
         selection.erase(
             std::remove_if(selection.begin(), selection.end(),
                 [&](const SelectedNote& n) {
-                    return std::abs(n.startQN - p.hitNoteStartQN) < 1e-6
+                    return GridMath::same(n.startQN, p.hitNoteStartQN)
                         && n.pitch == pitch;
                 }),
             selection.end());
