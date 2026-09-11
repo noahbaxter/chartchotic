@@ -968,7 +968,7 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
 
         case StripCommand::CommitMove:
         {
-            if (std::abs(dragMoveDeltaQN) > 1.0e-9 && !selection.empty())
+            if (!GridMath::same(dragMoveDeltaQN, 0.0) && !selection.empty())
             {
                 auto edits = currentEdits();
                 for (int i : selection)
@@ -993,7 +993,7 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
                 double qn = snappedBarQN(p.y, v);
                 // Nothing to create if a section already starts on this bar.
                 for (const auto& ed : edits)
-                    if (std::abs(ed.qn - qn) < 1.0e-6) return;
+                    if (GridMath::same(ed.qn, qn)) return;
 
                 edits.push_back({ qn, "section" });
                 std::sort(edits.begin(), edits.end(),
@@ -1003,7 +1003,7 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
                 // Rename opens straight away: a chart full of "section" is the failure mode
                 // the first attempt at this shipped with.
                 for (int i = 0; i < (int)edits.size(); ++i)
-                    if (std::abs(edits[(size_t)i].qn - qn) < 1.0e-6) { beginRename(i); break; }
+                    if (GridMath::same(edits[(size_t)i].qn, qn)) { beginRename(i); break; }
             }
             break;
         }
