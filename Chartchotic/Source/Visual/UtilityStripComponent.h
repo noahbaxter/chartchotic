@@ -38,14 +38,22 @@ namespace UtilityColours
     inline const juce::Colour chunkLineBig = juce::Colour(0xFF56565F);
     // Structure stays neutral like the neck; the section label is the one accent.
     inline const juce::Colour sectionLine  = juce::Colour(0xFF6E8FB5);
-    inline const juce::Colour sectionBand  = juce::Colour(0x142F5F96);
-    inline const juce::Colour sectionBandHover = juce::Colour(0x423E77B8);
+    // Faint on purpose: the band sits under the note map, so anything heavier reads as a
+    // colour the notes are, rather than as ground they sit on.
+    inline const juce::Colour sectionBand  = juce::Colour(0x0D2F5F96);
+    inline const juce::Colour sectionBandHover = juce::Colour(0x2C3E77B8);
+    // Same blue as a section line but dashed and thinner: a clip edge is a fact about the
+    // timeline, not a thing you charted.
+    inline const juce::Colour clipEdge     = juce::Colour(0x996E8FB5);
     inline const juce::Colour sectionText  = juce::Colour(0xFF9CC4F5);
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
     inline const juce::Colour hoverLine    = juce::Colour(0xFFBFD4EC);
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
     inline const juce::Colour codaLine     = juce::Colour(0xFFC98A5A);
     inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
+    // The bar-number tab is a readout, not the playhead itself, so it sits a good way
+    // below white: a solid white plate that size is the brightest thing on the strip.
+    inline const juce::Colour playheadTab  = juce::Colour(0xFF9CA1AB);
     inline const juce::Colour playheadGlow = juce::Colour(0x2AFFFFFF);
     inline const juce::Colour label        = juce::Colour(0xFF7D7D85);
     inline const juce::Colour panelFill    = juce::Colour(0xFF1B1B1F);
@@ -138,8 +146,14 @@ private:
     // Far enough not to catch the section you are standing on when it is a hair behind the
     // playhead, close enough that no real section is ever skipped.
     static constexpr double SECTION_STEP_EPSILON = 1.0e-3;
-    static constexpr float NOTE_MAP_SATURATION = 0.45f;
-    static constexpr float NOTE_MAP_ALPHA = 0.55f;
+    // Lane colour, dimmed by alpha alone. Desaturating turned every mark towards the band
+    // behind it, so the map stopped reading as the highway it summarises.
+    static constexpr float NOTE_MAP_SATURATION = 0.9f;
+    static constexpr float NOTE_MAP_ALPHA = 0.8f;
+
+    static constexpr float CLIP_EDGE_DASH = 4.0f;
+    // A section within this of a clip edge counts as marking it, so the two never double up.
+    static constexpr double CLIP_EDGE_TOLERANCE_QN = 0.01;
     static constexpr int FOOTER_H = 20;
     static constexpr int BUTTON_W = 18;
     static constexpr int FILTER_ROW_H = 18;
@@ -218,7 +232,13 @@ private:
     // Where a section stops: the next one, or the end of its own clip if that comes first.
     double sectionEndQN(size_t index, const View& v) const;
 
+    // Plate per section, empty where the name was dropped for crowding.
+    std::vector<juce::Rectangle<int>> labelPlates(const View& v) const;
+
     static constexpr int LABEL_H = 19;
+    static constexpr int LABEL_MIN_GAP = 2;
+    // Clear of the pinned plate, close enough to read as that label's own line.
+    static constexpr float STICKY_HOVER_LINE_GAP = 3.0f;
 
     juce::Rectangle<int> minusBounds() const
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
@@ -230,7 +250,10 @@ private:
     { return { 0, FILTER_HEADER_H + i * FILTER_ROW_H, getWidth(), FILTER_ROW_H }; }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
+    void drawSectionBands(juce::Graphics& g, const View& v) const;
     void drawSections(juce::Graphics& g, const View& v) const;
+    void drawClipEdges(juce::Graphics& g, const View& v) const;
+    int litSectionIndex(const View& v) const;
     void drawNotes(juce::Graphics& g, const View& v) const;
     void drawFilters(juce::Graphics& g) const;
     void drawFooter(juce::Graphics& g) const;

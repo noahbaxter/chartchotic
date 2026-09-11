@@ -414,13 +414,124 @@ int UtilityStripComponent::sectionHeaderAt(juce::Point<int> p) const
 
 int UtilityStripComponent::sectionNameAt(juce::Point<int> p) const
 {
+    auto plates = labelPlates(visibleRange());
+
+    for (size_t i = 0; i < plates.size(); ++i)
+        if (!plates[i].isEmpty() && plates[i].contains(p)) return (int)i;
+    return -1;
+}
+
+// Where each section's name plate goes, empty for the ones that do not get one. Zoomed
+// out far enough, sections are a few pixels apart and every plate lands on the one below
+// it: a column of half-covered names is less readable than no names at all. So a plate is
+// dropped when it would collide with the last one kept, walking up from the bottom of the
+// view. Lines and bands still mark every boundary, and the pinned label always survives,
+// so the structure is intact and the one name you need is always there. Hit testing reads
+// the same list, so a dropped name cannot be clicked where it is not drawn.
+std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View& v) const
+{
+    std::vector<juce::Rectangle<int>> plates;
+    if (sections == nullptr) return plates;
+
+    const auto& list = sections->getSections();
+    plates.assign(list.size(), juce::Rectangle<int>());
+
+    const int bottom = trackTop() + trackHeight();
+    int lastTop = bottom + LABEL_MIN_GAP;
+    const int sticky = stickyIndex(v);
+
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        auto plate = sectionHeaderBounds(i, v);
+        if (plate.isEmpty() || plate.getY() > bottom) continue;
+
+        // Time runs up the strip, so each plate has to clear the one below it.
+        if ((int)i != sticky && plate.getBottom() + LABEL_MIN_GAP > lastTop) continue;
+
+        plates[i] = plate;
+        lastTop = plate.getY();
+    }
+    return plates;
+}
+
+// Which section is lit: the one under the hover cursor's snapped bar, the same bar the
+// hover line draws on, falling back to the playhead when the pointer is away. So a section
+// is always lit, where you are pointing or where you are. Only inside its own span though:
+// in the gap between two charts there is nothing to light, even though the section before
+// it is still the last one behind you.
+int UtilityStripComponent::litSectionIndex(const View& v) const
+{
     if (sections == nullptr) return -1;
-    auto v = visibleRange();
+
+    double referenceQN = hoverY >= 0 ? snappedBarQN(hoverY, v) : playheadPPQ.toDouble();
     const auto& list = sections->getSections();
 
     for (size_t i = 0; i < list.size(); ++i)
-        if (sectionHeaderBounds(i, v).contains(p)) return (int)i;
+        if (list[i].position <= PPQ(referenceQN) && referenceQN < sectionEndQN(i, v))
+            return (int)i;
+
     return -1;
+}
+
+// Bands go down before the note map so the notes keep their own colour: drawn over them,
+// even a faint blue wash drags every lane towards blue.
+void UtilityStripComponent::drawSectionBands(juce::Graphics& g, const View& v) const
+{
+    if (sections == nullptr) return;
+
+    const float w = (float)getWidth();
+    const float top = (float)trackTop();
+    const float bottom = top + (float)trackHeight();
+    const auto& list = sections->getSections();
+    const int lit = litSectionIndex(v);
+
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        double qn = list[i].position.toDouble();
+        double endQN = sectionEndQN(i, v);
+        if (endQN < v.startQN || qn > v.endQN) continue;
+
+        // A section owns everything from its own line up to where it stops. Clamped at both
+        // ends, so a section running off either edge fills what is visible of it rather
+        // than bleeding past the track into the footer.
+        float bandTop = juce::jlimit(top, bottom, (float)yForQN(std::min(endQN, v.endQN), v));
+        float bandBottom = juce::jlimit(top, bottom, (float)yForQN(qn, v));
+        if (bandBottom <= bandTop) continue;
+
+        g.setColour((int)i == lit ? UtilityColours::sectionBandHover
+                                  : UtilityColours::sectionBand);
+        g.fillRect(0.0f, bandTop, w, bandBottom - bandTop);
+    }
+}
+
+// Where a MIDI clip starts and stops, for the timeline either side of the charts on it.
+// A section line at the same spot says the same thing better, so it wins.
+void UtilityStripComponent::drawClipEdges(juce::Graphics& g, const View& v) const
+{
+    if (clipSpans == nullptr) return;
+
+    const float w = (float)getWidth();
+    const float dashes[] = { CLIP_EDGE_DASH, CLIP_EDGE_DASH };
+
+    auto onSection = [this](double qn)
+    {
+        if (sections == nullptr) return false;
+        for (const auto& s : sections->getSections())
+            if (std::abs(s.position.toDouble() - qn) <= CLIP_EDGE_TOLERANCE_QN) return true;
+        return false;
+    };
+
+    for (const auto& span : *clipSpans)
+        for (double qn : { span.startQN, span.endQN })
+        {
+            if (qn < v.startQN || qn > v.endQN || onSection(qn)) continue;
+
+            float y = (float)yForQN(qn, v);
+            if (y < (float)trackTop() || y > (float)(trackTop() + trackHeight())) continue;
+
+            g.setColour(UtilityColours::clipEdge);
+            g.drawDashedLine(juce::Line<float>(0.0f, y, w, y), dashes, 2, 1.0f);
+        }
 }
 
 void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
@@ -431,20 +542,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     const auto& list = sections->getSections();
     const float top = (float)trackTop();
 
-    // Follows the hover cursor's snapped bar, the same bar the hover line draws on, and
-    // falls back to the playhead when the pointer is away. So a section is always lit:
-    // where you are pointing, or where you are.
-    double referenceQN = hoverY >= 0 ? snappedBarQN(hoverY, v) : playheadPPQ.toDouble();
-
-    // Only inside its own span: in the gap between two charts there is nothing to light,
-    // even though the section before it is still the last one behind you.
-    int hoveredIndex = -1;
-    for (size_t i = 0; i < list.size(); ++i)
-        if (list[i].position <= PPQ(referenceQN) && referenceQN < sectionEndQN(i, v))
-        {
-            hoveredIndex = (int)i;
-            break;
-        }
+    auto plates = labelPlates(v);
 
     for (size_t i = 0; i < list.size(); ++i)
     {
@@ -453,27 +551,13 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         if (endQN < v.startQN || qn > v.endQN) continue;
 
         float y = (float)yForQN(qn, v);
-        float yTop = (float)yForQN(std::min(endQN, v.endQN), v);
-
-        // A section owns everything from its own line up to where it stops. Clamped at both
-        // ends, so a section running off either edge fills what is visible of it rather
-        // than bleeding past the track into the footer.
-        const float bottom = top + (float)trackHeight();
-        float bandTop = juce::jlimit(top, bottom, yTop);
-        float bandBottom = juce::jlimit(top, bottom, y);
-
-        bool isHovered = ((int)i == hoveredIndex);
-        if (bandBottom > bandTop)
-        {
-            g.setColour(isHovered ? UtilityColours::sectionBandHover
-                                  : UtilityColours::sectionBand);
-            g.fillRect(0.0f, bandTop, w, bandBottom - bandTop);
-        }
 
         bool sticky = ((int)i == stickyIndex(v));
         if ((qn < v.startQN || qn > v.endQN) && !sticky) continue;
 
-        if (qn >= v.startQN && qn <= v.endQN)
+        // The number belongs to the name beside it, so it goes when the name goes.
+        bool labelled = !plates[i].isEmpty();
+        if (labelled && qn >= v.startQN && qn <= v.endQN)
             drawMeasureNumber(g, y, measureAtQN(qn), false);
 
         bool selected = isSelected((int)i);
@@ -488,11 +572,12 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
             g.fillRect(0.0f, y, w, selected ? 3.0f : 2.0f);
         }
 
+        if (!labelled) continue;
+
         g.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
         // Straight from the hit-test bounds, so a pinned label is clickable where it is
         // drawn rather than where its line would have put it.
-        auto plate = sectionHeaderBounds(i, v);
-        if (plate.getY() > top + trackHeight()) continue;
+        auto plate = plates[i];
 
         // The name lighting up IS the rename affordance: hovering it fills behind the text,
         // so the thing you click is the thing that changes.
@@ -509,6 +594,18 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         g.setColour(nameHot ? UtilityColours::uiText : UtilityColours::sectionText);
         g.drawText(list[i].name, plate.getX() + 3, plate.getY(), plate.getWidth() - 6,
                    plate.getHeight(), juce::Justification::centredLeft, true);
+
+        // A frozen label sits nowhere near its own line, so hovering it draws that line
+        // down here with the measure it really starts on. Against the hover line a few
+        // pixels above, the number jumps a long way: that gap is the point, it says the
+        // click goes back to the start of the section rather than to where you pointed.
+        if (sticky && (int)i == hoverSection)
+        {
+            float ly = (float)plate.getBottom() + STICKY_HOVER_LINE_GAP;
+            g.setColour(UtilityColours::sectionLine);
+            g.fillRect(0.0f, ly, w, 2.0f);
+            drawMeasureNumber(g, ly, measureAtQN(qn), true);
+        }
     }
 
     if (sections->hasCoda())
@@ -598,8 +695,10 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
     auto v = visibleRange();
     drawChunkLines(g, v);
+    if (filterOn(0)) drawSectionBands(g, v);
     if (filterOn(1)) drawNotes(g, v);
     if (filterOn(0)) drawSections(g, v);
+    drawClipEdges(g, v);
 
     drawMarquee(g);
     drawHover(g, v);
@@ -631,7 +730,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
         tabShape.addRoundedRectangle((float)tab.getX(), (float)tab.getY(),
                                      (float)tab.getWidth(), (float)tab.getHeight(),
                                      3.0f, 3.0f, true, false, true, false);
-        g.setColour(UtilityColours::playhead);
+        g.setColour(UtilityColours::playheadTab);
         g.fillPath(tabShape);
         g.setColour(UtilityColours::background);
         g.drawText(text, tab, juce::Justification::centred, false);
