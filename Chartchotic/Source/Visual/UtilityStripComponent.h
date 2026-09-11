@@ -42,7 +42,8 @@ namespace UtilityColours
     // Faint on purpose: the band sits under the note map, so anything heavier reads as a
     // colour the notes are, rather than as ground they sit on.
     inline const juce::Colour sectionBand  = juce::Colour(0x0D2F5F96);
-    inline const juce::Colour sectionBandHover = juce::Colour(0x2C3E77B8);
+    // The section the playhead is in, filled a step brighter than the rest.
+    inline const juce::Colour sectionBandCurrent = juce::Colour(0x2C3E77B8);
     // Same blue as a section line but dashed and thinner: a clip edge is a fact about the
     // timeline, not a thing you charted.
     inline const juce::Colour clipEdge     = juce::Colour(0x996E8FB5);
@@ -144,6 +145,8 @@ public:
     void mouseExit(const juce::MouseEvent&) override;
 
 private:
+    void clearHover();
+
     static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
     // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
     // 16px step), so the strip scrolls at the speed everything else in the OS does.
@@ -272,6 +275,11 @@ private:
     int hoverY = -1;
     int hoverSection = -1;
     int hoverName = -1;
+
+    // Where the pointer was when a scroll last started. Hover stays off until it is
+    // somewhere else, so the move event a scroll leaves behind does not count as pointing.
+    bool hoverHeld = false;
+    juce::Point<int> hoverHeldFrom;
 
     bool writeMode = false;
     StripCommandMapper mapper;
