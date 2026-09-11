@@ -33,6 +33,25 @@ public:
     /** Returns true if the writer is connected and can accept mutations. */
     virtual bool isAvailable() const = 0;
 
+    // --- Sections ---
+    // FF 01 text events of the form "[section NAME]" on a dedicated EVENTS track, not
+    // notes on an instrument track. `name` holds just NAME, without the wrapper.
+    //
+    // The whole set is read and written at once: renaming or inserting one section can
+    // renumber every later one, so replace-all keeps that a single edit and a single
+    // undo point instead of index juggling.
+
+    struct SectionInfo {
+        double      qn = 0.0;
+        std::string name;
+    };
+
+    /** All sections, sorted by qn. Empty when there is no EVENTS track. */
+    virtual std::vector<SectionInfo> getSections() { return {}; }
+
+    /** Replaces every section. Creates the EVENTS track and item if missing. */
+    virtual bool setSections(const std::vector<SectionInfo>&) { return false; }
+
     /**
         Adds a text event at the start of a track's first item unless an
         identical one is already there. Used for chart-level switches like

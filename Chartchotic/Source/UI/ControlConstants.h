@@ -154,6 +154,11 @@ enum class Part
     PRO_GUITAR,         // PART REAL_GUITAR, PART REAL_GUITAR_22
     PRO_BASS,           // PART REAL_BASS, PART REAL_BASS_22
     PRO_KEYS,           // PART REAL_KEYS_X/H/M/E (separate track per difficulty)
+
+    // Not an instrument: the song-scoped EVENTS track (sections, [coda]). Carries a Part so
+    // it flows through discovery and the write path, which are keyed on Part throughout.
+    // isHighwayRenderable() is a whitelist, so it stays out of slots and the part picker.
+    EVENTS,             // EVENTS
 };
 
 // How a Part renders on the highway — determines interpreter, lane count, gem style
@@ -167,6 +172,7 @@ enum class RenderType
     VOCALS,             // Pitch-based vocal track
     PRO_GUITAR,         // 17/22-fret pro guitar/bass
     PRO_KEYS,           // 25-key two-octave keyboard
+    EVENTS,             // No highway; song-scoped text events only
 };
 
 inline RenderType getRenderType(Part p)
@@ -186,6 +192,7 @@ inline RenderType getRenderType(Part p)
         case Part::PRO_GUITAR:
         case Part::PRO_BASS:     return RenderType::PRO_GUITAR;
         case Part::PRO_KEYS:     return RenderType::PRO_KEYS;
+        case Part::EVENTS:       return RenderType::EVENTS;
         default:                 return RenderType::FIVE_FRET;
     }
 }
@@ -211,6 +218,7 @@ inline const std::vector<TrackNameEntry>& getImplementedTrackNames()
         { "PART KEYS",        Part::KEYS },
         { "PART DRUMS",       Part::DRUMS },
         { "PART ELITE_DRUMS", Part::ELITE_DRUMS },
+        { "EVENTS",           Part::EVENTS },
     };
     return names;
 }
