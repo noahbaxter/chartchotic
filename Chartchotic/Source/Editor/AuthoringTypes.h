@@ -9,7 +9,6 @@
 // Authoring types shared between HighwayComponent (event dispatcher),
 // WriteController (state owner), and GridlineGenerator (step grid).
 
-constexpr double kQNEpsilon   = 0.001;
 constexpr double kTimeEpsilon = 0.002;
 
 // Length given to a note that carries no sustain of its own. Placement, copy

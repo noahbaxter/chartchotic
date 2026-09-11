@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "AuthoringTypes.h"
 #include "AuthoringConfig.h"
+#include "../Midi/Utils/GridMath.h"
 #include "AuthoringUtils.h"
 #include "CommandMapper.h"
 #include "NoteEditor.h"
@@ -157,7 +158,7 @@ protected:
         if (!cfg->isKickPitch((uint)pitch, currentActiveSkill)) return;
         auto other = cfg->conflictingKick(pitch, currentActiveSkill);
         auto conflict = findNote(trackIdx, qn, other.pitch);
-        if (conflict.noteIndex >= 0 && std::abs(conflict.startQN - qn) < kQNEpsilon)
+        if (conflict.noteIndex >= 0 && GridMath::same(conflict.startQN, qn))
         {
             noteEditor.eraseNoteAt(trackIdx, qn, other.pitch, currentActivePart, other.lane, currentActiveSkill);
             patchRemove(other.lane, qn);
@@ -167,7 +168,7 @@ protected:
     bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100, double duration = 0.0)
     {
         auto existing = findNote(trackIdx, qn, pitch);
-        if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
+        if (existing.noteIndex >= 0 && GridMath::same(existing.startQN, qn))
             eraseNote(trackIdx, qn, pitch, lane, currentActiveSkill);
         eraseConflictingKick(trackIdx, qn, pitch);
         if (!noteEditor.createNote(trackIdx, qn, pitch, velocity, duration))
@@ -346,12 +347,12 @@ protected:
                                           rect.qnHi, pitch);
             for (const auto& n : notes)
             {
-                bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
-                           && n.startQN <= rect.qnHi + kQNEpsilon;
+                bool headIn = !GridMath::before(n.startQN, rect.qnLo)
+                           && !GridMath::after(n.startQN, rect.qnHi);
                 bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
                 bool bodyOverlaps = hasSustain
-                                 && n.endQN > rect.qnLo + kQNEpsilon
-                                 && n.startQN < rect.qnLo - kQNEpsilon;
+                                 && GridMath::after(n.endQN, rect.qnLo)
+                                 && GridMath::before(n.startQN, rect.qnLo);
                 if (headIn)
                     result.push_back({ n, lane, false });
                 else if (bodyOverlaps)

@@ -1,5 +1,6 @@
 #include "WriteController.h"
 #include "../Midi/Utils/MidiConstants.h"
+#include "../Midi/Utils/GridMath.h"
 #include <limits>
 
 namespace
@@ -320,7 +321,7 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
         // existing duration across when we land on the same note.
         auto existing = findNote(sustainDragTrackIdx, sustainPendingClickQN, sustainDragTarget.single());
         double duration = (existing.noteIndex >= 0
-                           && std::abs(existing.startQN - sustainPendingClickQN) < kQNEpsilon)
+                           && GridMath::same(existing.startQN, sustainPendingClickQN))
                         ? existing.endQN - existing.startQN : 0.0;
         placeNote(sustainDragTrackIdx, sustainPendingClickQN,
                   sustainDragTarget.single(), sustainDragLane, resolveVelocity(), duration);
@@ -423,7 +424,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         // hit note also means clicking further along a sustain body creates a
         // new note at that step, which previously fell through and did nothing.
         double duration = 0.0;
-        if (onExistingNote && std::abs(p.hitNoteStartQN - clickQN) < kQNEpsilon)
+        if (onExistingNote && GridMath::same(p.hitNoteStartQN, clickQN))
         {
             auto found = findNote(trackIdx, p.hitNoteStartQN, pitch);
             if (found.noteIndex >= 0) duration = found.endQN - found.startQN;
@@ -716,7 +717,7 @@ void WriteController::handleEndErase()
             // inside it. Erasing a head is not a reason to shorten its
             // neighbour.
             if (eraseClickedNoteQN >= 0.0
-                && std::abs(cn.note.endQN - eraseClickedNoteQN) < kQNEpsilon)
+                && GridMath::same(cn.note.endQN, eraseClickedNoteQN))
                 continue;
             truncateNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch, cn.lane);
         }
