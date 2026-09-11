@@ -204,6 +204,20 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     addAndMakeVisible(writeModeIcon);
     addAndMakeVisible(utilityStrip);
     utilityStrip.setTempoMap(&audioProcessor.getTempoTimeSignatureMap());
+    utilityStrip.setAssetManager(&assetManager);
+    utilityStrip.onSeek = [this](double deltaQN)
+    {
+        if (auto* playHead = audioProcessor.getPlayHead())
+            if (auto pos = playHead->getPosition(); pos.hasValue())
+            {
+                double target = pos->getPpqPosition().orFallback(0.0) + deltaQN;
+                audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, target)));
+            }
+    };
+    utilityStrip.onSeekTo = [this](double targetQN)
+    {
+        audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, targetQN)));
+    };
     writeModeIcon.toFront(false);
 
     initBottomBar();
@@ -389,25 +403,27 @@ void ChartchoticAudioProcessorEditor::onFrame()
         auto* instrSession = audioProcessor.getInstrumentSession();
         utilityStrip.setSections(instrSession ? &instrSession->getSongSections() : nullptr);
 
-        // Note map follows the focused slot, since notes are the one thing on the strip
-        // that is per part rather than song-scoped.
-        const std::vector<MidiCache::CachedNote>* stripNotes = nullptr;
-        Part stripPart = Part::GUITAR;
-        SkillLevel stripSkill = SkillLevel::EXPERT;
-        if (instrSession != nullptr && activeSlotCount > 0)
+        // One note column per visible highway, so a single instrument spreads across the
+        // strip and a full band shares it.
+        std::vector<UtilityStripComponent::NoteSource> sources;
+        if (instrSession != nullptr)
         {
-            const auto& slot = slots[effectiveFocusSlot()];
-            stripPart = slot.part;
-            stripSkill = slot.skillLevel;
             const auto& tracks = instrSession->getTracks();
-            for (int i = 0; i < (int)tracks.size(); ++i)
-                if (tracks[i].part == stripPart)
-                {
-                    stripNotes = &instrSession->getNotes(i);
-                    break;
-                }
+            for (int s = 0; s < activeSlotCount; ++s)
+            {
+                UtilityStripComponent::NoteSource src;
+                src.part = slots[s].part;
+                src.skill = slots[s].skillLevel;
+                for (int i = 0; i < (int)tracks.size(); ++i)
+                    if (tracks[i].part == src.part)
+                    {
+                        src.notes = &instrSession->getNotes(i);
+                        break;
+                    }
+                sources.push_back(src);
+            }
         }
-        utilityStrip.setNotes(stripNotes, stripPart, stripSkill);
+        utilityStrip.setNoteSources(std::move(sources));
 
         utilityStrip.setPlayhead(lastKnownPosition);
         utilityStrip.repaint();
@@ -984,7 +1000,11 @@ void ChartchoticAudioProcessorEditor::resized()
     utilityStrip.setVisible(utilityStripVisible);
     if (utilityStripVisible)
     {
-        utilityStrip.setBounds(0, tbHeight, stripW, getHeight() - tbHeight - footerH);
+        // Inset from the window edge and the toolbar so the strip reads as a panel rather
+        // than as part of the chrome it sits against.
+        utilityStrip.setBounds(utilityStripMargin, tbHeight + utilityStripMargin,
+                               stripW - utilityStripMargin * 2,
+                               getHeight() - tbHeight - footerH - utilityStripMargin * 2);
         utilityStrip.toFront(false);
     }
 
