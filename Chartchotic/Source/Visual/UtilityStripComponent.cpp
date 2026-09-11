@@ -588,7 +588,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
             drawMeasureNumber(g, y, measureAtQN(qn), false);
 
         bool selected = isSelected((int)i);
-        bool underCursor = std::abs(qn - hoverQN) <= HOVER_MATCH_TOLERANCE_QN;
+        bool underCursor = GridMath::same(qn, hoverQN);
 
         // A move drag previews by shifting the selected markers rather than committing.
         if (selected && dragActive && dragCommand == StripCommand::UpdateMove)
@@ -827,14 +827,14 @@ double UtilityStripComponent::sectionStep(int direction) const
     if (direction > 0)
     {
         for (const auto& s : list)
-            if (s.position > now + SECTION_STEP_EPSILON) return s.position.toDouble();
+            if (GridMath::after(s.position.toDouble(), now)) return s.position.toDouble();
         return now;
     }
 
     double best = now;
     for (const auto& s : list)
     {
-        if (s.position >= now - SECTION_STEP_EPSILON) break;
+        if (!GridMath::before(s.position.toDouble(), now)) break;
         best = s.position.toDouble();
     }
     return best;
