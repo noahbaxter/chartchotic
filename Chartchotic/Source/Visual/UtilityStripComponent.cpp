@@ -56,6 +56,55 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
     return { start, start + span };
 }
 
+int UtilityStripComponent::sectionStartMeasure(double qn) const
+{
+    auto measureAt = [this](double q)
+    {
+        return tempoMap ? TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(q), *tempoMap)
+                        : (int)(q / 4.0) + 1;
+    };
+
+    if (sections == nullptr) return 1;
+    const auto* s = sections->sectionAt(PPQ(qn));
+    return s != nullptr ? measureAt(s->position.toDouble()) : 1;
+}
+
+double UtilityStripComponent::snappedBarQN(int y, const View& v) const
+{
+    double qn = qnForY(y, v);
+    double len = barLengthQN(tempoMap, qn);
+    return std::max(0.0, std::round(qn / len) * len);
+}
+
+void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
+{
+    if (hoverY < 0) return;
+
+    double barQN = snappedBarQN(hoverY, v);
+    float y = (float)yForQN(barQN, v);
+    if (y < (float)trackTop() || y > (float)(trackTop() + trackHeight())) return;
+
+    const float w = (float)getWidth();
+    g.setColour(UtilityColours::hoverLine);
+    g.fillRect(0.0f, y, w, 1.5f);
+
+    int measure = tempoMap ? TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(barQN), *tempoMap)
+                           : (int)(barQN / 4.0) + 1;
+
+    g.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+    auto text = juce::String(measure);
+    int tw = g.getCurrentFont().getStringWidth(text) + 10;
+    int tx = (int)w - tw - 4;
+    int ty = (int)y - 16;
+
+    g.setColour(UtilityColours::background.withAlpha(0.9f));
+    g.fillRect(tx, ty, tw, 15);
+    g.setColour(UtilityColours::hoverLine);
+    g.drawRect(tx, ty, tw, 15, 1);
+    g.setColour(UtilityColours::uiText);
+    g.drawText(text, tx, ty, tw, 15, juce::Justification::centred, false);
+}
+
 void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) const
 {
     double len = barLengthQN(tempoMap, v.startQN);
@@ -76,10 +125,14 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
 
         int measure = tempoMap ? TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(qn), *tempoMap)
                                : (int)(qn / 4.0) + 1;
-        if ((measure - 1) % chunk != 0) continue;
+
+        // Counted from the section that contains this bar, so the 4/8/16 groupings land on
+        // musical boundaries instead of wherever bar 1 happened to put them.
+        int barsIn = measure - sectionStartMeasure(qn);
+        if (barsIn % chunk != 0) continue;
 
         // Every fourth chunk is heavier, so the eye can count groups without reading numbers.
-        bool major = ((measure - 1) / chunk) % 4 == 0;
+        bool major = (barsIn / chunk) % 4 == 0;
         g.setColour(major ? UtilityColours::chunkLineBig : UtilityColours::chunkLine);
         g.fillRect(0.0f, y, w, major ? 2.0f : 1.0f);
 
@@ -94,34 +147,49 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
 
 void UtilityStripComponent::drawNotes(juce::Graphics& g, const View& v) const
 {
-    if (notes == nullptr) return;
+    if (noteSources.empty()) return;
 
-    int lanes = isDrumLike(notesPart) ? 5 : 5;
-    if (getRenderType(notesPart) == RenderType::ELITE_DRUMS) lanes = 9;
-
-    // Narrow strip on the right so the note map never sits under the section names.
-    const float mapW = std::min(64.0f, getWidth() * 0.34f);
-    const float x0 = getWidth() - mapW - 4.0f;
-    const float laneW = mapW / (float)lanes;
-    const float markH = 2.0f;
     const float top = (float)trackTop();
     const float bottom = top + trackHeight();
+    const float markH = 3.0f;
+    const float inset = 3.0f;
+    const float sourceW = (getWidth() - inset * 2.0f) / (float)noteSources.size();
 
-    g.setColour(UtilityColours::noteMark);
-
-    for (const auto& n : *notes)
+    for (size_t s = 0; s < noteSources.size(); ++s)
     {
-        double qn = n.startPPQ.toDouble();
-        if (qn < v.startQN || qn > v.endQN) continue;
+        const auto& src = noteSources[s];
+        if (src.notes == nullptr) continue;
 
-        int col = noteColumn(n.pitch, notesPart, notesSkill);
-        if (col < 0 || col >= lanes) continue;
+        int lanes = getRenderType(src.part) == RenderType::ELITE_DRUMS ? 9 : 5;
+        // Guitar-likes share the 5-fret column layout, the same normalisation the renderers use.
+        Part colourPart = isGuitarLike(src.part) ? Part::GUITAR : src.part;
 
-        float y = (float)yForQN(qn, v);
-        if (y < top || y > bottom) continue;
+        const float x0 = inset + s * sourceW;
+        const float laneW = sourceW / (float)lanes;
 
-        g.fillRoundedRectangle(x0 + col * laneW + 0.5f, y - markH * 0.5f,
-                               std::max(1.5f, laneW - 1.5f), markH, 1.0f);
+        if (s > 0)
+        {
+            g.setColour(UtilityColours::chunkLine);
+            g.fillRect(x0, top, 1.0f, bottom - top);
+        }
+
+        for (const auto& n : *src.notes)
+        {
+            double qn = n.startPPQ.toDouble();
+            if (qn < v.startQN || qn > v.endQN) continue;
+
+            int col = noteColumn(n.pitch, src.part, src.skill);
+            if (col < 0 || col >= lanes) continue;
+
+            float y = (float)yForQN(qn, v);
+            if (y < top || y > bottom) continue;
+
+            g.setColour(assetManager != nullptr
+                        ? assetManager->getLaneColour((uint)col, colourPart, false)
+                        : UtilityColours::noteMark);
+            g.fillRoundedRectangle(x0 + col * laneW + 0.5f, y - markH * 0.5f,
+                                   std::max(1.5f, laneW - 1.5f), markH, 1.2f);
+        }
     }
 }
 
@@ -150,8 +218,12 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         g.setColour(UtilityColours::sectionLine);
         g.fillRect(0.0f, y, w, 2.0f);
 
-        g.setColour(UtilityColours::sectionText);
         g.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
+        int textW = std::min((int)w - 12, (int)g.getCurrentFont().getStringWidth(list[i].name) + 10);
+        // Plate behind the label so it stays readable where the note map runs under it.
+        g.setColour(UtilityColours::background.withAlpha(0.82f));
+        g.fillRect(3, (int)y - 21, textW + 6, 19);
+        g.setColour(UtilityColours::sectionText);
         g.drawText(list[i].name, 6, (int)y - 21, (int)w - 12, 19,
                    juce::Justification::centredLeft, true);
     }
@@ -198,11 +270,11 @@ void UtilityStripComponent::drawFilters(juce::Graphics& g) const
         g.drawRect(box, 1);
         if (filters[i].on)
         {
-            g.setColour(UtilityColours::sectionText);
+            g.setColour(UtilityColours::uiText);
             g.fillRect(box.reduced(2));
         }
 
-        g.setColour(filters[i].on ? UtilityColours::sectionText : UtilityColours::label);
+        g.setColour(filters[i].on ? UtilityColours::uiText : UtilityColours::label);
         g.drawText(filters[i].label, box.getRight() + 7, row.getY(),
                    row.getWidth() - box.getRight() - 10, row.getHeight(),
                    juce::Justification::centredLeft, false);
@@ -226,7 +298,7 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     {
         g.setColour(UtilityColours::chunkLineBig);
         g.drawRect(r, 1);
-        g.setColour(enabled ? UtilityColours::sectionText : UtilityColours::label);
+        g.setColour(enabled ? UtilityColours::uiText : UtilityColours::label);
         g.drawText(text, r, juce::Justification::centred, false);
     }
 
@@ -246,6 +318,8 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     if (filterOn(1)) drawNotes(g, v);
     if (filterOn(0)) drawSections(g, v);
 
+    drawHover(g, v);
+
     float py = (float)yForQN(playheadPPQ.toDouble(), v);
     if (py >= (float)trackTop() && py <= (float)(trackTop() + trackHeight()))
     {
@@ -263,15 +337,24 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
                                            const juce::MouseWheelDetails& wheel)
 {
-    // Cmd owns zoom here; a bare wheel belongs to whatever scrolls the chart.
-    if (!e.mods.isCommandDown())
+    double delta = wheel.deltaY != 0.0f ? wheel.deltaY : wheel.deltaX;
+    if (delta == 0.0) return;
+
+    if (e.mods.isCommandDown())
     {
-        Component::mouseWheelMove(e, wheel);
+        if (delta > 0.0) zoomIn(); else zoomOut();
         return;
     }
 
-    if (wheel.deltaY > 0.0f)      zoomIn();
-    else if (wheel.deltaY < 0.0f) zoomOut();
+    // A bare wheel seeks. The jump is a fraction of what is on screen, so a notch covers
+    // the same proportion of the strip whether you are at 8 bars or the whole song.
+    if (onSeek)
+    {
+        auto v = visibleRange();
+        double step = (v.endQN - v.startQN) * SEEK_FRACTION_PER_NOTCH;
+        if (e.mods.isShiftDown()) step *= 4.0;
+        onSeek(delta * step);
+    }
 }
 
 void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
@@ -298,4 +381,24 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 
     if (minusBounds().contains(p)) { zoomOut(); return; }
     if (plusBounds().contains(p))  { zoomIn();  return; }
+
+    // Empty time navigates. Objects will be editable here once authoring lands, which is
+    // what the object-vs-empty-space rule in the design doc is about.
+    if (inTrackArea(p) && onSeekTo)
+        onSeekTo(snappedBarQN(p.y, visibleRange()));
+}
+
+void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
+{
+    int y = inTrackArea(e.getPosition()) ? e.getPosition().y : -1;
+    if (y == hoverY) return;
+    hoverY = y;
+    repaint();
+}
+
+void UtilityStripComponent::mouseExit(const juce::MouseEvent&)
+{
+    if (hoverY < 0) return;
+    hoverY = -1;
+    repaint();
 }

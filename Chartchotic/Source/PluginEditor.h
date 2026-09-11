@@ -245,6 +245,7 @@ private:
     UtilityStripComponent utilityStrip;
     bool utilityStripVisible = true;
     static constexpr int utilityStripWidth = 200;
+    static constexpr int utilityStripMargin = 6;
 
     void toggleUtilityStrip()
     {
