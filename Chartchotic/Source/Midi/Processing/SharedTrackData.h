@@ -28,6 +28,9 @@ struct ModifierRange {
 
 struct ModifierRanges {
     std::vector<ModifierRange> starPower;
+    // Track level, not per skill.
+    std::vector<ModifierRange> solo;
+    std::vector<ModifierRange> fill;
     std::vector<ModifierRange> tap;
     std::array<std::vector<ModifierRange>, 4> hopoForce;    // indexed by SkillLevel
     std::array<std::vector<ModifierRange>, 4> strumForce;    // indexed by SkillLevel

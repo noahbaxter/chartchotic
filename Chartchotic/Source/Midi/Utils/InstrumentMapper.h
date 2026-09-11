@@ -485,10 +485,20 @@ public:
         return { columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN), ELITE_KICK_2X_COLUMN };
     }
 
+    // Same meaning on every part, so checked ahead of the per-instrument branches.
+    static bool isPhraseMarker(uint pitch)
+    {
+        using Guitar = MidiPitchDefinitions::Guitar;
+        return pitch == (uint)Guitar::SOLO
+            || (pitch >= (uint)Guitar::BRE_5 && pitch <= (uint)Guitar::BRE_1);
+    }
+
     static bool isModifier(uint pitch, bool isElite = false)
     {
         using Guitar = MidiPitchDefinitions::Guitar;
         using Drums = MidiPitchDefinitions::Drums;
+
+        if (isPhraseMarker(pitch)) return true;
 
         // Elite drums own the whole 72-82 note octave (kick..R-crash), which overlaps
         // guitar's MEDIUM_HOPO (77) / MEDIUM_STRUM (78) etc. Those are ELITE NOTES, not

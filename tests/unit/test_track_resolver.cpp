@@ -678,3 +678,79 @@ TEST_CASE("TrackResolver - elite roll lanes resolve onto their own column",
         REQUIRE(lanes == 1);
     }
 }
+
+TEST_CASE("TrackResolver - solo markers parse", "[track_resolver][solo]")
+{
+    auto shared = TrackResolver::extract(oneNote(103, 1.0, 5.0), PPQ(0.0),
+                                         PPQ(16.0), PPQ(16.0));
+    REQUIRE(shared.modifiers.solo.size() == 1);
+    REQUIRE(shared.modifiers.solo[0].start == PPQ(1.0));
+    REQUIRE(shared.modifiers.solo[0].end   == PPQ(5.0));
+}
+
+// Gapped because NoteStateMap keys by PPQ: touching notes overwrite each other's boundary.
+TEST_CASE("TrackResolver - consecutive solos stay separate",
+          "[track_resolver][solo]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, 103, 1.0, 3.0);
+    addNote(notes, 103, 3.5, 5.0);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    REQUIRE(shared.modifiers.solo.size() == 2);
+    REQUIRE(shared.modifiers.solo[0].end   == PPQ(3.0));
+    REQUIRE(shared.modifiers.solo[1].start == PPQ(3.5));
+}
+
+TEST_CASE("TrackResolver - solo and star power may overlap",
+          "[track_resolver][solo]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, 103, 1.0, 5.0);
+    addNote(notes, 116, 3.0, 7.0);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    REQUIRE(shared.modifiers.solo.size() == 1);
+    REQUIRE(shared.modifiers.starPower.size() == 1);
+}
+
+TEST_CASE("TrackResolver - a fill needs all five markers off elite",
+          "[track_resolver][fill]")
+{
+    NoteStateMapArray notes;
+    for (uint pitch = 120; pitch <= 124; ++pitch)
+        addNote(notes, pitch, 2.0, 6.0);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    REQUIRE(shared.modifiers.fill.size() == 1);
+    REQUIRE(shared.modifiers.fill[0].start == PPQ(2.0));
+    REQUIRE(shared.modifiers.fill[0].end   == PPQ(6.0));
+}
+
+TEST_CASE("TrackResolver - a partial marker set is not a fill",
+          "[track_resolver][fill]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, 120, 2.0, 6.0);
+    addNote(notes, 121, 2.0, 6.0);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    REQUIRE(shared.modifiers.fill.empty());
+}
+
+TEST_CASE("TrackResolver - elite fills come from a lone 120",
+          "[track_resolver][fill][elite]")
+{
+    auto shared = extractElite(oneNote(120, 2.0, 6.0));
+    REQUIRE(shared.modifiers.fill.size() == 1);
+    REQUIRE(shared.modifiers.fill[0].start == PPQ(2.0));
+    REQUIRE(shared.modifiers.fill[0].end   == PPQ(6.0));
+}
+
+TEST_CASE("TrackResolver - a lone 120 off elite is not a fill",
+          "[track_resolver][fill]")
+{
+    auto shared = TrackResolver::extract(oneNote(120, 2.0, 6.0), PPQ(0.0),
+                                         PPQ(16.0), PPQ(16.0));
+    REQUIRE(shared.modifiers.fill.empty());
+}
