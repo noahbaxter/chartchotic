@@ -25,6 +25,7 @@
 #include "../Midi/Providers/REAPER/MidiCache.h"
 #include "../Midi/Providers/TrackNoteProvider.h"   // defines ClipSpan
 #include "../Midi/Utils/InstrumentMapper.h"
+#include "../Midi/Utils/GridMath.h"
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "../UI/ControlConstants.h"
@@ -147,9 +148,6 @@ private:
     // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
     // 16px step), so the strip scrolls at the speed everything else in the OS does.
     static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
-    // Far enough not to catch the section you are standing on when it is a hair behind the
-    // playhead, close enough that no real section is ever skipped.
-    static constexpr double SECTION_STEP_EPSILON = 1.0e-3;
     // Lane colour, dimmed by alpha alone. Desaturating turned every mark towards the band
     // behind it, so the map stopped reading as the highway it summarises.
     static constexpr float NOTE_MAP_SATURATION = 0.9f;
@@ -245,7 +243,6 @@ private:
     static constexpr float STICKY_HOVER_LINE_GAP = 2.0f;
     static constexpr float STICKY_HOVER_LINE_H = 2.0f;
     // A section this close to the snapped hover bar counts as the one being pointed at.
-    static constexpr double HOVER_MATCH_TOLERANCE_QN = 1.0e-3;
 
     juce::Rectangle<int> minusBounds() const
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }

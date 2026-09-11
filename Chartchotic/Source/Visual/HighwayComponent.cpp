@@ -13,6 +13,7 @@
 #include "../UI/Theme.h"
 #include "../Midi/Utils/MidiConstants.h"
 #include "../Midi/Utils/InstrumentMapper.h"
+#include "../Midi/Utils/GridMath.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -273,7 +274,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 for (const auto& [noteTime, frame] : frameData.trackWindow)
                 {
                     double qn = secondsToProjectQN(noteTime);
-                    if (qn < mr.qnLo - kQNEpsilon || qn > mr.qnHi + kQNEpsilon) continue;
+                    if (GridMath::before(qn, mr.qnLo) || GridMath::after(qn, mr.qnHi)) continue;
                     for (int lane = mr.laneLo; lane <= mr.laneHi; ++lane)
                     {
                         if (ov.barMode && !isBarNote((uint)lane, activePart)) continue;
