@@ -202,6 +202,8 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         footer.clearHelpText();
     };
     addAndMakeVisible(writeModeIcon);
+    addAndMakeVisible(utilityStrip);
+    utilityStrip.setTempoMap(&audioProcessor.getTempoTimeSignatureMap());
     writeModeIcon.toFront(false);
 
     initBottomBar();
@@ -381,6 +383,35 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #endif
     auto ctx = buildFrameContext();
     HighwayFrameData primaryFrameData;
+
+    if (utilityStripVisible)
+    {
+        auto* instrSession = audioProcessor.getInstrumentSession();
+        utilityStrip.setSections(instrSession ? &instrSession->getSongSections() : nullptr);
+
+        // Note map follows the focused slot, since notes are the one thing on the strip
+        // that is per part rather than song-scoped.
+        const std::vector<MidiCache::CachedNote>* stripNotes = nullptr;
+        Part stripPart = Part::GUITAR;
+        SkillLevel stripSkill = SkillLevel::EXPERT;
+        if (instrSession != nullptr && activeSlotCount > 0)
+        {
+            const auto& slot = slots[effectiveFocusSlot()];
+            stripPart = slot.part;
+            stripSkill = slot.skillLevel;
+            const auto& tracks = instrSession->getTracks();
+            for (int i = 0; i < (int)tracks.size(); ++i)
+                if (tracks[i].part == stripPart)
+                {
+                    stripNotes = &instrSession->getNotes(i);
+                    break;
+                }
+        }
+        utilityStrip.setNotes(stripNotes, stripPart, stripSkill);
+
+        utilityStrip.setPlayhead(lastKnownPosition);
+        utilityStrip.repaint();
+    }
 
 #ifdef DEBUG
     // Standalone debug mode: bypass normal pipeline
@@ -900,8 +931,9 @@ void ChartchoticAudioProcessorEditor::resized()
     state.setProperty("editorWidth", getWidth(), nullptr);
     state.setProperty("editorHeight", getHeight(), nullptr);
 
-    // Virtual scene dimensions
-    sceneWidth = getWidth();
+    // Virtual scene dimensions. The strip is not part of the scene, so it comes off the
+    // width before the highway geometry is derived from it.
+    sceneWidth = getWidth() - (utilityStripVisible ? utilityStripWidth : 0);
     // Toolbar scales with width, but also caps by height so panels fit vertically.
     // The 0.09 vertical ratio ensures toolbar + tallest panel + footer all fit.
     int fromWidth = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
@@ -946,10 +978,20 @@ void ChartchoticAudioProcessorEditor::resized()
     // Tell popup panels where the footer starts so they don't overlap it
     toolbar.setPanelBottomMargin(footerH);
 
+    // Utility strip claims its width off the left before the grid is computed, so the
+    // highways reflow around it rather than sitting under it.
+    int stripW = utilityStripVisible ? utilityStripWidth : 0;
+    utilityStrip.setVisible(utilityStripVisible);
+    if (utilityStripVisible)
+    {
+        utilityStrip.setBounds(0, tbHeight, stripW, getHeight() - tbHeight - footerH);
+        utilityStrip.toFront(false);
+    }
+
     // Layout highway slots below toolbar, above footer
     if (activeSlotCount > 0)
     {
-        int contentW = getWidth();
+        int contentW = getWidth() - stripW;
         int contentH = getHeight() - tbHeight - footerH;
         int numSlots = activeSlotCount;
 
@@ -959,7 +1001,7 @@ void ChartchoticAudioProcessorEditor::resized()
             hw.renderWidth = sceneWidth;
             hw.renderHeight = sceneHeight;
             hw.updateOverflow();
-            hw.setBounds(0, tbHeight, contentW, contentH);
+            hw.setBounds(stripW, tbHeight, contentW, contentH);
         }
         else
         {
@@ -1011,7 +1053,7 @@ void ChartchoticAudioProcessorEditor::resized()
             for (int i = 0; i < numSlots; ++i)
                 rowWeight[(size_t)(i / cols)] += widthWeight(slots[i].part);
 
-            std::vector<int> rowX((size_t)rows, pad);   // running x per row
+            std::vector<int> rowX((size_t)rows, stripW + pad);   // running x per row
             for (int i = 0; i < numSlots; ++i)
             {
                 auto& hw = *slots[i].highway;
