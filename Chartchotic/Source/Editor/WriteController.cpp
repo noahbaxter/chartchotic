@@ -579,15 +579,15 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
     double hi = std::max(fromQN, toQN);
 
     double firstStep = snapToStep(lo, currentStepDivision, currentTuplet);
-    if (firstStep < lo - 0.001) firstStep += spacing;
+    if (GridMath::before(firstStep, lo)) firstStep += spacing;
 
-    for (double qn = firstStep; qn <= hi + 0.001; qn += spacing)
+    for (double qn = firstStep; !GridMath::after(qn, hi); qn += spacing)
     {
         double snapped = snapToStep(qn, currentStepDivision, currentTuplet);
 
         bool alreadyPainted = false;
         for (const auto& pn : paintedNotes)
-            if (std::abs(pn.qn - snapped) < 0.001) { alreadyPainted = true; break; }
+            if (GridMath::same(pn.qn, snapped)) { alreadyPainted = true; break; }
         if (alreadyPainted) continue;
 
         if (!stamp.empty())
@@ -628,7 +628,7 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
                                          : resolveActivePitch(lane);
             if (pitch < 0) continue;
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
-            if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
+            if (pre.noteIndex >= 0 && GridMath::same(pre.startQN, snapped))
                 continue;
             placeNote(paintDragTrackIdx, snapped, pitch, paintLane, resolveVelocity());
             paintedNotes.push_back({ snapped, paintLane });
@@ -643,7 +643,7 @@ void WriteController::paintShrinkTo(double lo, double hi)
     bool drums = isDrums();
     for (auto it = paintedNotes.begin(); it != paintedNotes.end(); )
     {
-        if (it->qn < lo - 0.001 || it->qn > hi + 0.001)
+        if (GridMath::before(it->qn, lo) || GridMath::after(it->qn, hi))
         {
             if (!stamp.empty())
             {

@@ -4,6 +4,7 @@
 #include <vector>
 #include <JuceHeader.h>
 #include "../Utils/ChartTypes.h"
+#include "../Midi/Utils/GridMath.h"
 
 //==============================================================================
 // Authoring types shared between HighwayComponent (event dispatcher),
@@ -91,7 +92,7 @@ struct MarqueeRect
 
     bool contains(double qn, int lane) const
     {
-        return qn >= qnLo - 0.001 && qn <= qnHi + 0.001
+        return !GridMath::before(qn, qnLo) && !GridMath::after(qn, qnHi)
             && lane >= laneLo && lane <= laneHi;
     }
 };
