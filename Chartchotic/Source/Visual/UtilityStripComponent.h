@@ -388,6 +388,12 @@ private:
     double contentEndQN() const;
     double clipEndAt(double qn) const;
 
+    // The ends of the chart you are in. Where a section step lands when there is no section
+    // left to reach that way, so the wheel walks off the first and last section onto the
+    // start and end of the chart rather than sticking to them.
+    double chartStartQN() const;
+    double chartEndQN() const;
+
     // Every seek the strip issues goes through here, so a picked song bounds scrubbing,
     // clicking and section stepping alike rather than only one of them.
     double clampSeek(double qn) const;

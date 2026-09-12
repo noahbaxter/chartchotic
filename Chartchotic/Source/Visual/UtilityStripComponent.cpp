@@ -566,6 +566,20 @@ double UtilityStripComponent::clipEndAt(double qn) const
     return 0.0;
 }
 
+double UtilityStripComponent::chartStartQN() const
+{
+    const auto* song = confiningSong();
+    return song != nullptr ? song->startQN : 0.0;
+}
+
+// clampSeek trims the half-open end off this for anything that seeks, so it can answer the
+// song's own end rather than second-guessing where the last legal tick is.
+double UtilityStripComponent::chartEndQN() const
+{
+    const auto* song = confiningSong();
+    return song != nullptr ? song->endQN : contentEndQN();
+}
+
 double UtilityStripComponent::clampSeek(double qn) const
 {
     const auto* song = confiningSong();
@@ -1228,7 +1242,11 @@ double UtilityStripComponent::sectionStep(int direction) const
     {
         for (const auto& s : list)
             if (GridMath::after(s.position.toDouble(), now)) return s.position.toDouble();
-        return now;
+
+        // Past the last section, so the end of the chart is the next thing worth stopping
+        // at. Without this the wheel dies on the final section and the tail of the chart is
+        // only reachable by scrubbing.
+        return chartEndQN();
     }
 
     // Landing on the current section's own start is the right answer once, the way a
@@ -1243,7 +1261,9 @@ double UtilityStripComponent::sectionStep(int direction) const
             from = start;
     }
 
-    double best = now;
+    // Seeded at the chart's start so stepping back off the first section lands there rather
+    // than staying put, the mirror of running off the last one onto the end.
+    double best = chartStartQN();
     for (const auto& s : list)
     {
         if (!GridMath::before(s.position.toDouble(), from)) break;
