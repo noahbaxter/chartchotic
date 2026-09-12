@@ -124,11 +124,7 @@ void UtilityStripComponent::stepZoom(int direction)
     // Arriving at a bar rung from a fixed-span one, the scroll offset is whatever it was
     // last time, which may be nowhere near. Frame the playhead, which is the one position
     // the view can assume you care about when you did not aim at anything.
-    if (zoom > 0)
-    {
-        double now = playheadPPQ.toDouble();
-        viewStartQN = now - zoom * barLengthQN(tempoMap, now) * PLAYHEAD_FROM_BOTTOM;
-    }
+    if (zoom > 0) centreViewOn(playheadPPQ.toDouble());
 
     repaint();
 }
@@ -138,6 +134,25 @@ void UtilityStripComponent::scrollViewBy(double deltaQN)
     auto v = visibleRange();
     double span = v.endQN - v.startQN;
     double start = v.startQN + deltaQN;
+    double end = start + span;
+
+    if (const auto* song = confiningSong())
+        SongList::confineWindow(start, end, song->startQN, song->endQN);
+    else
+        start = std::max(0.0, start);
+
+    if (start == viewStartQN) return;
+    viewStartQN = start;
+    repaint();
+}
+
+void UtilityStripComponent::centreViewOn(double qn)
+{
+    // The song and session rungs show the whole chart already, so there is nothing to move.
+    if (zoom <= 0) return;
+
+    double span = zoom * barLengthQN(tempoMap, qn);
+    double start = qn - span * FOLLOW_POSITION;
     double end = start + span;
 
     if (const auto* song = confiningSong())
@@ -1021,16 +1036,24 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
 
     // Shift skips structure: one notch, one section, which is the jump you actually want
     // when reading a chart rather than scrubbing through it. The one wheel gesture that
-    // moves the playhead, because stepping between sections is what it is for.
+    // moves the playhead, and it brings the view with it rather than leaving you to find
+    // where it went.
+    //
+    // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
+    // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
     if (e.mods.isShiftDown())
     {
-        if (onSeekTo) onSeekTo(clampSeek(sectionStep(delta > 0.0 ? 1 : -1)));
+        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
+        if (onSeekTo) onSeekTo(target);
+        centreViewOn(target);
         return;
     }
 
     // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
     // trackpad glides instead of clacking between bar lines. Snapping lives where it is
     // aimed, on hover and on click. The playhead does not come along.
+    followEngaged = false;
+
     auto v = visibleRange();
     double qnPerPx = (v.endQN - v.startQN) / trackHeight();
 
