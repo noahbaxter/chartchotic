@@ -209,6 +209,11 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     {
         audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, targetQN)));
     };
+    // Qualified because the constructor's own `state` parameter shadows the member here.
+    utilityStrip.onLayerToggled = [this](const juce::String& key, bool on)
+    {
+        this->state.setProperty(key, on, nullptr);
+    };
     utilityStrip.onSongRenamed = [this](double startQN, const juce::String& name)
     {
         auto* writer = audioProcessor.getReaperMidiProvider().getWriter();
@@ -1277,6 +1282,12 @@ void ChartchoticAudioProcessorEditor::loadState()
             hw.showHighway = hwy;
         });
     }
+
+    // Restore the utility strip's layer toggles. Only keys that were actually saved are
+    // applied, so a layer added later comes up on its own default rather than off.
+    for (const auto& key : utilityStrip.layerKeys())
+        if (state.hasProperty(key))
+            utilityStrip.setLayerOn(key, (bool)state[key]);
 
     // Restore highway length (apply per-instrument scale)
     {

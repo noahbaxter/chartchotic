@@ -195,6 +195,29 @@ public:
     // Naming a song names its EVENTS item, addressed by where the item starts.
     std::function<void(double startQN, const juce::String& name)> onSongRenamed;
 
+    // A layer toggle flipped, for saving it alongside the other view toggles. Follow's latch
+    // is deliberately not reported: what you asked for persists, where you are does not.
+    std::function<void(const juce::String& key, bool on)> onLayerToggled;
+
+    // Every layer's saved key, so restoring can walk the layers without a second list to
+    // keep in step with this one. A layer with nothing saved keeps its built-in default,
+    // which is why there is no defaults list to hand out.
+    std::vector<juce::String> layerKeys() const
+    {
+        std::vector<juce::String> keys;
+        for (const auto& f : filters) keys.push_back(f.key);
+
+        return keys;
+    }
+
+    // Unknown keys are ignored, so a project saved with a layer that no longer exists still
+    // opens rather than tripping over its own state.
+    void setLayerOn(const juce::String& key, bool on)
+    {
+        for (auto& f : filters)
+            if (key == f.key) { f.on = on; return; }
+    }
+
     void setWriteMode(bool on)
     {
         if (writeMode == on) return;
@@ -251,12 +274,16 @@ private:
     static constexpr int FILTER_ROW_H = 22;
     static constexpr int FILTER_GAP = 2;
 
-    struct Filter { const char* label; bool on; };
+    // The key is what the layer is saved under, spelled out rather than derived from the
+    // label so that renaming what the button says cannot silently orphan saved state.
+    struct Filter { const char* label; const char* key; bool on; };
     // Sections are the reason the strip exists, so they are on and stay first. Follow is a
     // behaviour rather than something drawn, but this block is the strip's only switch panel
     // and a toggle nobody can find is a toggle nobody turns off.
-    Filter filters[4] = { { "sections", true }, { "notes", false },
-                          { "measures", true }, { "follow", true } };
+    Filter filters[4] = { { "sections", "stripSections", true },
+                          { "notes",    "stripNotes",    false },
+                          { "measures", "stripMeasures", true },
+                          { "follow",   "stripFollow",   true } };
 
     static constexpr int FILTER_FOLLOW = 3;
 

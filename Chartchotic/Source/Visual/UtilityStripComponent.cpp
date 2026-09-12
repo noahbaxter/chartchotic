@@ -1494,6 +1494,7 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
             }
 
             filters[i].on = !filters[i].on;
+            if (onLayerToggled) onLayerToggled(filters[i].key, filters[i].on);
 
             // Switching follow back on puts it in gear too, so it never reads on while
             // doing nothing.
