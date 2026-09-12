@@ -20,6 +20,7 @@
 
 #include <JuceHeader.h>
 #include "../Midi/SongSections.h"
+#include "../Midi/SongList.h"
 #include "../Midi/Utils/TimeConverter.h"   // defines TempoTimeSignatureMap, which the helper assumes
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
 #include "../Midi/Providers/REAPER/MidiCache.h"
@@ -92,6 +93,29 @@ public:
     // Merged MIDI clip extents for the whole project. Where several charts share one
     // timeline this is the only thing that says where each of them stops.
     void setClipSpans(const std::vector<ClipSpan>* s) { clipSpans = s; }
+
+    // The project's songs, and which one confines the view. Selection does not survive the
+    // list changing shape: a span list carries no item identity, so guessing which item is
+    // the one you had across a refetch would be a lie.
+    void setSongs(const SongList* s)
+    {
+        songs = s;
+        int count = s != nullptr ? s->size() : 0;
+        if (count != lastSongCount)
+        {
+            lastSongCount = count;
+            selectedSongIndex = SongList::SESSION;
+        }
+    }
+
+    void setSelectedSong(int index)
+    {
+        int count = songs != nullptr ? songs->size() : 0;
+        selectedSongIndex = (index >= 0 && index < count) ? index : SongList::SESSION;
+        repaint();
+    }
+
+    int getSelectedSong() const { return selectedSongIndex; }
 
     // Section the playhead is inside, for the banner over the highway. Empty when there is
     // none, or when the strip's own sections filter is off.
@@ -213,6 +237,12 @@ private:
     double contentEndQN() const;
     double clipEndAt(double qn) const;
 
+    // The song confining the view, or nullptr on Session.
+    const SongList::Song* selectedSong() const
+    {
+        return songs != nullptr ? songs->at(selectedSongIndex) : nullptr;
+    }
+
     static constexpr int MAX_BARS_WALKED = 100000;
 
     bool inTrackArea(juce::Point<int> p) const
@@ -269,6 +299,9 @@ private:
     const TempoTimeSignatureMap* tempoMap = nullptr;
     std::vector<NoteSource> noteSources;
     const std::vector<ClipSpan>* clipSpans = nullptr;
+    const SongList* songs = nullptr;
+    int selectedSongIndex = SongList::SESSION;
+    int lastSongCount = 0;
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
     int zoomIndex = DEFAULT_ZOOM_INDEX;

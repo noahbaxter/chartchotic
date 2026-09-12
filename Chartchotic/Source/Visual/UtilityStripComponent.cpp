@@ -75,9 +75,13 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 {
     double now = playheadPPQ.toDouble();
     int bars = barsVisible();
+    const auto* song = selectedSong();
 
     if (bars == 0)
     {
+        // Whole song means the picked song, and only means the whole project on Session.
+        if (song != nullptr) return { song->startQN, song->endQN };
+
         // Whatever the MIDI actually reaches, since most charts in the wild have no [end].
         double end = contentEndQN();
         if (end <= 0.0) end = std::max(now, 1.0) + 64 * 4.0;
@@ -86,7 +90,11 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 
     double span = bars * barLengthQN(tempoMap, now);
     double start = now - span * PLAYHEAD_FROM_BOTTOM;
-    return { start, start + span };
+    double end = start + span;
+
+    if (song != nullptr) SongList::confineWindow(start, end, song->startQN, song->endQN);
+
+    return { start, end };
 }
 
 // Numbers only appear where they mean something: section starts, and wherever the cursor

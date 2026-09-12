@@ -58,6 +58,27 @@ public:
         return index >= 0 && index < (int)songs.size() ? &songs[(size_t)index] : nullptr;
     }
 
+    // Slide `[start, end]` so it sits inside the song, keeping its length. Shifted rather
+    // than truncated: a truncated window compresses the strip against the song's edges, so
+    // the same zoom stops meaning the same distance. A song shorter than the window is the
+    // window, since there is nothing left to slide against.
+    static void confineWindow(double& start, double& end, double songStart, double songEnd)
+    {
+        double span = end - start;
+
+        if (songEnd - songStart <= span)
+        {
+            start = songStart;
+            end = songEnd;
+            return;
+        }
+
+        if (start < songStart)   start = songStart;
+        else if (end > songEnd)  start = songEnd - span;
+
+        end = start + span;
+    }
+
 private:
     static juce::String fallbackName(const Song& song, const SongSections& sections, size_t index)
     {
