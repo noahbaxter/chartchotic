@@ -8,11 +8,14 @@
         gem on a lane: sections, and (later) star power, solo and fill. [coda] is the
         BRE tool's to draw, since that is the only thing its position means anything to.
 
-        Zoom runs from 8 bars up to the whole song, then out to the session: every
-        chart on the timeline, drawn as a block each. The view scrolls on its own and
-        only follows the playhead during playback, which is where song structure is
-        read, so bar lines are drawn in chunks rather than per bar: a line every bar
-        is a wash, a line every 4 or 8 is a ruler.
+        The view is a window on the whole project: a position and a span, free to sit
+        anywhere and at any width. A chart is a region the window may be inside, never
+        a mode you enter, and the only thing holding it is the timeline itself. Zoomed
+        out far enough it draws each chart as a named block instead of sections.
+
+        The view scrolls on its own and only follows the playhead during playback,
+        which is where song structure is read, so bar lines are drawn in chunks rather
+        than per bar: a line every bar is a wash, a line every 4 or 8 is a ruler.
 
         Design: docs/superpowers/specs/2026-09-10-utility-strip-design.md
 
@@ -33,6 +36,7 @@
 #include "../Midi/Utils/GridMath.h"
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
+#include "StripViewMath.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
 
@@ -99,16 +103,9 @@ public:
     {
         playheadPPQ = ppq;
 
-        // Playing out of the chart on screen leaves the strip showing somewhere the music no
-        // longer is, so it drops to session, which is what zooming out would do anyway. Only
-        // while the transport runs: with it stopped, a chart the cursor is not in is one you
-        // are reading, not one you have left.
-        if (playing && zoom != ZOOM_SESSION && hasSongs())
-        {
-            const auto* inside = confiningSong();
-            if (inside == nullptr || songAtPlayhead() != inside) zoom = ZOOM_SESSION;
-        }
-
+        // Nothing to drop out of any more: the view is a window on the project, so playing
+        // from one chart into the next just scrolls, and follow carries the view across the
+        // boundary the same way it carries it across a section.
         if (playing && followOn() && followEngaged) centreViewOn(ppq.toDouble());
     }
 
@@ -147,13 +144,11 @@ public:
     // none, or when the strip's own sections filter is off.
     juce::String currentSectionName() const;
 
-    // The chart on screen, for the banner over the highway, falling back to the playhead's
-    // in the session view. Empty only in the gap between two charts.
+    // The chart the playhead is in, for the banner over the highway. Empty in the gap between
+    // two charts: you are not in one, and the nearest is not the same claim.
     juce::String currentSongName() const
     {
-        const auto* song = confiningSong();
-        if (song == nullptr) song = songAtPlayhead();
-
+        const auto* song = songAtPlayhead();
         return song != nullptr ? song->name : juce::String();
     }
 
@@ -161,30 +156,25 @@ public:
     // map cannot drift from the highway it summarises.
     void setAssetManager(AssetManager* am) { assetManager = am; }
 
-    // Zoom is a value rather than an index, because the ladder depends on the song you are
-    // in: a step wider than the song shows the same thing the song step does, so it is a
-    // duplicate rather than a rung, and index 3 would mean different spans in different
-    // charts. Negative and zero are the two views that are not a bar count.
-    static constexpr int ZOOM_SESSION = SongList::ZOOM_SESSION;
-    static constexpr int ZOOM_SONG    = SongList::ZOOM_SONG;
     static constexpr int DEFAULT_ZOOM_BARS = SongList::DEFAULT_ZOOM_BARS;
 
-    // Narrowest first, ending in song then session. Just { session } in the gap between two
-    // charts, where there is nothing to be inside and so nothing to zoom into.
-    std::vector<int> availableZooms() const;
-    std::vector<int> availableZoomsFor(const SongList::Song* song) const;
+    void zoomIn()  { scaleSpanAbout(0.5, 1.0 / ZOOM_STEP); }
+    void zoomOut() { scaleSpanAbout(0.5, ZOOM_STEP); }
 
-    int currentZoom() const { return zoom; }
-    void zoomIn()  { stepZoom(-1); }
+    // What the song and session rungs turned into. A view of one chart is a thing to ask
+    // for, not a place to be, so it is a command like any other rather than a mode with its
+    // own rules about what the wheel may do next.
+    void fitChart();
+    void fitProject();
 
-    void zoomOut() { stepZoom(1); }
-
-    // Straight to the shelf and back to where you were working, since those are the two
-    // ends anyone actually wants to reach in one keystroke.
+    // Straight to the whole project and back to where you were working, since those are the
+    // two ends anyone actually wants to reach in one keystroke.
     void toggleZoom()
     {
-        setZoom(zoom == ZOOM_SESSION ? DEFAULT_ZOOM_BARS : ZOOM_SESSION);
+        if (viewSpanQN >= projectEndQN() - GridMath::TICK) fitChart();
+        else                                               fitProject();
     }
+
 
     // Zooming keeps the moment under the pointer where it is, the way a map does, by moving
     // the view rather than the playhead. Entering a chart from the session view is the one
@@ -342,10 +332,9 @@ private:
     struct View { double startQN, endQN; };
     View visibleRange() const;
 
-    // Snaps to a rung the current song actually has, so leaving a long chart for a short one
-    // lands on the widest zoom that still fits rather than on a span it cannot show.
-    void setZoom(int value, const SongList::Song* song = nullptr);
-    void stepZoom(int direction);
+    // Sets the window outright, clamped into the project. Everything that moves the view
+    // ends up here, so there is one place that decides what a legal view is.
+    void setView(double startQN, double spanQN);
 
     // Moves the view, never the playhead, and stops at the edges of the song it is in.
     // Answers false when it changed nothing, which is what keeps a wheel notch against a
@@ -388,20 +377,19 @@ private:
     double contentEndQN() const;
     double clipEndAt(double qn) const;
 
-    // The ends of the chart you are in. Where a section step lands when there is no section
-    // left to reach that way, so the wheel walks off the first and last section onto the
-    // start and end of the chart rather than sticking to them.
-    double chartStartQN() const;
-    double chartEndQN() const;
-
-    // Every seek the strip issues goes through here, so a picked song bounds scrubbing,
+    // Every seek the strip issues goes through here, so the project bounds scrubbing,
     // clicking and section stepping alike rather than only one of them.
     double clampSeek(double qn) const;
 
-    // Session, zoomed all the way out, with songs to show. The strip stops being a view of
-    // one chart's sections and becomes a map of the project's charts.
+    // Zoomed out far enough that per-section detail is a wash, so the strip stops being a
+    // view of one chart's sections and becomes a map of the project's charts. A span test
+    // rather than a mode: there is no longer a rung to be on.
     bool songOverview() const
-    { return zoom == ZOOM_SESSION && songs != nullptr && songs->size() > 0; }
+    { return hasSongs() && viewSpanQN >= projectEndQN() * SONG_OVERVIEW_SPAN; }
+
+    // Most of the project on screen at once. Below this the blocks are wider than the view
+    // and the shelf stops telling you anything the section lines do not.
+    static constexpr double SONG_OVERVIEW_SPAN = 0.6;
 
     std::vector<juce::Rectangle<int>> songChunkBounds(const View& v) const;
     int songChunkAt(juce::Point<int> p) const;
@@ -425,44 +413,58 @@ private:
     {
         if (songs == nullptr) return nullptr;
 
+        // The start edge counts as inside. The cursor parks on a chart's first tick as a
+        // matter of course, and a strict compare answers "gap" for a position that is drawn
+        // sitting right on the block.
         for (const auto& song : songs->getSongs())
-            if (qn >= song.startQN && qn < song.endQN) return &song;
+            if (qn >= song.startQN - GridMath::TICK && qn < song.endQN) return &song;
 
         return nullptr;
     }
 
+    // The chart nearest `qn`, used where a command has to pick one and the position may sit
+    // in a gap: fitting a chart, and stepping to the next.
+    const SongList::Song* nearestSong(double qn) const
+    {
+        if (const auto* hit = songAt(qn)) return hit;
+        if (songs == nullptr) return nullptr;
+
+        const SongList::Song* best = nullptr;
+        double bestGap = 0.0;
+
+        for (const auto& song : songs->getSongs())
+        {
+            double gap = qn < song.startQN ? song.startQN - qn : qn - song.endQN;
+            if (best == nullptr || gap < bestGap) { best = &song; bestGap = gap; }
+        }
+        return best;
+    }
+
     const SongList::Song* songAtPlayhead() const { return songAt(playheadPPQ.toDouble()); }
 
-    // The chart you stepped into, held rather than read back off the playhead so that
-    // entering one is looking at it rather than moving the cursor into it. Ignored in the
-    // session view, which is not inside anything, so leaving never has to clear it.
-    const SongList::Song* enteredSong() const
-    {
-        if (zoom == ZOOM_SESSION || !enteredSongStartQN.has_value() || songs == nullptr)
-            return nullptr;
-
-        return songs->startingAt(*enteredSongStartQN);
-    }
-
-    void enterSong(const SongList::Song* song)
-    {
-        enteredSongStartQN = song != nullptr ? std::optional<double>(song->startQN)
-                                             : std::nullopt;
-    }
-
-    // A project with no EVENTS items at all is a different thing from a position between
-    // two charts: there is nothing to confine to anywhere, rather than just not here.
     bool hasSongs() const { return songs != nullptr && songs->size() > 0; }
 
-    // Confined to one chart at every zoom but the session view: the one you entered, or the
-    // playhead's when you arrived by zooming in rather than by aiming at a chart.
-    const SongList::Song* confiningSong() const
-    {
-        if (zoom == ZOOM_SESSION) return nullptr;
+    // Where the project stops. The only bound the view has now: scrolling and seeking are
+    // held inside the timeline and nothing narrower, so crossing between charts is a thing
+    // you do rather than a thing you are prevented from doing.
+    double projectEndQN() const { return std::max(contentEndQN(), 1.0); }
 
-        const auto* entered = enteredSong();
-        return entered != nullptr ? entered : songAtPlayhead();
-    }
+    // Zoom is a ratio per notch rather than a rung, so it feels the same at 8 bars and at
+    // 800 and there is no ladder whose ends depend on which chart you are in.
+    static constexpr double ZOOM_STEP = 1.35;
+    static constexpr double MIN_SPAN_QN = 2.0;
+
+    // `anchor` is 0 at the bottom of the track and 1 at the top: the point the zoom holds
+    // still, so the moment under the pointer stays under the pointer.
+    void scaleSpanAbout(double anchor, double factor);
+
+    // Friction at a chart edge, in fractions of the visible span and milliseconds of rest.
+    static constexpr double BOUNDARY_RESIST_SPAN = 0.12;
+    static constexpr int    BOUNDARY_RESIST_RESET_MS = 400;
+
+    // Applies the detent to a scroll that would leave the chart the view is sitting in.
+    // Answers the start the view should actually take.
+    double resistBoundary(double wantStartQN);
 
     static constexpr int MAX_BARS_WALKED = 100000;
 
@@ -534,7 +536,11 @@ private:
     std::vector<NoteSource> noteSources;
     const std::vector<ClipSpan>* clipSpans = nullptr;
     const SongList* songs = nullptr;
-    int zoom = DEFAULT_ZOOM_BARS;
+
+    // How much of the project the view spans. A plain length rather than a rung on a ladder:
+    // the view is a window on the whole timeline, and a chart is a region it may happen to
+    // sit inside. Seeded in QN because the tempo map is not loaded yet at construction.
+    double viewSpanQN = DEFAULT_ZOOM_BARS * 4.0;
 
     // Where the bottom of the view sits. The strip scrolls on its own and never chases the
     // playhead: clicking sets where playback starts without dragging the view somewhere you
@@ -542,9 +548,7 @@ private:
     // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
     double viewStartQN = 0.0;
 
-    // Set by entering a chart, read through enteredSong(). Nothing clears it: the session
-    // view ignores it, and entering anywhere else overwrites it.
-    std::optional<double> enteredSongStartQN;
+    StripViewMath::BoundaryDetent detent;
 
     bool playing = false;
     // Follow is the user's setting; engaged is whether it is currently acting. Scrolling

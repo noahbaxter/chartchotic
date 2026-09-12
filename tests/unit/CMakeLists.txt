@@ -31,6 +31,7 @@ target_sources(unit_tests PRIVATE
     test_track_resolver.cpp
     test_song_sections.cpp
     test_song_list.cpp
+    test_strip_view_math.cpp
     test_grid_math.cpp
     test_events_track_text.cpp
     test_frame.cpp
