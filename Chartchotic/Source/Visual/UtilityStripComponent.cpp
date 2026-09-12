@@ -832,7 +832,9 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
 
     g.setColour(UtilityColours::label);
     g.setFont(juce::Font(juce::FontOptions(10.0f)));
-    g.drawText(barsVisible() == 0 ? "whole song" : juce::String(barsVisible()) + " bars",
+    // One word for both scopes: zoomed all the way out is the whole of whatever you are in,
+    // a picked song or the session, and naming either one made the label lie in the other.
+    g.drawText(barsVisible() == 0 ? "full" : juce::String(barsVisible()) + " bars",
                plus.getRight() + 6, plus.getY(), getWidth() - plus.getRight() - 10,
                plus.getHeight(), juce::Justification::centredLeft, false);
 }
