@@ -278,8 +278,8 @@ void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, int me
 {
     if (!filterOn(2)) return;
 
-    g.setFont(juce::Font(juce::FontOptions(10.0f, emphasised ? juce::Font::bold
-                                                             : juce::Font::plain)));
+    auto font = Theme::getUIFont(MEASURE_PT);
+    g.setFont(emphasised ? font.boldened() : font);
     // Above its line, like every other label here: time runs upward, so a number sitting
     // below its line reads as belonging to the bar before it.
     auto text = juce::String(measure);
@@ -924,7 +924,7 @@ void UtilityStripComponent::drawFilters(juce::Graphics& g) const
     g.setColour(UtilityColours::panelFill);
     g.fillRect(0, 0, getWidth(), FILTER_ROW_H);
 
-    g.setFont(juce::Font(juce::FontOptions(11.0f)));
+    g.setFont(Theme::getUIFont(FILTER_PT));
 
     for (int i = 0; i < (int)std::size(filters); ++i)
     {
@@ -968,7 +968,7 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     g.setColour(UtilityColours::panelFill);
     g.fillRect(0, getHeight() - FOOTER_H, getWidth(), FOOTER_H);
 
-    g.setFont(juce::Font(juce::FontOptions(13.0f)));
+    g.setFont(Theme::getUIFont(FOOTER_BUTTON_PT));
     auto steps = availableZooms();
     bool canOut = !steps.empty() && zoom != steps.back();
     bool canIn  = !steps.empty() && zoom != steps.front();
@@ -982,8 +982,8 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
         g.drawText(text, r, juce::Justification::centred, false);
     }
 
-    g.setColour(UtilityColours::label);
-    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    g.setColour(UtilityColours::uiText);
+    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
     // The two widest rungs are different views rather than wider spans, so they are named
     // rather than counted.
     juce::String extent = zoom == ZOOM_SESSION ? "session"
@@ -1036,7 +1036,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
         // The current bar hangs off the right edge, always visible, so "where am I" never
         // needs a hover. Sits above the line, the direction time runs.
-        g.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        g.setFont(Theme::getUIFont(PLAYHEAD_TAB_PT).boldened());
         auto text = juce::String(measureAtQN(playheadPPQ.toDouble()));
         int tw = g.getCurrentFont().getStringWidth(text) + 12;
         int th = 16;
