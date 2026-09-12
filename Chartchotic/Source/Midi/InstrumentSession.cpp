@@ -138,8 +138,13 @@ void InstrumentSession::fetchTrackData(int idx)
     td.lastHash = provider->getTrackHash(tracks[idx]);
 
     // Song-scoped, so it lives on the session rather than the track it happens to come from.
+    // The song list is built from this track's own spans rather than the merged ones: the
+    // merge is what would collapse an album item and the per-song items inside it into one.
     if (tracks[idx].part == Part::EVENTS)
+    {
         songSections.buildFromTextEvents(td.textEvents);
+        songs.buildFromSpans(td.clipSpans, songSections);
+    }
 
     rebuildClipSpans();
 }
