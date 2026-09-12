@@ -5,7 +5,8 @@
         Author: Noah Baxter
 
         Vertical time-axis strip beside the highways, for everything that is not a
-        gem on a lane: sections, [coda], and (later) star power, solo and fill.
+        gem on a lane: sections, and (later) star power, solo and fill. [coda] is the
+        BRE tool's to draw, since that is the only thing its position means anything to.
 
         Zoom runs from 8 bars up to the whole song, then out to the session: every
         chart on the timeline, drawn as a block each. The view scrolls on its own and
@@ -56,7 +57,6 @@ namespace UtilityColours
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
     inline const juce::Colour hoverLine    = juce::Colour(0xFFBFD4EC);
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
-    inline const juce::Colour codaLine     = juce::Colour(0xFFC98A5A);
     inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
     // The bar-number tab is a readout, not the playhead itself, so it sits a good way
     // below white: a solid white plate that size is the brightest thing on the strip.
