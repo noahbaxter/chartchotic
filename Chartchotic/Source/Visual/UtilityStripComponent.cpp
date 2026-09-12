@@ -1125,7 +1125,7 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
     else if (e.mods.isShiftDown())
     {
-        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
+        double target = clampSeek(snapStep(delta > 0.0 ? 1 : -1));
         if (onSeekTo) onSeekTo(target);
         centreViewOn(target);
     }
@@ -1166,43 +1166,109 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
 // The next section line from the playhead in `direction`, or where we already are when
 // there is none that way. Stepping back from inside a section lands on its own start
 // first, the way a transport's previous-marker key does.
-double UtilityStripComponent::sectionStep(int direction) const
+double UtilityStripComponent::nearestBarLine(double qn) const
 {
-    double now = playheadPPQ.toDouble();
-    if (sections == nullptr) return now;
+    double before = barLineAtOrBefore(qn);
+    double after = before + std::max(0.25, barLengthQN(tempoMap, before));
 
-    const auto& list = sections->getSections();
+    return (qn - before) <= (after - qn) ? before : after;
+}
+
+// Every moment worth stopping at, which is a different question from every section start.
+// A chart's edges matter, a section's end matters where it is not just the next one's start,
+// and a scrap of MIDI sitting on its own out past the charts matters because finding it any
+// other way means scrubbing blind through empty timeline.
+std::vector<double> UtilityStripComponent::snapPoints() const
+{
+    std::vector<double> points { 0.0, projectEndQN() };
+
+    if (songs != nullptr)
+        for (const auto& song : songs->getSongs())
+        {
+            points.push_back(song.startQN);
+            points.push_back(song.endQN);
+        }
+
+    if (sections != nullptr)
+    {
+        const auto& list = sections->getSections();
+        for (size_t i = 0; i < list.size(); ++i)
+        {
+            double start = list[i].position.toDouble();
+            points.push_back(start);
+
+            // Where the next section starts this is a duplicate and merges away, which is
+            // the common case. It earns its place on the last section of a chart, whose end
+            // is the chart's rather than another section's.
+            const auto* song = songAt(start);
+            points.push_back(i + 1 < list.size() ? list[i + 1].position.toDouble()
+                           : song != nullptr    ? song->endQN
+                                                : projectEndQN());
+        }
+    }
+
+    // Only out past the charts. Inside one the sections already say where everything is, and
+    // clustering there would bury them under a stop per phrase.
+    std::vector<StripViewMath::NoteSpan> loose;
+    for (const auto& src : noteSources)
+    {
+        if (src.notes == nullptr) continue;
+
+        for (const auto& note : *src.notes)
+        {
+            double start = note.startPPQ.toDouble();
+            if (songAt(start) != nullptr) continue;
+
+            loose.push_back({ start, note.endPPQ.toDouble() });
+        }
+    }
+
+    std::sort(loose.begin(), loose.end(),
+              [](const StripViewMath::NoteSpan& a, const StripViewMath::NoteSpan& b)
+              { return a.startQN < b.startQN; });
+
+    double gapQN = CLUSTER_GAP_BARS * std::max(0.25, barLengthQN(tempoMap, 0.0));
+    for (const auto& span : StripViewMath::clusterSpans(loose, gapQN))
+    {
+        points.push_back(nearestBarLine(span.startQN));
+        points.push_back(nearestBarLine(span.endQN));
+    }
+
+    return StripViewMath::mergedPoints(std::move(points), GridMath::TICK);
+}
+
+double UtilityStripComponent::snapStep(int direction) const
+{
+    auto points = snapPoints();
+    if (points.empty()) return playheadPPQ.toDouble();
+
+    double now = playheadPPQ.toDouble();
 
     if (direction > 0)
     {
-        for (const auto& s : list)
-            if (GridMath::after(s.position.toDouble(), now)) return s.position.toDouble();
+        for (double p : points)
+            if (GridMath::after(p, now)) return p;
 
-        // Past the last section, so the end of the project is the next thing worth stopping
-        // at. Without this the wheel dies on the final section and the tail of the timeline
-        // is only reachable by scrubbing.
-        return projectEndQN();
+        return points.back();
     }
 
-    // Landing on the current section's own start is the right answer once, the way a
-    // transport's previous-marker key works. Press again while you are still near that start
-    // and you meant the section before it, which is also what stops playback carrying you
-    // back onto the same start every notch.
+    // Landing on the point you are sitting just past is the right answer once, the way a
+    // transport's previous-marker key works. Press again while still near it and you meant
+    // the one before, which is also what stops playback carrying you back onto it every
+    // notch.
     double from = now;
-    if (const auto* current = sections->sectionAt(PPQ(now)))
-    {
-        double start = current->position.toDouble();
-        if (now - start <= secondsToQN(tempoMap, now, SECTION_BACKSTEP_GRACE_S))
-            from = start;
-    }
+    for (auto it = points.rbegin(); it != points.rend(); ++it)
+        if (GridMath::before(*it, now))
+        {
+            if (now - *it <= secondsToQN(tempoMap, now, SECTION_BACKSTEP_GRACE_S)) from = *it;
+            break;
+        }
 
-    // Seeded at the timeline start so stepping back off the first section lands there rather
-    // than staying put, the mirror of running off the last one onto the end.
-    double best = 0.0;
-    for (const auto& s : list)
+    double best = points.front();
+    for (double p : points)
     {
-        if (!GridMath::before(s.position.toDouble(), from)) break;
-        best = s.position.toDouble();
+        if (!GridMath::before(p, from)) break;
+        best = p;
     }
     return best;
 }

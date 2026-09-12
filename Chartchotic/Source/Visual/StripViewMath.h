@@ -102,6 +102,51 @@ inline View spanAbout(View v, double anchor, double spanQN,
     return clamp(held - anchor * span, span, projectEndQN, minSpanQN);
 }
 
+// A stretch of timeline with something in it.
+struct NoteSpan
+{
+    double startQN = 0.0;
+    double endQN = 0.0;
+};
+
+// Runs of notes with no silence longer than `gapQN` between them, collapsed into one span
+// each. What "some stuff out around here" means when it is written down: a scrap of MIDI off
+// on its own is worth stopping at, and the eight notes inside it are not each worth stopping
+// at. Input must be sorted by start, which is the order cached notes already arrive in.
+//
+// The gap, not the run length, is what separates two clusters, so a sparse intro stays one
+// thing instead of fragmenting into a stop per note.
+inline std::vector<NoteSpan> clusterSpans(const std::vector<NoteSpan>& sorted, double gapQN)
+{
+    std::vector<NoteSpan> out;
+
+    for (const auto& s : sorted)
+    {
+        if (s.endQN < s.startQN) continue;
+
+        if (!out.empty() && s.startQN - out.back().endQN <= gapQN)
+        {
+            out.back().endQN = std::max(out.back().endQN, s.endQN);
+            continue;
+        }
+        out.push_back(s);
+    }
+    return out;
+}
+
+// Sorted, with anything landing together kept once. Two things at the same moment are one
+// place to stop, not two notches that look like the wheel stuttered.
+inline std::vector<double> mergedPoints(std::vector<double> points, double tolerance)
+{
+    std::sort(points.begin(), points.end());
+
+    std::vector<double> out;
+    for (double p : points)
+        if (out.empty() || p - out.back() > tolerance) out.push_back(p);
+
+    return out;
+}
+
 // Friction at a chart edge.
 //
 // Pressure rather than a count. Travel that would carry the view out of the chart it sits in
