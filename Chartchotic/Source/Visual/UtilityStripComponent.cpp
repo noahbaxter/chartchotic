@@ -176,6 +176,16 @@ void UtilityStripComponent::centreViewOn(double qn)
 
 void UtilityStripComponent::zoomAbout(int y, int direction)
 {
+    // While the transport runs the playhead is what you are zooming around, wherever the
+    // pointer happens to be. Aiming at a point that is sliding past is aiming at nothing,
+    // and the moment that matters during playback is the one being played. stepZoom frames
+    // the playhead itself, so the bar rungs and the two views all land the same way.
+    if (playing)
+    {
+        stepZoom(direction);
+        return;
+    }
+
     auto before = visibleRange();
     double anchorQN = qnForY(y, before);
     double fromBottom = (trackTop() + trackHeight() - y) / (double)trackHeight();
@@ -196,7 +206,8 @@ void UtilityStripComponent::zoomAbout(int y, int direction)
     stepZoom(direction);
 
     // Zooming in is aiming: the point you closed in on becomes the one you are working at,
-    // so the playhead lands there. Zooming out is only widening what you can see.
+    // so the playhead lands there. Zooming out is only widening what you can see, so it
+    // moves nothing.
     if (direction < 0 && onSeekTo) onSeekTo(clampSeek(anchorQN));
 
     // The song and session views are fixed spans with nothing to slide.
