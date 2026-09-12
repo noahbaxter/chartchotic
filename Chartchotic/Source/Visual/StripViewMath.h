@@ -102,6 +102,21 @@ inline View spanAbout(View v, double anchor, double spanQN,
     return clamp(held - anchor * span, span, projectEndQN, minSpanQN);
 }
 
+// The grid step in bars, given how many pixels a bar is worth. The finest step that still
+// leaves `minGapPx` between lines, so the grid gets denser as you zoom in and thins out as
+// you zoom out, and never becomes a wash either way.
+//
+// Values below 1 are subdivisions of a bar. Snapping follows whatever is drawn, so this is
+// also the finest position the strip can place anything at: floored at a whole bar, a section
+// on beat 3 was not expressible at any zoom.
+inline double gridStepBars(double pxPerBar, double minGapPx)
+{
+    for (double step : { 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0 })
+        if (step * pxPerBar >= minGapPx) return step;
+
+    return 128.0;
+}
+
 // A stretch of timeline with something in it.
 struct NoteSpan
 {

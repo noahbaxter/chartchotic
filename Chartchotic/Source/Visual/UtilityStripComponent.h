@@ -51,6 +51,9 @@ namespace UtilityColours
     inline const juce::Colour border       = juce::Colour(0xFF303036);
     inline const juce::Colour chunkLine    = juce::Colour(0xFF3A3A42);
     inline const juce::Colour chunkLineBig = juce::Colour(0xFF56565F);
+    // Below a bar. A clear step under the bar line it sits inside, because a subdivision
+    // drawn at the same weight as a bar line loses you the bars altogether.
+    inline const juce::Colour subBarLine   = juce::Colour(0xFF26262C);
     // Structure stays neutral like the neck; the section label is the one accent.
     inline const juce::Colour sectionLine  = juce::Colour(0xFF6E8FB5);
     // Faint on purpose: the band sits under the note map, so anything heavier reads as a
@@ -386,7 +389,8 @@ private:
     double snappedBarQN(int y, const View& v) const;
     double barLineAtOrBefore(double qn) const;
     double chunkLineAtOrBefore(double qn, const View& v) const;
-    int visibleChunk(const View& v) const;
+    // The grid step in bars at this zoom. Below 1 it is a subdivision of a bar.
+    double visibleChunk(const View& v) const;
     // Everywhere shift+scroll will stop, sorted and deduped. Chart edges, section edges, and
     // out past the charts, the scraps of MIDI that sit on their own.
     std::vector<double> snapPoints() const;

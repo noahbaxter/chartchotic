@@ -26,15 +26,14 @@ namespace
 
     // Lines are drawn per chunk, not per bar. A bar line every bar is a grey wash at any
     // useful zoom; 4 or 8 bars reads as a ruler. The chunk grows until it has room.
+    //
+    // It shrinks below a bar too, once there is room for that. Snapping follows whatever is
+    // drawn, so this is also what decides the finest position the strip can place a section
+    // at: floored at one bar, a section on beat 3 was simply not expressible.
     constexpr float CHUNK_MIN_GAP_PX = 26.0f;
 
-    int chunkBars(double pxPerBar)
-    {
-        for (int chunk : { 1, 2, 4, 8, 16, 32, 64 })
-            if (chunk * pxPerBar >= CHUNK_MIN_GAP_PX)
-                return chunk;
-        return 128;
-    }
+    double chunkStepBars(double pxPerBar)
+    { return StripViewMath::gridStepBars(pxPerBar, CHUNK_MIN_GAP_PX); }
 
     MouseButton buttonOf(const juce::MouseEvent& e)
     {
@@ -262,18 +261,32 @@ double UtilityStripComponent::barLineAtOrBefore(double qn) const
 
 // How many bars a drawn grid line is worth at this zoom. Snapping and the ruler read the
 // same number, so you can only ever land on a line you can see.
-int UtilityStripComponent::visibleChunk(const View& v) const
+double UtilityStripComponent::visibleChunk(const View& v) const
 {
     double len = barLengthQN(tempoMap, v.startQN);
     double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
-    return chunkBars(pxPerBar);
+    return chunkStepBars(pxPerBar);
 }
 
 // Walked from zero like every other grid question here, because chunk lines are counted in
 // measures from the section they are in, not in QN from the origin.
 double UtilityStripComponent::chunkLineAtOrBefore(double qn, const View& v) const
 {
-    int chunk = visibleChunk(v);
+    double step = visibleChunk(v);
+
+    // Below a bar the answer is inside the bar `qn` falls in, so there is nothing to walk:
+    // subdivisions are counted from that bar's own start, which keeps them right across a
+    // meter change instead of drifting from the origin.
+    if (step < 1.0)
+    {
+        double barStart = barLineAtOrBefore(qn);
+        double sub = std::max(0.25, barLengthQN(tempoMap, barStart)) * step;
+        double past = std::floor((qn - barStart) / sub + 1.0e-9);
+
+        return barStart + std::max(0.0, past) * sub;
+    }
+
+    int chunk = (int)step;
     double cur = 0.0;
     double best = 0.0;
 
@@ -332,15 +345,16 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
 
 void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) const
 {
-    int chunk = visibleChunk(v);
+    double step = visibleChunk(v);
 
     const float w = (float)getWidth();
+    const float top = (float)trackTop();
+    const float bottom = top + (float)trackHeight();
 
     for (double qn = barLineAtOrBefore(std::max(0.0, v.startQN)); qn <= v.endQN;
          qn += std::max(0.25, barLengthQN(tempoMap, qn)))
     {
         float y = (float)yForQN(qn, v);
-        if (y < (float)trackTop() || y > (float)(trackTop() + trackHeight())) continue;
 
         int measure = tempoMap ? TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(qn), *tempoMap)
                                : (int)(qn / 4.0) + 1;
@@ -348,10 +362,32 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
         // Counted from the section that contains this bar, so the 4/8/16 groupings land on
         // musical boundaries instead of wherever bar 1 happened to put them.
         int barsIn = measure - sectionStartMeasure(qn);
-        if (barsIn % chunk != 0) continue;
+
+        // Subdivisions go down first and dimmer, so the bar they belong to still reads as the
+        // stronger line. Without that separation the eye loses where the bars are entirely.
+        if (step < 1.0)
+        {
+            double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
+            int divs = (int)std::lround(1.0 / step);
+
+            g.setColour(UtilityColours::subBarLine);
+            for (int i = 1; i < divs; ++i)
+            {
+                float sy = (float)yForQN(qn + barLen * (double)i / (double)divs, v);
+                if (sy < top || sy > bottom) continue;
+
+                g.fillRect(0.0f, sy, w, 1.0f);
+            }
+        }
+        else if (barsIn % (int)step != 0) continue;
+
+        if (y < top || y > bottom) continue;
 
         // Every fourth chunk is heavier, so the eye can count groups without reading numbers.
-        bool major = (barsIn / chunk) % 4 == 0;
+        // Below a bar the bar itself is that grouping, so every fourth bar takes the weight.
+        int group = step < 1.0 ? barsIn : barsIn / (int)step;
+        bool major = group % 4 == 0;
+
         g.setColour(major ? UtilityColours::chunkLineBig : UtilityColours::chunkLine);
         g.fillRect(0.0f, y, w, major ? 2.0f : 1.0f);
     }
