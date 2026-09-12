@@ -9,6 +9,7 @@
 
 #include "ReaperMidiWriter.h"
 #include "ReaperApiHelpers.h"
+#include "../../Utils/GridMath.h"
 
 #include <algorithm>
 
@@ -531,4 +532,32 @@ bool ReaperMidiWriter::setSections(const std::vector<SectionInfo>& sections)
 
     endUndoBlock(project, "Chartchotic: Edit sections");
     return true;
+}
+
+bool ReaperMidiWriter::setSongName(double startQN, const std::string& name)
+{
+    juce::ScopedLock lock(writeLock);
+
+    if (!apis.GetSetMediaItemTakeInfo_String) return false;
+
+    void* project = ReaperApiHelpers::getProject(getReaperApi);
+    if (!project) return false;
+
+    for (const auto& et : eventsTakes(project))
+    {
+        if (!GridMath::same(et.startQN, startQN)) continue;
+
+        // REAPER takes a mutable buffer even when reading, so the name cannot be passed
+        // straight through as a const string.
+        std::vector<char> buf(name.begin(), name.end());
+        buf.push_back('\0');
+
+        if (!apis.GetSetMediaItemTakeInfo_String(et.take, "P_NAME", buf.data(), true))
+            return false;
+
+        endUndoBlock(project, "Chartchotic: Rename song");
+        return true;
+    }
+
+    return false;
 }

@@ -53,6 +53,15 @@ public:
     virtual bool setSections(const std::vector<SectionInfo>&) { return false; }
 
     /**
+        Names the EVENTS item starting at `startQN`, which is what a song is.
+
+        Matched on the item's own start rather than on what covers the position: songs are
+        allowed to overlap, so an album item spanning the per-song items covers every one of
+        their starts and would otherwise swallow the rename.
+    */
+    virtual bool setSongName(double, const std::string&) { return false; }
+
+    /**
         Adds a text event at the start of a track's first item unless an
         identical one is already there. Used for chart-level switches like
         [ENABLE_CHART_DYNAMICS], which have to exist for the data already in

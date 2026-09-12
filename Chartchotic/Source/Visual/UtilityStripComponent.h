@@ -175,6 +175,9 @@ public:
 
     std::function<void(double startQN, double endQN)> onTimeSelection;
 
+    // Naming a song names its EVENTS item, addressed by where the item starts.
+    std::function<void(double startQN, const juce::String& name)> onSongRenamed;
+
     void setWriteMode(bool on)
     {
         if (writeMode == on) return;
@@ -272,6 +275,30 @@ private:
     // clicking and section stepping alike rather than only one of them.
     double clampSeek(double qn) const;
 
+    // Session, zoomed all the way out, with songs to show. The strip stops being a view of
+    // one chart's sections and becomes a map of the project's charts.
+    bool songOverview() const
+    { return selectedSong() == nullptr && barsVisible() == 0 && songs != nullptr && songs->size() > 0; }
+
+    // One column per song, and a song takes the first column it does not collide in. An
+    // album item spanning the per-song items lands beside them rather than on top of them.
+    std::vector<int> songLanes(int& laneCount) const;
+    std::vector<juce::Rectangle<int>> songChunkBounds(const View& v) const;
+    int songChunkAt(juce::Point<int> p) const;
+
+    // The chunk's top strip renames it, the rest of it jumps into it. Same split as a
+    // section's name plate against its row.
+    int songNameAt(juce::Point<int> p) const;
+    void drawSongChunks(juce::Graphics& g, const View& v) const;
+    void beginSongRename(int index);
+
+    static constexpr int SONG_CHUNK_INSET = 5;
+
+    // Measured and drawn through the same call, or a plate sized with one font and filled
+    // with another ellipsises names that would have fit.
+    static juce::Font sectionLabelFont()
+    { return juce::Font(juce::FontOptions(16.0f, juce::Font::bold)); }
+
     // The song confining the view, or nullptr on Session.
     const SongList::Song* selectedSong() const
     {
@@ -363,8 +390,14 @@ private:
     double dragMoveDeltaQN = 0.0;
     StripCommand dragCommand = StripCommand::None;
 
+    // One editor for both, because only one thing is ever being renamed and the two commit
+    // to completely different places.
+    enum class RenameTarget { Section, Song };
+
     std::unique_ptr<juce::TextEditor> renameEditor;
     int renameIndex = -1;
+    RenameTarget renameTarget = RenameTarget::Section;
+    int hoverSongChunk = -1;
 
     StripMode stripMode() const { return writeMode ? StripMode::Write : StripMode::Play; }
     bool isSelected(int index) const
