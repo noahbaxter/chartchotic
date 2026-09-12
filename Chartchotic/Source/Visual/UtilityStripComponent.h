@@ -8,9 +8,10 @@
         gem on a lane: sections, [coda], and (later) star power, solo and fill.
 
         Zoom runs from 8 bars up to the whole song, then out to the session: every
-        chart on the timeline, drawn as a block each. It follows the playhead and is
-        where song structure is read, so bar lines are drawn in chunks rather than
-        per bar: a line every bar is a wash, a line every 4 or 8 is a ruler.
+        chart on the timeline, drawn as a block each. The view scrolls on its own and
+        only follows the playhead during playback, which is where song structure is
+        read, so bar lines are drawn in chunks rather than per bar: a line every bar
+        is a wash, a line every 4 or 8 is a ruler.
 
         Design: docs/superpowers/specs/2026-09-10-utility-strip-design.md
 
@@ -77,7 +78,22 @@ public:
 
     void setSections(const SongSections* s)          { sections = s; }
     void setTempoMap(const TempoTimeSignatureMap* m) { tempoMap = m; }
-    void setPlayhead(PPQ ppq)                        { playheadPPQ = ppq; }
+    void setPlayhead(PPQ ppq)
+    {
+        playheadPPQ = ppq;
+        if (playing && followOn() && followEngaged) centreViewOn(ppq.toDouble());
+    }
+
+    // Pressing play re-arms follow. Scrolling during playback switches it off until then,
+    // which is how every DAW handles someone reading ahead while the transport runs: it
+    // stops chasing, and it starts again when you next ask for playback rather than making
+    // you go and re-tick anything.
+    void setPlaying(bool nowPlaying)
+    {
+        if (playing == nowPlaying) return;
+        playing = nowPlaying;
+        if (playing) followEngaged = true;
+    }
 
     // Whole-song notes for the focused part, drawn as a density map rather than a chart.
     // One per visible highway. The map splits its width between them, so a single
@@ -181,7 +197,6 @@ public:
 private:
     void clearHover();
 
-    static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
     // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
     // 16px step), so the strip scrolls at the speed everything else in the OS does.
     static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
@@ -199,8 +214,11 @@ private:
     static constexpr int FILTER_HEADER_H = 20;
 
     struct Filter { const char* label; bool on; };
-    // Sections are the reason the strip exists, so they are on and stay first.
-    Filter filters[3] = { { "sections", true }, { "notes", false }, { "measures", true } };
+    // Sections are the reason the strip exists, so they are on and stay first. Follow is a
+    // behaviour rather than something drawn, but this block is the strip's only switch panel
+    // and a toggle nobody can find is a toggle nobody turns off.
+    Filter filters[4] = { { "sections", true }, { "notes", false },
+                          { "measures", true }, { "follow", true } };
     bool filtersExpanded = false;
 
     bool filterOn(int i) const { return filters[i].on; }
@@ -220,6 +238,15 @@ private:
 
     // Moves the view, never the playhead, and stops at the edges of the song it is in.
     void scrollViewBy(double deltaQN);
+
+    // Puts `qn` at the follow position, or as near as the song's edges allow: at the start
+    // and end of a chart the view runs out of room, so the playhead travels from the bottom
+    // up to the middle and from the middle up to the top rather than the view scrolling
+    // past the chart to keep it centred.
+    void centreViewOn(double qn);
+
+    // Mid screen, so there is as much chart coming as gone.
+    static constexpr double FOLLOW_POSITION = 0.5;
 
     int trackTop() const { return filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
@@ -354,6 +381,13 @@ private:
     // did not ask to be, and the playhead is free to run off the top while you read
     // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
     double viewStartQN = 0.0;
+
+    bool playing = false;
+    // Follow is the user's setting; engaged is whether it is currently acting. Scrolling
+    // during playback drops the latch without touching the setting, and pressing play sets
+    // it again.
+    bool followEngaged = true;
+    bool followOn() const { return filterOn(3); }
 
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };

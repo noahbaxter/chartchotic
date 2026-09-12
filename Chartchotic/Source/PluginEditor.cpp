@@ -457,6 +457,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
         utilityStrip.setNoteSources(std::move(sources));
 
         utilityStrip.setWriteMode(interactionController.writeModeActive());
+        utilityStrip.setPlaying(audioProcessor.isPlaying);
         utilityStrip.setPlayhead(lastKnownPosition);
         utilityStrip.repaint();
     }
