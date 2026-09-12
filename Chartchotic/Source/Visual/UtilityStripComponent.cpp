@@ -129,8 +129,13 @@ void UtilityStripComponent::stepZoom(int direction)
     repaint();
 }
 
-void UtilityStripComponent::scrollViewBy(double deltaQN)
+// Answers whether the view actually moved, which is what says a scroll counted as one.
+bool UtilityStripComponent::scrollViewBy(double deltaQN)
 {
+    // The song and session rungs are fixed spans: there is nothing to scroll, so a wheel
+    // notch there is not a scroll, it is a wheel notch against a wall.
+    if (zoom <= 0) return false;
+
     auto v = visibleRange();
     double span = v.endQN - v.startQN;
     double start = v.startQN + deltaQN;
@@ -141,9 +146,12 @@ void UtilityStripComponent::scrollViewBy(double deltaQN)
     else
         start = std::max(0.0, start);
 
-    if (start == viewStartQN) return;
+    // Already hard against the start or the end of the chart, so the wheel changed nothing.
+    if (start == viewStartQN) return false;
+
     viewStartQN = start;
     repaint();
+    return true;
 }
 
 void UtilityStripComponent::centreViewOn(double qn)
@@ -161,6 +169,7 @@ void UtilityStripComponent::centreViewOn(double qn)
         start = std::max(0.0, start);
 
     if (start == viewStartQN) return;
+
     viewStartQN = start;
     repaint();
 }
@@ -883,14 +892,25 @@ void UtilityStripComponent::drawFilters(juce::Graphics& g) const
         auto seg = filterButtonBounds(i).reduced(FILTER_GAP, FILTER_GAP);
         bool on = filters[i].on;
 
-        g.setColour(on ? UtilityColours::sectionBandCurrent : UtilityColours::background);
+        // Follow has three states rather than two: off, on and driving the view, and on but
+        // taken out of gear by a scroll. The third needs its own colour, or a view that has
+        // quietly stopped tracking looks exactly like one that is tracking.
+        bool held = on && i == FILTER_FOLLOW && !followEngaged;
+
+        g.setColour(held ? UtilityColours::followHeldFill
+                         : on ? UtilityColours::sectionBandCurrent
+                              : UtilityColours::background);
         g.fillRect(seg);
-        g.setColour(on ? UtilityColours::sectionLine : UtilityColours::chunkLine);
+        g.setColour(held ? UtilityColours::followHeldLine
+                         : on ? UtilityColours::sectionLine
+                              : UtilityColours::chunkLine);
         g.drawRect(seg, 1);
 
         // Fitted rather than plain: at four across a 200px strip "measures" is wider than
         // its segment, and a shrunk word reads where a clipped one does not.
-        g.setColour(on ? UtilityColours::uiText : UtilityColours::label);
+        g.setColour(held ? UtilityColours::followHeldText
+                         : on ? UtilityColours::uiText
+                              : UtilityColours::label);
         g.drawFittedText(filters[i].label, seg.reduced(3, 0),
                          juce::Justification::centred, 1, 0.7f);
     }
@@ -1041,12 +1061,13 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
     // trackpad glides instead of clacking between bar lines. Snapping lives where it is
     // aimed, on hover and on click. The playhead does not come along.
-    followEngaged = false;
-
+    //
+    // Only a scroll that moved something takes follow out of gear. Spinning the wheel on a
+    // fixed-span view, or against the end of a chart, is not you asking to read elsewhere.
     auto v = visibleRange();
     double qnPerPx = (v.endQN - v.startQN) / trackHeight();
 
-    scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx);
+    if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx)) followEngaged = false;
 }
 
 // The next section line from the playhead in `direction`, or where we already are when
@@ -1358,7 +1379,22 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
     for (int i = 0; i < (int)std::size(filters); ++i)
         if (filterButtonBounds(i).contains(p))
         {
+            // Yellow means follow is on but a scroll took it out of gear. Clicking there
+            // obviously means start following again, so it re-engages rather than switching
+            // follow off and making you click twice to get back to where you were.
+            if (i == FILTER_FOLLOW && filters[i].on && !followEngaged)
+            {
+                followEngaged = true;
+                repaint();
+                return;
+            }
+
             filters[i].on = !filters[i].on;
+
+            // Switching follow back on puts it in gear too, so it never reads on while
+            // doing nothing.
+            if (i == FILTER_FOLLOW && filters[i].on) followEngaged = true;
+
             repaint();
             return;
         }
