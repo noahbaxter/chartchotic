@@ -21,6 +21,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <optional>
 #include "../Midi/SongSections.h"
 #include "../Midi/SongList.h"
 #include "../Midi/Utils/TimeConverter.h"   // defines TempoTimeSignatureMap, which the helper assumes
@@ -88,11 +89,15 @@ public:
     {
         playheadPPQ = ppq;
 
-        // Playing off the end of a chart leaves nothing to be confined to, and every rung
-        // below session is a view of one song. Dropping to session is what zooming out would
-        // do anyway, and it beats holding a song rung with no song to show.
-        if (zoom != ZOOM_SESSION && hasSongs() && songAtPlayhead() == nullptr)
-            zoom = ZOOM_SESSION;
+        // Playing out of the chart on screen leaves the strip showing somewhere the music no
+        // longer is, so it drops to session, which is what zooming out would do anyway. Only
+        // while the transport runs: with it stopped, a chart the cursor is not in is one you
+        // are reading, not one you have left.
+        if (playing && zoom != ZOOM_SESSION && hasSongs())
+        {
+            const auto* inside = confiningSong();
+            if (inside == nullptr || songAtPlayhead() != inside) zoom = ZOOM_SESSION;
+        }
 
         if (playing && followOn() && followEngaged) centreViewOn(ppq.toDouble());
     }
@@ -132,11 +137,13 @@ public:
     // none, or when the strip's own sections filter is off.
     juce::String currentSectionName() const;
 
-    // The chart the playhead is in, for the banner over the highway. Empty only in the gap
-    // between two charts, where there is genuinely no chart to name.
+    // The chart on screen, for the banner over the highway, falling back to the playhead's
+    // in the session view. Empty only in the gap between two charts.
     juce::String currentSongName() const
     {
-        const auto* song = songAtPlayhead();
+        const auto* song = confiningSong();
+        if (song == nullptr) song = songAtPlayhead();
+
         return song != nullptr ? song->name : juce::String();
     }
 
@@ -169,9 +176,9 @@ public:
         setZoom(zoom == ZOOM_SESSION ? DEFAULT_ZOOM_BARS : ZOOM_SESSION);
     }
 
-    // Zooming keeps the moment under the pointer where it is, the way a map does. The strip
-    // has no scroll offset of its own, so holding that point still means moving the
-    // playhead, which is the same thing scrolling the strip already does.
+    // Zooming keeps the moment under the pointer where it is, the way a map does, by moving
+    // the view rather than the playhead. Entering a chart from the session view is the one
+    // exception, since which chart the strip is in is read off the playhead.
     void zoomAbout(int y, int direction);
 
     // Scrolling the map seeks, freely: the wheel's travel scaled by the visible span, so
@@ -345,13 +352,36 @@ private:
 
     const SongList::Song* songAtPlayhead() const { return songAt(playheadPPQ.toDouble()); }
 
+    // The chart you stepped into, held rather than read back off the playhead so that
+    // entering one is looking at it rather than moving the cursor into it. Ignored in the
+    // session view, which is not inside anything, so leaving never has to clear it.
+    const SongList::Song* enteredSong() const
+    {
+        if (zoom == ZOOM_SESSION || !enteredSongStartQN.has_value() || songs == nullptr)
+            return nullptr;
+
+        return songs->startingAt(*enteredSongStartQN);
+    }
+
+    void enterSong(const SongList::Song* song)
+    {
+        enteredSongStartQN = song != nullptr ? std::optional<double>(song->startQN)
+                                             : std::nullopt;
+    }
+
     // A project with no EVENTS items at all is a different thing from a position between
     // two charts: there is nothing to confine to anywhere, rather than just not here.
     bool hasSongs() const { return songs != nullptr && songs->size() > 0; }
 
-    // Confined to one chart at every zoom but the session view.
+    // Confined to one chart at every zoom but the session view: the one you entered, or the
+    // playhead's when you arrived by zooming in rather than by aiming at a chart.
     const SongList::Song* confiningSong() const
-    { return zoom == ZOOM_SESSION ? nullptr : songAtPlayhead(); }
+    {
+        if (zoom == ZOOM_SESSION) return nullptr;
+
+        const auto* entered = enteredSong();
+        return entered != nullptr ? entered : songAtPlayhead();
+    }
 
     static constexpr int MAX_BARS_WALKED = 100000;
 
@@ -427,6 +457,10 @@ private:
     // did not ask to be, and the playhead is free to run off the top while you read
     // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
     double viewStartQN = 0.0;
+
+    // Set by entering a chart, read through enteredSong(). Nothing clears it: the session
+    // view ignores it, and entering anywhere else overwrites it.
+    std::optional<double> enteredSongStartQN;
 
     bool playing = false;
     // Follow is the user's setting; engaged is whether it is currently acting. Scrolling

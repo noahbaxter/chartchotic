@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "Providers/TrackNoteProvider.h"   // defines ClipSpan
 #include "../UI/ControlConstants.h"        // defines trackNameFor
+#include "Utils/GridMath.h"
 #include <algorithm>
 
 /**
@@ -71,6 +72,16 @@ public:
     const Song* at(int index) const
     {
         return index >= 0 && index < (int)songs.size() ? &songs[(size_t)index] : nullptr;
+    }
+
+    // The song beginning at `qn`. Start is the handle a song keeps across the re-parse an
+    // edit triggers, where an index shifts and a pointer dangles.
+    const Song* startingAt(double qn) const
+    {
+        for (const auto& song : songs)
+            if (GridMath::same(song.startQN, qn)) return &song;
+
+        return nullptr;
     }
 
     // Slide `[start, end]` so it sits inside the song, keeping its length. Shifted rather

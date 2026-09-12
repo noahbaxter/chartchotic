@@ -88,7 +88,12 @@ namespace
 // chart is the song view with extra steps to get there.
 std::vector<int> UtilityStripComponent::availableZooms() const
 {
-    if (const auto* song = songAtPlayhead()) return availableZoomsFor(song);
+    // The chart on screen when there is one, and otherwise the playhead's, which is what the
+    // session view has to offer a way back into.
+    const auto* inside = enteredSong();
+    if (inside == nullptr) inside = songAtPlayhead();
+
+    if (inside != nullptr) return availableZoomsFor(inside);
 
     // No EVENTS items anywhere, so nothing confines anything: every bar step is available
     // and session means the whole project. The song rung has no song to be.
@@ -144,12 +149,27 @@ void UtilityStripComponent::stepZoom(int direction)
     int index = (int)std::distance(steps.begin(), at) + direction;
     if (index < 0 || index >= (int)steps.size()) return;
 
+    auto before = visibleRange();
+    int wasZoom = zoom;
     zoom = steps[(size_t)index];
+
+    // Stepping in off the session view enters the playhead's chart, the same one aiming a
+    // zoom at it would, so the button and the wheel do not disagree about where you are.
+    if (wasZoom == ZOOM_SESSION && zoom != ZOOM_SESSION) enterSong(songAtPlayhead());
 
     // Arriving at a bar rung from a fixed-span one, the scroll offset is whatever it was
     // last time, which may be nowhere near. Frame the playhead, which is the one position
-    // the view can assume you care about when you did not aim at anything.
-    if (zoom > 0) centreViewOn(playheadPPQ.toDouble());
+    // the view can assume you care about when you did not aim at anything, unless it is in
+    // a different chart from the one on screen: then hold what you were already looking at
+    // rather than slamming to the edge nearest the cursor.
+    if (zoom > 0)
+    {
+        const auto* inside = confiningSong();
+        bool playheadShown = inside == nullptr || songAtPlayhead() == inside;
+
+        centreViewOn(playheadShown ? playheadPPQ.toDouble()
+                                   : (before.startQN + before.endQN) * 0.5);
+    }
 
     repaint();
 }
@@ -215,25 +235,23 @@ void UtilityStripComponent::zoomAbout(int y, int direction)
     double anchorQN = qnForY(y, before);
     double fromBottom = (trackTop() + trackHeight() - y) / (double)trackHeight();
 
-    // Zooming in from the session view enters the chart under the pointer, at the moment
-    // under the pointer: you aimed at a block, so that is the one you land in, and where in
-    // it you were pointing is where you arrive. The playhead's own chart does not get a say.
+    // Zooming in from the session view enters the chart the playhead is in. The pointer
+    // picks which moment to frame everywhere else, but which chart you are working on is
+    // the one the cursor is already sitting in, whatever the pointer happens to be over.
     if (zoom == ZOOM_SESSION && direction < 0)
     {
-        const auto* target = songAt(anchorQN);
-        if (target == nullptr) return;   // pointing at a gap, so there is nothing to enter
+        const auto* target = songAtPlayhead();
+        if (target == nullptr) return;   // cursor in a gap, so there is nothing to enter
 
-        if (onSeekTo) onSeekTo(anchorQN);
+        enterSong(target);
         setZoom(ZOOM_SONG, target);
         return;
     }
 
     stepZoom(direction);
 
-    // Zooming in is aiming: the point you closed in on becomes the one you are working at,
-    // so the playhead lands there. Zooming out is only widening what you can see, so it
-    // moves nothing.
-    if (direction < 0 && onSeekTo) onSeekTo(clampSeek(anchorQN));
+    // Zooming is looking, in both directions: the point you closed in on decides what the
+    // view frames, not where the cursor goes. Moving the playhead is what clicking is for.
 
     // The song and session views are fixed spans with nothing to slide.
     if (zoom <= 0) return;
@@ -1091,6 +1109,44 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     double delta = wheel.deltaY != 0.0f ? wheel.deltaY : wheel.deltaX;
     if (delta == 0.0) return;
 
+    int zoomBefore = zoom;
+    double viewBefore = viewStartQN;
+
+    if (e.mods.isCommandDown())
+    {
+        zoomAbout(e.getPosition().y, delta > 0.0 ? -1 : 1);
+    }
+    // Shift skips structure: one notch, one section, which is the jump you actually want
+    // when reading a chart rather than scrubbing through it. The one wheel gesture that
+    // moves the playhead, and it brings the view with it rather than leaving you to find
+    // where it went.
+    //
+    // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
+    // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
+    else if (e.mods.isShiftDown())
+    {
+        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
+        if (onSeekTo) onSeekTo(target);
+        centreViewOn(target);
+    }
+    // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
+    // trackpad glides instead of clacking between bar lines. Snapping lives where it is
+    // aimed, on hover and on click. The playhead does not come along.
+    //
+    // Only a scroll that moved something takes follow out of gear. Spinning the wheel on a
+    // fixed-span view, or against the end of a chart, is not you asking to read elsewhere.
+    else
+    {
+        auto v = visibleRange();
+        double qnPerPx = (v.endQN - v.startQN) / trackHeight();
+
+        if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx)) followEngaged = false;
+    }
+
+    // A notch that moved nothing moved nothing under the pointer either, so the hover it is
+    // already showing is still aimed at what it says. Same test the follow latch uses.
+    if (zoom == zoomBefore && viewStartQN == viewBefore) return;
+
     // The pointer has not moved, but everything under it has. Keeping the hover where the
     // cursor happens to sit means the highlight jumps between sections as they slide past,
     // which reads as the strip flickering rather than scrolling.
@@ -1101,38 +1157,6 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     hoverHeldFrom = e.getPosition();
     hoverHeld = true;
     clearHover();
-
-    if (e.mods.isCommandDown())
-    {
-        zoomAbout(e.getPosition().y, delta > 0.0 ? -1 : 1);
-        return;
-    }
-
-    // Shift skips structure: one notch, one section, which is the jump you actually want
-    // when reading a chart rather than scrubbing through it. The one wheel gesture that
-    // moves the playhead, and it brings the view with it rather than leaving you to find
-    // where it went.
-    //
-    // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
-    // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
-    if (e.mods.isShiftDown())
-    {
-        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
-        if (onSeekTo) onSeekTo(target);
-        centreViewOn(target);
-        return;
-    }
-
-    // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
-    // trackpad glides instead of clacking between bar lines. Snapping lives where it is
-    // aimed, on hover and on click. The playhead does not come along.
-    //
-    // Only a scroll that moved something takes follow out of gear. Spinning the wheel on a
-    // fixed-span view, or against the end of a chart, is not you asking to read elsewhere.
-    auto v = visibleRange();
-    double qnPerPx = (v.endQN - v.startQN) / trackHeight();
-
-    if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx)) followEngaged = false;
 }
 
 // The next section line from the playhead in `direction`, or where we already are when
@@ -1543,9 +1567,9 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
 {
     if (!inTrackArea(e.getPosition())) return;
 
-    // Opening a song means landing the playhead in it and stepping in, since which song you
-    // are in follows the playhead. The name is not part of the target: double clicking there
-    // is two renames, not a way in.
+    // Opening a song lands the playhead at its start, because a click is the gesture that
+    // moves the cursor. The name is not part of the target: double clicking there is two
+    // renames, not a way in.
     if (songOverview() && songNameAt(e.getPosition()) < 0)
     {
         int chunk = songChunkAt(e.getPosition());
@@ -1553,6 +1577,7 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
         if (song != nullptr)
         {
             if (onSeekTo) onSeekTo(song->startQN);
+            enterSong(song);
             setZoom(DEFAULT_ZOOM_BARS, song);
             return;
         }
