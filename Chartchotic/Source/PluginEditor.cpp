@@ -1083,13 +1083,18 @@ void ChartchoticAudioProcessorEditor::resized()
     // highways reflow around it rather than sitting under it.
     int stripW = utilityStripVisible ? utilityStripWidth : 0;
     utilityStrip.setVisible(utilityStripVisible);
+
+    // The sub-toolbar starts where the strip ends, so turning write mode on no longer
+    // shortens the strip to make room for a row it does not overlap anyway.
+    toolbar.setSubToolbarLeftInset(stripW);
+
     if (utilityStripVisible)
     {
-        // Inset from the window edge and the toolbar so the strip reads as a panel rather
-        // than as part of the chrome it sits against.
-        utilityStrip.setBounds(utilityStripMargin, tbHeight + utilityStripMargin,
+        // Hung off the top row alone rather than the whole toolbar: the sub-toolbar sits
+        // beside the strip now, so counting its height here would give back the squish.
+        utilityStrip.setBounds(utilityStripMargin, tbStripHeight + utilityStripMargin,
                                stripW - utilityStripMargin * 2,
-                               getHeight() - tbHeight - footerH - utilityStripMargin * 2);
+                               getHeight() - tbStripHeight - footerH - utilityStripMargin * 2);
         utilityStrip.toFront(false);
     }
 
