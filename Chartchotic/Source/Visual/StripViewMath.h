@@ -147,48 +147,38 @@ inline std::vector<double> mergedPoints(std::vector<double> points, double toler
     return out;
 }
 
-// Friction at a chart edge.
+// Friction when leaving something you are inside.
 //
-// Pressure rather than a count. Travel that would carry the view out of the chart it sits in
-// is held at the edge and banked; only once enough has banked does the view cross. Resting
-// zeroes the bank, so from a standstill it always takes the same two quick notches to get
-// out, and a lone notch after a pause re-arms the edge instead of springing through it. A
-// "you already tried once" flag would be the opposite: state you can walk away from and be
+// Resting zeroes the bank, so from a standstill it always takes the same two quick notches
+// to get out, and a lone notch after a pause re-arms instead of springing through. A "you
+// already tried once" flag would be the opposite: state you can walk away from and be
 // surprised by ten seconds later.
-struct BoundaryDetent
+struct Detent
 {
-    double pushQN = 0.0;
-    double heldEdgeQN = 0.0;
-    long long lastPushMs = 0;
+    double push = 0.0;
+    double heldStop = 0.0;
+    long long lastMs = 0;
 
-    // `songStartQN`/`songEndQN` are the chart the view is currently sitting in. Answers the
-    // start the view should actually take.
-    double resolve(double wantStartQN, double spanQN,
-                   double songStartQN, double songEndQN,
-                   long long nowMs, int resetMs, double thresholdSpan)
+    void clear() { push = 0.0; }
+
+    // Counted rather than measured. A snap step is one notch whatever distance it covers, so
+    // banking the distance would clear any threshold instantly across a wide gap: what has to
+    // be counted is how many times you asked, not how far the ask was.
+    double resolveCounted(double want, double stop, int notches,
+                          long long nowMs, int resetMs)
     {
-        if (nowMs - lastPushMs > resetMs) pushQN = 0.0;
-        lastPushMs = nowMs;
+        if (nowMs - lastMs > resetMs) push = 0.0;
+        lastMs = nowMs;
 
-        // Wider than the chart already, so the view straddles both edges no matter what and
-        // a detent would only be friction against nothing.
-        if (spanQN >= songEndQN - songStartQN) return wantStartQN;
+        if (std::abs(stop - heldStop) > 1.0e-9) { heldStop = stop; push = 0.0; }
 
-        double edge = 0.0;
-        if (wantStartQN < songStartQN)             edge = songStartQN;
-        else if (wantStartQN + spanQN > songEndQN) edge = songEndQN - spanQN;
-        else { pushQN = 0.0; return wantStartQN; }
+        push += 1.0;
+        if (push < (double)notches) return stop;
 
-        // A different edge from the one being leaned on means the bank belongs somewhere
-        // else, so it starts again here rather than carrying over and firing instantly.
-        if (std::abs(edge - heldEdgeQN) > 1.0e-9) { heldEdgeQN = edge; pushQN = 0.0; }
-
-        pushQN += std::abs(wantStartQN - edge);
-        if (pushQN < spanQN * thresholdSpan) return edge;
-
-        pushQN = 0.0;
-        return wantStartQN;
+        push = 0.0;
+        return want;
     }
+
 };
 
 }

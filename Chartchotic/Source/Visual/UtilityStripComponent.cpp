@@ -161,21 +161,8 @@ void UtilityStripComponent::gotoAdjacentChart(int direction)
 bool UtilityStripComponent::scrollViewBy(double deltaQN)
 {
     double before = viewStartQN;
-    setView(resistBoundary(viewStartQN + deltaQN), viewSpanQN);
+    setView(viewStartQN + deltaQN, viewSpanQN);
     return viewStartQN != before;
-}
-
-// Which chart the view is sitting in decides whether there is an edge to lean on at all.
-// Read off the middle of the view rather than its bottom, so a window already hanging over a
-// boundary is judged by the chart it is mostly showing.
-double UtilityStripComponent::resistBoundary(double wantStartQN)
-{
-    const auto* song = hasSongs() ? songAt(viewStartQN + viewSpanQN * 0.5) : nullptr;
-    if (song == nullptr) return wantStartQN;
-
-    return detent.resolve(wantStartQN, viewSpanQN, song->startQN, song->endQN,
-                          (long long)juce::Time::currentTimeMillis(),
-                          BOUNDARY_RESIST_RESET_MS, BOUNDARY_RESIST_SPAN);
 }
 
 void UtilityStripComponent::centreViewOn(double qn)
@@ -1116,16 +1103,17 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     {
         zoomAbout(e.getPosition().y, delta > 0.0 ? -1 : 1);
     }
-    // Shift skips structure: one notch, one section, which is the jump you actually want
-    // when reading a chart rather than scrubbing through it. The one wheel gesture that
-    // moves the playhead, and it brings the view with it rather than leaving you to find
-    // where it went.
+    // Shift skips structure: one notch, one moment worth stopping at, which is the jump you
+    // actually want when reading a chart rather than scrubbing through it. The one wheel
+    // gesture that moves the playhead, and it brings the view with it rather than leaving you
+    // to find where it went. Leaving the chart you are in takes a second notch, since that is
+    // the one jump that is easy to make by accident and annoying to undo.
     //
     // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
     // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
     else if (e.mods.isShiftDown())
     {
-        double target = clampSeek(snapStep(delta > 0.0 ? 1 : -1));
+        double target = clampSeek(resistChartCross(snapStep(delta > 0.0 ? 1 : -1)));
         if (onSeekTo) onSeekTo(target);
         centreViewOn(target);
     }
@@ -1235,6 +1223,38 @@ std::vector<double> UtilityStripComponent::snapPoints() const
     }
 
     return StripViewMath::mergedPoints(std::move(points), GridMath::TICK);
+}
+
+const SongList::Song* UtilityStripComponent::chartContaining(double qn) const
+{
+    if (songs == nullptr) return nullptr;
+
+    for (const auto& song : songs->getSongs())
+        if (qn >= song.startQN - GridMath::TICK && qn <= song.endQN + GridMath::TICK)
+            return &song;
+
+    return nullptr;
+}
+
+// Leaving a chart is the jump worth making you mean it. Held at the edge you are leaving by,
+// which is itself a snap point, so the first notch parks you on the boundary and the second
+// takes you off it. Resting re-arms, the same way every other detent here does, so a notch
+// after a pause never springs you into the next chart.
+double UtilityStripComponent::resistChartCross(double targetQN)
+{
+    double now = playheadPPQ.toDouble();
+    const auto* from = chartContaining(now);
+
+    // Not in a chart, so there is no edge of one to be held at. Wandering the empty timeline
+    // between charts is not a crossing.
+    if (from == nullptr) { crossDetent.clear(); return targetQN; }
+    if (chartContaining(targetQN) == from) { crossDetent.clear(); return targetQN; }
+
+    double edge = targetQN > now ? from->endQN : from->startQN;
+
+    return crossDetent.resolveCounted(targetQN, edge, CHART_CROSS_NOTCHES,
+                                      (long long)juce::Time::currentTimeMillis(),
+                                      CHART_CROSS_RESET_MS);
 }
 
 double UtilityStripComponent::snapStep(int direction) const

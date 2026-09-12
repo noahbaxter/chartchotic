@@ -9,12 +9,7 @@ namespace
     constexpr double PROJECT_END = 8000.0;
     constexpr double MIN_SPAN = 2.0;
 
-    // One chart sitting in the middle of the timeline, with room either side to scroll into.
-    constexpr double SONG_START = 1000.0;
-    constexpr double SONG_END = 1400.0;
-
     constexpr int RESET_MS = 400;
-    constexpr double THRESHOLD = 0.12;
 }
 
 //==============================================================================
@@ -236,108 +231,40 @@ TEST_CASE("StripViewMath - points merge only inside the tolerance", "[stripview]
 }
 
 //==============================================================================
-// BoundaryDetent
+// Detent::resolveCounted
 
 namespace
 {
-    // A view sitting inside the chart, small enough that the detent applies.
-    constexpr double SPAN = 100.0;
-
-    // Enough push to cross in one go: threshold is 0.12 of the span.
-    constexpr double HARD_PUSH = SPAN * THRESHOLD + 1.0;
-    constexpr double SOFT_PUSH = SPAN * THRESHOLD * 0.5;
-
-    double resolveAt(BoundaryDetent& d, double wantStart, long long nowMs)
-    {
-        return d.resolve(wantStart, SPAN, SONG_START, SONG_END, nowMs, RESET_MS, THRESHOLD);
-    }
+    constexpr double EDGE = 1400.0;    // the chart edge being left by
+    constexpr double BEYOND = 2000.0;  // the snap point on the far side of it
 }
 
-TEST_CASE("StripViewMath - scrolling inside a chart is never resisted", "[stripview]")
+// A snap step is one notch whatever distance it covers, so what gets counted is how many
+// times you asked. Banking the distance would clear any threshold instantly across a gap.
+TEST_CASE("StripViewMath - leaving a chart takes a second notch", "[stripview]")
 {
-    BoundaryDetent d;
+    Detent d;
 
-    REQUIRE(resolveAt(d, 1100.0, 0) == Catch::Approx(1100.0));
-    REQUIRE(resolveAt(d, 1200.0, 10) == Catch::Approx(1200.0));
+    REQUIRE(d.resolveCounted(BEYOND, EDGE, 2, 0, RESET_MS) == Catch::Approx(EDGE));
+    REQUIRE(d.resolveCounted(BEYOND, EDGE, 2, 50, RESET_MS) == Catch::Approx(BEYOND));
 }
 
-// The first notch out is held at the edge rather than doing nothing, so the view still moves
-// and lands somewhere meaningful: flush against the boundary.
-TEST_CASE("StripViewMath - the first notch past the end is held at the edge", "[stripview]")
+// Same rule as every other detent here: rest re-arms, so a lone notch after a pause parks you
+// on the edge again rather than springing you into the next chart.
+TEST_CASE("StripViewMath - a counted notch after a pause re-arms", "[stripview]")
 {
-    BoundaryDetent d;
-    double top = SONG_END - SPAN;
+    Detent d;
 
-    REQUIRE(resolveAt(d, top + SOFT_PUSH, 0) == Catch::Approx(top));
+    REQUIRE(d.resolveCounted(BEYOND, EDGE, 2, 0, RESET_MS) == Catch::Approx(EDGE));
+    REQUIRE(d.resolveCounted(BEYOND, EDGE, 2, RESET_MS + 1, RESET_MS) == Catch::Approx(EDGE));
+    REQUIRE(d.resolveCounted(BEYOND, EDGE, 2, RESET_MS + 40, RESET_MS) == Catch::Approx(BEYOND));
 }
 
-TEST_CASE("StripViewMath - a second notch soon after crosses", "[stripview]")
+// Turning round and leaving by the other edge is a fresh ask, not a continuation.
+TEST_CASE("StripViewMath - a counted bank does not carry to another edge", "[stripview]")
 {
-    BoundaryDetent d;
-    double top = SONG_END - SPAN;
+    Detent d;
 
-    REQUIRE(resolveAt(d, top + SOFT_PUSH, 0) == Catch::Approx(top));
-
-    double want = top + SOFT_PUSH;
-    REQUIRE(resolveAt(d, want, 50) == Catch::Approx(want));
-}
-
-// The case Noah called out: stop at the edge, walk away, come back. A lone notch must NOT
-// spring through, because the bank decayed while nothing was happening.
-TEST_CASE("StripViewMath - a notch after a pause re-arms instead of jumping", "[stripview]")
-{
-    BoundaryDetent d;
-    double top = SONG_END - SPAN;
-
-    REQUIRE(resolveAt(d, top + SOFT_PUSH, 0) == Catch::Approx(top));
-
-    // Long enough that the bank is gone.
-    REQUIRE(resolveAt(d, top + SOFT_PUSH, RESET_MS + 1) == Catch::Approx(top));
-
-    // And it still takes a prompt follow-up to get out, exactly as from a standstill.
-    double want = top + SOFT_PUSH;
-    REQUIRE(resolveAt(d, want, RESET_MS + 40) == Catch::Approx(want));
-}
-
-// A trackpad glide banks pressure fast, so the detent is barely felt rather than fought.
-TEST_CASE("StripViewMath - one hard shove crosses immediately", "[stripview]")
-{
-    BoundaryDetent d;
-    double top = SONG_END - SPAN;
-    double want = top + HARD_PUSH;
-
-    REQUIRE(resolveAt(d, want, 0) == Catch::Approx(want));
-}
-
-TEST_CASE("StripViewMath - the bottom edge resists the same way", "[stripview]")
-{
-    BoundaryDetent d;
-
-    REQUIRE(resolveAt(d, SONG_START - SOFT_PUSH, 0) == Catch::Approx(SONG_START));
-
-    double want = SONG_START - SOFT_PUSH;
-    REQUIRE(resolveAt(d, want, 50) == Catch::Approx(want));
-}
-
-// Pressure banked leaning on one edge must not fire you through the opposite one.
-TEST_CASE("StripViewMath - pressure does not carry across to the other edge", "[stripview]")
-{
-    BoundaryDetent d;
-    double top = SONG_END - SPAN;
-
-    REQUIRE(resolveAt(d, top + SOFT_PUSH, 0) == Catch::Approx(top));
-    REQUIRE(resolveAt(d, SONG_START - SOFT_PUSH, 20) == Catch::Approx(SONG_START));
-}
-
-// Zoomed wider than the chart, the view straddles both edges no matter where it sits, so a
-// detent would be friction against nothing.
-TEST_CASE("StripViewMath - a view wider than the chart is not resisted", "[stripview]")
-{
-    BoundaryDetent d;
-    double wide = (SONG_END - SONG_START) * 2.0;
-
-    double got = d.resolve(SONG_START - 50.0, wide, SONG_START, SONG_END,
-                           0, RESET_MS, THRESHOLD);
-
-    REQUIRE(got == Catch::Approx(SONG_START - 50.0));
+    REQUIRE(d.resolveCounted(BEYOND, EDGE, 2, 0, RESET_MS) == Catch::Approx(EDGE));
+    REQUIRE(d.resolveCounted(0.0, 1000.0, 2, 20, RESET_MS) == Catch::Approx(1000.0));
 }
