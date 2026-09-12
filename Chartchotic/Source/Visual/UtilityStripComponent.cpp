@@ -394,6 +394,11 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
 {
     if (hoverY < 0) return;
 
+    // Mid-move the section being dragged is already drawn at the bar it would land on, with
+    // its own line and number. Adding the cursor's own pair on top of it leaves you reading
+    // which of two markers a few pixels apart is the one you are placing.
+    if (dragActive && dragCommand == StripCommand::UpdateMove) return;
+
     // Over the frozen label, that section's own line and number stand in for this one.
     // Two numbers a few pixels apart, one for the bar under the cursor and one for the
     // section it would jump to, reads as a glitch rather than as two facts.
@@ -498,7 +503,7 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     if (sections == nullptr || index >= sections->getSections().size()) return {};
     const auto& list = sections->getSections();
     const auto& s = list[index];
-    float y = (float)yForQN(s.position.toDouble(), v);
+    float y = (float)yForQN(s.position.toDouble() + movePreviewQN(index), v);
 
     int plateW = std::min(getWidth() - LABEL_INSET_X * 2,
                           sectionLabelFont().getStringWidth(s.name) + LABEL_TEXT_PAD);
@@ -878,7 +883,10 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 
     for (size_t i = 0; i < list.size(); ++i)
     {
-        double qn = list[i].position.toDouble();
+        // Where it is drawn, which during a move drag is not where it is stored. Everything
+        // below works in preview space so the line, the name and the bar number travel as
+        // one object under the cursor.
+        double qn = list[i].position.toDouble() + movePreviewQN(i);
         double endQN = sectionEndQN(i, v);
         if (endQN < v.startQN || qn > v.endQN) continue;
 
@@ -895,16 +903,30 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         bool selected = isSelected((int)i);
         bool underCursor = GridMath::same(qn, hoverQN);
 
-        // A move drag previews by shifting the selected markers rather than committing.
-        if (selected && dragActive && dragCommand == StripCommand::UpdateMove)
-            y = (float)yForQN(qn + dragMoveDeltaQN, v);
+        // Editing on draws the grab target instead of implying it: this is the exact
+        // rectangle sectionHeaderAt hit-tests, so the thing you can drag is the thing you
+        // can see. The line stays thin on top of it, because the band says what you can
+        // grab and the line still has to say where the section actually starts.
+        if (sectionEditing())
+        {
+            auto row = sectionRowBounds(i, v);
+            if (!row.isEmpty())
+            {
+                g.setColour(selected      ? UtilityColours::sectionGrabSelected
+                            : underCursor ? UtilityColours::sectionGrabHover
+                                          : UtilityColours::sectionGrab);
+                g.fillRect(row);
+            }
+        }
 
         if (y >= top && y <= top + trackHeight())
         {
             g.setColour(selected     ? UtilityColours::selectedLine
                         : underCursor ? UtilityColours::hoverLine
                                       : UtilityColours::sectionLine);
-            g.fillRect(0.0f, y, w, selected ? 3.0f : 2.0f);
+
+            g.fillRect(0.0f, y, w, SECTION_LINE_H
+                                   + (selected ? SECTION_LINE_SELECTED_EXTRA : 0.0f));
         }
 
         if (!labelled) continue;
@@ -961,12 +983,40 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     }
 }
 
+// The mode row. Coloured apart from the layer toggles below it on purpose: one says what the
+// strip draws, the other what the mouse does to it, and confusing the two costs you a chart.
+void UtilityStripComponent::drawModes(juce::Graphics& g) const
+{
+    g.setColour(UtilityColours::background);
+    g.fillRect(0, 0, getWidth(), MODE_ROW_H);
+
+    g.setFont(Theme::getUIFont(FILTER_PT));
+
+    for (int i = 0; i < (int)std::size(MODES); ++i)
+    {
+        auto seg = modeButtonBounds(i).reduced(FILTER_GAP, FILTER_GAP);
+        bool on = editMode == MODES[i].mode;
+
+        g.setColour(on ? UtilityColours::modeActiveFill : UtilityColours::panelFill);
+        g.fillRect(seg);
+        g.setColour(on ? UtilityColours::modeActiveLine : UtilityColours::chunkLine);
+        g.drawRect(seg, 1);
+
+        g.setColour(on ? UtilityColours::modeActiveText : UtilityColours::label);
+        g.drawFittedText(juce::String("edit ") + MODES[i].label, seg.reduced(3, 0),
+                         juce::Justification::centred, 1, 0.7f);
+    }
+
+    g.setColour(UtilityColours::border);
+    g.fillRect(0, MODE_ROW_H - 1, getWidth(), 1);
+}
+
 // A segmented row of toggles, each one lit when its layer is on, so what the strip is
 // showing is readable without opening anything.
 void UtilityStripComponent::drawFilters(juce::Graphics& g) const
 {
     g.setColour(UtilityColours::panelFill);
-    g.fillRect(0, 0, getWidth(), FILTER_ROW_H);
+    g.fillRect(0, MODE_ROW_H, getWidth(), FILTER_ROW_H);
 
     g.setFont(Theme::getUIFont(FILTER_PT));
 
@@ -1096,6 +1146,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
         g.drawText(text, tab, juce::Justification::centred, false);
     }
 
+    drawModes(g);
     drawFilters(g);
     drawFooter(g);
 
@@ -1133,14 +1184,18 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     // trackpad glides instead of clacking between bar lines. Snapping lives where it is
     // aimed, on hover and on click. The playhead does not come along.
     //
-    // Only a scroll that moved something takes follow out of gear. Spinning the wheel on a
-    // fixed-span view, or against the end of a chart, is not you asking to read elsewhere.
+    // Only a scroll that moved something takes follow out of gear, and only while the
+    // transport is running. Spinning the wheel on a fixed-span view, or against the end of a
+    // chart, is not you asking to read elsewhere. Neither is scrolling while paused: follow
+    // does nothing then and play re-arms it, so the latch would read out of gear over a view
+    // nothing was chasing.
     else
     {
         auto v = visibleRange();
         double qnPerPx = (v.endQN - v.startQN) / trackHeight();
 
-        if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx)) followEngaged = false;
+        if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx) && playing)
+            followEngaged = false;
     }
 
     // A notch that moved nothing moved nothing under the pointer either, so the hover it is
@@ -1208,11 +1263,42 @@ std::vector<UtilityStripComponent::SectionEdit> UtilityStripComponent::currentEd
 
 void UtilityStripComponent::commitSections(std::vector<SectionEdit> edits)
 {
+    // Held by position rather than by index, because sorting renumbers everything after a
+    // move. Without this a drag deselects the section you just dragged, so moving one and
+    // then deleting it takes two separate clicks on the same object.
+    std::vector<double> wasSelected;
+    for (int i : selection)
+        if (i >= 0 && i < (int)edits.size()) wasSelected.push_back(edits[(size_t)i].qn);
+
     std::sort(edits.begin(), edits.end(),
               [](const SectionEdit& a, const SectionEdit& b) { return a.qn < b.qn; });
+
     if (onSectionsEdited) onSectionsEdited(edits);
+
     selection.clear();
+    for (double qn : wasSelected)
+        for (int i = 0; i < (int)edits.size(); ++i)
+            if (GridMath::same(edits[(size_t)i].qn, qn)) { selection.push_back(i); break; }
+
     repaint();
+}
+
+bool UtilityStripComponent::deleteSelection()
+{
+    if (selection.empty() || sections == nullptr) return false;
+
+    auto edits = currentEdits();
+
+    // Highest index first, so each erase leaves the lower ones where they were.
+    auto doomed = selection;
+    std::sort(doomed.begin(), doomed.end(), std::greater<int>());
+
+    for (int i : doomed)
+        if (i >= 0 && i < (int)edits.size()) edits.erase(edits.begin() + i);
+
+    selection.clear();
+    commitSections(std::move(edits));
+    return true;
 }
 
 void UtilityStripComponent::beginRename(int index)
@@ -1383,6 +1469,9 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
             auto edits = currentEdits();
             if (object >= 0)
             {
+                // Cleared first, or the commit tries to re-select by a position that is
+                // about to belong to a different section.
+                selection.clear();
                 edits.erase(edits.begin() + object);
                 commitSections(std::move(edits));
             }
@@ -1410,6 +1499,7 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
             if (object >= 0)
             {
                 auto edits = currentEdits();
+                selection.clear();
                 edits.erase(edits.begin() + object);
                 commitSections(std::move(edits));
             }
@@ -1479,6 +1569,15 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
     hoverHeld = false;   // clicking is aiming at something, whatever the scroll left behind
 
     if (renameEditor != nullptr) commitRename();
+
+    // Clicking the mode you are already in leaves it, so the same button arms and disarms
+    // rather than needing somewhere else to click to get back to plain navigation.
+    for (int i = 0; i < (int)std::size(MODES); ++i)
+        if (modeButtonBounds(i).contains(p))
+        {
+            setEditMode(editMode == MODES[i].mode ? EditMode::None : MODES[i].mode);
+            return;
+        }
 
     for (int i = 0; i < (int)std::size(filters); ++i)
         if (filterButtonBounds(i).contains(p))

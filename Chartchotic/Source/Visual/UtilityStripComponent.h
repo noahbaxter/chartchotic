@@ -75,6 +75,16 @@ namespace UtilityColours
     inline const juce::Colour followHeldFill = juce::Colour(0x3AD8B65A);
     inline const juce::Colour followHeldLine = juce::Colour(0xFFD8B65A);
     inline const juce::Colour followHeldText = juce::Colour(0xFFE8CE96);
+    // An armed edit mode, which changes what the mouse does rather than what is drawn. Green
+    // so it cannot be mistaken for a lit layer toggle or for follow being out of gear.
+    inline const juce::Colour modeActiveFill = juce::Colour(0x3A4FB06A);
+    inline const juce::Colour modeActiveLine = juce::Colour(0xFF4FB06A);
+    inline const juce::Colour modeActiveText = juce::Colour(0xFFA8E2BA);
+    // The draggable band behind a section while section editing is on, sized to the hit test
+    // rather than to the line. Translucent so the note map underneath still reads.
+    inline const juce::Colour sectionGrab         = juce::Colour(0x242F5F96);
+    inline const juce::Colour sectionGrabHover    = juce::Colour(0x453E77B8);
+    inline const juce::Colour sectionGrabSelected = juce::Colour(0x5A4E8FD8);
 
 }
 
@@ -199,6 +209,10 @@ public:
     // is deliberately not reported: what you asked for persists, where you are does not.
     std::function<void(const juce::String& key, bool on)> onLayerToggled;
 
+    // Drops the selected sections. Answers false when nothing was selected, which is what
+    // lets the editor offer the delete key on to the highway instead.
+    bool deleteSelection();
+
     // Every layer's saved key, so restoring can walk the layers without a second list to
     // keep in step with this one. A layer with nothing saved keeps its built-in default,
     // which is why there is no defaults list to hand out.
@@ -218,13 +232,31 @@ public:
             if (key == f.key) { f.on = on; return; }
     }
 
-    void setWriteMode(bool on)
+    // What the strip lets you edit. Its own axis, deliberately not the highway's write mode:
+    // the two surfaces author different things, and turning on note editing has no business
+    // taking the playhead off the strip's mouse button.
+    enum class EditMode { None, Sections };
+
+    void setEditMode(EditMode mode)
     {
-        if (writeMode == on) return;
-        writeMode = on;
+        if (editMode == mode) return;
+        editMode = mode;
         selection.clear();
+        if (onEditModeChanged) onEditModeChanged((int)editMode);
         repaint();
     }
+
+    EditMode getEditMode() const { return editMode; }
+
+    // Restore only. Out-of-range values fall back to None rather than throwing, so state
+    // saved by a build with more modes than this one still opens.
+    void setEditModeIndex(int index)
+    {
+        editMode = index == (int)EditMode::Sections ? EditMode::Sections : EditMode::None;
+        selection.clear();
+    }
+
+    std::function<void(int mode)> onEditModeChanged;
 
     StripCommandMapper& commandMapper() { return mapper; }
 
@@ -272,6 +304,9 @@ private:
     // One row of segments across the top rather than a list you expand: four toggles fit
     // the width, and a panel that has to be opened to see what is on hides its own state.
     static constexpr int FILTER_ROW_H = 22;
+    // The mode row sits above the layer toggles and is deliberately a separate control: one
+    // says what the strip draws, the other what a drag does to it.
+    static constexpr int MODE_ROW_H = 22;
     static constexpr int FILTER_GAP = 2;
 
     // The key is what the layer is saved under, spelled out rather than derived from the
@@ -281,7 +316,7 @@ private:
     // behaviour rather than something drawn, but this block is the strip's only switch panel
     // and a toggle nobody can find is a toggle nobody turns off.
     Filter filters[4] = { { "sections", "stripSections", true },
-                          { "notes",    "stripNotes",    false },
+                          { "notes",    "stripNotes",    true  },
                           { "measures", "stripMeasures", true },
                           { "follow",   "stripFollow",   true } };
 
@@ -289,7 +324,20 @@ private:
 
     bool filterOn(int i) const { return filters[i].on; }
 
-    int filterAreaHeight() const { return FILTER_ROW_H; }
+    int filterAreaHeight() const { return MODE_ROW_H + FILTER_ROW_H; }
+
+    struct ModeButton { const char* label; EditMode mode; };
+    static constexpr ModeButton MODES[] = { { "sections", EditMode::Sections } };
+
+    juce::Rectangle<int> modeButtonBounds(int i) const
+    {
+        int count = (int)std::size(MODES);
+        int w = getWidth() / count;
+        bool last = i == count - 1;
+        return { i * w, 0, last ? getWidth() - i * w : w, MODE_ROW_H };
+    }
+
+    void drawModes(juce::Graphics& g) const;
 
     struct View { double startQN, endQN; };
     View visibleRange() const;
@@ -437,6 +485,9 @@ private:
     // Plate per section, empty where the name was dropped for crowding.
     std::vector<juce::Rectangle<int>> labelPlates(const View& v) const;
 
+    static constexpr float SECTION_LINE_H = 2.0f;
+    static constexpr float SECTION_LINE_SELECTED_EXTRA = 1.0f;
+
     static constexpr int LABEL_H = 19;
     static constexpr int LABEL_MIN_GAP = 2;
     // A plate sits this far above the line it names, and this far in from each edge of the
@@ -460,7 +511,7 @@ private:
         int count = (int)std::size(filters);
         int w = getWidth() / count;
         bool last = i == count - 1;
-        return { i * w, 0, last ? getWidth() - i * w : w, FILTER_ROW_H };
+        return { i * w, MODE_ROW_H, last ? getWidth() - i * w : w, FILTER_ROW_H };
     }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
@@ -507,7 +558,7 @@ private:
     bool hoverHeld = false;
     juce::Point<int> hoverHeldFrom;
 
-    bool writeMode = false;
+    EditMode editMode = EditMode::None;
     StripCommandMapper mapper;
 
     std::vector<int> selection;        // indices into the section list
@@ -526,13 +577,26 @@ private:
     RenameTarget renameTarget = RenameTarget::Section;
     int hoverSongChunk = -1;
 
-    StripMode stripMode() const { return writeMode ? StripMode::Write : StripMode::Play; }
+    StripMode stripMode() const
+    { return editMode == EditMode::Sections ? StripMode::Write : StripMode::Play; }
+
+    bool sectionEditing() const { return editMode == EditMode::Sections; }
     bool isSelected(int index) const
     { return std::find(selection.begin(), selection.end(), index) != selection.end(); }
 
     void dispatch(StripCommand cmd, const juce::MouseEvent& e);
     void beginRename(int index);
     void commitRename();
+    // How far section `index` is drawn from where it actually sits, while a move drag is in
+    // flight. Everything that positions a section goes through this, so the line, the name
+    // plate and the bar number all preview together instead of one of them moving alone.
+    double movePreviewQN(size_t index) const
+    {
+        if (!dragActive || dragCommand != StripCommand::UpdateMove) return 0.0;
+
+        return isSelected((int)index) ? dragMoveDeltaQN : 0.0;
+    }
+
     void commitSections(std::vector<SectionEdit> edits);
     std::vector<SectionEdit> currentEdits() const;
     void drawMarquee(juce::Graphics& g) const;
