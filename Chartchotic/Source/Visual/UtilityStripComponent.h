@@ -44,6 +44,10 @@
 namespace UtilityColours
 {
     inline const juce::Colour background   = juce::Colour(0xFF121214);
+    // The ground a chart sits on, a shade up from the strip's own background. Everywhere
+    // else is timeline with nothing charted on it, and which side of an edge you are on has
+    // to read at a glance: a hairline alone does not say that, it only says "something here".
+    inline const juce::Colour chartGround  = juce::Colour(0xFF2A2A33);
     inline const juce::Colour border       = juce::Colour(0xFF303036);
     inline const juce::Colour chunkLine    = juce::Colour(0xFF3A3A42);
     inline const juce::Colour chunkLineBig = juce::Colour(0xFF56565F);
@@ -285,6 +289,10 @@ private:
     // The zoom readout and the song name are the two things you read from across the room
     // while charting, so both are sized past the strip's own label scale.
     static constexpr int FOOTER_H = 28;
+    // Chart navigation gets its own row rather than squeezing in beside the zoom controls:
+    // two word-width buttons and a bar count do not fit one strip width between them.
+    static constexpr int NAV_ROW_H = 24;
+    int footerAreaHeight() const { return FOOTER_H + NAV_ROW_H; }
     static constexpr int BUTTON_W = 24;
     static constexpr float FOOTER_BUTTON_PT = 16.0f;
     static constexpr float FOOTER_LABEL_PT = 12.0f;
@@ -356,7 +364,7 @@ private:
     static constexpr double FOLLOW_POSITION = 0.35;
 
     int trackTop() const { return filterAreaHeight(); }
-    int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
+    int trackHeight() const { return std::max(1, getHeight() - footerAreaHeight() - trackTop()); }
 
     double yForQN(double qn, const View& v) const
     {
@@ -515,10 +523,21 @@ private:
     static constexpr float STICKY_HOVER_LINE_H = 2.0f;
     // A section this close to the snapped hover bar counts as the one being pointed at.
 
+    // The zoom row sits above the nav row, so both are measured off the bottom in turn.
+    int zoomRowTop() const { return getHeight() - footerAreaHeight(); }
+    int navRowTop() const { return getHeight() - NAV_ROW_H; }
+
     juce::Rectangle<int> minusBounds() const
-    { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
+    { return { 4, zoomRowTop() + 2, BUTTON_W, FOOTER_H - 4 }; }
     juce::Rectangle<int> plusBounds() const
-    { return { 4 + BUTTON_W + 2, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
+    { return { 4 + BUTTON_W + 2, zoomRowTop() + 2, BUTTON_W, FOOTER_H - 4 }; }
+
+    // Split down the middle, each half taking its own rounding so the pair ends flush.
+    juce::Rectangle<int> prevChartBounds() const
+    { return { 4, navRowTop() + 1, getWidth() / 2 - 5, NAV_ROW_H - 4 }; }
+    juce::Rectangle<int> nextChartBounds() const
+    { return { getWidth() / 2 + 1, navRowTop() + 1, getWidth() - getWidth() / 2 - 5,
+               NAV_ROW_H - 4 }; }
     // Equal segments across the width, last one taking the rounding so the group ends flush
     // with the strip rather than a pixel or two short of it.
     juce::Rectangle<int> filterButtonBounds(int i) const
@@ -529,6 +548,7 @@ private:
         return { i * w, MODE_ROW_H, last ? getWidth() - i * w : w, FILTER_ROW_H };
     }
 
+    void drawChartGround(juce::Graphics& g, const View& v) const;
     void drawChunkLines(juce::Graphics& g, const View& v) const;
     void drawSectionBands(juce::Graphics& g, const View& v) const;
     void drawSections(juce::Graphics& g, const View& v) const;

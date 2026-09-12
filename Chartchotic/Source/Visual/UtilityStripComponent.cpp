@@ -110,6 +110,7 @@ void UtilityStripComponent::stepSpanAbout(double anchor, int direction)
     double span = StripViewMath::nextSpanQN(zoomSpans(), viewSpanQN, direction);
     auto v = StripViewMath::spanAbout({ viewStartQN, viewSpanQN }, anchor, span,
                                       projectEndQN(), minSpanQN());
+
     setView(v.startQN, v.spanQN);
 }
 
@@ -692,6 +693,27 @@ int UtilityStripComponent::songNameAt(juce::Point<int> p) const
     return p.y <= r.getY() + LABEL_H ? i : -1;
 }
 
+// Laid down before anything else, so every line, band and note is drawn onto it. Clipped to
+// the track rather than the whole component: the mode and layer rows above are chrome, and a
+// chart reaching up into them would read as one of them being lit.
+void UtilityStripComponent::drawChartGround(juce::Graphics& g, const View& v) const
+{
+    if (songs == nullptr) return;
+
+    const float top = (float)trackTop();
+    const float bottom = top + (float)trackHeight();
+
+    g.setColour(UtilityColours::chartGround);
+
+    for (const auto& song : songs->getSongs())
+    {
+        float hi = std::max((float)yForQN(song.endQN, v), top);
+        float lo = std::min((float)yForQN(song.startQN, v), bottom);
+
+        if (lo > hi) g.fillRect(0.0f, hi, (float)getWidth(), lo - hi);
+    }
+}
+
 // At Session, zoomed out, the strip stops being one chart's sections and becomes the shelf
 // the charts sit on: a block per EVENTS item, named, and the way into any of them.
 void UtilityStripComponent::drawSongChunks(juce::Graphics& g, const View& v) const
@@ -965,7 +987,7 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     auto plus = plusBounds();
 
     g.setColour(UtilityColours::panelFill);
-    g.fillRect(0, getHeight() - FOOTER_H, getWidth(), FOOTER_H);
+    g.fillRect(0, zoomRowTop(), getWidth(), footerAreaHeight());
 
     g.setFont(Theme::getUIFont(FOOTER_BUTTON_PT));
     bool canOut = viewSpanQN < projectEndQN() - GridMath::TICK;
@@ -992,6 +1014,27 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     g.drawText(extent,
                plus.getRight() + 6, plus.getY(), getWidth() - plus.getRight() - 10,
                plus.getHeight(), juce::Justification::centredLeft, false);
+
+    // Greyed rather than hidden at the ends of the project, so the pair keeps its shape and
+    // you can see there is nothing that way rather than watching a button vanish.
+    double now = playheadPPQ.toDouble();
+    bool hasPrev = false, hasNext = false;
+    if (songs != nullptr)
+        for (const auto& song : songs->getSongs())
+        {
+            if (GridMath::before(song.startQN, now)) hasPrev = true;
+            if (GridMath::after(song.startQN, now))  hasNext = true;
+        }
+
+    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
+    for (auto [r, text, enabled] : { std::tuple{ prevChartBounds(), "< prev chart", hasPrev },
+                                     std::tuple{ nextChartBounds(), "next chart >", hasNext } })
+    {
+        g.setColour(UtilityColours::chunkLineBig);
+        g.drawRect(r, 1);
+        g.setColour(enabled ? UtilityColours::uiText : UtilityColours::label);
+        g.drawText(text, r, juce::Justification::centred, false);
+    }
 }
 
 void UtilityStripComponent::paint(juce::Graphics& g)
@@ -999,6 +1042,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     g.fillAll(UtilityColours::background);
 
     auto v = visibleRange();
+    drawChartGround(g, v);
     drawChunkLines(g, v);
 
     // One block per song instead of every section in the project, which at this zoom is a
@@ -1516,6 +1560,9 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 
     if (minusBounds().contains(p)) { zoomOut(); return; }
     if (plusBounds().contains(p))  { zoomIn();  return; }
+
+    if (prevChartBounds().contains(p)) { gotoAdjacentChart(-1); return; }
+    if (nextChartBounds().contains(p)) { gotoAdjacentChart(1);  return; }
     if (!inTrackArea(p)) return;
 
     // In the overview the chunks are the only objects there are, so they take the click
