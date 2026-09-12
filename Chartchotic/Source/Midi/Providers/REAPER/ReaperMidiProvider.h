@@ -55,6 +55,7 @@ public:
     struct ReaperItemSpan {
         double startQN;
         double endQN;
+        juce::String name;
     };
 
     // Get notes from a specific time range (DEPRECATED - for backward compatibility)

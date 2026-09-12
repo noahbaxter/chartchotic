@@ -33,6 +33,8 @@ struct ReaperAPIs
     void (*InsertTrackAtIndex)(int idx, bool wantDefaults) = nullptr;
     bool (*GetSetMediaTrackInfo_String)(void* tr, const char* parmname,
                                         char* stringNeedBig, bool setNewValue) = nullptr;
+    bool (*GetSetMediaItemTakeInfo_String)(void* tk, const char* parmname,
+                                           char* stringNeedBig, bool setNewValue) = nullptr;
     void (*TrackList_AdjustWindows)(bool isMinor) = nullptr;
     int (*CountMediaItems)(void* proj) = nullptr;
     void* (*GetMediaItem)(void* proj, int itemidx) = nullptr;
@@ -198,6 +200,8 @@ public:
         outAPIs.InsertTrackAtIndex = (void(*)(int, bool))apiFunc("InsertTrackAtIndex");
         outAPIs.GetSetMediaTrackInfo_String = (bool(*)(void*, const char*, char*, bool))
             apiFunc("GetSetMediaTrackInfo_String");
+        outAPIs.GetSetMediaItemTakeInfo_String = (bool(*)(void*, const char*, char*, bool))
+            apiFunc("GetSetMediaItemTakeInfo_String");
         outAPIs.TrackList_AdjustWindows = (void(*)(bool))apiFunc("TrackList_AdjustWindows");
         outAPIs.CountMediaItems = (int(*)(void*))apiFunc("CountMediaItems");
         outAPIs.GetMediaItem = (void*(*)(void*, int))apiFunc("GetMediaItem");
