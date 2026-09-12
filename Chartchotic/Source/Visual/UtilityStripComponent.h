@@ -20,6 +20,7 @@
 
 #include <JuceHeader.h>
 #include "../Midi/SongSections.h"
+#include "../Midi/SongList.h"
 #include "../Midi/Utils/TimeConverter.h"   // defines TempoTimeSignatureMap, which the helper assumes
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
 #include "../Midi/Providers/REAPER/MidiCache.h"
@@ -29,6 +30,7 @@
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "../UI/ControlConstants.h"
+#include "../UI/Controls/SongPicker.h"
 
 // Neutral and dark, in the same family as the neck rather than a UI blue.
 namespace UtilityColours
@@ -71,7 +73,28 @@ namespace UtilityColours
 class UtilityStripComponent : public juce::Component
 {
 public:
-    UtilityStripComponent() { setInterceptsMouseClicks(true, false); }
+    UtilityStripComponent()
+    {
+        setInterceptsMouseClicks(true, false);
+        addAndMakeVisible(picker);
+
+        picker.onSelect = [this](int index)
+        {
+            setSelectedSong(index);
+            picker.setSelected(getSelectedSong());
+
+            // Picking a song is a navigation action, so it lands you on it. Session picks
+            // nothing, so it moves nothing.
+            const auto* song = selectedSong();
+            if (song != nullptr && onSeekTo != nullptr) onSeekTo(song->startQN);
+        };
+    }
+
+    void resized() override
+    {
+        picker.setVisible(pickerHeight() > 0);
+        picker.setBounds(0, 0, getWidth(), PICKER_H);
+    }
 
     void setSections(const SongSections* s)          { sections = s; }
     void setTempoMap(const TempoTimeSignatureMap* m) { tempoMap = m; }
@@ -92,6 +115,33 @@ public:
     // Merged MIDI clip extents for the whole project. Where several charts share one
     // timeline this is the only thing that says where each of them stops.
     void setClipSpans(const std::vector<ClipSpan>* s) { clipSpans = s; }
+
+    // The project's songs, and which one confines the view. Selection does not survive the
+    // list changing shape: a span list carries no item identity, so guessing which item is
+    // the one you had across a refetch would be a lie.
+    void setSongs(const SongList* s)
+    {
+        songs = s;
+        int count = s != nullptr ? s->size() : 0;
+        if (count != lastSongCount)
+        {
+            lastSongCount = count;
+            selectedSongIndex = SongList::SESSION;
+        }
+
+        picker.setSongs(s);
+        picker.setSelected(selectedSongIndex);
+        resized();
+    }
+
+    void setSelectedSong(int index)
+    {
+        int count = songs != nullptr ? songs->size() : 0;
+        selectedSongIndex = (index >= 0 && index < count) ? index : SongList::SESSION;
+        repaint();
+    }
+
+    int getSelectedSong() const { return selectedSongIndex; }
 
     // Section the playhead is inside, for the banner over the highway. Empty when there is
     // none, or when the strip's own sections filter is off.
@@ -163,6 +213,7 @@ private:
     static constexpr int BUTTON_W = 18;
     static constexpr int FILTER_ROW_H = 18;
     static constexpr int FILTER_HEADER_H = 20;
+    static constexpr int PICKER_H = 20;
 
     struct Filter { const char* label; bool on; };
     // Sections are the reason the strip exists, so they are on and stay first.
@@ -187,7 +238,11 @@ private:
         repaint();
     }
 
-    int trackTop() const { return filterAreaHeight(); }
+    // Zero unless there is a choice to make, so one song or none costs no vertical space.
+    int pickerHeight() const
+    { return (songs != nullptr && songs->isPickable()) ? PICKER_H : 0; }
+
+    int trackTop() const { return pickerHeight() + filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
 
     double yForQN(double qn, const View& v) const
@@ -212,6 +267,16 @@ private:
     // Last charted QN: where the final section has to stop.
     double contentEndQN() const;
     double clipEndAt(double qn) const;
+
+    // Every seek the strip issues goes through here, so a picked song bounds scrubbing,
+    // clicking and section stepping alike rather than only one of them.
+    double clampSeek(double qn) const;
+
+    // The song confining the view, or nullptr on Session.
+    const SongList::Song* selectedSong() const
+    {
+        return songs != nullptr ? songs->at(selectedSongIndex) : nullptr;
+    }
 
     static constexpr int MAX_BARS_WALKED = 100000;
 
@@ -252,9 +317,10 @@ private:
     juce::Rectangle<int> plusBounds() const
     { return { 4 + BUTTON_W + 2, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
     juce::Rectangle<int> filterHeaderBounds() const
-    { return { 0, 0, getWidth(), FILTER_HEADER_H }; }
+    { return { 0, pickerHeight(), getWidth(), FILTER_HEADER_H }; }
     juce::Rectangle<int> filterRowBounds(int i) const
-    { return { 0, FILTER_HEADER_H + i * FILTER_ROW_H, getWidth(), FILTER_ROW_H }; }
+    { return { 0, pickerHeight() + FILTER_HEADER_H + i * FILTER_ROW_H,
+               getWidth(), FILTER_ROW_H }; }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
     void drawSectionBands(juce::Graphics& g, const View& v) const;
@@ -269,6 +335,12 @@ private:
     const TempoTimeSignatureMap* tempoMap = nullptr;
     std::vector<NoteSource> noteSources;
     const std::vector<ClipSpan>* clipSpans = nullptr;
+    const SongList* songs = nullptr;
+    int selectedSongIndex = SongList::SESSION;
+    int lastSongCount = 0;
+
+    SongPicker picker { { UtilityColours::panelFill, UtilityColours::uiText,
+                          UtilityColours::label, UtilityColours::border } };
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
     int zoomIndex = DEFAULT_ZOOM_INDEX;

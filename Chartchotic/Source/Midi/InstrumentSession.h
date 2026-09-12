@@ -9,6 +9,7 @@
 #include "StarPowerState.h"
 #include "StrictHatPedalState.h"
 #include "SongSections.h"
+#include "SongList.h"
 
 class InstrumentSession
 {
@@ -35,6 +36,10 @@ public:
     // Every track's MIDI clips merged into song-scoped spans, in order. A gap here is a gap
     // on every track at once, ie the space between two charts sharing one timeline.
     const std::vector<ClipSpan>& getClipSpans() const { return clipSpans; }
+
+    // The EVENTS track's own items, unmerged: one song each. Empty when the project has no
+    // EVENTS track, which leaves the strip on Session with nothing to pick.
+    const SongList& getSongs() const { return songs; }
 
     int getTrackCount() const { return (int)tracks.size(); }
     bool isEmpty() const { return tracks.empty(); }
@@ -65,6 +70,7 @@ private:
     std::vector<InstrumentTrackInfo> tracks;
     std::vector<TrackData> trackData;
     SongSections songSections;
+    SongList songs;
     std::vector<ClipSpan> clipSpans;
 
     // Empty fallbacks for out-of-range access
