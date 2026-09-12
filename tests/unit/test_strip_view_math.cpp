@@ -155,6 +155,36 @@ TEST_CASE("StripViewMath - zooming out holds the anchored position too", "[strip
 }
 
 //==============================================================================
+// gridStepBars
+
+namespace
+{
+    constexpr double MIN_GAP = 26.0;
+}
+
+// Zoomed right in, a bar is hundreds of pixels tall, so there is room to subdivide it and
+// the grid should say where the beats are rather than stopping at the bar.
+TEST_CASE("StripViewMath - a tall bar subdivides below one", "[stripview]")
+{
+    REQUIRE(gridStepBars(400.0, MIN_GAP) == Catch::Approx(0.125));
+    REQUIRE(gridStepBars(120.0, MIN_GAP) == Catch::Approx(0.25));
+    REQUIRE(gridStepBars(60.0, MIN_GAP) == Catch::Approx(0.5));
+}
+
+TEST_CASE("StripViewMath - a bar with just enough room is the step", "[stripview]")
+{
+    REQUIRE(gridStepBars(MIN_GAP, MIN_GAP) == Catch::Approx(1.0));
+    REQUIRE(gridStepBars(MIN_GAP - 1.0, MIN_GAP) == Catch::Approx(2.0));
+}
+
+// Zoomed out, lines thin to whole groups of bars rather than becoming a grey wash.
+TEST_CASE("StripViewMath - a short bar groups up", "[stripview]")
+{
+    REQUIRE(gridStepBars(4.0, MIN_GAP) == Catch::Approx(8.0));
+    REQUIRE(gridStepBars(0.2, MIN_GAP) == Catch::Approx(128.0));
+}
+
+//==============================================================================
 // clusterSpans
 
 namespace
