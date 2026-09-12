@@ -389,7 +389,8 @@ private:
     double snappedBarQN(int y, const View& v) const;
     double barLineAtOrBefore(double qn) const;
     double chunkLineAtOrBefore(double qn, const View& v) const;
-    // The grid step in bars at this zoom. Below 1 it is a subdivision of a bar.
+    // The grid step in quarter notes at this zoom. Below a bar it is a beat, or a division
+    // of one, rather than a fraction of the bar.
     double visibleChunk(const View& v) const;
     // Everywhere shift+scroll will stop, sorted and deduped. Chart edges, section edges, and
     // out past the charts, the scraps of MIDI that sit on their own.
