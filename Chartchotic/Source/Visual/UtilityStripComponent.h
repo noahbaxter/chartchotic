@@ -218,6 +218,9 @@ private:
     void setZoom(int value, const SongList::Song* song = nullptr);
     void stepZoom(int direction);
 
+    // Moves the view, never the playhead, and stops at the edges of the song it is in.
+    void scrollViewBy(double deltaQN);
+
     int trackTop() const { return filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
 
@@ -345,6 +348,12 @@ private:
     const std::vector<ClipSpan>* clipSpans = nullptr;
     const SongList* songs = nullptr;
     int zoom = DEFAULT_ZOOM_BARS;
+
+    // Where the bottom of the view sits. The strip scrolls on its own and never chases the
+    // playhead: clicking sets where playback starts without dragging the view somewhere you
+    // did not ask to be, and the playhead is free to run off the top while you read
+    // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
+    double viewStartQN = 0.0;
 
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };

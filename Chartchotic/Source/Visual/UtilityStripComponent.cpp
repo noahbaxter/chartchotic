@@ -120,6 +120,33 @@ void UtilityStripComponent::stepZoom(int direction)
     if (index < 0 || index >= (int)steps.size()) return;
 
     zoom = steps[(size_t)index];
+
+    // Arriving at a bar rung from a fixed-span one, the scroll offset is whatever it was
+    // last time, which may be nowhere near. Frame the playhead, which is the one position
+    // the view can assume you care about when you did not aim at anything.
+    if (zoom > 0)
+    {
+        double now = playheadPPQ.toDouble();
+        viewStartQN = now - zoom * barLengthQN(tempoMap, now) * PLAYHEAD_FROM_BOTTOM;
+    }
+
+    repaint();
+}
+
+void UtilityStripComponent::scrollViewBy(double deltaQN)
+{
+    auto v = visibleRange();
+    double span = v.endQN - v.startQN;
+    double start = v.startQN + deltaQN;
+    double end = start + span;
+
+    if (const auto* song = confiningSong())
+        SongList::confineWindow(start, end, song->startQN, song->endQN);
+    else
+        start = std::max(0.0, start);
+
+    if (start == viewStartQN) return;
+    viewStartQN = start;
     repaint();
 }
 
@@ -144,15 +171,17 @@ void UtilityStripComponent::zoomAbout(int y, int direction)
 
     stepZoom(direction);
 
-    // The song and session views are fixed spans with nothing to slide, so there is nothing
-    // to hold still and no reason to move the playhead to do it.
+    // Zooming in is aiming: the point you closed in on becomes the one you are working at,
+    // so the playhead lands there. Zooming out is only widening what you can see.
+    if (direction < 0 && onSeekTo) onSeekTo(clampSeek(anchorQN));
+
+    // The song and session views are fixed spans with nothing to slide.
     if (zoom <= 0) return;
 
-    auto after = visibleRange();
-    double span = after.endQN - after.startQN;
-    double start = anchorQN - fromBottom * span;
-
-    if (onSeekTo) onSeekTo(clampSeek(std::max(0.0, start + span * PLAYHEAD_FROM_BOTTOM)));
+    double span = zoom * barLengthQN(tempoMap, anchorQN);
+    viewStartQN = anchorQN - fromBottom * span;
+    scrollViewBy(0.0);   // clamps the new offset into the song and repaints
+    repaint();
 }
 
 UtilityStripComponent::View UtilityStripComponent::visibleRange() const
@@ -170,8 +199,8 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 
     if (zoom == ZOOM_SONG) return { song->startQN, song->endQN };
 
-    double span = zoom * barLengthQN(tempoMap, now);
-    double start = now - span * PLAYHEAD_FROM_BOTTOM;
+    double span = zoom * barLengthQN(tempoMap, viewStartQN);
+    double start = viewStartQN;
     double end = start + span;
 
     SongList::confineWindow(start, end, song->startQN, song->endQN);
@@ -990,30 +1019,22 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
         return;
     }
 
-    if (onSeekTo == nullptr) return;
-
     // Shift skips structure: one notch, one section, which is the jump you actually want
-    // when reading a chart rather than scrubbing through it.
+    // when reading a chart rather than scrubbing through it. The one wheel gesture that
+    // moves the playhead, because stepping between sections is what it is for.
     if (e.mods.isShiftDown())
     {
-        onSeekTo(clampSeek(sectionStep(delta > 0.0 ? 1 : -1)));
+        if (onSeekTo) onSeekTo(clampSeek(sectionStep(delta > 0.0 ? 1 : -1)));
         return;
     }
 
-    // A bare wheel scrolls the map free of the grid: the wheel's own travel, scaled, so a
+    // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
     // trackpad glides instead of clacking between bar lines. Snapping lives where it is
-    // aimed, on hover and on click.
+    // aimed, on hover and on click. The playhead does not come along.
     auto v = visibleRange();
     double qnPerPx = (v.endQN - v.startQN) / trackHeight();
 
-    double target = std::max(0.0, playheadPPQ.toDouble() + delta * WHEEL_PIXELS_PER_UNIT * qnPerPx);
-
-    // Nothing to look at past the last clip, so the wheel stops there rather than sailing
-    // off into empty timeline.
-    double contentEnd = contentEndQN();
-    if (contentEnd > 0.0) target = std::min(target, contentEnd);
-
-    onSeekTo(clampSeek(target));
+    scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx);
 }
 
 // The next section line from the playhead in `direction`, or where we already are when
