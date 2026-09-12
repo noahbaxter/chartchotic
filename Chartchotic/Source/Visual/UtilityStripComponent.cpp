@@ -1013,6 +1013,15 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
             if (GridMath::after(song.startQN, now))  hasNext = true;
         }
 
+    // Between two charts there is no name to give, and "nearest" would be a different claim
+    // from "the one you are in", so it says nothing rather than something not quite true.
+    const auto* inChart = songAt(now);
+    g.setColour(inChart != nullptr ? UtilityColours::sectionText : UtilityColours::label);
+    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
+    g.drawText(inChart != nullptr ? inChart->name : juce::String("no chart"),
+               4, navNameTop(), getWidth() - 8, NAV_NAME_H,
+               juce::Justification::centred, true);
+
     g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
     for (auto [r, text, enabled] : { std::tuple{ prevChartBounds(), "< prev chart", hasPrev },
                                      std::tuple{ nextChartBounds(), "next chart >", hasNext } })

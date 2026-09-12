@@ -292,7 +292,10 @@ private:
     // Chart navigation gets its own row rather than squeezing in beside the zoom controls:
     // two word-width buttons and a bar count do not fit one strip width between them.
     static constexpr int NAV_ROW_H = 24;
-    int footerAreaHeight() const { return FOOTER_H + NAV_ROW_H; }
+    // The chart you are in, named above the buttons that move between them, so the pair says
+    // where you are going from as well as where you can go.
+    static constexpr int NAV_NAME_H = 17;
+    int footerAreaHeight() const { return FOOTER_H + NAV_NAME_H + NAV_ROW_H; }
     static constexpr int BUTTON_W = 24;
     static constexpr float FOOTER_BUTTON_PT = 16.0f;
     static constexpr float FOOTER_LABEL_PT = 12.0f;
@@ -537,8 +540,10 @@ private:
     static constexpr float STICKY_HOVER_LINE_H = 2.0f;
     // A section this close to the snapped hover bar counts as the one being pointed at.
 
-    // The zoom row sits above the nav row, so both are measured off the bottom in turn.
+    // The zoom row sits above the name, which sits above the nav row, so each is measured off
+    // the bottom in turn.
     int zoomRowTop() const { return getHeight() - footerAreaHeight(); }
+    int navNameTop() const { return getHeight() - NAV_ROW_H - NAV_NAME_H; }
     int navRowTop() const { return getHeight() - NAV_ROW_H; }
 
     juce::Rectangle<int> minusBounds() const
