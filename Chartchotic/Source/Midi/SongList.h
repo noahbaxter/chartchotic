@@ -1,8 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "SongSections.h"
 #include "Providers/TrackNoteProvider.h"   // defines ClipSpan
+#include "../UI/ControlConstants.h"        // defines trackNameFor
 #include <algorithm>
 
 /**
@@ -30,7 +30,7 @@ public:
 
     // Unmerged on purpose, unlike InstrumentSession's clipSpans: merging is what would
     // destroy the album-over-singles arrangement this exists to support.
-    void buildFromSpans(const std::vector<ClipSpan>& spans, const SongSections& sections)
+    void buildFromSpans(const std::vector<ClipSpan>& spans)
     {
         songs.clear();
 
@@ -43,15 +43,12 @@ public:
 
         // Resolved once here rather than per paint, since the picker repaints with the strip.
         for (size_t i = 0; i < songs.size(); ++i)
-            if (songs[i].name.isEmpty())
-                songs[i].name = fallbackName(songs[i], sections, i);
+            if (isUntitled(songs[i].name))
+                songs[i].name = "Chart " + juce::String((int)i + 1);
     }
 
     const std::vector<Song>& getSongs() const { return songs; }
     int size() const { return (int)songs.size(); }
-
-    // The picker costs a row of vertical space, which one song does not justify.
-    bool isPickable() const { return songs.size() >= 2; }
 
     const Song* at(int index) const
     {
@@ -80,17 +77,14 @@ public:
     }
 
 private:
-    static juce::String fallbackName(const Song& song, const SongSections& sections, size_t index)
+    // Nothing anyone chose. Blank is the obvious case; "EVENTS" is the one REAPER hands you,
+    // since a new item takes the name of the track it lands on, so every untouched song
+    // would otherwise be called EVENTS and none of them would be told apart.
+    static bool isUntitled(const juce::String& name)
     {
-        for (const auto& s : sections.getSections())
-        {
-            double qn = s.position.toDouble();
-            if (qn < song.startQN) continue;
-            if (qn >= song.endQN) break;
-            return s.name;
-        }
-
-        return "Song " + juce::String((int)index + 1);
+        auto trimmed = name.trim();
+        return trimmed.isEmpty()
+            || trimmed.equalsIgnoreCase(trackNameFor(Part::EVENTS));
     }
 
     std::vector<Song> songs;
