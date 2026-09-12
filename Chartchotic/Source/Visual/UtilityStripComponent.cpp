@@ -869,41 +869,30 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     }
 }
 
+// A segmented row of toggles, each one lit when its layer is on, so what the strip is
+// showing is readable without opening anything.
 void UtilityStripComponent::drawFilters(juce::Graphics& g) const
 {
-    auto header = filterHeaderBounds();
     g.setColour(UtilityColours::panelFill);
-    g.fillRect(header);
-    g.setColour(UtilityColours::border);
-    g.fillRect(0, header.getBottom() - 1, getWidth(), 1);
-
-    g.setColour(UtilityColours::label);
-    g.setFont(juce::Font(juce::FontOptions(11.0f)));
-    g.drawText(juce::String(filtersExpanded ? "v" : ">") + "  filters",
-               header.reduced(6, 0), juce::Justification::centredLeft, false);
-
-    if (!filtersExpanded) return;
+    g.fillRect(0, 0, getWidth(), FILTER_ROW_H);
 
     g.setFont(juce::Font(juce::FontOptions(11.0f)));
+
     for (int i = 0; i < (int)std::size(filters); ++i)
     {
-        auto row = filterRowBounds(i);
-        g.setColour(UtilityColours::panelFill);
-        g.fillRect(row);
+        auto seg = filterButtonBounds(i).reduced(FILTER_GAP, FILTER_GAP);
+        bool on = filters[i].on;
 
-        auto box = juce::Rectangle<int>(row.getX() + 8, row.getY() + 4, 10, 10);
-        g.setColour(UtilityColours::chunkLineBig);
-        g.drawRect(box, 1);
-        if (filters[i].on)
-        {
-            g.setColour(UtilityColours::uiText);
-            g.fillRect(box.reduced(2));
-        }
+        g.setColour(on ? UtilityColours::sectionBandCurrent : UtilityColours::background);
+        g.fillRect(seg);
+        g.setColour(on ? UtilityColours::sectionLine : UtilityColours::chunkLine);
+        g.drawRect(seg, 1);
 
-        g.setColour(filters[i].on ? UtilityColours::uiText : UtilityColours::label);
-        g.drawText(filters[i].label, box.getRight() + 7, row.getY(),
-                   row.getWidth() - box.getRight() - 10, row.getHeight(),
-                   juce::Justification::centredLeft, false);
+        // Fitted rather than plain: at four across a 200px strip "measures" is wider than
+        // its segment, and a shrunk word reads where a clipped one does not.
+        g.setColour(on ? UtilityColours::uiText : UtilityColours::label);
+        g.drawFittedText(filters[i].label, seg.reduced(3, 0),
+                         juce::Justification::centred, 1, 0.7f);
     }
 
     // Where the track starts, not how tall the filter block is, so anything added above the
@@ -1366,23 +1355,13 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 
     if (renameEditor != nullptr) commitRename();
 
-    if (filterHeaderBounds().contains(p))
-    {
-        filtersExpanded = !filtersExpanded;
-        repaint();
-        return;
-    }
-
-    if (filtersExpanded)
-    {
-        for (int i = 0; i < (int)std::size(filters); ++i)
-            if (filterRowBounds(i).contains(p))
-            {
-                filters[i].on = !filters[i].on;
-                repaint();
-                return;
-            }
-    }
+    for (int i = 0; i < (int)std::size(filters); ++i)
+        if (filterButtonBounds(i).contains(p))
+        {
+            filters[i].on = !filters[i].on;
+            repaint();
+            return;
+        }
 
     if (minusBounds().contains(p)) { zoomOut(); return; }
     if (plusBounds().contains(p))  { zoomIn();  return; }

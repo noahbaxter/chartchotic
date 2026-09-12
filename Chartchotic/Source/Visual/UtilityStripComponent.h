@@ -210,8 +210,10 @@ private:
     static constexpr double CLIP_EDGE_TOLERANCE_QN = 0.01;
     static constexpr int FOOTER_H = 20;
     static constexpr int BUTTON_W = 18;
-    static constexpr int FILTER_ROW_H = 18;
-    static constexpr int FILTER_HEADER_H = 20;
+    // One row of segments across the top rather than a list you expand: four toggles fit
+    // the width, and a panel that has to be opened to see what is on hides its own state.
+    static constexpr int FILTER_ROW_H = 22;
+    static constexpr int FILTER_GAP = 2;
 
     struct Filter { const char* label; bool on; };
     // Sections are the reason the strip exists, so they are on and stay first. Follow is a
@@ -219,14 +221,10 @@ private:
     // and a toggle nobody can find is a toggle nobody turns off.
     Filter filters[4] = { { "sections", true }, { "notes", false },
                           { "measures", true }, { "follow", true } };
-    bool filtersExpanded = false;
 
     bool filterOn(int i) const { return filters[i].on; }
 
-    int filterAreaHeight() const
-    {
-        return FILTER_HEADER_H + (filtersExpanded ? (int)std::size(filters) * FILTER_ROW_H : 0);
-    }
+    int filterAreaHeight() const { return FILTER_ROW_H; }
 
     struct View { double startQN, endQN; };
     View visibleRange() const;
@@ -245,8 +243,9 @@ private:
     // past the chart to keep it centred.
     void centreViewOn(double qn);
 
-    // Mid screen, so there is as much chart coming as gone.
-    static constexpr double FOLLOW_POSITION = 0.5;
+    // Fraction of the view above the bottom edge, so a little below centre: more of what is
+    // coming than of what has gone, without losing sight of what you just played.
+    static constexpr double FOLLOW_POSITION = 0.35;
 
     int trackTop() const { return filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
@@ -355,10 +354,15 @@ private:
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
     juce::Rectangle<int> plusBounds() const
     { return { 4 + BUTTON_W + 2, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
-    juce::Rectangle<int> filterHeaderBounds() const
-    { return { 0, 0, getWidth(), FILTER_HEADER_H }; }
-    juce::Rectangle<int> filterRowBounds(int i) const
-    { return { 0, FILTER_HEADER_H + i * FILTER_ROW_H, getWidth(), FILTER_ROW_H }; }
+    // Equal segments across the width, last one taking the rounding so the group ends flush
+    // with the strip rather than a pixel or two short of it.
+    juce::Rectangle<int> filterButtonBounds(int i) const
+    {
+        int count = (int)std::size(filters);
+        int w = getWidth() / count;
+        bool last = i == count - 1;
+        return { i * w, 0, last ? getWidth() - i * w : w, FILTER_ROW_H };
+    }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
     void drawSectionBands(juce::Graphics& g, const View& v) const;
