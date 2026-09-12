@@ -2,6 +2,19 @@
 
 namespace
 {
+    // Quarter notes in `seconds` at the tempo in force at `qn`.
+    double secondsToQN(const TempoTimeSignatureMap* map, double qn, double seconds)
+    {
+        double bpm = 120.0;
+        if (map != nullptr && !map->empty())
+        {
+            // Already falls back to 120 itself where the map has no tempo before this point.
+            auto state = TempoTimeSignatureEventHelper::getEffectiveStateAtPPQ(*map, PPQ(qn));
+            if (state.bpm > 0.0) bpm = state.bpm;
+        }
+        return seconds * bpm / 60.0;
+    }
+
     double barLengthQN(const TempoTimeSignatureMap* map, double qn)
     {
         if (map == nullptr || map->empty()) return 4.0;
@@ -1098,10 +1111,22 @@ double UtilityStripComponent::sectionStep(int direction) const
         return now;
     }
 
+    // Landing on the current section's own start is the right answer once, the way a
+    // transport's previous-marker key works. Press again while you are still near that start
+    // and you meant the section before it, which is also what stops playback carrying you
+    // back onto the same start every notch.
+    double from = now;
+    if (const auto* current = sections->sectionAt(PPQ(now)))
+    {
+        double start = current->position.toDouble();
+        if (now - start <= secondsToQN(tempoMap, now, SECTION_BACKSTEP_GRACE_S))
+            from = start;
+    }
+
     double best = now;
     for (const auto& s : list)
     {
-        if (!GridMath::before(s.position.toDouble(), now)) break;
+        if (!GridMath::before(s.position.toDouble(), from)) break;
         best = s.position.toDouble();
     }
     return best;
