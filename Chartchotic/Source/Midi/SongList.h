@@ -25,27 +25,8 @@ public:
         juce::String name;
     };
 
-    // The two zoom rungs that are views rather than bar counts.
-    static constexpr int ZOOM_SESSION = -1;   // every chart on the timeline
-    static constexpr int ZOOM_SONG    = 0;    // the whole of one chart
-
-    static constexpr int BAR_STEPS[] = { 8, 16, 32, 64, 128, 256 };
+    // How wide the strip opens on a project it knows nothing about yet.
     static constexpr int DEFAULT_ZOOM_BARS = 64;
-
-    // The rungs a song of `songQN` quarter notes offers, narrowest first, where its bars are
-    // `barQN` long. A bar step only earns a rung if it shows less than the whole song: 128
-    // bars of a 40 bar chart is the song view with extra travel to reach it, not a rung.
-    static std::vector<int> zoomLadder(double songQN, double barQN)
-    {
-        std::vector<int> rungs;
-
-        for (int bars : BAR_STEPS)
-            if (bars * barQN < songQN) rungs.push_back(bars);
-
-        rungs.push_back(ZOOM_SONG);
-        rungs.push_back(ZOOM_SESSION);
-        return rungs;
-    }
 
     // Unmerged on purpose, unlike InstrumentSession's clipSpans: merging is what would
     // destroy the album-over-singles arrangement this exists to support.
@@ -72,37 +53,6 @@ public:
     const Song* at(int index) const
     {
         return index >= 0 && index < (int)songs.size() ? &songs[(size_t)index] : nullptr;
-    }
-
-    // The song beginning at `qn`. Start is the handle a song keeps across the re-parse an
-    // edit triggers, where an index shifts and a pointer dangles.
-    const Song* startingAt(double qn) const
-    {
-        for (const auto& song : songs)
-            if (GridMath::same(song.startQN, qn)) return &song;
-
-        return nullptr;
-    }
-
-    // Slide `[start, end]` so it sits inside the song, keeping its length. Shifted rather
-    // than truncated: a truncated window compresses the strip against the song's edges, so
-    // the same zoom stops meaning the same distance. A song shorter than the window is the
-    // window, since there is nothing left to slide against.
-    static void confineWindow(double& start, double& end, double songStart, double songEnd)
-    {
-        double span = end - start;
-
-        if (songEnd - songStart <= span)
-        {
-            start = songStart;
-            end = songEnd;
-            return;
-        }
-
-        if (start < songStart)   start = songStart;
-        else if (end > songEnd)  start = songEnd - span;
-
-        end = start + span;
     }
 
 private:
