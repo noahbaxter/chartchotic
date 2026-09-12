@@ -143,7 +143,7 @@ void InstrumentSession::fetchTrackData(int idx)
     if (tracks[idx].part == Part::EVENTS)
     {
         songSections.buildFromTextEvents(td.textEvents);
-        songs.buildFromSpans(td.clipSpans, songSections);
+        songs.buildFromSpans(td.clipSpans);
     }
 
     rebuildClipSpans();
