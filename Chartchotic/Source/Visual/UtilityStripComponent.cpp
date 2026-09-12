@@ -806,8 +806,8 @@ void UtilityStripComponent::drawFilters(juce::Graphics& g) const
                    juce::Justification::centredLeft, false);
     }
 
-    // Where the track starts, not how tall the filter block is: the picker above it moves
-    // this line down, and two places computing the same offset is how that drifts.
+    // Where the track starts, not how tall the filter block is, so anything added above the
+    // filters moves this line with it rather than leaving it stranded.
     g.setColour(UtilityColours::border);
     g.fillRect(0, trackTop() - 1, getWidth(), 1);
 }

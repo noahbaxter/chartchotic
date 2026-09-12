@@ -917,18 +917,29 @@ void ChartchoticAudioProcessorEditor::drawSectionBanner(juce::Graphics& g)
 {
     if (!sectionBannerVisible || !utilityStripVisible || activeSlotCount == 0) return;
 
-    auto name = utilityStrip.currentSectionName();
-    if (name.isEmpty()) return;
+    auto song = utilityStrip.currentSongName();
+    auto section = utilityStrip.currentSectionName();
+    if (song.isEmpty() && section.isEmpty()) return;
 
     float size = std::max(sectionBannerMinPt, getHeight() * sectionBannerHeightRatio);
     int left = utilityStripWidth;
-    auto area = juce::Rectangle<int>(left,
-                                     toolbar.getHeight() + juce::roundToInt(size * sectionBannerTopGap),
-                                     getWidth() - left,
-                                     juce::roundToInt(size * 1.4f));
+    int y = toolbar.getHeight() + juce::roundToInt(size * sectionBannerTopGap);
 
+    // Song first and smaller, so the pair reads as one label: which chart, then where in it.
+    if (song.isNotEmpty())
+        y = drawBannerLine(g, song, size * songBannerScale, left, y);
+
+    if (section.isNotEmpty())
+        drawBannerLine(g, section, size, left, y);
+}
+
+// One centred line with its drop shadow, answering with the y the next line starts at.
+int ChartchoticAudioProcessorEditor::drawBannerLine(juce::Graphics& g, const juce::String& name,
+                                                    float size, int left, int y)
+{
     // Underscores are chart-file plumbing, not part of the name anyone reads.
     auto text = name.replaceCharacter('_', ' ').toUpperCase();
+    auto area = juce::Rectangle<int>(left, y, getWidth() - left, juce::roundToInt(size * 1.4f));
 
     g.setFont(Theme::getUIFont(size));
 
@@ -937,6 +948,8 @@ void ChartchoticAudioProcessorEditor::drawSectionBanner(juce::Graphics& g)
                juce::Justification::centredTop, false);
     g.setColour(sectionBannerText);
     g.drawText(text, area, juce::Justification::centredTop, false);
+
+    return y + juce::roundToInt(size * bannerLineGap);
 }
 
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)

@@ -50,9 +50,6 @@ public:
     const std::vector<Song>& getSongs() const { return songs; }
     int size() const { return (int)songs.size(); }
 
-    // The picker costs a row of vertical space, which one song does not justify.
-    bool isPickable() const { return songs.size() >= 2; }
-
     const Song* at(int index) const
     {
         return index >= 0 && index < (int)songs.size() ? &songs[(size_t)index] : nullptr;
