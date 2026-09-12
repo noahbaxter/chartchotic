@@ -158,8 +158,8 @@ public:
 
     static constexpr int DEFAULT_ZOOM_BARS = SongList::DEFAULT_ZOOM_BARS;
 
-    void zoomIn()  { scaleSpanAbout(0.5, 1.0 / ZOOM_STEP); }
-    void zoomOut() { scaleSpanAbout(0.5, ZOOM_STEP); }
+    void zoomIn()  { stepSpanAbout(0.5, -1); }
+    void zoomOut() { stepSpanAbout(0.5, 1); }
 
     // What the song and session rungs turned into. A view of one chart is a thing to ask
     // for, not a place to be, so it is a command like any other rather than a mode with its
@@ -453,14 +453,17 @@ private:
     // you do rather than a thing you are prevented from doing.
     double projectEndQN() const { return std::max(contentEndQN(), 1.0); }
 
-    // Zoom is a ratio per notch rather than a rung, so it feels the same at 8 bars and at
-    // 800 and there is no ladder whose ends depend on which chart you are in.
-    static constexpr double ZOOM_STEP = 1.35;
-    static constexpr double MIN_SPAN_QN = 2.0;
+    static constexpr double MIN_ZOOM_BARS = 2.0;
+
+    // Bars are the unit the ladder is written in, so every rung needs a bar length to become
+    // a span. Taken at the view's own position, which is where the meter you are reading is.
+    double barQN() const;
+    double minSpanQN() const;
+    std::vector<double> zoomSpans() const;
 
     // `anchor` is 0 at the bottom of the track and 1 at the top: the point the zoom holds
     // still, so the moment under the pointer stays under the pointer.
-    void scaleSpanAbout(double anchor, double factor);
+    void stepSpanAbout(double anchor, int direction);
 
     // Friction at a chart edge, in fractions of the visible span and milliseconds of rest.
     static constexpr double BOUNDARY_RESIST_SPAN = 0.12;

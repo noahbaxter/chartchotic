@@ -86,9 +86,18 @@ namespace
 
 // The one place that decides what a legal view is. Clamped to the project and to nothing
 // narrower: a chart is a region the window may sit inside, never a cage it sits in.
+double UtilityStripComponent::barQN() const { return barLengthQN(tempoMap, viewStartQN); }
+
+double UtilityStripComponent::minSpanQN() const { return MIN_ZOOM_BARS * barQN(); }
+
+std::vector<double> UtilityStripComponent::zoomSpans() const
+{
+    return StripViewMath::zoomSpansQN(projectEndQN(), barQN(), MIN_ZOOM_BARS);
+}
+
 void UtilityStripComponent::setView(double startQN, double spanQN)
 {
-    auto v = StripViewMath::clamp(startQN, spanQN, projectEndQN(), MIN_SPAN_QN);
+    auto v = StripViewMath::clamp(startQN, spanQN, projectEndQN(), minSpanQN());
     if (v.startQN == viewStartQN && v.spanQN == viewSpanQN) return;
 
     viewStartQN = v.startQN;
@@ -96,10 +105,11 @@ void UtilityStripComponent::setView(double startQN, double spanQN)
     repaint();
 }
 
-void UtilityStripComponent::scaleSpanAbout(double anchor, double factor)
+void UtilityStripComponent::stepSpanAbout(double anchor, int direction)
 {
-    auto v = StripViewMath::scaleAbout({ viewStartQN, viewSpanQN }, anchor, factor,
-                                       projectEndQN(), MIN_SPAN_QN);
+    double span = StripViewMath::nextSpanQN(zoomSpans(), viewSpanQN, direction);
+    auto v = StripViewMath::spanAbout({ viewStartQN, viewSpanQN }, anchor, span,
+                                      projectEndQN(), minSpanQN());
     setView(v.startQN, v.spanQN);
 }
 
@@ -182,13 +192,12 @@ void UtilityStripComponent::zoomAbout(int y, int direction)
 
     if (playing)
     {
-        double span = juce::jlimit(MIN_SPAN_QN, std::max(MIN_SPAN_QN, projectEndQN()),
-                                   viewSpanQN * (direction < 0 ? 1.0 / ZOOM_STEP : ZOOM_STEP));
+        double span = StripViewMath::nextSpanQN(zoomSpans(), viewSpanQN, direction);
         setView(playheadPPQ.toDouble() - anchor * span, span);
         return;
     }
 
-    scaleSpanAbout(anchor, direction < 0 ? 1.0 / ZOOM_STEP : ZOOM_STEP);
+    stepSpanAbout(anchor, direction);
 }
 
 UtilityStripComponent::View UtilityStripComponent::visibleRange() const
@@ -960,7 +969,7 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
 
     g.setFont(Theme::getUIFont(FOOTER_BUTTON_PT));
     bool canOut = viewSpanQN < projectEndQN() - GridMath::TICK;
-    bool canIn  = viewSpanQN > MIN_SPAN_QN + GridMath::TICK;
+    bool canIn  = viewSpanQN > minSpanQN() + GridMath::TICK;
 
     for (auto [r, text, enabled] : { std::tuple{ minus, "-", canOut },
                                      std::tuple{ plus,  "+", canIn } })
