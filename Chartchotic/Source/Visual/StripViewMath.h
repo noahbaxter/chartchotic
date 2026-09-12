@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace StripViewMath
 {
@@ -37,13 +38,66 @@ inline View clamp(double startQN, double spanQN, double projectEndQN, double min
     return { start, span };
 }
 
+// The zoom rungs, in quarter notes, narrowest first.
+//
+// 2 and 4 bars, then every power of two from 8 with its halfway point: 8 12 16 24 32 48 64.
+// Doubling is a fine step while the window is small enough to be editing in, and too coarse
+// once it is wide enough to be navigating with. Round bar counts because the footer reads
+// them out and because landing back where you were should take the same notches every time.
+//
+// One ladder for the whole project, not one per chart: a ladder whose ends moved with
+// whichever chart you were in is what made zoom a mode with somewhere to get stuck.
+inline std::vector<double> zoomSpansQN(double projectEndQN, double barQN, double minBars)
+{
+    std::vector<double> spans;
+    if (barQN <= 0.0 || projectEndQN <= 0.0) return { std::max(projectEndQN, 0.0) };
+
+    auto push = [&](double bars)
+    {
+        if (bars < minBars) return;
+        double span = bars * barQN;
+        if (span < projectEndQN) spans.push_back(span);
+    };
+
+    push(2.0);
+    push(4.0);
+    for (double p = 8.0; p * barQN < projectEndQN; p *= 2.0) { push(p); push(p * 1.5); }
+
+    // Zooming all the way out lands exactly on the whole project rather than on some rung
+    // of mostly empty timeline past the end of it.
+    spans.push_back(projectEndQN);
+    return spans;
+}
+
+// The next rung in `direction`. Tolerant of a span that is not on the ladder at all, which
+// is the normal case straight after fitting a chart: it steps to the next rung that way
+// rather than snapping sideways first and eating the notch.
+inline double nextSpanQN(const std::vector<double>& spans, double current, int direction)
+{
+    if (spans.empty()) return current;
+
+    const double eps = 1.0e-6;
+
+    if (direction > 0)
+    {
+        for (double s : spans)
+            if (s > current * (1.0 + eps)) return s;
+
+        return spans.back();
+    }
+
+    for (auto it = spans.rbegin(); it != spans.rend(); ++it)
+        if (*it < current * (1.0 - eps)) return *it;
+
+    return spans.front();
+}
+
 // Zoom that holds one point still, which is what makes it feel like a map rather than a
 // jump. `anchor` is 0 at the bottom of the view and 1 at the top.
-inline View scaleAbout(View v, double anchor, double factor,
-                       double projectEndQN, double minSpanQN)
+inline View spanAbout(View v, double anchor, double spanQN,
+                      double projectEndQN, double minSpanQN)
 {
-    double span = std::min(std::max(v.spanQN * factor, minSpanQN),
-                           std::max(minSpanQN, projectEndQN));
+    double span = std::min(std::max(spanQN, minSpanQN), std::max(minSpanQN, projectEndQN));
     double held = v.startQN + anchor * v.spanQN;
     return clamp(held - anchor * span, span, projectEndQN, minSpanQN);
 }

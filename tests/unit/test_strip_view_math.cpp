@@ -52,7 +52,87 @@ TEST_CASE("StripViewMath - a span cannot go below the floor", "[stripview]")
 }
 
 //==============================================================================
-// scaleAbout
+// zoomSpansQN
+
+namespace
+{
+    // 4 QN to the bar throughout, so a rung's span is bars * 4.
+    std::vector<double> barsOf(const std::vector<double>& spans, double barQN = 4.0)
+    {
+        std::vector<double> bars;
+        for (double s : spans) bars.push_back(s / barQN);
+        return bars;
+    }
+}
+
+// 2 and 4, then every power of two from 8 with its halfway point.
+TEST_CASE("StripViewMath - the ladder is 2 4 8 12 16 24 32 48 64", "[stripview]")
+{
+    auto bars = barsOf(zoomSpansQN(1000.0 * 4.0, 4.0, 2.0));
+
+    REQUIRE(std::vector<double>(bars.begin(), bars.begin() + 9)
+            == std::vector<double>{ 2, 4, 8, 12, 16, 24, 32, 48, 64 });
+}
+
+// Zooming all the way out lands on the project itself, not on a rung past the end of it.
+TEST_CASE("StripViewMath - the whole project is always the top rung", "[stripview]")
+{
+    double project = 40.0 * 4.0;
+    auto spans = zoomSpansQN(project, 4.0, 2.0);
+
+    REQUIRE(spans.back() == Catch::Approx(project));
+    REQUIRE(barsOf(spans) == std::vector<double>{ 2, 4, 8, 12, 16, 24, 32, 40 });
+}
+
+TEST_CASE("StripViewMath - a project shorter than the floor is its own only rung",
+          "[stripview]")
+{
+    auto spans = zoomSpansQN(4.0, 4.0, 2.0);
+
+    REQUIRE(spans == std::vector<double>{ 4.0 });
+}
+
+// Bars are twice as long in 8/4, so the same rung is twice the quarter notes.
+TEST_CASE("StripViewMath - rungs follow bar length, not quarter notes", "[stripview]")
+{
+    auto spans = zoomSpansQN(1000.0, 8.0, 2.0);
+
+    REQUIRE(spans[0] == Catch::Approx(16.0));
+    REQUIRE(spans[1] == Catch::Approx(32.0));
+}
+
+//==============================================================================
+// nextSpanQN
+
+TEST_CASE("StripViewMath - stepping walks the ladder both ways", "[stripview]")
+{
+    auto spans = zoomSpansQN(1000.0 * 4.0, 4.0, 2.0);
+
+    REQUIRE(nextSpanQN(spans, 16.0 * 4.0, 1) == Catch::Approx(24.0 * 4.0));
+    REQUIRE(nextSpanQN(spans, 16.0 * 4.0, -1) == Catch::Approx(12.0 * 4.0));
+}
+
+// Straight after fitting a chart the span is the chart's length, which is not a rung. The
+// notch has to move you, not spend itself snapping sideways.
+TEST_CASE("StripViewMath - a span off the ladder steps to the next rung", "[stripview]")
+{
+    auto spans = zoomSpansQN(1000.0 * 4.0, 4.0, 2.0);
+    double odd = 37.0 * 4.0;   // between the 32 and 48 rungs
+
+    REQUIRE(nextSpanQN(spans, odd, 1) == Catch::Approx(48.0 * 4.0));
+    REQUIRE(nextSpanQN(spans, odd, -1) == Catch::Approx(32.0 * 4.0));
+}
+
+TEST_CASE("StripViewMath - stepping past either end stays put", "[stripview]")
+{
+    auto spans = zoomSpansQN(1000.0 * 4.0, 4.0, 2.0);
+
+    REQUIRE(nextSpanQN(spans, spans.front(), -1) == Catch::Approx(spans.front()));
+    REQUIRE(nextSpanQN(spans, spans.back(), 1) == Catch::Approx(spans.back()));
+}
+
+//==============================================================================
+// spanAbout
 
 // The whole point of anchoring: the moment under the pointer stays under the pointer.
 TEST_CASE("StripViewMath - zooming holds the anchored position still", "[stripview]")
@@ -61,7 +141,7 @@ TEST_CASE("StripViewMath - zooming holds the anchored position still", "[stripvi
     double anchor = 0.25;
     double held = before.startQN + anchor * before.spanQN;   // 1100
 
-    auto after = scaleAbout(before, anchor, 0.5, PROJECT_END, MIN_SPAN);
+    auto after = spanAbout(before, anchor, 200.0, PROJECT_END, MIN_SPAN);
 
     REQUIRE(after.spanQN == Catch::Approx(200.0));
     REQUIRE(after.startQN + anchor * after.spanQN == Catch::Approx(held));
@@ -73,7 +153,7 @@ TEST_CASE("StripViewMath - zooming out holds the anchored position too", "[strip
     double anchor = 0.75;
     double held = before.startQN + anchor * before.spanQN;   // 1300
 
-    auto after = scaleAbout(before, anchor, 2.0, PROJECT_END, MIN_SPAN);
+    auto after = spanAbout(before, anchor, 800.0, PROJECT_END, MIN_SPAN);
 
     REQUIRE(after.spanQN == Catch::Approx(800.0));
     REQUIRE(after.startQN + anchor * after.spanQN == Catch::Approx(held));
