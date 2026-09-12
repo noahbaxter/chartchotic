@@ -68,6 +68,11 @@ namespace UtilityColours
     inline const juce::Colour loopFill     = juce::Colour(0x2FD8B65A);
     inline const juce::Colour selectedLine = juce::Colour(0xFFFFFFFF);
     inline const juce::Colour namePlateHover = juce::Colour(0xFF2E4A72);
+    // Follow still switched on but taken out of gear by a scroll: armed rather than acting,
+    // which is a different thing from off and reads as a warning rather than as a layer.
+    inline const juce::Colour followHeldFill = juce::Colour(0x3AD8B65A);
+    inline const juce::Colour followHeldLine = juce::Colour(0xFFD8B65A);
+    inline const juce::Colour followHeldText = juce::Colour(0xFFE8CE96);
 
 }
 
@@ -222,6 +227,8 @@ private:
     Filter filters[4] = { { "sections", true }, { "notes", false },
                           { "measures", true }, { "follow", true } };
 
+    static constexpr int FILTER_FOLLOW = 3;
+
     bool filterOn(int i) const { return filters[i].on; }
 
     int filterAreaHeight() const { return FILTER_ROW_H; }
@@ -235,7 +242,9 @@ private:
     void stepZoom(int direction);
 
     // Moves the view, never the playhead, and stops at the edges of the song it is in.
-    void scrollViewBy(double deltaQN);
+    // Answers false when it changed nothing, which is what keeps a wheel notch against a
+    // wall from counting as a scroll.
+    bool scrollViewBy(double deltaQN);
 
     // Puts `qn` at the follow position, or as near as the song's edges allow: at the start
     // and end of a chart the view runs out of room, so the playhead travels from the bottom
@@ -391,7 +400,7 @@ private:
     // during playback drops the latch without touching the setting, and pressing play sets
     // it again.
     bool followEngaged = true;
-    bool followOn() const { return filterOn(3); }
+    bool followOn() const { return filterOn(FILTER_FOLLOW); }
 
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
