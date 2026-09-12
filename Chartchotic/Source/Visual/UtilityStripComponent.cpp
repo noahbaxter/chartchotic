@@ -88,7 +88,19 @@ namespace
 // chart is the song view with extra steps to get there.
 std::vector<int> UtilityStripComponent::availableZooms() const
 {
-    return availableZoomsFor(songAtPlayhead());
+    if (const auto* song = songAtPlayhead()) return availableZoomsFor(song);
+
+    // No EVENTS items anywhere, so nothing confines anything: every bar step is available
+    // and session means the whole project. The song rung has no song to be.
+    if (!hasSongs())
+    {
+        std::vector<int> steps(std::begin(SongList::BAR_STEPS), std::end(SongList::BAR_STEPS));
+        steps.push_back(ZOOM_SESSION);
+        return steps;
+    }
+
+    // In the gap between two charts, where there is nothing to be inside.
+    return { ZOOM_SESSION };
 }
 
 // Takes the song rather than reading the playhead, because opening a chart seeks and steps
@@ -237,7 +249,7 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
     double now = playheadPPQ.toDouble();
     const auto* song = confiningSong();
 
-    if (zoom == ZOOM_SESSION || song == nullptr)
+    if (zoom == ZOOM_SESSION || (zoom == ZOOM_SONG && song == nullptr))
     {
         // Whatever the MIDI actually reaches, since most charts in the wild have no [end].
         double end = contentEndQN();
@@ -247,11 +259,14 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 
     if (zoom == ZOOM_SONG) return { song->startQN, song->endQN };
 
+    // A bar rung still means that many bars with no EVENTS track to confine it. Without
+    // this a project with no charts marked out could only ever see the whole timeline.
     double span = zoom * barLengthQN(tempoMap, viewStartQN);
     double start = viewStartQN;
     double end = start + span;
 
-    SongList::confineWindow(start, end, song->startQN, song->endQN);
+    if (song != nullptr) SongList::confineWindow(start, end, song->startQN, song->endQN);
+    else                 start = std::max(0.0, start);
 
     return { start, end };
 }
