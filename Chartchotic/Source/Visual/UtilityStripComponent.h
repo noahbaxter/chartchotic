@@ -150,7 +150,20 @@ public:
 
     int barsVisible() const { return ZOOM_STEPS[zoomIndex]; }
     void zoomIn()  { setZoomIndex(zoomIndex - 1); }
-    void zoomOut() { setZoomIndex(zoomIndex + 1); }
+
+    // Past the whole of one song there is one thing left to zoom out to, which is the
+    // session it sits in. Makes leaving a song the same gesture as widening the view rather
+    // than a trip out to a selector.
+    void zoomOut()
+    {
+        if (barsVisible() == 0 && selectedSong() != nullptr)
+        {
+            setSelectedSong(SongList::SESSION);
+            return;
+        }
+
+        setZoomIndex(zoomIndex + 1);
+    }
     void toggleZoom()
     {
         setZoomIndex(barsVisible() == 0 ? DEFAULT_ZOOM_INDEX
