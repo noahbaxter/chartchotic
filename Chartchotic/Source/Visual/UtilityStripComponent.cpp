@@ -205,7 +205,25 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 
 // Numbers only appear where they mean something: section starts, and wherever the cursor
 // is. Numbering every chunk was the obnoxious version.
-void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, int measure,
+juce::String UtilityStripComponent::positionLabel(double qn) const
+{
+    int measure = measureAtQN(qn);
+    if (tempoMap == nullptr) return juce::String(measure);
+
+    auto mb = TempoTimeSignatureEventHelper::pPqToMeasureBeat(PPQ(qn), *tempoMap);
+
+    // A downbeat is just the bar. The shared formatter appends ".1" to every one of them,
+    // which is noise on a bar line and is its own long-standing wart rather than something
+    // worth inheriting here.
+    if (std::abs(mb.beatInMeasure - 1.0) < TempoTimeSignatureEventHelper::beatTick)
+        return juce::String(measure);
+
+    // The strip's own measure rather than the formatter's, so the beat is appended to the
+    // same bar number the rest of the strip counts by and the two can never disagree.
+    return TempoTimeSignatureEventHelper::formatMeasureBeat(measure, mb.beatInMeasure);
+}
+
+void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, double qn,
                                               bool emphasised) const
 {
     if (!filterOn(2)) return;
@@ -214,7 +232,7 @@ void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, int me
     g.setFont(emphasised ? font.boldened() : font);
     // Above its line, like every other label here: time runs upward, so a number sitting
     // below its line reads as belonging to the bar before it.
-    auto text = juce::String(measure);
+    auto text = positionLabel(qn);
     int tw = g.getCurrentFont().getStringWidth(text) + 8;
     int tx = getWidth() - tw - 3;
     int ty = (int)y - 14;
@@ -340,7 +358,7 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
     g.setColour(UtilityColours::hoverLine);
     g.fillRect(0.0f, y, w, 1.5f);
 
-    drawMeasureNumber(g, y, measureAtQN(barQN), true);
+    drawMeasureNumber(g, y, barQN, true);
 }
 
 void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) const
@@ -873,7 +891,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         // The number belongs to the name beside it, so it goes when the name goes.
         bool labelled = !plates[i].isEmpty();
         if (labelled && qn >= v.startQN && qn <= v.endQN)
-            drawMeasureNumber(g, y, measureAtQN(qn), false);
+            drawMeasureNumber(g, y, qn, false);
 
         bool selected = isSelected((int)i);
         bool underCursor = GridMath::same(qn, hoverQN);
@@ -939,7 +957,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
                                 top + (float)trackHeight() - STICKY_HOVER_LINE_H);
             g.setColour(UtilityColours::hoverLine);
             g.fillRect(0.0f, ly, w, STICKY_HOVER_LINE_H);
-            drawMeasureNumber(g, ly, measureAtQN(qn), true);
+            drawMeasureNumber(g, ly, qn, true);
         }
     }
 }
