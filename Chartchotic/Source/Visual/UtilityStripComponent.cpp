@@ -482,8 +482,9 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     const auto& s = list[index];
     float y = (float)yForQN(s.position.toDouble(), v);
 
-    int tw = std::min(getWidth() - 12, sectionLabelFont().getStringWidth(s.name) + 10);
-    int top = (int)y - LABEL_H - 2;
+    int plateW = std::min(getWidth() - LABEL_INSET_X * 2,
+                          sectionLabelFont().getStringWidth(s.name) + LABEL_TEXT_PAD);
+    int top = (int)y - LABEL_H - LABEL_LINE_GAP;
 
     // The section you are currently inside pins to the bottom once its own line has
     // scrolled past, so its name is always readable and still clickable. The next section
@@ -492,17 +493,22 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     if (index == (size_t)stickyIndex(v))
     {
         float bottom = (float)(trackTop() + trackHeight());
-        float pinned = bottom - LABEL_H - 2;
+        float pinned = bottom - LABEL_H - LABEL_LINE_GAP;
 
         if (index + 1 < list.size())
         {
+            // Clear of the next section's plate, not just of its line. That plate ends 2px
+            // above the line, so pinning to the line leaves the two exactly touching, the
+            // collision pass counts that as an overlap, and one of them is dropped: the next
+            // name blinks out and only comes back once this one has scrolled away. The name
+            // you are scrolling towards is the one that must survive.
             float nextY = (float)yForQN(list[index + 1].position.toDouble(), v);
-            pinned = std::max(pinned, nextY - 2.0f);
+            pinned = std::max(pinned, nextY - (float)LABEL_LINE_GAP + (float)LABEL_MIN_GAP);
         }
         top = std::min(top, (int)pinned);
     }
 
-    return { 3, top, tw + 6, LABEL_H };
+    return { LABEL_INSET_X, top, plateW, LABEL_H };
 }
 
 // Where the charted MIDI stops: the last note end on any mapped part, the end of the last
@@ -637,20 +643,41 @@ std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View&
     plates.assign(list.size(), juce::Rectangle<int>());
 
     const int bottom = trackTop() + trackHeight();
-    int lastTop = bottom + LABEL_MIN_GAP;
-    const int sticky = stickyIndex(v);
 
-    for (size_t i = 0; i < list.size(); ++i)
+    auto clear = [&](const juce::Rectangle<int>& plate)
     {
-        auto plate = sectionHeaderBounds(i, v);
-        if (plate.isEmpty() || plate.getY() > bottom) continue;
+        for (const auto& kept : plates)
+            if (!kept.isEmpty()
+                && plate.getBottom() + LABEL_MIN_GAP > kept.getY()
+                && kept.getBottom() + LABEL_MIN_GAP > plate.getY())
+                return false;
+        return true;
+    };
 
-        // Time runs up the strip, so each plate has to clear the one below it.
-        if ((int)i != sticky && plate.getBottom() + LABEL_MIN_GAP > lastTop) continue;
+    auto place = [&](int i, bool claim)
+    {
+        if (i < 0 || i >= (int)list.size() || !plates[(size_t)i].isEmpty()) return;
 
-        plates[i] = plate;
-        lastTop = plate.getY();
-    }
+        auto plate = sectionHeaderBounds((size_t)i, v);
+        if (plate.isEmpty() || plate.getY() > bottom) return;
+        if (!claim && !clear(plate)) return;
+
+        plates[(size_t)i] = plate;
+    };
+
+    // The section the playhead is in claims its name before anything else can crowd it out.
+    // In a cluster too tight for every label, the one you are inside is the one worth
+    // reading, and it is the only one whose absence you would actually notice.
+    place(litSectionIndex(v), true);
+
+    // The pinned label is the same argument once its own line has scrolled below the view,
+    // but it yields to the playhead's section on the rare frame where they differ.
+    place(stickyIndex(v), false);
+
+    // Everything else, bottom up, first come first served.
+    for (int i = 0; i < (int)list.size(); ++i)
+        place(i, false);
+
     return plates;
 }
 
