@@ -71,28 +71,97 @@ namespace
     }
 }
 
+// A bar step only earns a rung if it shows less than the whole song: 128 bars of a 40 bar
+// chart is the song view with extra steps to get there.
+std::vector<int> UtilityStripComponent::availableZooms() const
+{
+    return availableZoomsFor(songAtPlayhead());
+}
+
+// Takes the song rather than reading the playhead, because opening a chart seeks and steps
+// in together, and the seek only lands a frame later.
+std::vector<int> UtilityStripComponent::availableZoomsFor(const SongList::Song* song) const
+{
+    if (song == nullptr) return { ZOOM_SESSION };
+
+    return SongList::zoomLadder(song->endQN - song->startQN,
+                                barLengthQN(tempoMap, song->startQN));
+}
+
+void UtilityStripComponent::setZoom(int value, const SongList::Song* song)
+{
+    auto steps = song != nullptr ? availableZoomsFor(song) : availableZooms();
+
+    // Not a rung this song has, so take the nearest one that is. Bar counts sort ascending
+    // and the two views sit above them, which is the order the ladder is built in.
+    if (std::find(steps.begin(), steps.end(), value) == steps.end())
+    {
+        int best = steps.back();
+        for (int step : steps)
+            if (step > 0 && value > 0 && step <= value) best = step;
+
+        value = (value > 0) ? best : steps.back();
+    }
+
+    if (value == zoom) return;
+    zoom = value;
+    repaint();
+}
+
+void UtilityStripComponent::stepZoom(int direction)
+{
+    auto steps = availableZooms();
+    auto at = std::find(steps.begin(), steps.end(), zoom);
+
+    // Zoom is on a rung this song does not have, so land on a real one before stepping.
+    if (at == steps.end()) { setZoom(zoom); return; }
+
+    int index = (int)std::distance(steps.begin(), at) + direction;
+    if (index < 0 || index >= (int)steps.size()) return;
+
+    zoom = steps[(size_t)index];
+    repaint();
+}
+
+void UtilityStripComponent::zoomAbout(int y, int direction)
+{
+    auto before = visibleRange();
+    double anchorQN = qnForY(y, before);
+    double fromBottom = (trackTop() + trackHeight() - y) / (double)trackHeight();
+
+    stepZoom(direction);
+
+    // The song and session views are fixed spans with nothing to slide, so there is nothing
+    // to hold still and no reason to move the playhead to do it.
+    if (zoom <= 0) return;
+
+    auto after = visibleRange();
+    double span = after.endQN - after.startQN;
+    double start = anchorQN - fromBottom * span;
+
+    if (onSeekTo) onSeekTo(clampSeek(std::max(0.0, start + span * PLAYHEAD_FROM_BOTTOM)));
+}
+
 UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 {
     double now = playheadPPQ.toDouble();
-    int bars = barsVisible();
-    const auto* song = selectedSong();
+    const auto* song = confiningSong();
 
-    if (bars == 0)
+    if (zoom == ZOOM_SESSION || song == nullptr)
     {
-        // Whole song means the picked song, and only means the whole project on Session.
-        if (song != nullptr) return { song->startQN, song->endQN };
-
         // Whatever the MIDI actually reaches, since most charts in the wild have no [end].
         double end = contentEndQN();
         if (end <= 0.0) end = std::max(now, 1.0) + 64 * 4.0;
         return { 0.0, end };
     }
 
-    double span = bars * barLengthQN(tempoMap, now);
+    if (zoom == ZOOM_SONG) return { song->startQN, song->endQN };
+
+    double span = zoom * barLengthQN(tempoMap, now);
     double start = now - span * PLAYHEAD_FROM_BOTTOM;
     double end = start + span;
 
-    if (song != nullptr) SongList::confineWindow(start, end, song->startQN, song->endQN);
+    SongList::confineWindow(start, end, song->startQN, song->endQN);
 
     return { start, end };
 }
@@ -366,7 +435,7 @@ double UtilityStripComponent::clipEndAt(double qn) const
 
 double UtilityStripComponent::clampSeek(double qn) const
 {
-    const auto* song = selectedSong();
+    const auto* song = confiningSong();
     if (song == nullptr) return qn;
 
     return juce::jlimit(song->startQN, song->endQN, qn);
@@ -385,13 +454,11 @@ double UtilityStripComponent::sectionEndQN(size_t i, const View& v) const
     // Nothing after it, so it runs to wherever the MIDI itself stops.
     double stop = last ? std::max(contentEndQN(), v.endQN) : list[i + 1].position.toDouble();
 
-    // Its own clip's end cuts it short, which is the only thing that does it for charts
-    // with no [end] at all: the gap to the next clip is not part of any section. With a
-    // song picked, that song's end is the authority instead, because an album item
-    // overlapping the per-song items merges every gap between them away.
-    const auto* song = selectedSong();
-    bool insideSong = song != nullptr && qn >= song->startQN && qn < song->endQN;
-    double clipEnd = insideSong ? song->endQN : clipEndAt(qn);
+    // Its own song's end cuts it short: the gap to the next chart is not part of any
+    // section. The song rather than the merged clip spans, because those merge across every
+    // track, and a guitar item reaching over a gap would hide it.
+    const auto* song = songAt(qn);
+    double clipEnd = song != nullptr ? song->endQN : clipEndAt(qn);
     if (clipEnd > qn) stop = std::min(stop, clipEnd);
 
     double marker = sections->endMarkerBetween(PPQ(qn), PPQ(stop)).toDouble();
@@ -518,46 +585,18 @@ int UtilityStripComponent::litSectionIndex(const View& v) const
     return -1;
 }
 
-// Greedy, and correct because the list is sorted by start: a song takes the leftmost column
-// whose last song has already ended. An album item spanning the per-song items collides with
-// all of them, so it lands in a column of its own beside them.
-std::vector<int> UtilityStripComponent::songLanes(int& laneCount) const
-{
-    std::vector<int> lanes;
-    if (songs == nullptr) { laneCount = 1; return lanes; }
-
-    std::vector<double> laneEnds;
-
-    for (const auto& song : songs->getSongs())
-    {
-        int lane = 0;
-        while (lane < (int)laneEnds.size() && song.startQN < laneEnds[(size_t)lane]) ++lane;
-
-        if (lane == (int)laneEnds.size()) laneEnds.push_back(song.endQN);
-        else                              laneEnds[(size_t)lane] = song.endQN;
-
-        lanes.push_back(lane);
-    }
-
-    laneCount = std::max(1, (int)laneEnds.size());
-    return lanes;
-}
-
+// Full width each, because items cannot overlap: the blocks are a stack up the strip rather
+// than a layout problem.
 std::vector<juce::Rectangle<int>> UtilityStripComponent::songChunkBounds(const View& v) const
 {
     std::vector<juce::Rectangle<int>> bounds;
     if (songs == nullptr) return bounds;
 
-    int laneCount = 1;
-    auto lanes = songLanes(laneCount);
-    int laneW = std::max(1, getWidth() / laneCount);
-
-    const auto& list = songs->getSongs();
-    for (size_t i = 0; i < list.size(); ++i)
+    for (const auto& song : songs->getSongs())
     {
-        int top = (int)yForQN(list[i].endQN, v);
-        int bot = (int)yForQN(list[i].startQN, v);
-        bounds.push_back({ lanes[i] * laneW, top, laneW, std::max(1, bot - top) });
+        int top = (int)yForQN(song.endQN, v);
+        int bot = (int)yForQN(song.startQN, v);
+        bounds.push_back({ 0, top, getWidth(), std::max(1, bot - top) });
     }
     return bounds;
 }
@@ -566,7 +605,7 @@ int UtilityStripComponent::songChunkAt(juce::Point<int> p) const
 {
     if (!songOverview()) return -1;
 
-    // Lanes keep overlapping songs off each other, so nothing is stacked and first match wins.
+    // Items cannot overlap, so nothing is stacked and the first match is the only match.
     auto bounds = songChunkBounds(visibleRange());
     for (int i = 0; i < (int)bounds.size(); ++i)
         if (bounds[(size_t)i].contains(p)) return i;
@@ -821,8 +860,12 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     g.fillRect(0, getHeight() - FOOTER_H, getWidth(), FOOTER_H);
 
     g.setFont(juce::Font(juce::FontOptions(13.0f)));
-    for (auto [r, text, enabled] : { std::tuple{ minus, "-", zoomIndex < (int)std::size(ZOOM_STEPS) - 1 },
-                                     std::tuple{ plus,  "+", zoomIndex > 0 } })
+    auto steps = availableZooms();
+    bool canOut = !steps.empty() && zoom != steps.back();
+    bool canIn  = !steps.empty() && zoom != steps.front();
+
+    for (auto [r, text, enabled] : { std::tuple{ minus, "-", canOut },
+                                     std::tuple{ plus,  "+", canIn } })
     {
         g.setColour(UtilityColours::chunkLineBig);
         g.drawRect(r, 1);
@@ -832,9 +875,13 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
 
     g.setColour(UtilityColours::label);
     g.setFont(juce::Font(juce::FontOptions(10.0f)));
-    // One word for both scopes: zoomed all the way out is the whole of whatever you are in,
-    // a picked song or the session, and naming either one made the label lie in the other.
-    g.drawText(barsVisible() == 0 ? "full" : juce::String(barsVisible()) + " bars",
+    // The two widest rungs are different views rather than wider spans, so they are named
+    // rather than counted.
+    juce::String extent = zoom == ZOOM_SESSION ? "session"
+                        : zoom == ZOOM_SONG    ? "song"
+                                               : juce::String(zoom) + " bars";
+
+    g.drawText(extent,
                plus.getRight() + 6, plus.getY(), getWidth() - plus.getRight() - 10,
                plus.getHeight(), juce::Justification::centredLeft, false);
 }
@@ -922,7 +969,7 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
 
     if (e.mods.isCommandDown())
     {
-        if (delta > 0.0) zoomIn(); else zoomOut();
+        zoomAbout(e.getPosition().y, delta > 0.0 ? -1 : 1);
         return;
     }
 
@@ -1340,14 +1387,17 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
 {
     if (!inTrackArea(e.getPosition())) return;
 
-    // Opening a song confines the strip to it, which is what leaves the overview. The name
-    // is not part of the target: double clicking there is two renames, not a way in.
+    // Opening a song means landing the playhead in it and stepping in, since which song you
+    // are in follows the playhead. The name is not part of the target: double clicking there
+    // is two renames, not a way in.
     if (songOverview() && songNameAt(e.getPosition()) < 0)
     {
         int chunk = songChunkAt(e.getPosition());
-        if (chunk >= 0)
+        const auto* song = songs != nullptr ? songs->at(chunk) : nullptr;
+        if (song != nullptr)
         {
-            setSelectedSong(chunk);
+            if (onSeekTo) onSeekTo(song->startQN);
+            setZoom(DEFAULT_ZOOM_BARS, song);
             return;
         }
     }

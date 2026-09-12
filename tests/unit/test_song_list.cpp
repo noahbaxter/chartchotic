@@ -20,18 +20,17 @@ namespace
     }
 }
 
-// An album item spanning twelve per-song items is the whole reason this exists, so overlap
-// has to survive the build rather than being merged away like InstrumentSession's spans are.
-TEST_CASE("SongList - overlapping spans are kept as separate songs", "[songlist]")
+// Charts sit end to end on one timeline, gaps and all, and each item is exactly one song.
+TEST_CASE("SongList - every item is its own song", "[songlist]")
 {
-    auto list = built(spans({ { 0.0, 480.0, "Album" },
-                              { 0.0, 120.0, "Track 1" },
-                              { 120.0, 480.0, "Track 2" } }));
+    auto list = built(spans({ { 0.0, 120.0, "Track 1" },
+                              { 120.0, 300.0, "Track 2" },
+                              { 400.0, 480.0, "Track 3" } }));
 
     REQUIRE(list.size() == 3);
-    REQUIRE(list.at(0)->name == "Album");
-    REQUIRE(list.at(1)->name == "Track 1");
-    REQUIRE(list.at(2)->name == "Track 2");
+    REQUIRE(list.at(0)->name == "Track 1");
+    REQUIRE(list.at(1)->name == "Track 2");
+    REQUIRE(list.at(2)->name == "Track 3");
 }
 
 TEST_CASE("SongList - spans are sorted by start", "[songlist]")
@@ -92,13 +91,53 @@ TEST_CASE("SongList - duplicate take names stay two songs", "[songlist]")
     REQUIRE(list.at(1)->name == "Reprise");
 }
 
-TEST_CASE("SongList - at() answers null outside the list and for the session sentinel", "[songlist]")
+TEST_CASE("SongList - at() answers null outside the list", "[songlist]")
 {
     auto list = built(spans({ { 0.0, 100.0, "One" } }));
 
-    REQUIRE(list.at(SongList::SESSION) == nullptr);
+    REQUIRE(list.at(-1) == nullptr);
     REQUIRE(list.at(1) == nullptr);
     REQUIRE(list.at(0) != nullptr);
+}
+
+// 4 QN to the bar throughout, so a rung's span is bars * 4.
+TEST_CASE("SongList - a long chart offers every bar step", "[songlist]")
+{
+    auto rungs = SongList::zoomLadder(4000.0, 4.0);
+
+    REQUIRE(rungs == std::vector<int>{ 8, 16, 32, 64, 128, 256,
+                                       SongList::ZOOM_SONG, SongList::ZOOM_SESSION });
+}
+
+// A 40 bar chart at 64 bars shows the same thing the song rung shows, so it is not a rung.
+TEST_CASE("SongList - steps wider than the chart are dropped", "[songlist]")
+{
+    auto rungs = SongList::zoomLadder(40.0 * 4.0, 4.0);
+
+    REQUIRE(rungs == std::vector<int>{ 8, 16, 32, SongList::ZOOM_SONG, SongList::ZOOM_SESSION });
+}
+
+TEST_CASE("SongList - a chart shorter than every step offers only the two views", "[songlist]")
+{
+    auto rungs = SongList::zoomLadder(4.0 * 4.0, 4.0);
+
+    REQUIRE(rungs == std::vector<int>{ SongList::ZOOM_SONG, SongList::ZOOM_SESSION });
+}
+
+// A step exactly as long as the chart is the song view, so it is dropped like a wider one.
+TEST_CASE("SongList - a step the length of the chart is not its own rung", "[songlist]")
+{
+    auto rungs = SongList::zoomLadder(32.0 * 4.0, 4.0);
+
+    REQUIRE(rungs == std::vector<int>{ 8, 16, SongList::ZOOM_SONG, SongList::ZOOM_SESSION });
+}
+
+// Bars are twice as long in 8/4, so half as many steps fit the same quarter-note span.
+TEST_CASE("SongList - the ladder follows bar length, not quarter notes", "[songlist]")
+{
+    auto rungs = SongList::zoomLadder(40.0 * 4.0, 8.0);
+
+    REQUIRE(rungs == std::vector<int>{ 8, 16, SongList::ZOOM_SONG, SongList::ZOOM_SESSION });
 }
 
 TEST_CASE("SongList - a project with no EVENTS items has no songs", "[songlist]")
