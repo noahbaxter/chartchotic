@@ -86,6 +86,13 @@ public:
     void setPlayhead(PPQ ppq)
     {
         playheadPPQ = ppq;
+
+        // Playing off the end of a chart leaves nothing to be confined to, and every rung
+        // below session is a view of one song. Dropping to session is what zooming out would
+        // do anyway, and it beats holding a song rung with no song to show.
+        if (zoom != ZOOM_SESSION && hasSongs() && songAtPlayhead() == nullptr)
+            zoom = ZOOM_SESSION;
+
         if (playing && followOn() && followEngaged) centreViewOn(ppq.toDouble());
     }
 
@@ -324,6 +331,10 @@ private:
     }
 
     const SongList::Song* songAtPlayhead() const { return songAt(playheadPPQ.toDouble()); }
+
+    // A project with no EVENTS items at all is a different thing from a position between
+    // two charts: there is nothing to confine to anywhere, rather than just not here.
+    bool hasSongs() const { return songs != nullptr && songs->size() > 0; }
 
     // Confined to one chart at every zoom but the session view.
     const SongList::Song* confiningSong() const
