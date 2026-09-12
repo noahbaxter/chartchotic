@@ -11,6 +11,10 @@
 #include "ReaperApiHelpers.h"
 #include "../../../Host/ReaperTrackDetector.h"
 
+// REAPER writes into a caller-supplied buffer with no length argument, so this has to be
+// comfortably longer than any take name a person types.
+static constexpr int TAKE_NAME_BUF = 512;
+
 ReaperNoteFetcher::ReaperNoteFetcher(std::function<void*(const char*)> reaperApiFunc, const ReaperAPIs& apis)
     : getReaperApi(reaperApiFunc), apis(apis)
 {
@@ -194,8 +198,15 @@ std::vector<ReaperMidiProvider::ReaperItemSpan> ReaperNoteFetcher::fetchItemSpan
             double len = apis.GetMediaItemInfo_Value(item, "D_LENGTH");
             if (len <= 0.0) continue;
 
+            // Empty when the take was never named or the API is missing, which the song
+            // list handles with its own fallbacks rather than inventing a name here.
+            char nameBuf[TAKE_NAME_BUF] = { 0 };
+            if (apis.GetSetMediaItemTakeInfo_String)
+                apis.GetSetMediaItemTakeInfo_String(take, "P_NAME", nameBuf, false);
+
             spans.push_back({ apis.TimeMap2_timeToQN(project, pos),
-                              apis.TimeMap2_timeToQN(project, pos + len) });
+                              apis.TimeMap2_timeToQN(project, pos + len),
+                              juce::String(nameBuf) });
         }
     }
     catch (...)

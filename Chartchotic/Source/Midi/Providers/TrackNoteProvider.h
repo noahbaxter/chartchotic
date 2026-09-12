@@ -11,6 +11,7 @@
 struct ClipSpan {
     double startQN;
     double endQN;
+    juce::String name;   // the take's name, empty where the source has none
 };
 
 class TrackNoteProvider {

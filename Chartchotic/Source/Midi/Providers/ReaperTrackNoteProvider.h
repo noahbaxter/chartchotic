@@ -38,7 +38,7 @@ public:
     {
         std::vector<ClipSpan> spans;
         for (const auto& item : reaperProvider.getItemSpansFromTrack(track.sourceTrackIndex))
-            spans.push_back({ item.startQN, item.endQN });
+            spans.push_back({ item.startQN, item.endQN, item.name });
         return spans;
     }
 
