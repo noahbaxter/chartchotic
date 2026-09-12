@@ -116,6 +116,35 @@ void UtilityStripComponent::fitProject()
     setView(0.0, projectEndQN());
 }
 
+// Seeks rather than scrolls: a chart is a place on the timeline, so going to the next one is
+// moving the cursor there and letting follow and the view do what they always do.
+void UtilityStripComponent::gotoAdjacentChart(int direction)
+{
+    if (!hasSongs()) return;
+
+    double now = playheadPPQ.toDouble();
+    const auto& list = songs->getSongs();
+    const SongList::Song* target = nullptr;
+
+    if (direction > 0)
+    {
+        for (const auto& song : list)
+            if (GridMath::after(song.startQN, now)) { target = &song; break; }
+    }
+    else
+    {
+        // Landing on the current chart's own start counts once, the way stepping back
+        // through sections does, so the first press parks you at the top of the chart you
+        // are in rather than skipping over it.
+        for (const auto& song : list)
+            if (GridMath::before(song.startQN, now)) target = &song;
+    }
+
+    if (target == nullptr) return;
+
+    if (onSeekTo) onSeekTo(clampSeek(target->startQN));
+    centreViewOn(target->startQN);
+}
 
 // Answers whether the view actually moved, which is what says a scroll counted as one.
 bool UtilityStripComponent::scrollViewBy(double deltaQN)

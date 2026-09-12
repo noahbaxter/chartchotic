@@ -167,6 +167,10 @@ public:
     void fitChart();
     void fitProject();
 
+    // The neighbouring chart's start, which is the navigation you want once nothing confines
+    // the view: a chart is a place on the timeline rather than somewhere you enter.
+    void gotoAdjacentChart(int direction);
+
     // Straight to the whole project and back to where you were working, since those are the
     // two ends anyone actually wants to reach in one keystroke.
     void toggleZoom()
