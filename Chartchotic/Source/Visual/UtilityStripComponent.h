@@ -30,7 +30,6 @@
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "../UI/ControlConstants.h"
-#include "../UI/Controls/SongPicker.h"
 
 // Neutral and dark, in the same family as the neck rather than a UI blue.
 namespace UtilityColours
@@ -73,28 +72,7 @@ namespace UtilityColours
 class UtilityStripComponent : public juce::Component
 {
 public:
-    UtilityStripComponent()
-    {
-        setInterceptsMouseClicks(true, false);
-        addAndMakeVisible(picker);
-
-        picker.onSelect = [this](int index)
-        {
-            setSelectedSong(index);
-            picker.setSelected(getSelectedSong());
-
-            // Picking a song is a navigation action, so it lands you on it. Session picks
-            // nothing, so it moves nothing.
-            const auto* song = selectedSong();
-            if (song != nullptr && onSeekTo != nullptr) onSeekTo(song->startQN);
-        };
-    }
-
-    void resized() override
-    {
-        picker.setVisible(pickerHeight() > 0);
-        picker.setBounds(0, 0, getWidth(), PICKER_H);
-    }
+    UtilityStripComponent() { setInterceptsMouseClicks(true, false); }
 
     void setSections(const SongSections* s)          { sections = s; }
     void setTempoMap(const TempoTimeSignatureMap* m) { tempoMap = m; }
@@ -128,10 +106,6 @@ public:
             lastSongCount = count;
             selectedSongIndex = SongList::SESSION;
         }
-
-        picker.setSongs(s);
-        picker.setSelected(selectedSongIndex);
-        resized();
     }
 
     void setSelectedSong(int index)
@@ -146,6 +120,25 @@ public:
     // Section the playhead is inside, for the banner over the highway. Empty when there is
     // none, or when the strip's own sections filter is off.
     juce::String currentSectionName() const;
+
+    // The chart the playhead is in, for the banner over the highway. Falls back to position
+    // rather than to nothing on Session: which chart you are looking at is a fact about
+    // where the playhead is, and it is true whether or not you picked one.
+    //
+    // Overlapping songs make the picked one the better answer when there is one, since an
+    // album item and the track inside it both contain the playhead and only you know which
+    // you meant.
+    juce::String currentSongName() const
+    {
+        if (const auto* picked = selectedSong()) return picked->name;
+        if (songs == nullptr) return {};
+
+        double now = playheadPPQ.toDouble();
+        for (const auto& song : songs->getSongs())
+            if (now >= song.startQN && now < song.endQN) return song.name;
+
+        return {};
+    }
 
     // Lane colours come from the same place the gems and strikeline pads get them, so the
     // map cannot drift from the highway it summarises.
@@ -174,6 +167,9 @@ public:
     std::function<void(const std::vector<SectionEdit>&)> onSectionsEdited;
 
     std::function<void(double startQN, double endQN)> onTimeSelection;
+
+    // Naming a song names its EVENTS item, addressed by where the item starts.
+    std::function<void(double startQN, const juce::String& name)> onSongRenamed;
 
     void setWriteMode(bool on)
     {
@@ -213,7 +209,6 @@ private:
     static constexpr int BUTTON_W = 18;
     static constexpr int FILTER_ROW_H = 18;
     static constexpr int FILTER_HEADER_H = 20;
-    static constexpr int PICKER_H = 20;
 
     struct Filter { const char* label; bool on; };
     // Sections are the reason the strip exists, so they are on and stay first.
@@ -238,11 +233,7 @@ private:
         repaint();
     }
 
-    // Zero unless there is a choice to make, so one song or none costs no vertical space.
-    int pickerHeight() const
-    { return (songs != nullptr && songs->isPickable()) ? PICKER_H : 0; }
-
-    int trackTop() const { return pickerHeight() + filterAreaHeight(); }
+    int trackTop() const { return filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
 
     double yForQN(double qn, const View& v) const
@@ -271,6 +262,30 @@ private:
     // Every seek the strip issues goes through here, so a picked song bounds scrubbing,
     // clicking and section stepping alike rather than only one of them.
     double clampSeek(double qn) const;
+
+    // Session, zoomed all the way out, with songs to show. The strip stops being a view of
+    // one chart's sections and becomes a map of the project's charts.
+    bool songOverview() const
+    { return selectedSong() == nullptr && barsVisible() == 0 && songs != nullptr && songs->size() > 0; }
+
+    // One column per song, and a song takes the first column it does not collide in. An
+    // album item spanning the per-song items lands beside them rather than on top of them.
+    std::vector<int> songLanes(int& laneCount) const;
+    std::vector<juce::Rectangle<int>> songChunkBounds(const View& v) const;
+    int songChunkAt(juce::Point<int> p) const;
+
+    // The chunk's top strip renames it, the rest of it jumps into it. Same split as a
+    // section's name plate against its row.
+    int songNameAt(juce::Point<int> p) const;
+    void drawSongChunks(juce::Graphics& g, const View& v) const;
+    void beginSongRename(int index);
+
+    static constexpr int SONG_CHUNK_INSET = 5;
+
+    // Measured and drawn through the same call, or a plate sized with one font and filled
+    // with another ellipsises names that would have fit.
+    static juce::Font sectionLabelFont()
+    { return juce::Font(juce::FontOptions(16.0f, juce::Font::bold)); }
 
     // The song confining the view, or nullptr on Session.
     const SongList::Song* selectedSong() const
@@ -317,10 +332,9 @@ private:
     juce::Rectangle<int> plusBounds() const
     { return { 4 + BUTTON_W + 2, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
     juce::Rectangle<int> filterHeaderBounds() const
-    { return { 0, pickerHeight(), getWidth(), FILTER_HEADER_H }; }
+    { return { 0, 0, getWidth(), FILTER_HEADER_H }; }
     juce::Rectangle<int> filterRowBounds(int i) const
-    { return { 0, pickerHeight() + FILTER_HEADER_H + i * FILTER_ROW_H,
-               getWidth(), FILTER_ROW_H }; }
+    { return { 0, FILTER_HEADER_H + i * FILTER_ROW_H, getWidth(), FILTER_ROW_H }; }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
     void drawSectionBands(juce::Graphics& g, const View& v) const;
@@ -339,8 +353,6 @@ private:
     int selectedSongIndex = SongList::SESSION;
     int lastSongCount = 0;
 
-    SongPicker picker { { UtilityColours::panelFill, UtilityColours::uiText,
-                          UtilityColours::label, UtilityColours::border } };
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
     int zoomIndex = DEFAULT_ZOOM_INDEX;
@@ -363,8 +375,14 @@ private:
     double dragMoveDeltaQN = 0.0;
     StripCommand dragCommand = StripCommand::None;
 
+    // One editor for both, because only one thing is ever being renamed and the two commit
+    // to completely different places.
+    enum class RenameTarget { Section, Song };
+
     std::unique_ptr<juce::TextEditor> renameEditor;
     int renameIndex = -1;
+    RenameTarget renameTarget = RenameTarget::Section;
+    int hoverSongChunk = -1;
 
     StripMode stripMode() const { return writeMode ? StripMode::Write : StripMode::Play; }
     bool isSelected(int index) const

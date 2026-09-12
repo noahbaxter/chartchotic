@@ -12,21 +12,10 @@ namespace
         return out;
     }
 
-    SongSections sectionsAt(std::initializer_list<std::pair<double, const char*>> items)
-    {
-        TrackTextEvents events;
-        for (const auto& [qn, text] : items)
-            events.push_back({ PPQ(qn), juce::String(text) });
-
-        SongSections s;
-        s.buildFromTextEvents(events);
-        return s;
-    }
-
-    SongList built(const std::vector<ClipSpan>& in, const SongSections& sections = {})
+    SongList built(const std::vector<ClipSpan>& in)
     {
         SongList list;
-        list.buildFromSpans(in, sections);
+        list.buildFromSpans(in);
         return list;
     }
 }
@@ -64,23 +53,32 @@ TEST_CASE("SongList - empty and degenerate spans are dropped", "[songlist]")
     REQUIRE(list.at(0)->name == "Real");
 }
 
-// An unnamed item is the common case: REAPER only names a take when you ask it to.
-TEST_CASE("SongList - an unnamed song takes the first section inside it", "[songlist]")
+TEST_CASE("SongList - an unnamed song falls back to its ordinal", "[songlist]")
 {
-    auto sections = sectionsAt({ { 4.0, "[section intro]" }, { 64.0, "[section verse_1]" },
-                                 { 200.0, "[section chorus]" } });
-    auto list = built(spans({ { 0.0, 100.0, "" }, { 100.0, 300.0, "" } }), sections);
+    auto list = built(spans({ { 0.0, 100.0, "" }, { 100.0, 200.0, "  " } }));
 
-    REQUIRE(list.at(0)->name == "intro");
-    REQUIRE(list.at(1)->name == "chorus");
+    REQUIRE(list.at(0)->name == "Chart 1");
+    REQUIRE(list.at(1)->name == "Chart 2");
 }
 
-TEST_CASE("SongList - a song with no name and no sections falls back to its ordinal", "[songlist]")
+// REAPER names a new item after its track, so an untouched EVENTS item reports "EVENTS".
+// Taking that at face value called every song in the project the same thing.
+TEST_CASE("SongList - the inherited track name counts as no name", "[songlist]")
 {
-    auto list = built(spans({ { 0.0, 100.0, "" }, { 100.0, 200.0, "" } }));
+    auto list = built(spans({ { 0.0, 100.0, "EVENTS" }, { 100.0, 200.0, "events" } }));
 
-    REQUIRE(list.at(0)->name == "Song 1");
-    REQUIRE(list.at(1)->name == "Song 2");
+    REQUIRE(list.at(0)->name == "Chart 1");
+    REQUIRE(list.at(1)->name == "Chart 2");
+}
+
+// Ordinals follow position, so moving an item renumbers it without anyone retyping.
+TEST_CASE("SongList - ordinals come from timeline order, not item order", "[songlist]")
+{
+    auto list = built(spans({ { 200.0, 300.0, "" }, { 0.0, 100.0, "" } }));
+
+    REQUIRE(list.at(0)->startQN == Catch::Approx(0.0));
+    REQUIRE(list.at(0)->name == "Chart 1");
+    REQUIRE(list.at(1)->name == "Chart 2");
 }
 
 // Two items named the same is legal in REAPER and must not collapse them: the picker shows
@@ -103,12 +101,9 @@ TEST_CASE("SongList - at() answers null outside the list and for the session sen
     REQUIRE(list.at(0) != nullptr);
 }
 
-// The picker costs vertical space, so it only earns it when there is a choice to make.
-TEST_CASE("SongList - one song or none is not pickable", "[songlist]")
+TEST_CASE("SongList - a project with no EVENTS items has no songs", "[songlist]")
 {
-    REQUIRE_FALSE(built(spans({})).isPickable());
-    REQUIRE_FALSE(built(spans({ { 0.0, 100.0, "Only" } })).isPickable());
-    REQUIRE(built(spans({ { 0.0, 100.0, "A" }, { 100.0, 200.0, "B" } })).isPickable());
+    REQUIRE(built(spans({})).size() == 0);
 }
 
 namespace

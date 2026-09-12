@@ -223,6 +223,17 @@ inline const std::vector<TrackNameEntry>& getImplementedTrackNames()
     return names;
 }
 
+// The canonical name of the track a part lives on, empty for a part with none. REAPER names
+// a new item after the track it lands on, so this is also what an untitled item reports as
+// its own name, which is the one case where a name has to be read as a default.
+inline juce::String trackNameFor(Part part)
+{
+    for (const auto& entry : getImplementedTrackNames())
+        if (entry.part == part) return entry.name;
+
+    return {};
+}
+
 inline const std::vector<TrackNameEntry>& getUnimplementedTrackNames()
 {
     static const std::vector<TrackNameEntry> names = {
