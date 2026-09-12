@@ -213,6 +213,7 @@ private:
     // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
     // 16px step), so the strip scrolls at the speed everything else in the OS does.
     static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
+
     // How long after landing on a section's start a second step back means the section
     // before it rather than that same start again. Long enough to press twice deliberately,
     // short enough that coming back later restarts the section you are listening to.
@@ -381,6 +382,11 @@ private:
 
     static constexpr int LABEL_H = 19;
     static constexpr int LABEL_MIN_GAP = 2;
+    // A plate sits this far above the line it names, and this far in from each edge of the
+    // strip. The gap is what the pinned label has to clear to leave the next name its room.
+    static constexpr int LABEL_LINE_GAP = 2;
+    static constexpr int LABEL_INSET_X = 3;
+    static constexpr int LABEL_TEXT_PAD = 16;
     // Clear of the pinned plate, close enough to read as that label's own underline.
     static constexpr float STICKY_HOVER_LINE_GAP = 2.0f;
     static constexpr float STICKY_HOVER_LINE_H = 2.0f;

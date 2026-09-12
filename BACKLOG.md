@@ -6,6 +6,7 @@ Work from the top.
 
 ## Up Next
 
+- **Utility strip styling is a first pass.** Font sizes, footer height and the section label crowding rule were all eyeballed against one project. The pinned-label clearance in `sectionHeaderBounds` and the claim order in `labelPlates` both want a second look on charts with dense sections.
 - **Test coverage expansion** — See details below in Test Coverage section.
 - **UI scale setting** — User-adjustable scale factor for toolbar, footer, and panel elements (not highway rendering). Lets users with high-DPI or small screens resize the chrome independently.
 - **All-difficulty overlay mode** — Show all 4 difficulties squeezed into the same highway. Each lane gets up to 4 notes stacked when all difficulties hit them. Color-code by difficulty instead of track color. All note data except specific pitches is shared across difficulties in the MIDI spec, so the data model supports this naturally.
