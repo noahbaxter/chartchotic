@@ -24,9 +24,27 @@ public:
         juce::String name;
     };
 
-    // No song picked, so nothing is confined. The default, and where every project with
-    // fewer than two EVENTS items stays.
-    static constexpr int SESSION = -1;
+    // The two zoom rungs that are views rather than bar counts.
+    static constexpr int ZOOM_SESSION = -1;   // every chart on the timeline
+    static constexpr int ZOOM_SONG    = 0;    // the whole of one chart
+
+    static constexpr int BAR_STEPS[] = { 8, 16, 32, 64, 128, 256 };
+    static constexpr int DEFAULT_ZOOM_BARS = 64;
+
+    // The rungs a song of `songQN` quarter notes offers, narrowest first, where its bars are
+    // `barQN` long. A bar step only earns a rung if it shows less than the whole song: 128
+    // bars of a 40 bar chart is the song view with extra travel to reach it, not a rung.
+    static std::vector<int> zoomLadder(double songQN, double barQN)
+    {
+        std::vector<int> rungs;
+
+        for (int bars : BAR_STEPS)
+            if (bars * barQN < songQN) rungs.push_back(bars);
+
+        rungs.push_back(ZOOM_SONG);
+        rungs.push_back(ZOOM_SESSION);
+        return rungs;
+    }
 
     // Unmerged on purpose, unlike InstrumentSession's clipSpans: merging is what would
     // destroy the album-over-singles arrangement this exists to support.
