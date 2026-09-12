@@ -2,6 +2,19 @@
 
 namespace
 {
+    // Quarter notes in `seconds` at the tempo in force at `qn`.
+    double secondsToQN(const TempoTimeSignatureMap* map, double qn, double seconds)
+    {
+        double bpm = 120.0;
+        if (map != nullptr && !map->empty())
+        {
+            // Already falls back to 120 itself where the map has no tempo before this point.
+            auto state = TempoTimeSignatureEventHelper::getEffectiveStateAtPPQ(*map, PPQ(qn));
+            if (state.bpm > 0.0) bpm = state.bpm;
+        }
+        return seconds * bpm / 60.0;
+    }
+
     double barLengthQN(const TempoTimeSignatureMap* map, double qn)
     {
         if (map == nullptr || map->empty()) return 4.0;
@@ -75,7 +88,19 @@ namespace
 // chart is the song view with extra steps to get there.
 std::vector<int> UtilityStripComponent::availableZooms() const
 {
-    return availableZoomsFor(songAtPlayhead());
+    if (const auto* song = songAtPlayhead()) return availableZoomsFor(song);
+
+    // No EVENTS items anywhere, so nothing confines anything: every bar step is available
+    // and session means the whole project. The song rung has no song to be.
+    if (!hasSongs())
+    {
+        std::vector<int> steps(std::begin(SongList::BAR_STEPS), std::end(SongList::BAR_STEPS));
+        steps.push_back(ZOOM_SESSION);
+        return steps;
+    }
+
+    // In the gap between two charts, where there is nothing to be inside.
+    return { ZOOM_SESSION };
 }
 
 // Takes the song rather than reading the playhead, because opening a chart seeks and steps
@@ -124,17 +149,18 @@ void UtilityStripComponent::stepZoom(int direction)
     // Arriving at a bar rung from a fixed-span one, the scroll offset is whatever it was
     // last time, which may be nowhere near. Frame the playhead, which is the one position
     // the view can assume you care about when you did not aim at anything.
-    if (zoom > 0)
-    {
-        double now = playheadPPQ.toDouble();
-        viewStartQN = now - zoom * barLengthQN(tempoMap, now) * PLAYHEAD_FROM_BOTTOM;
-    }
+    if (zoom > 0) centreViewOn(playheadPPQ.toDouble());
 
     repaint();
 }
 
-void UtilityStripComponent::scrollViewBy(double deltaQN)
+// Answers whether the view actually moved, which is what says a scroll counted as one.
+bool UtilityStripComponent::scrollViewBy(double deltaQN)
 {
+    // The song and session rungs are fixed spans: there is nothing to scroll, so a wheel
+    // notch there is not a scroll, it is a wheel notch against a wall.
+    if (zoom <= 0) return false;
+
     auto v = visibleRange();
     double span = v.endQN - v.startQN;
     double start = v.startQN + deltaQN;
@@ -145,13 +171,46 @@ void UtilityStripComponent::scrollViewBy(double deltaQN)
     else
         start = std::max(0.0, start);
 
+    // Already hard against the start or the end of the chart, so the wheel changed nothing.
+    if (start == viewStartQN) return false;
+
+    viewStartQN = start;
+    repaint();
+    return true;
+}
+
+void UtilityStripComponent::centreViewOn(double qn)
+{
+    // The song and session rungs show the whole chart already, so there is nothing to move.
+    if (zoom <= 0) return;
+
+    double span = zoom * barLengthQN(tempoMap, qn);
+    double start = qn - span * FOLLOW_POSITION;
+    double end = start + span;
+
+    if (const auto* song = confiningSong())
+        SongList::confineWindow(start, end, song->startQN, song->endQN);
+    else
+        start = std::max(0.0, start);
+
     if (start == viewStartQN) return;
+
     viewStartQN = start;
     repaint();
 }
 
 void UtilityStripComponent::zoomAbout(int y, int direction)
 {
+    // While the transport runs the playhead is what you are zooming around, wherever the
+    // pointer happens to be. Aiming at a point that is sliding past is aiming at nothing,
+    // and the moment that matters during playback is the one being played. stepZoom frames
+    // the playhead itself, so the bar rungs and the two views all land the same way.
+    if (playing)
+    {
+        stepZoom(direction);
+        return;
+    }
+
     auto before = visibleRange();
     double anchorQN = qnForY(y, before);
     double fromBottom = (trackTop() + trackHeight() - y) / (double)trackHeight();
@@ -172,7 +231,8 @@ void UtilityStripComponent::zoomAbout(int y, int direction)
     stepZoom(direction);
 
     // Zooming in is aiming: the point you closed in on becomes the one you are working at,
-    // so the playhead lands there. Zooming out is only widening what you can see.
+    // so the playhead lands there. Zooming out is only widening what you can see, so it
+    // moves nothing.
     if (direction < 0 && onSeekTo) onSeekTo(clampSeek(anchorQN));
 
     // The song and session views are fixed spans with nothing to slide.
@@ -189,7 +249,7 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
     double now = playheadPPQ.toDouble();
     const auto* song = confiningSong();
 
-    if (zoom == ZOOM_SESSION || song == nullptr)
+    if (zoom == ZOOM_SESSION || (zoom == ZOOM_SONG && song == nullptr))
     {
         // Whatever the MIDI actually reaches, since most charts in the wild have no [end].
         double end = contentEndQN();
@@ -199,11 +259,14 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 
     if (zoom == ZOOM_SONG) return { song->startQN, song->endQN };
 
+    // A bar rung still means that many bars with no EVENTS track to confine it. Without
+    // this a project with no charts marked out could only ever see the whole timeline.
     double span = zoom * barLengthQN(tempoMap, viewStartQN);
     double start = viewStartQN;
     double end = start + span;
 
-    SongList::confineWindow(start, end, song->startQN, song->endQN);
+    if (song != nullptr) SongList::confineWindow(start, end, song->startQN, song->endQN);
+    else                 start = std::max(0.0, start);
 
     return { start, end };
 }
@@ -854,41 +917,41 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     }
 }
 
+// A segmented row of toggles, each one lit when its layer is on, so what the strip is
+// showing is readable without opening anything.
 void UtilityStripComponent::drawFilters(juce::Graphics& g) const
 {
-    auto header = filterHeaderBounds();
     g.setColour(UtilityColours::panelFill);
-    g.fillRect(header);
-    g.setColour(UtilityColours::border);
-    g.fillRect(0, header.getBottom() - 1, getWidth(), 1);
-
-    g.setColour(UtilityColours::label);
-    g.setFont(juce::Font(juce::FontOptions(11.0f)));
-    g.drawText(juce::String(filtersExpanded ? "v" : ">") + "  filters",
-               header.reduced(6, 0), juce::Justification::centredLeft, false);
-
-    if (!filtersExpanded) return;
+    g.fillRect(0, 0, getWidth(), FILTER_ROW_H);
 
     g.setFont(juce::Font(juce::FontOptions(11.0f)));
+
     for (int i = 0; i < (int)std::size(filters); ++i)
     {
-        auto row = filterRowBounds(i);
-        g.setColour(UtilityColours::panelFill);
-        g.fillRect(row);
+        auto seg = filterButtonBounds(i).reduced(FILTER_GAP, FILTER_GAP);
+        bool on = filters[i].on;
 
-        auto box = juce::Rectangle<int>(row.getX() + 8, row.getY() + 4, 10, 10);
-        g.setColour(UtilityColours::chunkLineBig);
-        g.drawRect(box, 1);
-        if (filters[i].on)
-        {
-            g.setColour(UtilityColours::uiText);
-            g.fillRect(box.reduced(2));
-        }
+        // Follow has three states rather than two: off, on and driving the view, and on but
+        // taken out of gear by a scroll. The third needs its own colour, or a view that has
+        // quietly stopped tracking looks exactly like one that is tracking.
+        bool held = on && i == FILTER_FOLLOW && !followEngaged;
 
-        g.setColour(filters[i].on ? UtilityColours::uiText : UtilityColours::label);
-        g.drawText(filters[i].label, box.getRight() + 7, row.getY(),
-                   row.getWidth() - box.getRight() - 10, row.getHeight(),
-                   juce::Justification::centredLeft, false);
+        g.setColour(held ? UtilityColours::followHeldFill
+                         : on ? UtilityColours::sectionBandCurrent
+                              : UtilityColours::background);
+        g.fillRect(seg);
+        g.setColour(held ? UtilityColours::followHeldLine
+                         : on ? UtilityColours::sectionLine
+                              : UtilityColours::chunkLine);
+        g.drawRect(seg, 1);
+
+        // Fitted rather than plain: at four across a 200px strip "measures" is wider than
+        // its segment, and a shrunk word reads where a clipped one does not.
+        g.setColour(held ? UtilityColours::followHeldText
+                         : on ? UtilityColours::uiText
+                              : UtilityColours::label);
+        g.drawFittedText(filters[i].label, seg.reduced(3, 0),
+                         juce::Justification::centred, 1, 0.7f);
     }
 
     // Where the track starts, not how tall the filter block is, so anything added above the
@@ -1021,20 +1084,29 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
 
     // Shift skips structure: one notch, one section, which is the jump you actually want
     // when reading a chart rather than scrubbing through it. The one wheel gesture that
-    // moves the playhead, because stepping between sections is what it is for.
+    // moves the playhead, and it brings the view with it rather than leaving you to find
+    // where it went.
+    //
+    // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
+    // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
     if (e.mods.isShiftDown())
     {
-        if (onSeekTo) onSeekTo(clampSeek(sectionStep(delta > 0.0 ? 1 : -1)));
+        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
+        if (onSeekTo) onSeekTo(target);
+        centreViewOn(target);
         return;
     }
 
     // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
     // trackpad glides instead of clacking between bar lines. Snapping lives where it is
     // aimed, on hover and on click. The playhead does not come along.
+    //
+    // Only a scroll that moved something takes follow out of gear. Spinning the wheel on a
+    // fixed-span view, or against the end of a chart, is not you asking to read elsewhere.
     auto v = visibleRange();
     double qnPerPx = (v.endQN - v.startQN) / trackHeight();
 
-    scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx);
+    if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx)) followEngaged = false;
 }
 
 // The next section line from the playhead in `direction`, or where we already are when
@@ -1054,10 +1126,22 @@ double UtilityStripComponent::sectionStep(int direction) const
         return now;
     }
 
+    // Landing on the current section's own start is the right answer once, the way a
+    // transport's previous-marker key works. Press again while you are still near that start
+    // and you meant the section before it, which is also what stops playback carrying you
+    // back onto the same start every notch.
+    double from = now;
+    if (const auto* current = sections->sectionAt(PPQ(now)))
+    {
+        double start = current->position.toDouble();
+        if (now - start <= secondsToQN(tempoMap, now, SECTION_BACKSTEP_GRACE_S))
+            from = start;
+    }
+
     double best = now;
     for (const auto& s : list)
     {
-        if (!GridMath::before(s.position.toDouble(), now)) break;
+        if (!GridMath::before(s.position.toDouble(), from)) break;
         best = s.position.toDouble();
     }
     return best;
@@ -1343,23 +1427,28 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 
     if (renameEditor != nullptr) commitRename();
 
-    if (filterHeaderBounds().contains(p))
-    {
-        filtersExpanded = !filtersExpanded;
-        repaint();
-        return;
-    }
-
-    if (filtersExpanded)
-    {
-        for (int i = 0; i < (int)std::size(filters); ++i)
-            if (filterRowBounds(i).contains(p))
+    for (int i = 0; i < (int)std::size(filters); ++i)
+        if (filterButtonBounds(i).contains(p))
+        {
+            // Yellow means follow is on but a scroll took it out of gear. Clicking there
+            // obviously means start following again, so it re-engages rather than switching
+            // follow off and making you click twice to get back to where you were.
+            if (i == FILTER_FOLLOW && filters[i].on && !followEngaged)
             {
-                filters[i].on = !filters[i].on;
+                followEngaged = true;
                 repaint();
                 return;
             }
-    }
+
+            filters[i].on = !filters[i].on;
+
+            // Switching follow back on puts it in gear too, so it never reads on while
+            // doing nothing.
+            if (i == FILTER_FOLLOW && filters[i].on) followEngaged = true;
+
+            repaint();
+            return;
+        }
 
     if (minusBounds().contains(p)) { zoomOut(); return; }
     if (plusBounds().contains(p))  { zoomIn();  return; }

@@ -8,9 +8,10 @@
         gem on a lane: sections, [coda], and (later) star power, solo and fill.
 
         Zoom runs from 8 bars up to the whole song, then out to the session: every
-        chart on the timeline, drawn as a block each. It follows the playhead and is
-        where song structure is read, so bar lines are drawn in chunks rather than
-        per bar: a line every bar is a wash, a line every 4 or 8 is a ruler.
+        chart on the timeline, drawn as a block each. The view scrolls on its own and
+        only follows the playhead during playback, which is where song structure is
+        read, so bar lines are drawn in chunks rather than per bar: a line every bar
+        is a wash, a line every 4 or 8 is a ruler.
 
         Design: docs/superpowers/specs/2026-09-10-utility-strip-design.md
 
@@ -67,6 +68,11 @@ namespace UtilityColours
     inline const juce::Colour loopFill     = juce::Colour(0x2FD8B65A);
     inline const juce::Colour selectedLine = juce::Colour(0xFFFFFFFF);
     inline const juce::Colour namePlateHover = juce::Colour(0xFF2E4A72);
+    // Follow still switched on but taken out of gear by a scroll: armed rather than acting,
+    // which is a different thing from off and reads as a warning rather than as a layer.
+    inline const juce::Colour followHeldFill = juce::Colour(0x3AD8B65A);
+    inline const juce::Colour followHeldLine = juce::Colour(0xFFD8B65A);
+    inline const juce::Colour followHeldText = juce::Colour(0xFFE8CE96);
 
 }
 
@@ -77,7 +83,29 @@ public:
 
     void setSections(const SongSections* s)          { sections = s; }
     void setTempoMap(const TempoTimeSignatureMap* m) { tempoMap = m; }
-    void setPlayhead(PPQ ppq)                        { playheadPPQ = ppq; }
+    void setPlayhead(PPQ ppq)
+    {
+        playheadPPQ = ppq;
+
+        // Playing off the end of a chart leaves nothing to be confined to, and every rung
+        // below session is a view of one song. Dropping to session is what zooming out would
+        // do anyway, and it beats holding a song rung with no song to show.
+        if (zoom != ZOOM_SESSION && hasSongs() && songAtPlayhead() == nullptr)
+            zoom = ZOOM_SESSION;
+
+        if (playing && followOn() && followEngaged) centreViewOn(ppq.toDouble());
+    }
+
+    // Pressing play re-arms follow. Scrolling during playback switches it off until then,
+    // which is how every DAW handles someone reading ahead while the transport runs: it
+    // stops chasing, and it starts again when you next ask for playback rather than making
+    // you go and re-tick anything.
+    void setPlaying(bool nowPlaying)
+    {
+        if (playing == nowPlaying) return;
+        playing = nowPlaying;
+        if (playing) followEngaged = true;
+    }
 
     // Whole-song notes for the focused part, drawn as a density map rather than a chart.
     // One per visible highway. The map splits its width between them, so a single
@@ -181,10 +209,13 @@ public:
 private:
     void clearHover();
 
-    static constexpr double PLAYHEAD_FROM_BOTTOM = 0.12;
     // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
     // 16px step), so the strip scrolls at the speed everything else in the OS does.
     static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
+    // How long after landing on a section's start a second step back means the section
+    // before it rather than that same start again. Long enough to press twice deliberately,
+    // short enough that coming back later restarts the section you are listening to.
+    static constexpr double SECTION_BACKSTEP_GRACE_S = 1.5;
     // Lane colour, dimmed by alpha alone. Desaturating turned every mark towards the band
     // behind it, so the map stopped reading as the highway it summarises.
     static constexpr float NOTE_MAP_SATURATION = 0.9f;
@@ -195,20 +226,23 @@ private:
     static constexpr double CLIP_EDGE_TOLERANCE_QN = 0.01;
     static constexpr int FOOTER_H = 20;
     static constexpr int BUTTON_W = 18;
-    static constexpr int FILTER_ROW_H = 18;
-    static constexpr int FILTER_HEADER_H = 20;
+    // One row of segments across the top rather than a list you expand: four toggles fit
+    // the width, and a panel that has to be opened to see what is on hides its own state.
+    static constexpr int FILTER_ROW_H = 22;
+    static constexpr int FILTER_GAP = 2;
 
     struct Filter { const char* label; bool on; };
-    // Sections are the reason the strip exists, so they are on and stay first.
-    Filter filters[3] = { { "sections", true }, { "notes", false }, { "measures", true } };
-    bool filtersExpanded = false;
+    // Sections are the reason the strip exists, so they are on and stay first. Follow is a
+    // behaviour rather than something drawn, but this block is the strip's only switch panel
+    // and a toggle nobody can find is a toggle nobody turns off.
+    Filter filters[4] = { { "sections", true }, { "notes", false },
+                          { "measures", true }, { "follow", true } };
+
+    static constexpr int FILTER_FOLLOW = 3;
 
     bool filterOn(int i) const { return filters[i].on; }
 
-    int filterAreaHeight() const
-    {
-        return FILTER_HEADER_H + (filtersExpanded ? (int)std::size(filters) * FILTER_ROW_H : 0);
-    }
+    int filterAreaHeight() const { return FILTER_ROW_H; }
 
     struct View { double startQN, endQN; };
     View visibleRange() const;
@@ -219,7 +253,19 @@ private:
     void stepZoom(int direction);
 
     // Moves the view, never the playhead, and stops at the edges of the song it is in.
-    void scrollViewBy(double deltaQN);
+    // Answers false when it changed nothing, which is what keeps a wheel notch against a
+    // wall from counting as a scroll.
+    bool scrollViewBy(double deltaQN);
+
+    // Puts `qn` at the follow position, or as near as the song's edges allow: at the start
+    // and end of a chart the view runs out of room, so the playhead travels from the bottom
+    // up to the middle and from the middle up to the top rather than the view scrolling
+    // past the chart to keep it centred.
+    void centreViewOn(double qn);
+
+    // Fraction of the view above the bottom edge, so a little below centre: more of what is
+    // coming than of what has gone, without losing sight of what you just played.
+    static constexpr double FOLLOW_POSITION = 0.35;
 
     int trackTop() const { return filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
@@ -286,6 +332,10 @@ private:
 
     const SongList::Song* songAtPlayhead() const { return songAt(playheadPPQ.toDouble()); }
 
+    // A project with no EVENTS items at all is a different thing from a position between
+    // two charts: there is nothing to confine to anywhere, rather than just not here.
+    bool hasSongs() const { return songs != nullptr && songs->size() > 0; }
+
     // Confined to one chart at every zoom but the session view.
     const SongList::Song* confiningSong() const
     { return zoom == ZOOM_SESSION ? nullptr : songAtPlayhead(); }
@@ -328,10 +378,15 @@ private:
     { return { 4, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
     juce::Rectangle<int> plusBounds() const
     { return { 4 + BUTTON_W + 2, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
-    juce::Rectangle<int> filterHeaderBounds() const
-    { return { 0, 0, getWidth(), FILTER_HEADER_H }; }
-    juce::Rectangle<int> filterRowBounds(int i) const
-    { return { 0, FILTER_HEADER_H + i * FILTER_ROW_H, getWidth(), FILTER_ROW_H }; }
+    // Equal segments across the width, last one taking the rounding so the group ends flush
+    // with the strip rather than a pixel or two short of it.
+    juce::Rectangle<int> filterButtonBounds(int i) const
+    {
+        int count = (int)std::size(filters);
+        int w = getWidth() / count;
+        bool last = i == count - 1;
+        return { i * w, 0, last ? getWidth() - i * w : w, FILTER_ROW_H };
+    }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
     void drawSectionBands(juce::Graphics& g, const View& v) const;
@@ -354,6 +409,13 @@ private:
     // did not ask to be, and the playhead is free to run off the top while you read
     // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
     double viewStartQN = 0.0;
+
+    bool playing = false;
+    // Follow is the user's setting; engaged is whether it is currently acting. Scrolling
+    // during playback drops the latch without touching the setting, and pressing play sets
+    // it again.
+    bool followEngaged = true;
+    bool followOn() const { return filterOn(FILTER_FOLLOW); }
 
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
