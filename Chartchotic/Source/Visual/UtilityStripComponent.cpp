@@ -482,8 +482,7 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     const auto& s = list[index];
     float y = (float)yForQN(s.position.toDouble(), v);
 
-    juce::Font f(juce::FontOptions(16.0f, juce::Font::bold));
-    int tw = std::min(getWidth() - 12, f.getStringWidth(s.name) + 10);
+    int tw = std::min(getWidth() - 12, sectionLabelFont().getStringWidth(s.name) + 10);
     int top = (int)y - LABEL_H - 2;
 
     // The section you are currently inside pins to the bottom once its own line has
@@ -865,7 +864,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 
         if (!labelled) continue;
 
-        g.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
+        g.setFont(sectionLabelFont());
         // Straight from the hit-test bounds, so a pinned label is clickable where it is
         // drawn rather than where its line would have put it.
         auto plate = plates[i];
@@ -910,7 +909,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
             float y = (float)yForQN(qn, v);
             g.setColour(UtilityColours::codaLine);
             g.fillRect(0.0f, y, w, 2.0f);
-            g.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
+            g.setFont(sectionLabelFont());
             g.drawText("coda", 6, (int)y - 21, (int)w - 12, 19,
                        juce::Justification::centredLeft, true);
         }
@@ -1176,6 +1175,9 @@ void UtilityStripComponent::beginRename(int index)
     auto plate = sectionHeaderBounds((size_t)index, v);
 
     renameEditor = std::make_unique<juce::TextEditor>();
+    // The same face and size as the label it sits on top of, so the name does not jump as
+    // it goes from drawn to editable.
+    renameEditor->setFont(sectionLabelFont());
     renameEditor->setText(sections->getSections()[(size_t)index].name, false);
     renameEditor->selectAll();
     renameEditor->setBounds(plate.withWidth(std::max(90, getWidth() - plate.getX() - 6)));

@@ -8,6 +8,11 @@ class ChartchoticLookAndFeel : public juce::LookAndFeel_V4
 public:
     ChartchoticLookAndFeel();
 
+    // The app builds its own menus as panels, so the only PopupMenus left are the ones JUCE
+    // raises itself, like a TextEditor's context menu. Palette and face are worth setting;
+    // drawing them by hand would be a renderer nothing in the UI actually shows.
+    juce::Font getPopupMenuFont() override;
+
     // ToggleButton (used by debug panels)
     void drawToggleButton(juce::Graphics&, juce::ToggleButton&,
                           bool shouldDrawButtonAsHighlighted,
@@ -31,4 +36,7 @@ public:
                               bool shouldDrawButtonAsHighlighted,
                               bool shouldDrawButtonAsDown) override;
     juce::Font getTextButtonFont(juce::TextButton&, int buttonHeight) override;
+
+private:
+    static constexpr float popupMenuPt = 13.0f;
 };
