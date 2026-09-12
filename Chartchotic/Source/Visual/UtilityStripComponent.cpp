@@ -981,20 +981,6 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
             drawMeasureNumber(g, ly, measureAtQN(qn), true);
         }
     }
-
-    if (sections->hasCoda())
-    {
-        double qn = sections->getCodaPPQ().toDouble();
-        if (qn >= v.startQN && qn <= v.endQN)
-        {
-            float y = (float)yForQN(qn, v);
-            g.setColour(UtilityColours::codaLine);
-            g.fillRect(0.0f, y, w, 2.0f);
-            g.setFont(sectionLabelFont());
-            g.drawText("coda", 6, (int)y - 21, (int)w - 12, 19,
-                       juce::Justification::centredLeft, true);
-        }
-    }
 }
 
 // The mode row. Coloured apart from the layer toggles below it on purpose: one says what the
