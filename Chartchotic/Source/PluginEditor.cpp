@@ -209,6 +209,22 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     {
         audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, targetQN)));
     };
+    utilityStrip.onSongRenamed = [this](double startQN, const juce::String& name)
+    {
+        auto* writer = audioProcessor.getReaperMidiProvider().getWriter();
+        if (writer == nullptr || !writer->isAvailable()) return;
+
+        if (!writer->setSongName(startQN, name.toStdString())) return;
+
+        // The name lives on the EVENTS item, so the strip only sees it after a re-read.
+        if (auto* session = audioProcessor.getInstrumentSession())
+        {
+            const auto& tracks = session->getTracks();
+            for (int i = 0; i < (int)tracks.size(); ++i)
+                if (tracks[i].part == Part::EVENTS)
+                    session->invalidateTrack(i);
+        }
+    };
     utilityStrip.onSectionsEdited =
         [this](const std::vector<UtilityStripComponent::SectionEdit>& edits)
     {

@@ -518,6 +518,97 @@ int UtilityStripComponent::litSectionIndex(const View& v) const
     return -1;
 }
 
+// Greedy, and correct because the list is sorted by start: a song takes the leftmost column
+// whose last song has already ended. An album item spanning the per-song items collides with
+// all of them, so it lands in a column of its own beside them.
+std::vector<int> UtilityStripComponent::songLanes(int& laneCount) const
+{
+    std::vector<int> lanes;
+    if (songs == nullptr) { laneCount = 1; return lanes; }
+
+    std::vector<double> laneEnds;
+
+    for (const auto& song : songs->getSongs())
+    {
+        int lane = 0;
+        while (lane < (int)laneEnds.size() && song.startQN < laneEnds[(size_t)lane]) ++lane;
+
+        if (lane == (int)laneEnds.size()) laneEnds.push_back(song.endQN);
+        else                              laneEnds[(size_t)lane] = song.endQN;
+
+        lanes.push_back(lane);
+    }
+
+    laneCount = std::max(1, (int)laneEnds.size());
+    return lanes;
+}
+
+std::vector<juce::Rectangle<int>> UtilityStripComponent::songChunkBounds(const View& v) const
+{
+    std::vector<juce::Rectangle<int>> bounds;
+    if (songs == nullptr) return bounds;
+
+    int laneCount = 1;
+    auto lanes = songLanes(laneCount);
+    int laneW = std::max(1, getWidth() / laneCount);
+
+    const auto& list = songs->getSongs();
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        int top = (int)yForQN(list[i].endQN, v);
+        int bot = (int)yForQN(list[i].startQN, v);
+        bounds.push_back({ lanes[i] * laneW, top, laneW, std::max(1, bot - top) });
+    }
+    return bounds;
+}
+
+int UtilityStripComponent::songChunkAt(juce::Point<int> p) const
+{
+    if (!songOverview()) return -1;
+
+    // Lanes keep overlapping songs off each other, so nothing is stacked and first match wins.
+    auto bounds = songChunkBounds(visibleRange());
+    for (int i = 0; i < (int)bounds.size(); ++i)
+        if (bounds[(size_t)i].contains(p)) return i;
+
+    return -1;
+}
+
+int UtilityStripComponent::songNameAt(juce::Point<int> p) const
+{
+    int i = songChunkAt(p);
+    if (i < 0) return -1;
+
+    auto r = songChunkBounds(visibleRange())[(size_t)i];
+    return p.y <= r.getY() + LABEL_H ? i : -1;
+}
+
+// At Session, zoomed out, the strip stops being one chart's sections and becomes the shelf
+// the charts sit on: a block per EVENTS item, named, and the way into any of them.
+void UtilityStripComponent::drawSongChunks(juce::Graphics& g, const View& v) const
+{
+    auto bounds = songChunkBounds(v);
+    const auto& list = songs->getSongs();
+
+    for (size_t i = 0; i < bounds.size(); ++i)
+    {
+        auto r = bounds[i].reduced(1, 0);
+
+        g.setColour((int)i == hoverSongChunk ? UtilityColours::sectionBandCurrent
+                                             : UtilityColours::sectionBand);
+        g.fillRect(r);
+        g.setColour(UtilityColours::sectionLine);
+        g.drawRect(r, 1);
+
+        g.setColour(UtilityColours::sectionText);
+        g.setFont(sectionLabelFont());
+        g.drawText(list[i].name,
+                   r.reduced(SONG_CHUNK_INSET, 0).withTop(r.getY() + SONG_CHUNK_INSET)
+                    .withHeight(LABEL_H),
+                   juce::Justification::topLeft, true);
+    }
+}
+
 // Bands go down before the note map so the notes keep their own colour: drawn over them,
 // even a faint blue wash drags every lane towards blue.
 void UtilityStripComponent::drawSectionBands(juce::Graphics& g, const View& v) const
@@ -752,10 +843,20 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
     auto v = visibleRange();
     drawChunkLines(g, v);
-    if (filterOn(0)) drawSectionBands(g, v);
-    if (filterOn(1)) drawNotes(g, v);
-    if (filterOn(0)) drawSections(g, v);
-    drawClipEdges(g, v);
+
+    // One block per song instead of every section in the project, which at this zoom is a
+    // wash of names nobody can read. The clip edges are the blocks now, so they go too.
+    if (songOverview())
+    {
+        drawSongChunks(g, v);
+    }
+    else
+    {
+        if (filterOn(0)) drawSectionBands(g, v);
+        if (filterOn(1)) drawNotes(g, v);
+        if (filterOn(0)) drawSections(g, v);
+        drawClipEdges(g, v);
+    }
 
     drawMarquee(g);
     drawHover(g, v);
@@ -899,6 +1000,7 @@ void UtilityStripComponent::beginRename(int index)
         || index >= (int)sections->getSections().size()) return;
 
     renameIndex = index;
+    renameTarget = RenameTarget::Section;
     auto v = visibleRange();
     auto plate = sectionHeaderBounds((size_t)index, v);
 
@@ -914,14 +1016,51 @@ void UtilityStripComponent::beginRename(int index)
     renameEditor->grabKeyboardFocus();
 }
 
+void UtilityStripComponent::beginSongRename(int index)
+{
+    const auto* song = songs != nullptr ? songs->at(index) : nullptr;
+    if (song == nullptr) return;
+
+    renameIndex = index;
+    renameTarget = RenameTarget::Song;
+
+    auto r = songChunkBounds(visibleRange())[(size_t)index];
+
+    renameEditor = std::make_unique<juce::TextEditor>();
+    renameEditor->setFont(sectionLabelFont());
+    renameEditor->setText(song->name, false);
+    renameEditor->selectAll();
+    renameEditor->setBounds(r.reduced(SONG_CHUNK_INSET, 0)
+                             .withTop(r.getY() + SONG_CHUNK_INSET).withHeight(LABEL_H));
+    renameEditor->onReturnKey = [this] { commitRename(); };
+    renameEditor->onEscapeKey = [this] { renameEditor.reset(); renameIndex = -1; };
+    renameEditor->onFocusLost = [this] { commitRename(); };
+
+    addAndMakeVisible(*renameEditor);
+    renameEditor->grabKeyboardFocus();
+}
+
 void UtilityStripComponent::commitRename()
 {
     if (renameEditor == nullptr || renameIndex < 0) return;
 
     auto name = renameEditor->getText().trim();
     int index = renameIndex;
+    auto target = renameTarget;
     renameEditor.reset();
     renameIndex = -1;
+
+    if (target == RenameTarget::Song)
+    {
+        // Clearing a song's name is meaningful, unlike a section's: an item with no name
+        // falls back to its ordinal rather than disappearing.
+        const auto* song = songs != nullptr ? songs->at(index) : nullptr;
+        if (song != nullptr && name != song->name && onSongRenamed)
+            onSongRenamed(song->startQN, name);
+        else
+            repaint();
+        return;
+    }
 
     // An empty name would write "[section ]", which reads back as no section at all.
     if (name.isEmpty()) { repaint(); return; }
@@ -1139,6 +1278,25 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
     if (plusBounds().contains(p))  { zoomIn();  return; }
     if (!inTrackArea(p)) return;
 
+    // In the overview the chunks are the only objects there are, so they take the click
+    // before the section mapping sees it. Name renames, body jumps in.
+    if (songOverview())
+    {
+        int songName = songNameAt(p);
+        if (songName >= 0 && !e.mods.isRightButtonDown()) { beginSongRename(songName); return; }
+
+        int chunk = songChunkAt(p);
+        if (chunk >= 0)
+        {
+            // Selecting confines the strip to that song, which is what takes you out of the
+            // overview and into it.
+            setSelectedSong(chunk);
+            picker.setSelected(getSelectedSong());
+            if (onSeekTo) onSeekTo(songs->getSongs()[(size_t)chunk].startQN);
+            return;
+        }
+    }
+
     // Clicking the name renames it. The rest of the section's row belongs to the mapping,
     // which is what makes the name a distinct target rather than a mode.
     int name = sectionNameAt(p);
@@ -1198,13 +1356,18 @@ void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
     int y = inTrackArea(e.getPosition()) ? e.getPosition().y : -1;
     int section = y >= 0 ? sectionHeaderAt(e.getPosition()) : -1;
     int name = y >= 0 ? sectionNameAt(e.getPosition()) : -1;
+    int chunk = y >= 0 ? songChunkAt(e.getPosition()) : -1;
+    int songName = y >= 0 ? songNameAt(e.getPosition()) : -1;
 
-    if (y == hoverY && section == hoverSection && name == hoverName) return;
+    if (y == hoverY && section == hoverSection && name == hoverName
+        && chunk == hoverSongChunk) return;
+
     hoverY = y;
     hoverSection = section;
     hoverName = name;
-    setMouseCursor(name >= 0 ? juce::MouseCursor::IBeamCursor
-                             : juce::MouseCursor::NormalCursor);
+    hoverSongChunk = chunk;
+    setMouseCursor(name >= 0 || songName >= 0 ? juce::MouseCursor::IBeamCursor
+                                              : juce::MouseCursor::NormalCursor);
     repaint();
 }
 
@@ -1212,10 +1375,11 @@ void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
 // back on the next real mouseMove.
 void UtilityStripComponent::clearHover()
 {
-    if (hoverY < 0 && hoverSection < 0 && hoverName < 0) return;
+    if (hoverY < 0 && hoverSection < 0 && hoverName < 0 && hoverSongChunk < 0) return;
     hoverY = -1;
     hoverSection = -1;
     hoverName = -1;
+    hoverSongChunk = -1;
     setMouseCursor(juce::MouseCursor::NormalCursor);
     repaint();
 }
