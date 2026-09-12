@@ -7,7 +7,8 @@
         Vertical time-axis strip beside the highways, for everything that is not a
         gem on a lane: sections, [coda], and (later) star power, solo and fill.
 
-        Zoom runs from 8 bars to the whole song. It follows the playhead and is
+        Zoom runs from 8 bars up to the whole song, then out to the session: every
+        chart on the timeline, drawn as a block each. It follows the playhead and is
         where song structure is read, so bar lines are drawn in chunks rather than
         per bar: a line every bar is a wash, a line every 4 or 8 is a ruler.
 
@@ -94,68 +95,55 @@ public:
     // timeline this is the only thing that says where each of them stops.
     void setClipSpans(const std::vector<ClipSpan>* s) { clipSpans = s; }
 
-    // The project's songs, and which one confines the view. Selection does not survive the
-    // list changing shape: a span list carries no item identity, so guessing which item is
-    // the one you had across a refetch would be a lie.
-    void setSongs(const SongList* s)
-    {
-        songs = s;
-        int count = s != nullptr ? s->size() : 0;
-        if (count != lastSongCount)
-        {
-            lastSongCount = count;
-            selectedSongIndex = SongList::SESSION;
-        }
-    }
-
-    void setSelectedSong(int index)
-    {
-        int count = songs != nullptr ? songs->size() : 0;
-        selectedSongIndex = (index >= 0 && index < count) ? index : SongList::SESSION;
-        repaint();
-    }
-
-    int getSelectedSong() const { return selectedSongIndex; }
+    // EVENTS items cannot overlap, so which song you are in is a fact about where the
+    // playhead is rather than something to be chosen. There is no selection to keep.
+    void setSongs(const SongList* s) { songs = s; }
 
     // Section the playhead is inside, for the banner over the highway. Empty when there is
     // none, or when the strip's own sections filter is off.
     juce::String currentSectionName() const;
 
-    // The chart the playhead is in, for the banner over the highway. Falls back to position
-    // rather than to nothing on Session: which chart you are looking at is a fact about
-    // where the playhead is, and it is true whether or not you picked one.
-    //
-    // Overlapping songs make the picked one the better answer when there is one, since an
-    // album item and the track inside it both contain the playhead and only you know which
-    // you meant.
+    // The chart the playhead is in, for the banner over the highway. Empty only in the gap
+    // between two charts, where there is genuinely no chart to name.
     juce::String currentSongName() const
     {
-        if (const auto* picked = selectedSong()) return picked->name;
-        if (songs == nullptr) return {};
-
-        double now = playheadPPQ.toDouble();
-        for (const auto& song : songs->getSongs())
-            if (now >= song.startQN && now < song.endQN) return song.name;
-
-        return {};
+        const auto* song = songAtPlayhead();
+        return song != nullptr ? song->name : juce::String();
     }
 
     // Lane colours come from the same place the gems and strikeline pads get them, so the
     // map cannot drift from the highway it summarises.
     void setAssetManager(AssetManager* am) { assetManager = am; }
 
-    // 0 is the whole song. 64 bars is where structure and precision both hold.
-    static constexpr int ZOOM_STEPS[] = { 8, 16, 32, 64, 128, 256, 0 };
-    static constexpr int DEFAULT_ZOOM_INDEX = 3;
+    // Zoom is a value rather than an index, because the ladder depends on the song you are
+    // in: a step wider than the song shows the same thing the song step does, so it is a
+    // duplicate rather than a rung, and index 3 would mean different spans in different
+    // charts. Negative and zero are the two views that are not a bar count.
+    static constexpr int ZOOM_SESSION = SongList::ZOOM_SESSION;
+    static constexpr int ZOOM_SONG    = SongList::ZOOM_SONG;
+    static constexpr int DEFAULT_ZOOM_BARS = SongList::DEFAULT_ZOOM_BARS;
 
-    int barsVisible() const { return ZOOM_STEPS[zoomIndex]; }
-    void zoomIn()  { setZoomIndex(zoomIndex - 1); }
-    void zoomOut() { setZoomIndex(zoomIndex + 1); }
+    // Narrowest first, ending in song then session. Just { session } in the gap between two
+    // charts, where there is nothing to be inside and so nothing to zoom into.
+    std::vector<int> availableZooms() const;
+    std::vector<int> availableZoomsFor(const SongList::Song* song) const;
+
+    int currentZoom() const { return zoom; }
+    void zoomIn()  { stepZoom(-1); }
+
+    void zoomOut() { stepZoom(1); }
+
+    // Straight to the shelf and back to where you were working, since those are the two
+    // ends anyone actually wants to reach in one keystroke.
     void toggleZoom()
     {
-        setZoomIndex(barsVisible() == 0 ? DEFAULT_ZOOM_INDEX
-                                        : (int)std::size(ZOOM_STEPS) - 1);
+        setZoom(zoom == ZOOM_SESSION ? DEFAULT_ZOOM_BARS : ZOOM_SESSION);
     }
+
+    // Zooming keeps the moment under the pointer where it is, the way a map does. The strip
+    // has no scroll offset of its own, so holding that point still means moving the
+    // playhead, which is the same thing scrolling the strip already does.
+    void zoomAbout(int y, int direction);
 
     // Scrolling the map seeks, freely: the wheel's travel scaled by the visible span, so
     // one notch covers the same proportion of screen at every zoom. Clicking snaps to a bar.
@@ -225,13 +213,13 @@ private:
     struct View { double startQN, endQN; };
     View visibleRange() const;
 
-    void setZoomIndex(int i)
-    {
-        int clamped = juce::jlimit(0, (int)std::size(ZOOM_STEPS) - 1, i);
-        if (clamped == zoomIndex) return;
-        zoomIndex = clamped;
-        repaint();
-    }
+    // Snaps to a rung the current song actually has, so leaving a long chart for a short one
+    // lands on the widest zoom that still fits rather than on a span it cannot show.
+    void setZoom(int value, const SongList::Song* song = nullptr);
+    void stepZoom(int direction);
+
+    // Moves the view, never the playhead, and stops at the edges of the song it is in.
+    void scrollViewBy(double deltaQN);
 
     int trackTop() const { return filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
@@ -266,11 +254,8 @@ private:
     // Session, zoomed all the way out, with songs to show. The strip stops being a view of
     // one chart's sections and becomes a map of the project's charts.
     bool songOverview() const
-    { return selectedSong() == nullptr && barsVisible() == 0 && songs != nullptr && songs->size() > 0; }
+    { return zoom == ZOOM_SESSION && songs != nullptr && songs->size() > 0; }
 
-    // One column per song, and a song takes the first column it does not collide in. An
-    // album item spanning the per-song items lands beside them rather than on top of them.
-    std::vector<int> songLanes(int& laneCount) const;
     std::vector<juce::Rectangle<int>> songChunkBounds(const View& v) const;
     int songChunkAt(juce::Point<int> p) const;
 
@@ -287,11 +272,23 @@ private:
     static juce::Font sectionLabelFont()
     { return juce::Font(juce::FontOptions(16.0f, juce::Font::bold)); }
 
-    // The song confining the view, or nullptr on Session.
-    const SongList::Song* selectedSong() const
+    // The song covering `qn`, or nullptr in a gap. Items cannot overlap, so there is at most
+    // one and the first match is the answer.
+    const SongList::Song* songAt(double qn) const
     {
-        return songs != nullptr ? songs->at(selectedSongIndex) : nullptr;
+        if (songs == nullptr) return nullptr;
+
+        for (const auto& song : songs->getSongs())
+            if (qn >= song.startQN && qn < song.endQN) return &song;
+
+        return nullptr;
     }
+
+    const SongList::Song* songAtPlayhead() const { return songAt(playheadPPQ.toDouble()); }
+
+    // Confined to one chart at every zoom but the session view.
+    const SongList::Song* confiningSong() const
+    { return zoom == ZOOM_SESSION ? nullptr : songAtPlayhead(); }
 
     static constexpr int MAX_BARS_WALKED = 100000;
 
@@ -350,12 +347,16 @@ private:
     std::vector<NoteSource> noteSources;
     const std::vector<ClipSpan>* clipSpans = nullptr;
     const SongList* songs = nullptr;
-    int selectedSongIndex = SongList::SESSION;
-    int lastSongCount = 0;
+    int zoom = DEFAULT_ZOOM_BARS;
+
+    // Where the bottom of the view sits. The strip scrolls on its own and never chases the
+    // playhead: clicking sets where playback starts without dragging the view somewhere you
+    // did not ask to be, and the playhead is free to run off the top while you read
+    // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
+    double viewStartQN = 0.0;
 
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
-    int zoomIndex = DEFAULT_ZOOM_INDEX;
     int hoverY = -1;
     int hoverSection = -1;
     int hoverName = -1;
