@@ -515,7 +515,11 @@ private:
     // Measure the containing section starts on, or 1 before the first section.
     int sectionStartMeasure(double qn) const;
     int measureAtQN(double qn) const;
-    void drawMeasureNumber(juce::Graphics& g, float y, int measure, bool emphasised) const;
+    // "6" on a downbeat, "6.2" on a beat, "6.2.5" off one. Takes a position rather than a
+    // measure, because once the grid subdivides the bar number alone stops saying where you
+    // are: every line in the bar would read the same.
+    juce::String positionLabel(double qn) const;
+    void drawMeasureNumber(juce::Graphics& g, float y, double qn, bool emphasised) const;
 
     // Two targets per section: the name plate renames, the rest of its row jumps to it.
     int sectionHeaderAt(juce::Point<int> p) const;
