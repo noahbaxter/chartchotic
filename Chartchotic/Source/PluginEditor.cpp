@@ -214,6 +214,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     {
         this->state.setProperty(key, on, nullptr);
     };
+    utilityStrip.onEditModeChanged = [this](int mode)
+    {
+        this->state.setProperty("stripEditMode", mode, nullptr);
+    };
     utilityStrip.onSongRenamed = [this](double startQN, const juce::String& name)
     {
         auto* writer = audioProcessor.getReaperMidiProvider().getWriter();
@@ -461,7 +465,6 @@ void ChartchoticAudioProcessorEditor::onFrame()
         }
         utilityStrip.setNoteSources(std::move(sources));
 
-        utilityStrip.setWriteMode(interactionController.writeModeActive());
         utilityStrip.setPlaying(audioProcessor.isPlaying);
         utilityStrip.setPlayhead(lastKnownPosition);
         utilityStrip.repaint();
@@ -1288,6 +1291,9 @@ void ChartchoticAudioProcessorEditor::loadState()
     for (const auto& key : utilityStrip.layerKeys())
         if (state.hasProperty(key))
             utilityStrip.setLayerOn(key, (bool)state[key]);
+
+    if (state.hasProperty("stripEditMode"))
+        utilityStrip.setEditModeIndex((int)state["stripEditMode"]);
 
     // Restore highway length (apply per-instrument scale)
     {
