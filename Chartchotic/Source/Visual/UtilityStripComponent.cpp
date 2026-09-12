@@ -1287,13 +1287,11 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
         int songName = songNameAt(p);
         if (songName >= 0 && !e.mods.isRightButtonDown()) { beginSongRename(songName); return; }
 
+        // A single click only takes you to the song, so the overview stays browsable:
+        // entering one is the double click, the same as opening anything else.
         int chunk = songChunkAt(p);
         if (chunk >= 0)
         {
-            // Selecting confines the strip to that song, which is what takes you out of the
-            // overview and into it.
-            setSelectedSong(chunk);
-            picker.setSelected(getSelectedSong());
             if (onSeekTo) onSeekTo(songs->getSongs()[(size_t)chunk].startQN);
             return;
         }
@@ -1341,6 +1339,18 @@ void UtilityStripComponent::mouseUp(const juce::MouseEvent& e)
 void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
 {
     if (!inTrackArea(e.getPosition())) return;
+
+    // Opening a song confines the strip to it, which is what leaves the overview. The name
+    // is not part of the target: double clicking there is two renames, not a way in.
+    if (songOverview() && songNameAt(e.getPosition()) < 0)
+    {
+        int chunk = songChunkAt(e.getPosition());
+        if (chunk >= 0)
+        {
+            setSelectedSong(chunk);
+            return;
+        }
+    }
     dispatch(mapper.resolve(stripMode(), EventType::DoubleClick, buttonOf(e),
                             modsOf(e), sectionHeaderAt(e.getPosition()) >= 0), e);
 }
