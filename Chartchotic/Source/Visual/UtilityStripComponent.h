@@ -237,6 +237,10 @@ private:
     double contentEndQN() const;
     double clipEndAt(double qn) const;
 
+    // Every seek the strip issues goes through here, so a picked song bounds scrubbing,
+    // clicking and section stepping alike rather than only one of them.
+    double clampSeek(double qn) const;
+
     // The song confining the view, or nullptr on Session.
     const SongList::Song* selectedSong() const
     {

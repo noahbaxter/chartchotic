@@ -364,6 +364,14 @@ double UtilityStripComponent::clipEndAt(double qn) const
     return 0.0;
 }
 
+double UtilityStripComponent::clampSeek(double qn) const
+{
+    const auto* song = selectedSong();
+    if (song == nullptr) return qn;
+
+    return juce::jlimit(song->startQN, song->endQN, qn);
+}
+
 // Where section `i` stops. Normally the next section, but the end of its own clip cuts it
 // short: with several charts on one timeline, the last section of one would otherwise run
 // across the gap and into the start of the next. The final section of all falls back to
@@ -378,8 +386,12 @@ double UtilityStripComponent::sectionEndQN(size_t i, const View& v) const
     double stop = last ? std::max(contentEndQN(), v.endQN) : list[i + 1].position.toDouble();
 
     // Its own clip's end cuts it short, which is the only thing that does it for charts
-    // with no [end] at all: the gap to the next clip is not part of any section.
-    double clipEnd = clipEndAt(qn);
+    // with no [end] at all: the gap to the next clip is not part of any section. With a
+    // song picked, that song's end is the authority instead, because an album item
+    // overlapping the per-song items merges every gap between them away.
+    const auto* song = selectedSong();
+    bool insideSong = song != nullptr && qn >= song->startQN && qn < song->endQN;
+    double clipEnd = insideSong ? song->endQN : clipEndAt(qn);
     if (clipEnd > qn) stop = std::min(stop, clipEnd);
 
     double marker = sections->endMarkerBetween(PPQ(qn), PPQ(stop)).toDouble();
@@ -815,7 +827,7 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     // when reading a chart rather than scrubbing through it.
     if (e.mods.isShiftDown())
     {
-        onSeekTo(sectionStep(delta > 0.0 ? 1 : -1));
+        onSeekTo(clampSeek(sectionStep(delta > 0.0 ? 1 : -1)));
         return;
     }
 
@@ -832,7 +844,7 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     double contentEnd = contentEndQN();
     if (contentEnd > 0.0) target = std::min(target, contentEnd);
 
-    onSeekTo(target);
+    onSeekTo(clampSeek(target));
 }
 
 // The next section line from the playhead in `direction`, or where we already are when
@@ -930,12 +942,12 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
     switch (cmd)
     {
         case StripCommand::SeekToBar:
-            if (onSeekTo) onSeekTo(snappedBarQN(p.y, v));
+            if (onSeekTo) onSeekTo(clampSeek(snappedBarQN(p.y, v)));
             break;
 
         case StripCommand::JumpToSection:
             if (onSeekTo && object >= 0)
-                onSeekTo(sections->getSections()[(size_t)object].position.toDouble());
+                onSeekTo(clampSeek(sections->getSections()[(size_t)object].position.toDouble()));
             break;
 
         case StripCommand::SelectAt:
