@@ -110,3 +110,50 @@ TEST_CASE("SongList - one song or none is not pickable", "[songlist]")
     REQUIRE_FALSE(built(spans({ { 0.0, 100.0, "Only" } })).isPickable());
     REQUIRE(built(spans({ { 0.0, 100.0, "A" }, { 100.0, 200.0, "B" } })).isPickable());
 }
+
+namespace
+{
+    struct Window { double start, end; };
+
+    Window confined(double start, double end, double songStart, double songEnd)
+    {
+        SongList::confineWindow(start, end, songStart, songEnd);
+        return { start, end };
+    }
+}
+
+// Shifted, not truncated. A truncated window compresses the strip against the song's edges,
+// so the same zoom stops meaning the same distance on screen.
+TEST_CASE("SongList - a window off the bottom shifts up to the song start", "[songlist]")
+{
+    auto w = confined(-20.0, 44.0, 0.0, 400.0);
+
+    REQUIRE(w.start == Catch::Approx(0.0));
+    REQUIRE(w.end == Catch::Approx(64.0));
+}
+
+TEST_CASE("SongList - a window off the top shifts down to the song end", "[songlist]")
+{
+    auto w = confined(380.0, 444.0, 0.0, 400.0);
+
+    REQUIRE(w.start == Catch::Approx(336.0));
+    REQUIRE(w.end == Catch::Approx(400.0));
+}
+
+TEST_CASE("SongList - a window already inside the song is untouched", "[songlist]")
+{
+    auto w = confined(100.0, 164.0, 0.0, 400.0);
+
+    REQUIRE(w.start == Catch::Approx(100.0));
+    REQUIRE(w.end == Catch::Approx(164.0));
+}
+
+// Zoomed out further than the song is long, so there is nothing to shift: the window is
+// the song, and the strip shows less than the zoom asked for rather than showing neighbours.
+TEST_CASE("SongList - a song shorter than the window becomes the window", "[songlist]")
+{
+    auto w = confined(0.0, 256.0, 100.0, 140.0);
+
+    REQUIRE(w.start == Catch::Approx(100.0));
+    REQUIRE(w.end == Catch::Approx(140.0));
+}
