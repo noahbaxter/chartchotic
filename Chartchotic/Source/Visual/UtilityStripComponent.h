@@ -383,7 +383,19 @@ private:
     double barLineAtOrBefore(double qn) const;
     double chunkLineAtOrBefore(double qn, const View& v) const;
     int visibleChunk(const View& v) const;
-    double sectionStep(int direction) const;
+    // Everywhere shift+scroll will stop, sorted and deduped. Chart edges, section edges, and
+    // out past the charts, the scraps of MIDI that sit on their own.
+    std::vector<double> snapPoints() const;
+    double snapStep(int direction) const;
+
+    // Silence this long ends a cluster. Anything shorter is a rest inside one, not a gap
+    // between two: too small and a sparse intro becomes a stop per phrase, too large and two
+    // separate scraps read as one.
+    static constexpr double CLUSTER_GAP_BARS = 4.0;
+
+    // Nearest bar line, which is where a cluster edge is reported rather than at whatever
+    // offbeat the first note happens to sit on.
+    double nearestBarLine(double qn) const;
 
     // Last charted QN: where the final section has to stop.
     double contentEndQN() const;

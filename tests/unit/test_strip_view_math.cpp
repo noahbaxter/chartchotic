@@ -160,6 +160,82 @@ TEST_CASE("StripViewMath - zooming out holds the anchored position too", "[strip
 }
 
 //==============================================================================
+// clusterSpans
+
+namespace
+{
+    std::vector<NoteSpan> spansOf(std::initializer_list<std::pair<double, double>> items)
+    {
+        std::vector<NoteSpan> out;
+        for (const auto& [s, e] : items) out.push_back({ s, e });
+        return out;
+    }
+
+    constexpr double GAP = 16.0;   // 4 bars of 4 QN
+}
+
+// The whole point: a scrap of MIDI is one place to stop, not one per note in it.
+TEST_CASE("StripViewMath - notes close together are one cluster", "[stripview]")
+{
+    auto out = clusterSpans(spansOf({ {100, 101}, {102, 103}, {104, 108} }), GAP);
+
+    REQUIRE(out.size() == 1);
+    REQUIRE(out[0].startQN == Catch::Approx(100.0));
+    REQUIRE(out[0].endQN == Catch::Approx(108.0));
+}
+
+TEST_CASE("StripViewMath - silence longer than the gap splits a cluster", "[stripview]")
+{
+    auto out = clusterSpans(spansOf({ {100, 104}, {200, 204} }), GAP);
+
+    REQUIRE(out.size() == 2);
+    REQUIRE(out[1].startQN == Catch::Approx(200.0));
+}
+
+// The gap is what separates clusters, not the run length, so a sparse passage stays one
+// thing rather than fragmenting into a stop per phrase.
+TEST_CASE("StripViewMath - a sparse run stays one cluster", "[stripview]")
+{
+    auto out = clusterSpans(spansOf({ {0, 1}, {15, 16}, {30, 31}, {45, 46} }), GAP);
+
+    REQUIRE(out.size() == 1);
+    REQUIRE(out[0].endQN == Catch::Approx(46.0));
+}
+
+// A long note covering the ones after it must not let the cluster end early.
+TEST_CASE("StripViewMath - a cluster takes the furthest end, not the last", "[stripview]")
+{
+    auto out = clusterSpans(spansOf({ {100, 180}, {104, 108} }), GAP);
+
+    REQUIRE(out.size() == 1);
+    REQUIRE(out[0].endQN == Catch::Approx(180.0));
+}
+
+TEST_CASE("StripViewMath - no notes means no clusters", "[stripview]")
+{
+    REQUIRE(clusterSpans({}, GAP).empty());
+}
+
+//==============================================================================
+// mergedPoints
+
+TEST_CASE("StripViewMath - coincident snap points are kept once", "[stripview]")
+{
+    auto out = mergedPoints({ 400.0, 100.0, 400.0, 250.0 }, 1.0e-6);
+
+    REQUIRE(out == std::vector<double>{ 100.0, 250.0, 400.0 });
+}
+
+// A section end that is just the next section's start is a duplicate; one a hair off is not.
+TEST_CASE("StripViewMath - points merge only inside the tolerance", "[stripview]")
+{
+    auto out = mergedPoints({ 100.0, 100.0 + 1.0e-9, 100.5 }, 1.0e-6);
+
+    REQUIRE(out.size() == 2);
+    REQUIRE(out[1] == Catch::Approx(100.5));
+}
+
+//==============================================================================
 // BoundaryDetent
 
 namespace
