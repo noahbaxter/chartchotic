@@ -129,6 +129,19 @@ void UtilityStripComponent::zoomAbout(int y, int direction)
     double anchorQN = qnForY(y, before);
     double fromBottom = (trackTop() + trackHeight() - y) / (double)trackHeight();
 
+    // Zooming in from the session view enters the chart under the pointer, at the moment
+    // under the pointer: you aimed at a block, so that is the one you land in, and where in
+    // it you were pointing is where you arrive. The playhead's own chart does not get a say.
+    if (zoom == ZOOM_SESSION && direction < 0)
+    {
+        const auto* target = songAt(anchorQN);
+        if (target == nullptr) return;   // pointing at a gap, so there is nothing to enter
+
+        if (onSeekTo) onSeekTo(anchorQN);
+        setZoom(ZOOM_SONG, target);
+        return;
+    }
+
     stepZoom(direction);
 
     // The song and session views are fixed spans with nothing to slide, so there is nothing
@@ -438,7 +451,11 @@ double UtilityStripComponent::clampSeek(double qn) const
     const auto* song = confiningSong();
     if (song == nullptr) return qn;
 
-    return juce::jlimit(song->startQN, song->endQN, qn);
+    // A tick inside the end rather than on it. A song's span is half open, so where two
+    // charts abut, the end position already belongs to the next one: clamping to it exactly
+    // would scroll you off the bottom of this chart and straight into that one.
+    double last = std::max(song->startQN, song->endQN - GridMath::TICK);
+    return juce::jlimit(song->startQN, last, qn);
 }
 
 // Where section `i` stops. Normally the next section, but the end of its own clip cuts it
