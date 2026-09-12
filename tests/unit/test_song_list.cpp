@@ -101,12 +101,9 @@ TEST_CASE("SongList - at() answers null outside the list and for the session sen
     REQUIRE(list.at(0) != nullptr);
 }
 
-// The picker costs vertical space, so it only earns it when there is a choice to make.
-TEST_CASE("SongList - one song or none is not pickable", "[songlist]")
+TEST_CASE("SongList - a project with no EVENTS items has no songs", "[songlist]")
 {
-    REQUIRE_FALSE(built(spans({})).isPickable());
-    REQUIRE_FALSE(built(spans({ { 0.0, 100.0, "Only" } })).isPickable());
-    REQUIRE(built(spans({ { 0.0, 100.0, "A" }, { 100.0, 200.0, "B" } })).isPickable());
+    REQUIRE(built(spans({})).size() == 0);
 }
 
 namespace

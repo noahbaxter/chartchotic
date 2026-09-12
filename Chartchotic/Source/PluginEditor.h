@@ -266,11 +266,15 @@ private:
     }
 
     void drawSectionBanner(juce::Graphics& g);
+    int drawBannerLine(juce::Graphics& g, const juce::String& name, float size, int left, int y);
 
     static constexpr float sectionBannerHeightRatio = 0.034f;
     static constexpr float sectionBannerMinPt = 13.0f;
     static constexpr float sectionBannerTopGap = 0.5f;    // of its own text height
     static constexpr int sectionBannerShadowPx = 2;
+    // Enough below the section to read as its heading rather than as a second title.
+    static constexpr float songBannerScale = 0.62f;
+    static constexpr float bannerLineGap = 1.15f;         // of the line's own text height
     // The white the logo sets CHART in, over the shadow it needs to stay readable on
     // whatever background art is loaded.
     inline static const juce::Colour sectionBannerText = juce::Colour(Theme::textWhite);

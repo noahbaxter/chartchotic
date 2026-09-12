@@ -30,7 +30,6 @@
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "../UI/ControlConstants.h"
-#include "../UI/Controls/SongPicker.h"
 
 // Neutral and dark, in the same family as the neck rather than a UI blue.
 namespace UtilityColours
@@ -73,28 +72,7 @@ namespace UtilityColours
 class UtilityStripComponent : public juce::Component
 {
 public:
-    UtilityStripComponent()
-    {
-        setInterceptsMouseClicks(true, false);
-        addAndMakeVisible(picker);
-
-        picker.onSelect = [this](int index)
-        {
-            setSelectedSong(index);
-            picker.setSelected(getSelectedSong());
-
-            // Picking a song is a navigation action, so it lands you on it. Session picks
-            // nothing, so it moves nothing.
-            const auto* song = selectedSong();
-            if (song != nullptr && onSeekTo != nullptr) onSeekTo(song->startQN);
-        };
-    }
-
-    void resized() override
-    {
-        picker.setVisible(pickerHeight() > 0);
-        picker.setBounds(0, 0, getWidth(), PICKER_H);
-    }
+    UtilityStripComponent() { setInterceptsMouseClicks(true, false); }
 
     void setSections(const SongSections* s)          { sections = s; }
     void setTempoMap(const TempoTimeSignatureMap* m) { tempoMap = m; }
@@ -128,10 +106,6 @@ public:
             lastSongCount = count;
             selectedSongIndex = SongList::SESSION;
         }
-
-        picker.setSongs(s);
-        picker.setSelected(selectedSongIndex);
-        resized();
     }
 
     void setSelectedSong(int index)
@@ -146,6 +120,25 @@ public:
     // Section the playhead is inside, for the banner over the highway. Empty when there is
     // none, or when the strip's own sections filter is off.
     juce::String currentSectionName() const;
+
+    // The chart the playhead is in, for the banner over the highway. Falls back to position
+    // rather than to nothing on Session: which chart you are looking at is a fact about
+    // where the playhead is, and it is true whether or not you picked one.
+    //
+    // Overlapping songs make the picked one the better answer when there is one, since an
+    // album item and the track inside it both contain the playhead and only you know which
+    // you meant.
+    juce::String currentSongName() const
+    {
+        if (const auto* picked = selectedSong()) return picked->name;
+        if (songs == nullptr) return {};
+
+        double now = playheadPPQ.toDouble();
+        for (const auto& song : songs->getSongs())
+            if (now >= song.startQN && now < song.endQN) return song.name;
+
+        return {};
+    }
 
     // Lane colours come from the same place the gems and strikeline pads get them, so the
     // map cannot drift from the highway it summarises.
@@ -216,7 +209,6 @@ private:
     static constexpr int BUTTON_W = 18;
     static constexpr int FILTER_ROW_H = 18;
     static constexpr int FILTER_HEADER_H = 20;
-    static constexpr int PICKER_H = 20;
 
     struct Filter { const char* label; bool on; };
     // Sections are the reason the strip exists, so they are on and stay first.
@@ -241,11 +233,7 @@ private:
         repaint();
     }
 
-    // Zero unless there is a choice to make, so one song or none costs no vertical space.
-    int pickerHeight() const
-    { return (songs != nullptr && songs->isPickable()) ? PICKER_H : 0; }
-
-    int trackTop() const { return pickerHeight() + filterAreaHeight(); }
+    int trackTop() const { return filterAreaHeight(); }
     int trackHeight() const { return std::max(1, getHeight() - FOOTER_H - trackTop()); }
 
     double yForQN(double qn, const View& v) const
@@ -344,10 +332,9 @@ private:
     juce::Rectangle<int> plusBounds() const
     { return { 4 + BUTTON_W + 2, getHeight() - FOOTER_H + 2, BUTTON_W, FOOTER_H - 4 }; }
     juce::Rectangle<int> filterHeaderBounds() const
-    { return { 0, pickerHeight(), getWidth(), FILTER_HEADER_H }; }
+    { return { 0, 0, getWidth(), FILTER_HEADER_H }; }
     juce::Rectangle<int> filterRowBounds(int i) const
-    { return { 0, pickerHeight() + FILTER_HEADER_H + i * FILTER_ROW_H,
-               getWidth(), FILTER_ROW_H }; }
+    { return { 0, FILTER_HEADER_H + i * FILTER_ROW_H, getWidth(), FILTER_ROW_H }; }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
     void drawSectionBands(juce::Graphics& g, const View& v) const;
@@ -366,8 +353,6 @@ private:
     int selectedSongIndex = SongList::SESSION;
     int lastSongCount = 0;
 
-    SongPicker picker { { UtilityColours::panelFill, UtilityColours::uiText,
-                          UtilityColours::label, UtilityColours::border } };
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
     int zoomIndex = DEFAULT_ZOOM_INDEX;
