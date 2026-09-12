@@ -32,6 +32,7 @@
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "../UI/ControlConstants.h"
+#include "../UI/Theme.h"
 
 // Neutral and dark, in the same family as the neck rather than a UI blue.
 namespace UtilityColours
@@ -224,8 +225,19 @@ private:
     static constexpr float CLIP_EDGE_DASH = 4.0f;
     // A section within this of a clip edge counts as marking it, so the two never double up.
     static constexpr double CLIP_EDGE_TOLERANCE_QN = 0.01;
-    static constexpr int FOOTER_H = 20;
-    static constexpr int BUTTON_W = 18;
+    // The zoom readout and the song name are the two things you read from across the room
+    // while charting, so both are sized past the strip's own label scale.
+    static constexpr int FOOTER_H = 28;
+    static constexpr int BUTTON_W = 24;
+    static constexpr float FOOTER_BUTTON_PT = 16.0f;
+    static constexpr float FOOTER_LABEL_PT = 12.0f;
+
+    // Every size the strip draws text at, in one place and all through Theme::getUIFont, so
+    // the panel uses the app's typeface rather than whatever JUCE defaults to.
+    static constexpr float SECTION_LABEL_PT = 16.0f;
+    static constexpr float FILTER_PT = 11.0f;
+    static constexpr float MEASURE_PT = 10.0f;
+    static constexpr float PLAYHEAD_TAB_PT = 11.0f;
     // One row of segments across the top rather than a list you expand: four toggles fit
     // the width, and a panel that has to be opened to see what is on hides its own state.
     static constexpr int FILTER_ROW_H = 22;
@@ -316,7 +328,7 @@ private:
     // Measured and drawn through the same call, or a plate sized with one font and filled
     // with another ellipsises names that would have fit.
     static juce::Font sectionLabelFont()
-    { return juce::Font(juce::FontOptions(16.0f, juce::Font::bold)); }
+    { return Theme::getUIFont(SECTION_LABEL_PT).boldened(); }
 
     // The song covering `qn`, or nullptr in a gap. Items cannot overlap, so there is at most
     // one and the first match is the answer.
