@@ -388,6 +388,16 @@ private:
     std::vector<double> snapPoints() const;
     double snapStep(int direction) const;
 
+    // Both edges inclusive, unlike songAt, which is half open. A snap step landing exactly on
+    // a chart's end has not left it yet: that is the stop before the one that leaves.
+    const SongList::Song* chartContaining(double qn) const;
+
+    // Holds a snap step that would leave the chart you are in at that chart's edge, so
+    // crossing takes a deliberate second notch rather than happening on the way past.
+    double resistChartCross(double targetQN);
+    static constexpr int CHART_CROSS_NOTCHES = 2;
+    static constexpr int CHART_CROSS_RESET_MS = 400;
+
     // Silence this long ends a cluster. Anything shorter is a rest inside one, not a gap
     // between two: too small and a sparse intro becomes a stop per phrase, too large and two
     // separate scraps read as one.
@@ -485,14 +495,6 @@ private:
     // still, so the moment under the pointer stays under the pointer.
     void stepSpanAbout(double anchor, int direction);
 
-    // Friction at a chart edge, in fractions of the visible span and milliseconds of rest.
-    static constexpr double BOUNDARY_RESIST_SPAN = 0.12;
-    static constexpr int    BOUNDARY_RESIST_RESET_MS = 400;
-
-    // Applies the detent to a scroll that would leave the chart the view is sitting in.
-    // Answers the start the view should actually take.
-    double resistBoundary(double wantStartQN);
-
     static constexpr int MAX_BARS_WALKED = 100000;
 
     bool inTrackArea(juce::Point<int> p) const
@@ -587,7 +589,7 @@ private:
     // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
     double viewStartQN = 0.0;
 
-    StripViewMath::BoundaryDetent detent;
+    StripViewMath::Detent crossDetent;
 
     bool playing = false;
     // Follow is the user's setting; engaged is whether it is currently acting. Scrolling
