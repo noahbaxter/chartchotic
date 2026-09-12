@@ -32,8 +32,13 @@ namespace
     // at: floored at one bar, a section on beat 3 was simply not expressible.
     constexpr float CHUNK_MIN_GAP_PX = 26.0f;
 
-    double chunkStepBars(double pxPerBar)
-    { return StripViewMath::gridStepBars(pxPerBar, CHUNK_MIN_GAP_PX); }
+    // One beat, which is what a bar is `num` of. Only equal to a quarter of a bar in 4/4.
+    double beatLengthQN(const TempoTimeSignatureMap* map, double qn)
+    {
+        if (map == nullptr || map->empty()) return 1.0;
+        auto state = TempoTimeSignatureEventHelper::getEffectiveStateAtPPQ(*map, PPQ(qn));
+        return 4.0 / (double)std::max(1, state.timeSigDenominator);
+    }
 
     MouseButton buttonOf(const juce::MouseEvent& e)
     {
@@ -281,9 +286,11 @@ double UtilityStripComponent::barLineAtOrBefore(double qn) const
 // same number, so you can only ever land on a line you can see.
 double UtilityStripComponent::visibleChunk(const View& v) const
 {
-    double len = barLengthQN(tempoMap, v.startQN);
-    double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
-    return chunkStepBars(pxPerBar);
+    double pxPerQN = trackHeight() / std::max(1.0e-6, v.endQN - v.startQN);
+
+    return StripViewMath::gridStepQN(barLengthQN(tempoMap, v.startQN),
+                                     beatLengthQN(tempoMap, v.startQN),
+                                     pxPerQN, CHUNK_MIN_GAP_PX);
 }
 
 // Walked from zero like every other grid question here, because chunk lines are counted in
@@ -291,20 +298,20 @@ double UtilityStripComponent::visibleChunk(const View& v) const
 double UtilityStripComponent::chunkLineAtOrBefore(double qn, const View& v) const
 {
     double step = visibleChunk(v);
+    double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
 
     // Below a bar the answer is inside the bar `qn` falls in, so there is nothing to walk:
-    // subdivisions are counted from that bar's own start, which keeps them right across a
-    // meter change instead of drifting from the origin.
-    if (step < 1.0)
+    // beats are counted from that bar's own start, which keeps them right across a meter
+    // change instead of drifting from the origin.
+    if (step < barLen - GridMath::TICK)
     {
         double barStart = barLineAtOrBefore(qn);
-        double sub = std::max(0.25, barLengthQN(tempoMap, barStart)) * step;
-        double past = std::floor((qn - barStart) / sub + 1.0e-9);
+        double past = std::floor((qn - barStart) / step + 1.0e-9);
 
-        return barStart + std::max(0.0, past) * sub;
+        return barStart + std::max(0.0, past) * step;
     }
 
-    int chunk = (int)step;
+    int chunk = std::max(1, (int)std::lround(step / barLen));
     double cur = 0.0;
     double best = 0.0;
 
@@ -381,29 +388,30 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
         // musical boundaries instead of wherever bar 1 happened to put them.
         int barsIn = measure - sectionStartMeasure(qn);
 
+        double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
+        bool subBar = step < barLen - GridMath::TICK;
+        int chunk = std::max(1, (int)std::lround(step / barLen));
+
         // Subdivisions go down first and dimmer, so the bar they belong to still reads as the
         // stronger line. Without that separation the eye loses where the bars are entirely.
-        if (step < 1.0)
+        if (subBar)
         {
-            double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
-            int divs = (int)std::lround(1.0 / step);
-
             g.setColour(UtilityColours::subBarLine);
-            for (int i = 1; i < divs; ++i)
+            for (double sub = qn + step; sub < qn + barLen - GridMath::TICK; sub += step)
             {
-                float sy = (float)yForQN(qn + barLen * (double)i / (double)divs, v);
+                float sy = (float)yForQN(sub, v);
                 if (sy < top || sy > bottom) continue;
 
                 g.fillRect(0.0f, sy, w, 1.0f);
             }
         }
-        else if (barsIn % (int)step != 0) continue;
+        else if (barsIn % chunk != 0) continue;
 
         if (y < top || y > bottom) continue;
 
         // Every fourth chunk is heavier, so the eye can count groups without reading numbers.
         // Below a bar the bar itself is that grouping, so every fourth bar takes the weight.
-        int group = step < 1.0 ? barsIn : barsIn / (int)step;
+        int group = subBar ? barsIn : barsIn / chunk;
         bool major = group % 4 == 0;
 
         g.setColour(major ? UtilityColours::chunkLineBig : UtilityColours::chunkLine);

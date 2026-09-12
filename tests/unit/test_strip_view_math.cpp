@@ -155,33 +155,60 @@ TEST_CASE("StripViewMath - zooming out holds the anchored position too", "[strip
 }
 
 //==============================================================================
-// gridStepBars
+// gridStepQN
 
 namespace
 {
     constexpr double MIN_GAP = 26.0;
+
+    // 4/4: a 4 QN bar of four 1 QN beats.
+    constexpr double BAR_44 = 4.0, BEAT_44 = 1.0;
+
+    // 8/8: the same 4 QN bar, but eight half-QN beats in it. The case that exposed the bug.
+    constexpr double BAR_88 = 4.0, BEAT_88 = 0.5;
+
+    // 6/8: a 3 QN bar of six half-QN beats.
+    constexpr double BAR_68 = 3.0, BEAT_68 = 0.5;
 }
 
-// Zoomed right in, a bar is hundreds of pixels tall, so there is room to subdivide it and
-// the grid should say where the beats are rather than stopping at the bar.
-TEST_CASE("StripViewMath - a tall bar subdivides below one", "[stripview]")
+// Zoomed right in there is room below the bar, and the unit there is the beat.
+TEST_CASE("StripViewMath - a tall bar subdivides by beat", "[stripview]")
 {
-    REQUIRE(gridStepBars(400.0, MIN_GAP) == Catch::Approx(0.125));
-    REQUIRE(gridStepBars(120.0, MIN_GAP) == Catch::Approx(0.25));
-    REQUIRE(gridStepBars(60.0, MIN_GAP) == Catch::Approx(0.5));
+    REQUIRE(gridStepQN(BAR_44, BEAT_44, 30.0, MIN_GAP) == Catch::Approx(1.0));
+    REQUIRE(gridStepQN(BAR_44, BEAT_44, 60.0, MIN_GAP) == Catch::Approx(0.5));
+    REQUIRE(gridStepQN(BAR_44, BEAT_44, 120.0, MIN_GAP) == Catch::Approx(0.25));
 }
 
+// The regression. Splitting the bar in four put a line every TWO beats of 8/8, which is what
+// produced the 5.3 / 5.5 / 5.7 labels: those lines were not on beats at all.
+TEST_CASE("StripViewMath - eight-eight steps by its own beat, not a quarter bar",
+          "[stripview]")
+{
+    double step = gridStepQN(BAR_88, BEAT_88, 60.0, MIN_GAP);
+
+    REQUIRE(step == Catch::Approx(BEAT_88));
+    REQUIRE(BAR_88 / step == Catch::Approx(8.0));   // eight lines to the bar, one per beat
+}
+
+TEST_CASE("StripViewMath - six-eight divides into six, not four", "[stripview]")
+{
+    double step = gridStepQN(BAR_68, BEAT_68, 60.0, MIN_GAP);
+
+    REQUIRE(step == Catch::Approx(BEAT_68));
+    REQUIRE(BAR_68 / step == Catch::Approx(6.0));
+}
+
+// No room below the bar, so the bar itself is the step.
 TEST_CASE("StripViewMath - a bar with just enough room is the step", "[stripview]")
 {
-    REQUIRE(gridStepBars(MIN_GAP, MIN_GAP) == Catch::Approx(1.0));
-    REQUIRE(gridStepBars(MIN_GAP - 1.0, MIN_GAP) == Catch::Approx(2.0));
+    REQUIRE(gridStepQN(BAR_44, BEAT_44, MIN_GAP / BAR_44, MIN_GAP) == Catch::Approx(BAR_44));
 }
 
 // Zoomed out, lines thin to whole groups of bars rather than becoming a grey wash.
 TEST_CASE("StripViewMath - a short bar groups up", "[stripview]")
 {
-    REQUIRE(gridStepBars(4.0, MIN_GAP) == Catch::Approx(8.0));
-    REQUIRE(gridStepBars(0.2, MIN_GAP) == Catch::Approx(128.0));
+    REQUIRE(gridStepQN(BAR_44, BEAT_44, 1.0, MIN_GAP) == Catch::Approx(8.0 * BAR_44));
+    REQUIRE(gridStepQN(BAR_44, BEAT_44, 0.05, MIN_GAP) == Catch::Approx(128.0 * BAR_44));
 }
 
 //==============================================================================
