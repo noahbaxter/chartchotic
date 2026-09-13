@@ -147,8 +147,19 @@ void UtilityStripComponent::gotoAdjacentChart(int direction)
         // Landing on the current chart's own start counts once, the way stepping back
         // through sections does, so the first press parks you at the top of the chart you
         // are in rather than skipping over it.
+        //
+        // The grace is what makes the second press work during playback: the transport has
+        // carried the cursor off that start by the time you press again, so without it every
+        // press finds the same chart still behind you and drops you back on its start.
+        double from = now;
+        if (const auto* current = songAt(now))
+        {
+            double start = current->startQN;
+            if (now - start <= secondsToQN(tempoMap, now, BACKSTEP_GRACE_S)) from = start;
+        }
+
         for (const auto& song : list)
-            if (GridMath::before(song.startQN, now)) target = &song;
+            if (GridMath::before(song.startQN, from)) target = &song;
     }
 
     if (target == nullptr) return;
@@ -1289,7 +1300,7 @@ double UtilityStripComponent::snapStep(int direction) const
     for (auto it = points.rbegin(); it != points.rend(); ++it)
         if (GridMath::before(*it, now))
         {
-            if (now - *it <= secondsToQN(tempoMap, now, SECTION_BACKSTEP_GRACE_S)) from = *it;
+            if (now - *it <= secondsToQN(tempoMap, now, BACKSTEP_GRACE_S)) from = *it;
             break;
         }
 
