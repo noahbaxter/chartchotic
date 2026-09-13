@@ -1557,6 +1557,14 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
             if (object >= 0) selection.push_back(object);
             dragActive = true;
             dragAnchorY = p.y;
+
+            // Where the grabbed section actually sits, which is what a move is measured from.
+            // Measuring from the cursor instead only ever shifts by a whole number of grid
+            // steps, so a section already off the grid stays off it however far you drag.
+            dragAnchorQN = object >= 0 && sections != nullptr
+                         ? sections->getSections()[(size_t)object].position.toDouble()
+                         : snappedBarQN(p.y, v);
+
             dragCommand = StripCommand::UpdateMove;
             repaint();
             break;
@@ -1596,7 +1604,7 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
         case StripCommand::UpdateMove:
         {
             dragCurrentY = p.y;
-            dragMoveDeltaQN = snappedBarQN(p.y, v) - snappedBarQN(dragAnchorY, v);
+            dragMoveDeltaQN = snappedBarQN(p.y, v) - dragAnchorQN;
             repaint();
             break;
         }
