@@ -274,10 +274,11 @@ private:
     // 16px step), so the strip scrolls at the speed everything else in the OS does.
     static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
 
-    // How long after landing on a section's start a second step back means the section
-    // before it rather than that same start again. Long enough to press twice deliberately,
-    // short enough that coming back later restarts the section you are listening to.
-    static constexpr double SECTION_BACKSTEP_GRACE_S = 1.5;
+    // How long after landing on a start a second step back means the one before it rather
+    // than that same start again. Long enough to press twice deliberately, short enough that
+    // coming back later restarts what you are listening to. Shared by sections and charts:
+    // both are things you step back through while the transport keeps moving underneath.
+    static constexpr double BACKSTEP_GRACE_S = 1.5;
     // Lane colour, dimmed by alpha alone. Desaturating turned every mark towards the band
     // behind it, so the map stopped reading as the highway it summarises.
     static constexpr float NOTE_MAP_SATURATION = 0.9f;
