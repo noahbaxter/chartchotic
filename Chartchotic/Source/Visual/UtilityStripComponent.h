@@ -521,7 +521,12 @@ private:
     // measure, because once the grid subdivides the bar number alone stops saying where you
     // are: every line in the bar would read the same.
     juce::String positionLabel(double qn) const;
-    void drawMeasureNumber(juce::Graphics& g, float y, double qn, bool emphasised) const;
+    // How loudly a position says itself. Grid numbers are scenery on the heavier ruler lines;
+    // a section start and the cursor are events, and those always read clearly.
+    enum class NumberWeight { Grid, Section, Cursor };
+    static constexpr float GRID_NUMBER_ALPHA = 0.5f;
+
+    void drawMeasureNumber(juce::Graphics& g, float y, double qn, NumberWeight weight) const;
 
     // Two targets per section: the name plate renames, the rest of its row jumps to it.
     int sectionHeaderAt(juce::Point<int> p) const;
