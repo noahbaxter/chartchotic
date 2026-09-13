@@ -513,8 +513,9 @@ private:
 
     void drawHover(juce::Graphics& g, const View& v) const;
 
-    // Measure the containing section starts on, or 1 before the first section.
-    int sectionStartMeasure(double qn) const;
+    // Measure of the last structural edge at or before `qn`: a section start, or a chart
+    // start or end. What the chunk grouping counts from.
+    int groupAnchorMeasure(double qn) const;
     int measureAtQN(double qn) const;
     // "6" on a downbeat, "6.2" on a beat, "6.2.5" off one. Takes a position rather than a
     // measure, because once the grid subdivides the bar number alone stops saying where you
