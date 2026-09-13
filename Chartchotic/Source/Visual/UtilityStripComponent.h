@@ -636,6 +636,9 @@ private:
     std::vector<int> selection;        // indices into the section list
     bool   dragActive = false;
     int    dragAnchorY = 0;
+    // The grabbed section.s own position, so a drag lands it on the grid rather than shifting
+    // it by a grid step and preserving whatever offset it already had.
+    double dragAnchorQN = 0.0;
     int    dragCurrentY = 0;
     double dragMoveDeltaQN = 0.0;
     StripCommand dragCommand = StripCommand::None;
