@@ -229,12 +229,12 @@ juce::String UtilityStripComponent::positionLabel(double qn) const
 }
 
 void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, double qn,
-                                              bool emphasised) const
+                                              NumberWeight weight) const
 {
     if (!filterOn(2)) return;
 
     auto font = Theme::getUIFont(MEASURE_PT);
-    g.setFont(emphasised ? font.boldened() : font);
+    g.setFont(weight == NumberWeight::Cursor ? font.boldened() : font);
     // Above its line, like every other label here: time runs upward, so a number sitting
     // below its line reads as belonging to the bar before it.
     auto text = positionLabel(qn);
@@ -242,9 +242,21 @@ void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, double
     int tx = getWidth() - tw - 3;
     int ty = (int)y - 14;
 
-    g.setColour(UtilityColours::background.withAlpha(0.8f));
-    g.fillRect(tx, ty, tw, 12);
-    g.setColour(emphasised ? UtilityColours::uiText : UtilityColours::measureText);
+    // A ruler number is scenery: no plate behind it, and faint enough that it never competes
+    // with a section start or the cursor. Those two keep the plate, which is what makes them
+    // readable over the note map wherever they land.
+    if (weight != NumberWeight::Grid)
+    {
+        g.setColour(UtilityColours::background.withAlpha(0.8f));
+        g.fillRect(tx, ty, tw, 12);
+    }
+
+    g.setColour(weight == NumberWeight::Cursor
+                    ? UtilityColours::uiText
+                    : weight == NumberWeight::Grid
+                        ? UtilityColours::measureText.withAlpha(GRID_NUMBER_ALPHA)
+                        : UtilityColours::measureText);
+
     g.drawText(text, tx, ty, tw, 12, juce::Justification::centred, false);
 }
 
@@ -374,7 +386,7 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
     g.setColour(UtilityColours::hoverLine);
     g.fillRect(0.0f, y, w, 1.5f);
 
-    drawMeasureNumber(g, y, barQN, true);
+    drawMeasureNumber(g, y, barQN, NumberWeight::Cursor);
 }
 
 void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) const
@@ -425,6 +437,10 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
 
         g.setColour(major ? UtilityColours::chunkLineBig : UtilityColours::chunkLine);
         g.fillRect(0.0f, y, w, major ? 2.0f : 1.0f);
+
+        // Only the heavy lines get a number, and only faintly. Numbering every chunk was the
+        // obnoxious version; numbering none of them left the ruler with nothing to read off.
+        if (major) drawMeasureNumber(g, y, qn, NumberWeight::Grid);
     }
 }
 
@@ -908,7 +924,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         // The number belongs to the name beside it, so it goes when the name goes.
         bool labelled = !plates[i].isEmpty();
         if (labelled && qn >= v.startQN && qn <= v.endQN)
-            drawMeasureNumber(g, y, qn, false);
+            drawMeasureNumber(g, y, qn, NumberWeight::Section);
 
         bool selected = isSelected((int)i);
         bool underCursor = GridMath::same(qn, hoverQN);
@@ -974,7 +990,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
                                 top + (float)trackHeight() - STICKY_HOVER_LINE_H);
             g.setColour(UtilityColours::hoverLine);
             g.fillRect(0.0f, ly, w, STICKY_HOVER_LINE_H);
-            drawMeasureNumber(g, ly, qn, true);
+            drawMeasureNumber(g, ly, qn, NumberWeight::Cursor);
         }
     }
 }
