@@ -254,17 +254,26 @@ int UtilityStripComponent::measureAtQN(double qn) const
                     : (int)(qn / 4.0) + 1;
 }
 
-int UtilityStripComponent::sectionStartMeasure(double qn) const
+// Where the 4/8/16 chunk grouping restarts: the last structural edge at or before `qn`. A
+// section start is one, and so is a chart's own start and end. Counting bars across the gap
+// between two charts puts the groupings on beats that mean nothing in either of them, and a
+// chart that does not begin on a section start would inherit the one before it otherwise.
+int UtilityStripComponent::groupAnchorMeasure(double qn) const
 {
-    auto measureAt = [this](double q)
-    {
-        return tempoMap ? TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(q), *tempoMap)
-                        : (int)(q / 4.0) + 1;
-    };
+    double anchor = -1.0;
 
-    if (sections == nullptr) return 1;
-    const auto* s = sections->sectionAt(PPQ(qn));
-    return s != nullptr ? measureAt(s->position.toDouble()) : 1;
+    if (sections != nullptr)
+        if (const auto* s = sections->sectionAt(PPQ(qn)))
+            anchor = s->position.toDouble();
+
+    if (songs != nullptr)
+        for (const auto& song : songs->getSongs())
+        {
+            if (song.startQN <= qn) anchor = std::max(anchor, song.startQN);
+            if (song.endQN <= qn)   anchor = std::max(anchor, song.endQN);
+        }
+
+    return anchor >= 0.0 ? measureAtQN(anchor) : 1;
 }
 
 // Bar lines are walked rather than divided. Bar length is not constant (Embedded has a 6/4
@@ -317,7 +326,7 @@ double UtilityStripComponent::chunkLineAtOrBefore(double qn, const View& v) cons
 
     for (int guard = 0; guard < MAX_BARS_WALKED && cur <= qn; ++guard)
     {
-        if ((measureAtQN(cur) - sectionStartMeasure(cur)) % chunk == 0) best = cur;
+        if ((measureAtQN(cur) - groupAnchorMeasure(cur)) % chunk == 0) best = cur;
         cur += std::max(0.25, barLengthQN(tempoMap, cur));
     }
     return best;
@@ -386,7 +395,7 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
 
         // Counted from the section that contains this bar, so the 4/8/16 groupings land on
         // musical boundaries instead of wherever bar 1 happened to put them.
-        int barsIn = measure - sectionStartMeasure(qn);
+        int barsIn = measure - groupAnchorMeasure(qn);
 
         double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
         bool subBar = step < barLen - GridMath::TICK;
