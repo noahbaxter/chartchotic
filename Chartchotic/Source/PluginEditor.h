@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <map>
 #include <set>
@@ -267,8 +268,34 @@ private:
     // rather than reserving space.
     UtilityStripComponent utilityStrip;
     bool utilityStripVisible = true;
-    static constexpr int utilityStripWidth = 200;
     static constexpr int utilityStripMargin = 6;
+
+    // The strip is a unit with a shape of its own, not a fixed slab. Width takes a share of
+    // the editor and everything the strip draws is sized off it, but the aspect bounds hold
+    // that share to a column: a short wide window gets no stubby fat ruler, a tall narrow
+    // one no hairline. Same fit-it-into-the-space move the toolbar and the bemani highways
+    // make, run on both ends.
+    static constexpr double utilityStripWidthRatio = 0.14;
+    static constexpr double utilityStripMinAspect = 0.16;  // width:height, floor
+    static constexpr double utilityStripMaxAspect = 0.38;  // width:height, ceiling
+    // The aspect floor pushes width up on a tall window, which is the one direction it can
+    // eat the highway, so the share it may take of the editor caps it either way.
+    static constexpr double utilityStripMaxShare = 0.22;
+    static constexpr int utilityStripMinWidth = 170;
+    static constexpr int utilityStripMaxWidth = 420;
+
+    // Resolved in resized() before any geometry derives from it.
+    int utilityStripWidth = utilityStripMinWidth;
+
+    int computeUtilityStripWidth() const
+    {
+        double byAspect = juce::jlimit(getHeight() * utilityStripMinAspect,
+                                       getHeight() * utilityStripMaxAspect,
+                                       getWidth() * utilityStripWidthRatio);
+        double capped = std::min(byAspect, getWidth() * utilityStripMaxShare);
+        return juce::jlimit(utilityStripMinWidth, utilityStripMaxWidth,
+                            juce::roundToInt(capped));
+    }
 
     void toggleUtilityStrip()
     {

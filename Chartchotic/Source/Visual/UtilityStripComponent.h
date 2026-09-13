@@ -25,6 +25,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <map>
 #include <optional>
 #include "../Midi/SongSections.h"
 #include "../Midi/SongList.h"
@@ -102,7 +103,11 @@ namespace UtilityColours
 class UtilityStripComponent : public juce::Component
 {
 public:
-    UtilityStripComponent() { setInterceptsMouseClicks(true, false); }
+    UtilityStripComponent()
+    {
+        setInterceptsMouseClicks(true, false);
+        rebuildMetrics();  // before the first resize, so nothing reads an unset size
+    }
 
     void setSections(const SongSections* s)          { sections = s; }
     void setTempoMap(const TempoTimeSignatureMap* m) { tempoMap = m; }
@@ -262,6 +267,7 @@ public:
     StripCommandMapper& commandMapper() { return mapper; }
 
     void paint(juce::Graphics& g) override;
+    void resized() override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
@@ -290,6 +296,45 @@ private:
     static constexpr float CLIP_EDGE_DASH = 4.0f;
     // A section within this of a clip edge counts as marking it, so the two never double up.
     static constexpr double CLIP_EDGE_TOLERANCE_QN = 0.01;
+    // Every constant below is a size at REF_WIDTH, the width the strip was drawn for. The
+    // editor hands it a share of the window instead now, so the whole panel scales bodily
+    // from that reference rather than each number being tuned by eye: a font and the row it
+    // sits in cannot drift apart if they come off the same multiplier.
+    static constexpr float REF_WIDTH = 188.0f;
+    // Text stops tracking the column past these. A wide strip should spend the extra width
+    // on longer section names, not on headlines, and a narrow one still has to be readable.
+    static constexpr float MIN_SCALE = 0.8f;
+    static constexpr float MAX_SCALE = 1.6f;
+
+    // What those constants come out as at the width we were actually given. Resolved once
+    // per resize: paint() runs off the render clock, and a juce::Font built per item costs
+    // more than everything it draws.
+    struct Metrics
+    {
+        float scale = 1.0f;
+
+        juce::Font sectionLabel, filter, measure, measureBold, footerButton, footerLabel,
+                   playheadTab;
+
+        int labelH, labelMinGap, labelLineGap, labelInsetX, labelTextPad;
+        int filterRowH, modeRowH, filterGap;
+        int footerH, navRowH, navNameH, buttonW;
+        int songChunkInset, measureDrop;
+
+        float sectionLineH, sectionLineSelectedExtra;
+        float stickyHoverLineGap, stickyHoverLineH;
+    };
+
+    Metrics m;
+    void rebuildMetrics();
+
+    // Plate widths by name rather than by index: sections are edited between resizes and a
+    // name is what the width depends on. Measuring one costs a font build, and labelPlates
+    // walks every section three times a frame.
+    mutable std::map<juce::String, int> plateWidthCache;
+    static constexpr size_t PLATE_CACHE_MAX = 2048;
+    int plateTextWidth(const juce::String& name) const;
+
     // The zoom readout and the song name are the two things you read from across the room
     // while charting, so both are sized past the strip's own label scale.
     static constexpr int FOOTER_H = 28;
@@ -299,7 +344,7 @@ private:
     // The chart you are in, named above the buttons that move between them, so the pair says
     // where you are going from as well as where you can go.
     static constexpr int NAV_NAME_H = 17;
-    int footerAreaHeight() const { return FOOTER_H + NAV_NAME_H + NAV_ROW_H; }
+    int footerAreaHeight() const { return m.footerH + m.navNameH + m.navRowH; }
     static constexpr int BUTTON_W = 24;
     static constexpr float FOOTER_BUTTON_PT = 16.0f;
     static constexpr float FOOTER_LABEL_PT = 12.0f;
@@ -309,6 +354,9 @@ private:
     static constexpr float SECTION_LABEL_PT = 16.0f;
     static constexpr float FILTER_PT = 11.0f;
     static constexpr float MEASURE_PT = 10.0f;
+    // How far above its line a ruler number sits: clear of the line without reading as part
+    // of the bar above it.
+    static constexpr int MEASURE_DROP = 14;
     static constexpr float PLAYHEAD_TAB_PT = 11.0f;
     // One row of segments across the top rather than a list you expand: four toggles fit
     // the width, and a panel that has to be opened to see what is on hides its own state.
@@ -333,7 +381,7 @@ private:
 
     bool filterOn(int i) const { return filters[i].on; }
 
-    int filterAreaHeight() const { return MODE_ROW_H + FILTER_ROW_H; }
+    int filterAreaHeight() const { return m.modeRowH + m.filterRowH; }
 
     struct ModeButton { const char* label; EditMode mode; };
     static constexpr ModeButton MODES[] = { { "sections", EditMode::Sections } };
@@ -343,7 +391,7 @@ private:
         int count = (int)std::size(MODES);
         int w = getWidth() / count;
         bool last = i == count - 1;
-        return { i * w, 0, last ? getWidth() - i * w : w, MODE_ROW_H };
+        return { i * w, 0, last ? getWidth() - i * w : w, m.modeRowH };
     }
 
     void drawModes(juce::Graphics& g) const;
@@ -445,10 +493,9 @@ private:
 
     static constexpr int SONG_CHUNK_INSET = 5;
 
-    // Measured and drawn through the same call, or a plate sized with one font and filled
-    // with another ellipsises names that would have fit.
-    static juce::Font sectionLabelFont()
-    { return Theme::getUIFont(SECTION_LABEL_PT).boldened(); }
+    // Measured and drawn through the same font, or a plate sized with one and filled with
+    // another ellipsises names that would have fit.
+    const juce::Font& sectionLabelFont() const { return m.sectionLabel; }
 
     // The song covering `qn`, or nullptr in a gap. Items cannot overlap, so there is at most
     // one and the first match is the answer.
@@ -559,20 +606,20 @@ private:
     // The zoom row sits above the name, which sits above the nav row, so each is measured off
     // the bottom in turn.
     int zoomRowTop() const { return getHeight() - footerAreaHeight(); }
-    int navNameTop() const { return getHeight() - NAV_ROW_H - NAV_NAME_H; }
-    int navRowTop() const { return getHeight() - NAV_ROW_H; }
+    int navNameTop() const { return getHeight() - m.navRowH - m.navNameH; }
+    int navRowTop() const { return getHeight() - m.navRowH; }
 
     juce::Rectangle<int> minusBounds() const
-    { return { 4, zoomRowTop() + 2, BUTTON_W, FOOTER_H - 4 }; }
+    { return { 4, zoomRowTop() + 2, m.buttonW, m.footerH - 4 }; }
     juce::Rectangle<int> plusBounds() const
-    { return { 4 + BUTTON_W + 2, zoomRowTop() + 2, BUTTON_W, FOOTER_H - 4 }; }
+    { return { 4 + m.buttonW + 2, zoomRowTop() + 2, m.buttonW, m.footerH - 4 }; }
 
     // Split down the middle, each half taking its own rounding so the pair ends flush.
     juce::Rectangle<int> prevChartBounds() const
-    { return { 4, navRowTop() + 1, getWidth() / 2 - 5, NAV_ROW_H - 4 }; }
+    { return { 4, navRowTop() + 1, getWidth() / 2 - 5, m.navRowH - 4 }; }
     juce::Rectangle<int> nextChartBounds() const
     { return { getWidth() / 2 + 1, navRowTop() + 1, getWidth() - getWidth() / 2 - 5,
-               NAV_ROW_H - 4 }; }
+               m.navRowH - 4 }; }
     // Equal segments across the width, last one taking the rounding so the group ends flush
     // with the strip rather than a pixel or two short of it.
     juce::Rectangle<int> filterButtonBounds(int i) const
@@ -580,7 +627,7 @@ private:
         int count = (int)std::size(filters);
         int w = getWidth() / count;
         bool last = i == count - 1;
-        return { i * w, MODE_ROW_H, last ? getWidth() - i * w : w, FILTER_ROW_H };
+        return { i * w, m.modeRowH, last ? getWidth() - i * w : w, m.filterRowH };
     }
 
     void drawChartGround(juce::Graphics& g, const View& v) const;

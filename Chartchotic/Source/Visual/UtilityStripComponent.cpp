@@ -233,14 +233,13 @@ void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, double
 {
     if (!filterOn(2)) return;
 
-    auto font = Theme::getUIFont(MEASURE_PT);
-    g.setFont(weight == NumberWeight::Cursor ? font.boldened() : font);
+    g.setFont(weight == NumberWeight::Cursor ? m.measureBold : m.measure);
     // Above its line, like every other label here: time runs upward, so a number sitting
     // below its line reads as belonging to the bar before it.
     auto text = positionLabel(qn);
     int tw = g.getCurrentFont().getStringWidth(text) + 8;
     int tx = getWidth() - tw - 3;
-    int ty = (int)y - 14;
+    int ty = (int)y - m.measureDrop;
 
     // A ruler number is scenery: no plate behind it, and faint enough that it never competes
     // with a section start or the cursor. Those two keep the plate, which is what makes them
@@ -507,9 +506,9 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     const auto& s = list[index];
     float y = (float)yForQN(s.position.toDouble() + movePreviewQN(index), v);
 
-    int plateW = std::min(getWidth() - LABEL_INSET_X * 2,
-                          sectionLabelFont().getStringWidth(s.name) + LABEL_TEXT_PAD);
-    int top = (int)y - LABEL_H - LABEL_LINE_GAP;
+    int plateW = std::min(getWidth() - m.labelInsetX * 2,
+                          plateTextWidth(s.name) + m.labelTextPad);
+    int top = (int)y - m.labelH - m.labelLineGap;
 
     // The section you are currently inside pins to the bottom once its own line has
     // scrolled past, so its name is always readable and still clickable. The next section
@@ -518,7 +517,7 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     if (index == (size_t)stickyIndex(v))
     {
         float bottom = (float)(trackTop() + trackHeight());
-        float pinned = bottom - LABEL_H - LABEL_LINE_GAP;
+        float pinned = bottom - m.labelH - m.labelLineGap;
 
         if (index + 1 < list.size())
         {
@@ -528,12 +527,12 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
             // name blinks out and only comes back once this one has scrolled away. The name
             // you are scrolling towards is the one that must survive.
             float nextY = (float)yForQN(list[index + 1].position.toDouble(), v);
-            pinned = std::max(pinned, nextY - (float)LABEL_LINE_GAP + (float)LABEL_MIN_GAP);
+            pinned = std::max(pinned, nextY - (float)m.labelLineGap + (float)m.labelMinGap);
         }
         top = std::min(top, (int)pinned);
     }
 
-    return { LABEL_INSET_X, top, plateW, LABEL_H };
+    return { m.labelInsetX, top, plateW, m.labelH };
 }
 
 // Where the charted MIDI stops: the last note end on any mapped part, the end of the last
@@ -669,8 +668,8 @@ std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View&
     {
         for (const auto& kept : plates)
             if (!kept.isEmpty()
-                && plate.getBottom() + LABEL_MIN_GAP > kept.getY()
-                && kept.getBottom() + LABEL_MIN_GAP > plate.getY())
+                && plate.getBottom() + m.labelMinGap > kept.getY()
+                && kept.getBottom() + m.labelMinGap > plate.getY())
                 return false;
         return true;
     };
@@ -778,7 +777,7 @@ int UtilityStripComponent::songNameAt(juce::Point<int> p) const
     if (i < 0) return -1;
 
     auto r = songChunkBounds(visibleRange())[(size_t)i];
-    return p.y <= r.getY() + LABEL_H ? i : -1;
+    return p.y <= r.getY() + m.labelH ? i : -1;
 }
 
 // Laid down before anything else, so every line, band and note is drawn onto it. Clipped to
@@ -827,10 +826,10 @@ void UtilityStripComponent::drawSongChunks(juce::Graphics& g, const View& v) con
         g.drawRect(r, 1);
 
         g.setColour(UtilityColours::sectionText);
-        g.setFont(sectionLabelFont());
+        g.setFont(m.sectionLabel);
         g.drawText(list[i].name,
-                   r.reduced(SONG_CHUNK_INSET, 0).withTop(r.getY() + SONG_CHUNK_INSET)
-                    .withHeight(LABEL_H),
+                   r.reduced(m.songChunkInset, 0).withTop(r.getY() + m.songChunkInset)
+                    .withHeight(m.labelH),
                    juce::Justification::topLeft, true);
     }
 }
@@ -954,13 +953,13 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
                         : underCursor ? UtilityColours::hoverLine
                                       : UtilityColours::sectionLine);
 
-            g.fillRect(0.0f, y, w, SECTION_LINE_H
-                                   + (selected ? SECTION_LINE_SELECTED_EXTRA : 0.0f));
+            g.fillRect(0.0f, y, w, m.sectionLineH
+                                   + (selected ? m.sectionLineSelectedExtra : 0.0f));
         }
 
         if (!labelled) continue;
 
-        g.setFont(sectionLabelFont());
+        g.setFont(m.sectionLabel);
         // Straight from the hit-test bounds, so a pinned label is clickable where it is
         // drawn rather than where its line would have put it.
         auto plate = plates[i];
@@ -989,10 +988,10 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         if (sticky && (int)i == hoverSection)
         {
             // Kept inside the track: a line below the last row is drawn over by the footer.
-            float ly = std::min((float)plate.getBottom() + STICKY_HOVER_LINE_GAP,
-                                top + (float)trackHeight() - STICKY_HOVER_LINE_H);
+            float ly = std::min((float)plate.getBottom() + m.stickyHoverLineGap,
+                                top + (float)trackHeight() - m.stickyHoverLineH);
             g.setColour(UtilityColours::hoverLine);
-            g.fillRect(0.0f, ly, w, STICKY_HOVER_LINE_H);
+            g.fillRect(0.0f, ly, w, m.stickyHoverLineH);
             drawMeasureNumber(g, ly, qn, NumberWeight::Cursor);
         }
     }
@@ -1003,13 +1002,13 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 void UtilityStripComponent::drawModes(juce::Graphics& g) const
 {
     g.setColour(UtilityColours::background);
-    g.fillRect(0, 0, getWidth(), MODE_ROW_H);
+    g.fillRect(0, 0, getWidth(), m.modeRowH);
 
-    g.setFont(Theme::getUIFont(FILTER_PT));
+    g.setFont(m.filter);
 
     for (int i = 0; i < (int)std::size(MODES); ++i)
     {
-        auto seg = modeButtonBounds(i).reduced(FILTER_GAP, FILTER_GAP);
+        auto seg = modeButtonBounds(i).reduced(m.filterGap, m.filterGap);
         bool on = editMode == MODES[i].mode;
 
         g.setColour(on ? UtilityColours::modeActiveFill : UtilityColours::panelFill);
@@ -1023,7 +1022,7 @@ void UtilityStripComponent::drawModes(juce::Graphics& g) const
     }
 
     g.setColour(UtilityColours::border);
-    g.fillRect(0, MODE_ROW_H - 1, getWidth(), 1);
+    g.fillRect(0, m.modeRowH - 1, getWidth(), 1);
 }
 
 // A segmented row of toggles, each one lit when its layer is on, so what the strip is
@@ -1031,13 +1030,13 @@ void UtilityStripComponent::drawModes(juce::Graphics& g) const
 void UtilityStripComponent::drawFilters(juce::Graphics& g) const
 {
     g.setColour(UtilityColours::panelFill);
-    g.fillRect(0, MODE_ROW_H, getWidth(), FILTER_ROW_H);
+    g.fillRect(0, m.modeRowH, getWidth(), m.filterRowH);
 
-    g.setFont(Theme::getUIFont(FILTER_PT));
+    g.setFont(m.filter);
 
     for (int i = 0; i < (int)std::size(filters); ++i)
     {
-        auto seg = filterButtonBounds(i).reduced(FILTER_GAP, FILTER_GAP);
+        auto seg = filterButtonBounds(i).reduced(m.filterGap, m.filterGap);
         bool on = filters[i].on;
 
         // Follow has three states rather than two: off, on and driving the view, and on but
@@ -1077,7 +1076,7 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     g.setColour(UtilityColours::panelFill);
     g.fillRect(0, zoomRowTop(), getWidth(), footerAreaHeight());
 
-    g.setFont(Theme::getUIFont(FOOTER_BUTTON_PT));
+    g.setFont(m.footerButton);
     bool canOut = viewSpanQN < projectEndQN() - GridMath::TICK;
     bool canIn  = viewSpanQN > minSpanQN() + GridMath::TICK;
 
@@ -1091,7 +1090,7 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     }
 
     g.setColour(UtilityColours::uiText);
-    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
+    g.setFont(m.footerLabel);
     // Counted in bars at every width now that there are no named rungs left, except the one
     // that covers everything: "project" says more there than a bar count nobody can picture.
     double bars = viewSpanQN / std::max(1.0e-6, barLengthQN(tempoMap, viewStartQN));
@@ -1118,12 +1117,12 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     // from "the one you are in", so it says nothing rather than something not quite true.
     const auto* inChart = songAt(now);
     g.setColour(inChart != nullptr ? UtilityColours::sectionText : UtilityColours::label);
-    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
+    g.setFont(m.footerLabel);
     g.drawText(inChart != nullptr ? inChart->name : juce::String("no chart"),
-               4, navNameTop(), getWidth() - 8, NAV_NAME_H,
+               4, navNameTop(), getWidth() - 8, m.navNameH,
                juce::Justification::centred, true);
 
-    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
+    g.setFont(m.footerLabel);
     for (auto [r, text, enabled] : { std::tuple{ prevChartBounds(), "< prev chart", hasPrev },
                                      std::tuple{ nextChartBounds(), "next chart >", hasNext } })
     {
@@ -1132,6 +1131,70 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
         g.setColour(enabled ? UtilityColours::uiText : UtilityColours::label);
         g.drawText(text, r, juce::Justification::centred, false);
     }
+}
+
+void UtilityStripComponent::resized()
+{
+    rebuildMetrics();
+}
+
+// One multiplier off the width the editor gave us, applied to every size the strip draws at.
+// Nothing in the paint path may build a font or measure a string, so all of it lands here.
+void UtilityStripComponent::rebuildMetrics()
+{
+    m.scale = juce::jlimit(MIN_SCALE, MAX_SCALE, getWidth() / REF_WIDTH);
+
+    auto px = [this](auto ref) { return juce::roundToInt(ref * m.scale); };
+    auto pt = [this](float ref) { return Theme::getUIFont(ref * m.scale); };
+
+    m.sectionLabel = pt(SECTION_LABEL_PT).boldened();
+    m.filter       = pt(FILTER_PT);
+    m.measure      = pt(MEASURE_PT);
+    m.measureBold  = m.measure.boldened();
+    m.footerButton = pt(FOOTER_BUTTON_PT);
+    m.footerLabel  = pt(FOOTER_LABEL_PT);
+    m.playheadTab  = pt(PLAYHEAD_TAB_PT).boldened();
+
+    m.labelH       = px(LABEL_H);
+    m.labelMinGap  = px(LABEL_MIN_GAP);
+    m.labelLineGap = px(LABEL_LINE_GAP);
+    m.labelInsetX  = px(LABEL_INSET_X);
+    m.labelTextPad = px(LABEL_TEXT_PAD);
+
+    m.filterRowH = px(FILTER_ROW_H);
+    m.modeRowH   = px(MODE_ROW_H);
+    m.filterGap  = px(FILTER_GAP);
+
+    m.footerH  = px(FOOTER_H);
+    m.navRowH  = px(NAV_ROW_H);
+    m.navNameH = px(NAV_NAME_H);
+    m.buttonW  = px(BUTTON_W);
+
+    m.songChunkInset = px(SONG_CHUNK_INSET);
+    m.measureDrop    = px(MEASURE_DROP);
+
+    m.sectionLineH             = SECTION_LINE_H * m.scale;
+    m.sectionLineSelectedExtra = SECTION_LINE_SELECTED_EXTRA * m.scale;
+    m.stickyHoverLineGap       = STICKY_HOVER_LINE_GAP * m.scale;
+    m.stickyHoverLineH         = STICKY_HOVER_LINE_H * m.scale;
+
+    plateWidthCache.clear();
+}
+
+// Measured once per name per scale. The plate is the hit test as well as the drawing, so
+// both sides have to agree, and both run several times a frame.
+int UtilityStripComponent::plateTextWidth(const juce::String& name) const
+{
+    auto hit = plateWidthCache.find(name);
+    if (hit != plateWidthCache.end()) return hit->second;
+
+    // Renaming leaves the old key behind, so this is dropped rather than grown without
+    // bound. Refilling it costs one measure per visible section on the next frame.
+    if (plateWidthCache.size() > PLATE_CACHE_MAX) plateWidthCache.clear();
+
+    int w = m.sectionLabel.getStringWidth(name);
+    plateWidthCache[name] = w;
+    return w;
 }
 
 void UtilityStripComponent::paint(juce::Graphics& g)
@@ -1176,7 +1239,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
         // The current bar hangs off the right edge, always visible, so "where am I" never
         // needs a hover. Sits above the line, the direction time runs.
-        g.setFont(Theme::getUIFont(PLAYHEAD_TAB_PT).boldened());
+        g.setFont(m.playheadTab);
         auto text = juce::String(measureAtQN(playheadPPQ.toDouble()));
         int tw = g.getCurrentFont().getStringWidth(text) + 12;
         int th = 16;
@@ -1465,7 +1528,7 @@ void UtilityStripComponent::beginRename(int index)
     renameEditor = std::make_unique<juce::TextEditor>();
     // The same face and size as the label it sits on top of, so the name does not jump as
     // it goes from drawn to editable.
-    renameEditor->setFont(sectionLabelFont());
+    renameEditor->setFont(m.sectionLabel);
     renameEditor->setText(sections->getSections()[(size_t)index].name, false);
     renameEditor->selectAll();
     renameEditor->setBounds(plate.withWidth(std::max(90, getWidth() - plate.getX() - 6)));
@@ -1488,11 +1551,11 @@ void UtilityStripComponent::beginSongRename(int index)
     auto r = songChunkBounds(visibleRange())[(size_t)index];
 
     renameEditor = std::make_unique<juce::TextEditor>();
-    renameEditor->setFont(sectionLabelFont());
+    renameEditor->setFont(m.sectionLabel);
     renameEditor->setText(song->name, false);
     renameEditor->selectAll();
-    renameEditor->setBounds(r.reduced(SONG_CHUNK_INSET, 0)
-                             .withTop(r.getY() + SONG_CHUNK_INSET).withHeight(LABEL_H));
+    renameEditor->setBounds(r.reduced(m.songChunkInset, 0)
+                             .withTop(r.getY() + m.songChunkInset).withHeight(m.labelH));
     renameEditor->onReturnKey = [this] { commitRename(); };
     renameEditor->onEscapeKey = [this] { renameEditor.reset(); renameIndex = -1; };
     renameEditor->onFocusLost = [this] { commitRename(); };
