@@ -910,13 +910,13 @@ void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 // does not push it off-centre.
 void ChartchoticAudioProcessorEditor::drawSectionBanner(juce::Graphics& g)
 {
-    if (!sectionBannerVisible || !utilityStripVisible || activeSlotCount == 0) return;
+    if (!sectionBannerShown() || activeSlotCount == 0) return;
 
     auto song = utilityStrip.currentSongName();
     auto section = utilityStrip.currentSectionName();
     if (song.isEmpty() && section.isEmpty()) return;
 
-    float size = std::max(sectionBannerMinPt, getHeight() * sectionBannerHeightRatio);
+    float size = sectionBannerSize();
     int left = utilityStripWidth;
     int y = toolbar.getHeight() + juce::roundToInt(size * sectionBannerTopGap);
 
@@ -1093,42 +1093,53 @@ void ChartchoticAudioProcessorEditor::resized()
         int contentH = getHeight() - tbHeight - footerH;
         int numSlots = activeSlotCount;
 
+        // Determine grid layout based on aspect ratio and slot count
+        //   Bemani: always a single horizontal row
+        //   wide  (aspect > 1.5): single row
+        //   tall  (aspect < 0.7): single column
+        //   square-ish:           grid (2x2 for 3-4 slots, row for 2)
+        float aspect = (float)contentW / (float)std::max(1, contentH);
+        int cols = 1, rows = 1;
+
+        if (numSlots == 1)
+        {
+            // One highway, one column.
+        }
+        else if (PositionMath::bemaniMode)
+        {
+            cols = numSlots;
+            rows = 1;
+        }
+        else if (numSlots <= 2)
+        {
+            if (aspect > 1.0f) { cols = numSlots; rows = 1; }
+            else               { cols = 1; rows = numSlots; }
+        }
+        else
+        {
+            // 3-4 slots
+            if (aspect > 1.5f)      { cols = numSlots; rows = 1; }
+            else if (aspect < 0.7f) { cols = 1; rows = numSlots; }
+            else                    { cols = 2; rows = (numSlots + 1) / 2; }
+        }
+
+        // The banner is centred over the highways. With an even number of columns it lands in
+        // the gap between the middle two; with an odd number a highway sits right under it, so
+        // the grid starts below it instead.
+        int bannerReserve = sectionBannerShown() && cols % 2 == 1 ? sectionBannerReserve() : 0;
+        int gridTop = tbHeight + bannerReserve;
+        contentH -= bannerReserve;
+
         if (numSlots == 1)
         {
             auto& hw = *slots[0].highway;
             hw.renderWidth = sceneWidth;
             hw.renderHeight = sceneHeight;
             hw.updateOverflow();
-            hw.setBounds(stripW, tbHeight, contentW, contentH);
+            hw.setBounds(stripW, gridTop, contentW, contentH);
         }
         else
         {
-            // Determine grid layout based on aspect ratio and slot count
-            //   Bemani: always a single horizontal row
-            //   wide  (aspect > 1.5): single row
-            //   tall  (aspect < 0.7): single column
-            //   square-ish:           grid (2x2 for 3-4 slots, row for 2)
-            float aspect = (float)contentW / (float)std::max(1, contentH);
-            int cols, rows;
-
-            if (PositionMath::bemaniMode)
-            {
-                cols = numSlots;
-                rows = 1;
-            }
-            else if (numSlots <= 2)
-            {
-                if (aspect > 1.0f) { cols = numSlots; rows = 1; }
-                else               { cols = 1; rows = numSlots; }
-            }
-            else
-            {
-                // 3-4 slots
-                if (aspect > 1.5f)      { cols = numSlots; rows = 1; }
-                else if (aspect < 0.7f) { cols = 1; rows = numSlots; }
-                else                    { cols = 2; rows = (numSlots + 1) / 2; }
-            }
-
             int pad = highwayGridPadding;
 
             // Horizontal width is distributed by per-highway weight: elite drums gets a wider slot
@@ -1162,7 +1173,7 @@ void ChartchoticAudioProcessorEditor::resized()
                 int slotW = std::max(1, juce::roundToInt(w * unitW));
                 int slotX = rowX[(size_t)row];
                 rowX[(size_t)row] += slotW + pad;
-                int slotY = tbHeight + pad + row * (slotBaseH + pad);
+                int slotY = gridTop + pad + row * (slotBaseH + pad);
 
                 if (PositionMath::bemaniMode)
                 {

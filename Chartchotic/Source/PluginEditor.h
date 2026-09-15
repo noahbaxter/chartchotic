@@ -303,7 +303,21 @@ private:
     {
         sectionBannerVisible = !sectionBannerVisible;
         state.setProperty("showSectionBanner", sectionBannerVisible, nullptr);
+        resized();   // the grid may be holding room for it
         repaint();
+    }
+
+    bool sectionBannerShown() const { return sectionBannerVisible && utilityStripVisible; }
+    float sectionBannerSize() const
+    { return std::max(sectionBannerMinPt, getHeight() * sectionBannerHeightRatio); }
+
+    // Height the banner covers below the toolbar, song and section lines both. Reserved
+    // whether or not either name is set right now, so the grid does not jump as you play.
+    int sectionBannerReserve() const
+    {
+        return juce::roundToInt(sectionBannerSize()
+                                * (sectionBannerTopGap + songBannerScale * bannerLineGap
+                                   + bannerLineGap));
     }
 
     void drawSectionBanner(juce::Graphics& g);
