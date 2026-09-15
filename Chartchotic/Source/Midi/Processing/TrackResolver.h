@@ -86,6 +86,8 @@ private:
                                      const Config& cfg,
                                      const std::array<DiffContext, 4>& diffs);
 
+    static void resolvePhrases(PartWindow& result, const SharedWindow& shared, const Config& cfg);
+
     // Disco flip: replace cymbal/tom flag while preserving dynamic
     static Gem swapCymbalFlag(Gem gem, bool cymbal);
 

@@ -457,6 +457,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         float spScale = gemTypeScales.spGem;
         if (std::abs(spScale - 1.0f) > 0.001f) spMul = spScale;
     }
+    if (showActivation && gemWrapper.activation) spMul *= PHRASE_ACTIVATION_SCALE;
 
     const auto& baseScale = barNote ? barScale : gemScale;
     float wScale = baseScale.width  * typeScale * spMul * userScale;
@@ -697,6 +698,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         float spScale = gemTypeScales.spGem;
         if (std::abs(spScale - 1.0f) > 0.001f) spMul = spScale;
     }
+    if (showActivation && gemWrapper.activation) spMul *= PHRASE_ACTIVATION_SCALE;
 
     float baseW = barNote ? bemaniConfig.barW : bemaniConfig.gemW;
     float baseH = barNote ? bemaniConfig.barH : bemaniConfig.gemH;

@@ -320,6 +320,18 @@ void HighwayComponent::paint(juce::Graphics& g)
 
     // Inject sustain drag preview into a local copy of the sustain window.
     auto sustainWindow = frameData.sustainWindow;
+
+    // The phrase views draw their phrases as lanes on the highway, one kind per view.
+    {
+        const auto view = shownView();
+        const SustainType shown = view == EditorView::StarPower ? SustainType::STAR_POWER
+                                : view == EditorView::Phrase    ? SustainType::BRE
+                                                                : SustainType::SUSTAIN;
+        if (shown != SustainType::SUSTAIN)
+            for (const auto& p : frameData.phraseWindow)
+                if (p.sustainType == shown) sustainWindow.push_back(p);
+    }
+
     if (overlayStateGetter && projectQNToSeconds)
     {
         const auto& ov = overlayStateGetter();

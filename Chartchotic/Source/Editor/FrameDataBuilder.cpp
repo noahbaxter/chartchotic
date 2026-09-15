@@ -79,6 +79,7 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
+    out.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
     out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
@@ -194,6 +195,7 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
             HighwayFrameData frameData;
             frameData.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
             frameData.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
+            frameData.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
             frameData.gridlines = sharedGridlines;
             frameData.eventMarkers = sharedMarkers;
             frameData.windowStartTime = 0.0;
@@ -282,6 +284,7 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
+    out.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
     out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;

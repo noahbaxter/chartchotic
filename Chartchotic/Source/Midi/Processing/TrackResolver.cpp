@@ -49,6 +49,7 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
     using Drums = MidiPitchDefinitions::Drums;
 
     SharedWindow shared;
+    shared.windowEnd = windowEnd;
 
     // The per-pitch loop cannot correlate five pitches, so these resolve after it.
     FillMarkers fillMarkers;
@@ -187,7 +188,64 @@ PartWindow TrackResolver::resolve(const SharedWindow& shared, const Config& cfg)
     resolveSustains(result, shared, cfg, diffs);
     resolveLanes(result, shared, cfg, diffs);
     resolveHiHatSustains(result, shared, cfg, diffs);   // after pedal gems: reads Open-hat + Splash gems
+    resolvePhrases(result, shared, cfg);                // after notes: marks fill activation gems
     return result;
+}
+
+//==============================================================================
+// Phrases → phraseWindow
+//==============================================================================
+
+namespace
+{
+    // The columns a fill lane covers: every hand lane, never the kick.
+    std::pair<uint, uint> handColumns(Part part)
+    {
+        switch (getRenderType(part))
+        {
+            case RenderType::FOUR_LANE_DRUMS: return { 1, 4 };
+            case RenderType::FIVE_LANE_DRUMS: return { 1, 5 };
+            case RenderType::ELITE_DRUMS:     return { 1, 8 };
+            case RenderType::SIX_FRET:        return { 1, 6 };
+            default:                          return { 1, 5 };
+        }
+    }
+}
+
+void TrackResolver::resolvePhrases(PartWindow& result, const SharedWindow& shared, const Config& cfg)
+{
+    for (const auto& sp : shared.modifiers.starPower)
+        result.phraseWindow.push_back({ sp.start, sp.end, 0, SustainType::STAR_POWER,
+                                        GemWrapper(Gem::NOTE, true) });
+
+    auto [firstColumn, lastColumn] = handColumns(cfg.part);
+    for (const auto& fill : shared.modifiers.fill)
+        for (uint c = firstColumn; c <= lastColumn; ++c)
+            result.phraseWindow.push_back({ fill.start, fill.end, c, SustainType::BRE,
+                                            GemWrapper(Gem::NOTE) });
+
+    // A drum fill ends on the note that activates star power. Guitar has no fills, only
+    // BREs, and a BRE activates nothing.
+    if (!isDrumLike(cfg.part)) return;
+
+    for (const auto& fill : shared.modifiers.fill)
+    {
+        if (fill.end > shared.windowEnd) continue;
+
+        // The marker's note-off lands at or just after the note it closes on.
+        auto it = shared.positions.upper_bound(fill.end);
+        if (it == shared.positions.begin()) continue;
+        --it;
+        if (it->first < fill.start) continue;
+
+        for (auto& diff : result.difficulties)
+        {
+            auto frame = diff.trackWindow.find(it->first);
+            if (frame == diff.trackWindow.end()) continue;
+            for (auto& gem : frame->second)
+                if (gem.gem != Gem::NONE) gem.activation = true;
+        }
+    }
 }
 
 //==============================================================================

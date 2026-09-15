@@ -87,6 +87,7 @@ class SceneRenderer
         std::vector<NoteRenderer::SelectedGem>& getEraseTargets() { return noteRenderer.eraseTargets; }
         std::vector<SustainRenderer::TintedSustain>& getTintedSustains() { return sustainRenderer.tintedSustains; }
         void setBarModeDim(float dim) { noteRenderer.barModeDim = dim; }
+        void setShowActivation(bool on) { noteRenderer.showActivation = on; }
         const std::vector<NoteRenderer::NoteHitBox>& getNoteHitBoxes() const { return noteRenderer.getHitBoxes(); }
 
 #ifdef DEBUG
