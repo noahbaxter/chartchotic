@@ -679,8 +679,11 @@ std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View&
     {
         if (i < 0 || i >= (int)list.size() || !plates[(size_t)i].isEmpty()) return;
 
+        // Has to fit, not merely start inside. Testing the top let a plate whose line sits
+        // just below the view begin a pixel above the bottom and then hang its whole height
+        // into the footer.
         auto plate = sectionHeaderBounds((size_t)i, v);
-        if (plate.isEmpty() || plate.getY() > bottom) return;
+        if (plate.isEmpty() || plate.getBottom() > bottom) return;
         if (!claim && !clear(plate)) return;
 
         plates[(size_t)i] = plate;
