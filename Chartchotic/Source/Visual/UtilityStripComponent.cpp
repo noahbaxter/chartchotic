@@ -84,209 +84,124 @@ namespace
     }
 }
 
-// A bar step only earns a rung if it shows less than the whole song: 128 bars of a 40 bar
-// chart is the song view with extra steps to get there.
-std::vector<int> UtilityStripComponent::availableZooms() const
+// The one place that decides what a legal view is. Clamped to the project and to nothing
+// narrower: a chart is a region the window may sit inside, never a cage it sits in.
+double UtilityStripComponent::barQN() const { return barLengthQN(tempoMap, viewStartQN); }
+
+double UtilityStripComponent::minSpanQN() const { return MIN_ZOOM_BARS * barQN(); }
+
+std::vector<double> UtilityStripComponent::zoomSpans() const
 {
-    // The chart on screen when there is one, and otherwise the playhead's, which is what the
-    // session view has to offer a way back into.
-    const auto* inside = enteredSong();
-    if (inside == nullptr) inside = songAtPlayhead();
-
-    if (inside != nullptr) return availableZoomsFor(inside);
-
-    // No EVENTS items anywhere, so nothing confines anything: every bar step is available
-    // and session means the whole project. The song rung has no song to be.
-    if (!hasSongs())
-    {
-        std::vector<int> steps(std::begin(SongList::BAR_STEPS), std::end(SongList::BAR_STEPS));
-        steps.push_back(ZOOM_SESSION);
-        return steps;
-    }
-
-    // In the gap between two charts, where there is nothing to be inside.
-    return { ZOOM_SESSION };
+    return StripViewMath::zoomSpansQN(projectEndQN(), barQN(), MIN_ZOOM_BARS);
 }
 
-// Takes the song rather than reading the playhead, because opening a chart seeks and steps
-// in together, and the seek only lands a frame later.
-std::vector<int> UtilityStripComponent::availableZoomsFor(const SongList::Song* song) const
+void UtilityStripComponent::setView(double startQN, double spanQN)
 {
-    if (song == nullptr) return { ZOOM_SESSION };
+    auto v = StripViewMath::clamp(startQN, spanQN, projectEndQN(), minSpanQN());
+    if (v.startQN == viewStartQN && v.spanQN == viewSpanQN) return;
 
-    return SongList::zoomLadder(song->endQN - song->startQN,
-                                barLengthQN(tempoMap, song->startQN));
-}
-
-void UtilityStripComponent::setZoom(int value, const SongList::Song* song)
-{
-    auto steps = song != nullptr ? availableZoomsFor(song) : availableZooms();
-
-    // Not a rung this song has, so take the nearest one that is. Bar counts sort ascending
-    // and the two views sit above them, which is the order the ladder is built in.
-    if (std::find(steps.begin(), steps.end(), value) == steps.end())
-    {
-        int best = steps.back();
-        for (int step : steps)
-            if (step > 0 && value > 0 && step <= value) best = step;
-
-        value = (value > 0) ? best : steps.back();
-    }
-
-    if (value == zoom) return;
-    zoom = value;
+    viewStartQN = v.startQN;
+    viewSpanQN = v.spanQN;
     repaint();
 }
 
-void UtilityStripComponent::stepZoom(int direction)
+void UtilityStripComponent::stepSpanAbout(double anchor, int direction)
 {
-    auto steps = availableZooms();
-    auto at = std::find(steps.begin(), steps.end(), zoom);
+    double span = StripViewMath::nextSpanQN(zoomSpans(), viewSpanQN, direction);
+    auto v = StripViewMath::spanAbout({ viewStartQN, viewSpanQN }, anchor, span,
+                                      projectEndQN(), minSpanQN());
 
-    // Zoom is on a rung this song does not have, so land on a real one before stepping.
-    if (at == steps.end()) { setZoom(zoom); return; }
+    setView(v.startQN, v.spanQN);
+}
 
-    int index = (int)std::distance(steps.begin(), at) + direction;
-    if (index < 0 || index >= (int)steps.size()) return;
+void UtilityStripComponent::fitChart()
+{
+    const auto* song = nearestSong(playheadPPQ.toDouble());
+    if (song == nullptr) { fitProject(); return; }
 
-    auto before = visibleRange();
-    int wasZoom = zoom;
-    zoom = steps[(size_t)index];
+    setView(song->startQN, song->endQN - song->startQN);
+}
 
-    // Stepping in off the session view enters the playhead's chart, the same one aiming a
-    // zoom at it would, so the button and the wheel do not disagree about where you are.
-    if (wasZoom == ZOOM_SESSION && zoom != ZOOM_SESSION) enterSong(songAtPlayhead());
+void UtilityStripComponent::fitProject()
+{
+    setView(0.0, projectEndQN());
+}
 
-    // Arriving at a bar rung from a fixed-span one, the scroll offset is whatever it was
-    // last time, which may be nowhere near. Frame the playhead, which is the one position
-    // the view can assume you care about when you did not aim at anything, unless it is in
-    // a different chart from the one on screen: then hold what you were already looking at
-    // rather than slamming to the edge nearest the cursor.
-    if (zoom > 0)
+// Seeks rather than scrolls: a chart is a place on the timeline, so going to the next one is
+// moving the cursor there and letting follow and the view do what they always do.
+void UtilityStripComponent::gotoAdjacentChart(int direction)
+{
+    if (!hasSongs()) return;
+
+    double now = playheadPPQ.toDouble();
+    const auto& list = songs->getSongs();
+    const SongList::Song* target = nullptr;
+
+    if (direction > 0)
     {
-        const auto* inside = confiningSong();
-        bool playheadShown = inside == nullptr || songAtPlayhead() == inside;
+        for (const auto& song : list)
+            if (GridMath::after(song.startQN, now)) { target = &song; break; }
+    }
+    else
+    {
+        // Landing on the current chart's own start counts once, the way stepping back
+        // through sections does, so the first press parks you at the top of the chart you
+        // are in rather than skipping over it.
+        //
+        // The grace is what makes the second press work during playback: the transport has
+        // carried the cursor off that start by the time you press again, so without it every
+        // press finds the same chart still behind you and drops you back on its start.
+        double from = now;
+        if (const auto* current = songAt(now))
+        {
+            double start = current->startQN;
+            if (now - start <= secondsToQN(tempoMap, now, BACKSTEP_GRACE_S)) from = start;
+        }
 
-        centreViewOn(playheadShown ? playheadPPQ.toDouble()
-                                   : (before.startQN + before.endQN) * 0.5);
+        for (const auto& song : list)
+            if (GridMath::before(song.startQN, from)) target = &song;
     }
 
-    repaint();
+    if (target == nullptr) return;
+
+    if (onSeekTo) onSeekTo(clampSeek(target->startQN));
+    centreViewOn(target->startQN);
 }
 
 // Answers whether the view actually moved, which is what says a scroll counted as one.
 bool UtilityStripComponent::scrollViewBy(double deltaQN)
 {
-    // The song and session rungs are fixed spans: there is nothing to scroll, so a wheel
-    // notch there is not a scroll, it is a wheel notch against a wall.
-    if (zoom <= 0) return false;
-
-    auto v = visibleRange();
-    double span = v.endQN - v.startQN;
-    double start = v.startQN + deltaQN;
-    double end = start + span;
-
-    if (const auto* song = confiningSong())
-        SongList::confineWindow(start, end, song->startQN, song->endQN);
-    else
-        start = std::max(0.0, start);
-
-    // Already hard against the start or the end of the chart, so the wheel changed nothing.
-    if (start == viewStartQN) return false;
-
-    viewStartQN = start;
-    repaint();
-    return true;
+    double before = viewStartQN;
+    setView(viewStartQN + deltaQN, viewSpanQN);
+    return viewStartQN != before;
 }
 
 void UtilityStripComponent::centreViewOn(double qn)
 {
-    // The song and session rungs show the whole chart already, so there is nothing to move.
-    if (zoom <= 0) return;
-
-    double span = zoom * barLengthQN(tempoMap, qn);
-    double start = qn - span * FOLLOW_POSITION;
-    double end = start + span;
-
-    if (const auto* song = confiningSong())
-        SongList::confineWindow(start, end, song->startQN, song->endQN);
-    else
-        start = std::max(0.0, start);
-
-    if (start == viewStartQN) return;
-
-    viewStartQN = start;
-    repaint();
+    setView(qn - viewSpanQN * FOLLOW_POSITION, viewSpanQN);
 }
 
 void UtilityStripComponent::zoomAbout(int y, int direction)
 {
-    // While the transport runs the playhead is what you are zooming around, wherever the
-    // pointer happens to be. Aiming at a point that is sliding past is aiming at nothing,
-    // and the moment that matters during playback is the one being played. stepZoom frames
-    // the playhead itself, so the bar rungs and the two views all land the same way.
+    // The point under the pointer is the one held still, in both directions: zooming is
+    // looking, so it moves the view and never the playhead. During playback the pointer is
+    // aimed at a moment that is sliding past, so the playhead is the only sensible anchor.
+    double anchor = playing ? FOLLOW_POSITION
+                            : (trackTop() + trackHeight() - y) / (double)trackHeight();
+
     if (playing)
     {
-        stepZoom(direction);
+        double span = StripViewMath::nextSpanQN(zoomSpans(), viewSpanQN, direction);
+        setView(playheadPPQ.toDouble() - anchor * span, span);
         return;
     }
 
-    auto before = visibleRange();
-    double anchorQN = qnForY(y, before);
-    double fromBottom = (trackTop() + trackHeight() - y) / (double)trackHeight();
-
-    // Zooming in from the session view enters the chart the playhead is in. The pointer
-    // picks which moment to frame everywhere else, but which chart you are working on is
-    // the one the cursor is already sitting in, whatever the pointer happens to be over.
-    if (zoom == ZOOM_SESSION && direction < 0)
-    {
-        const auto* target = songAtPlayhead();
-        if (target == nullptr) return;   // cursor in a gap, so there is nothing to enter
-
-        enterSong(target);
-        setZoom(ZOOM_SONG, target);
-        return;
-    }
-
-    stepZoom(direction);
-
-    // Zooming is looking, in both directions: the point you closed in on decides what the
-    // view frames, not where the cursor goes. Moving the playhead is what clicking is for.
-
-    // The song and session views are fixed spans with nothing to slide.
-    if (zoom <= 0) return;
-
-    double span = zoom * barLengthQN(tempoMap, anchorQN);
-    viewStartQN = anchorQN - fromBottom * span;
-    scrollViewBy(0.0);   // clamps the new offset into the song and repaints
-    repaint();
+    stepSpanAbout(anchor, direction);
 }
 
 UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 {
-    double now = playheadPPQ.toDouble();
-    const auto* song = confiningSong();
-
-    if (zoom == ZOOM_SESSION || (zoom == ZOOM_SONG && song == nullptr))
-    {
-        // Whatever the MIDI actually reaches, since most charts in the wild have no [end].
-        double end = contentEndQN();
-        if (end <= 0.0) end = std::max(now, 1.0) + 64 * 4.0;
-        return { 0.0, end };
-    }
-
-    if (zoom == ZOOM_SONG) return { song->startQN, song->endQN };
-
-    // A bar rung still means that many bars with no EVENTS track to confine it. Without
-    // this a project with no charts marked out could only ever see the whole timeline.
-    double span = zoom * barLengthQN(tempoMap, viewStartQN);
-    double start = viewStartQN;
-    double end = start + span;
-
-    if (song != nullptr) SongList::confineWindow(start, end, song->startQN, song->endQN);
-    else                 start = std::max(0.0, start);
-
-    return { start, end };
+    return { viewStartQN, viewStartQN + viewSpanQN };
 }
 
 // Numbers only appear where they mean something: section starts, and wherever the cursor
@@ -566,30 +481,12 @@ double UtilityStripComponent::clipEndAt(double qn) const
     return 0.0;
 }
 
-double UtilityStripComponent::chartStartQN() const
-{
-    const auto* song = confiningSong();
-    return song != nullptr ? song->startQN : 0.0;
-}
-
-// clampSeek trims the half-open end off this for anything that seeks, so it can answer the
-// song's own end rather than second-guessing where the last legal tick is.
-double UtilityStripComponent::chartEndQN() const
-{
-    const auto* song = confiningSong();
-    return song != nullptr ? song->endQN : contentEndQN();
-}
-
+// The project, not the chart. Seeking is free to cross between charts now, so the only thing
+// left to hold a position inside is the timeline itself.
 double UtilityStripComponent::clampSeek(double qn) const
 {
-    const auto* song = confiningSong();
-    if (song == nullptr) return qn;
-
-    // A tick inside the end rather than on it. A song's span is half open, so where two
-    // charts abut, the end position already belongs to the next one: clamping to it exactly
-    // would scroll you off the bottom of this chart and straight into that one.
-    double last = std::max(song->startQN, song->endQN - GridMath::TICK);
-    return juce::jlimit(song->startQN, last, qn);
+    double last = std::max(0.0, projectEndQN() - GridMath::TICK);
+    return juce::jlimit(0.0, last, qn);
 }
 
 // Where section `i` stops. Normally the next section, but the end of its own clip cuts it
@@ -794,6 +691,27 @@ int UtilityStripComponent::songNameAt(juce::Point<int> p) const
     return p.y <= r.getY() + LABEL_H ? i : -1;
 }
 
+// Laid down before anything else, so every line, band and note is drawn onto it. Clipped to
+// the track rather than the whole component: the mode and layer rows above are chrome, and a
+// chart reaching up into them would read as one of them being lit.
+void UtilityStripComponent::drawChartGround(juce::Graphics& g, const View& v) const
+{
+    if (songs == nullptr) return;
+
+    const float top = (float)trackTop();
+    const float bottom = top + (float)trackHeight();
+
+    g.setColour(UtilityColours::chartGround);
+
+    for (const auto& song : songs->getSongs())
+    {
+        float hi = std::max((float)yForQN(song.endQN, v), top);
+        float lo = std::min((float)yForQN(song.startQN, v), bottom);
+
+        if (lo > hi) g.fillRect(0.0f, hi, (float)getWidth(), lo - hi);
+    }
+}
+
 // At Session, zoomed out, the strip stops being one chart's sections and becomes the shelf
 // the charts sit on: a block per EVENTS item, named, and the way into any of them.
 void UtilityStripComponent::drawSongChunks(juce::Graphics& g, const View& v) const
@@ -801,14 +719,21 @@ void UtilityStripComponent::drawSongChunks(juce::Graphics& g, const View& v) con
     auto bounds = songChunkBounds(v);
     const auto& list = songs->getSongs();
 
+    // Which chart the playhead is in, so the shelf says where you are rather than only what
+    // is on it. Hover sits brighter still: one is where you are, the other where you are
+    // about to go, and they have to be told apart when they are the same block.
+    const auto* current = songAtPlayhead();
+
     for (size_t i = 0; i < bounds.size(); ++i)
     {
         auto r = bounds[i].reduced(1, 0);
+        bool isCurrent = current != nullptr && &list[i] == current;
 
-        g.setColour((int)i == hoverSongChunk ? UtilityColours::sectionBandCurrent
+        g.setColour((int)i == hoverSongChunk ? UtilityColours::sectionGrabHover
+                  : isCurrent                ? UtilityColours::sectionBandCurrent
                                              : UtilityColours::sectionBand);
         g.fillRect(r);
-        g.setColour(UtilityColours::sectionLine);
+        g.setColour(isCurrent ? UtilityColours::sectionText : UtilityColours::sectionLine);
         g.drawRect(r, 1);
 
         g.setColour(UtilityColours::sectionText);
@@ -1060,12 +985,11 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     auto plus = plusBounds();
 
     g.setColour(UtilityColours::panelFill);
-    g.fillRect(0, getHeight() - FOOTER_H, getWidth(), FOOTER_H);
+    g.fillRect(0, zoomRowTop(), getWidth(), footerAreaHeight());
 
     g.setFont(Theme::getUIFont(FOOTER_BUTTON_PT));
-    auto steps = availableZooms();
-    bool canOut = !steps.empty() && zoom != steps.back();
-    bool canIn  = !steps.empty() && zoom != steps.front();
+    bool canOut = viewSpanQN < projectEndQN() - GridMath::TICK;
+    bool canIn  = viewSpanQN > minSpanQN() + GridMath::TICK;
 
     for (auto [r, text, enabled] : { std::tuple{ minus, "-", canOut },
                                      std::tuple{ plus,  "+", canIn } })
@@ -1078,15 +1002,46 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
 
     g.setColour(UtilityColours::uiText);
     g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
-    // The two widest rungs are different views rather than wider spans, so they are named
-    // rather than counted.
-    juce::String extent = zoom == ZOOM_SESSION ? "session"
-                        : zoom == ZOOM_SONG    ? "song"
-                                               : juce::String(zoom) + " bars";
+    // Counted in bars at every width now that there are no named rungs left, except the one
+    // that covers everything: "project" says more there than a bar count nobody can picture.
+    double bars = viewSpanQN / std::max(1.0e-6, barLengthQN(tempoMap, viewStartQN));
+    juce::String extent = viewSpanQN >= projectEndQN() - GridMath::TICK
+                        ? juce::String("project")
+                        : juce::String(juce::roundToInt(bars)) + " bars";
 
     g.drawText(extent,
                plus.getRight() + 6, plus.getY(), getWidth() - plus.getRight() - 10,
                plus.getHeight(), juce::Justification::centredLeft, false);
+
+    // Greyed rather than hidden at the ends of the project, so the pair keeps its shape and
+    // you can see there is nothing that way rather than watching a button vanish.
+    double now = playheadPPQ.toDouble();
+    bool hasPrev = false, hasNext = false;
+    if (songs != nullptr)
+        for (const auto& song : songs->getSongs())
+        {
+            if (GridMath::before(song.startQN, now)) hasPrev = true;
+            if (GridMath::after(song.startQN, now))  hasNext = true;
+        }
+
+    // Between two charts there is no name to give, and "nearest" would be a different claim
+    // from "the one you are in", so it says nothing rather than something not quite true.
+    const auto* inChart = songAt(now);
+    g.setColour(inChart != nullptr ? UtilityColours::sectionText : UtilityColours::label);
+    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
+    g.drawText(inChart != nullptr ? inChart->name : juce::String("no chart"),
+               4, navNameTop(), getWidth() - 8, NAV_NAME_H,
+               juce::Justification::centred, true);
+
+    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
+    for (auto [r, text, enabled] : { std::tuple{ prevChartBounds(), "< prev chart", hasPrev },
+                                     std::tuple{ nextChartBounds(), "next chart >", hasNext } })
+    {
+        g.setColour(UtilityColours::chunkLineBig);
+        g.drawRect(r, 1);
+        g.setColour(enabled ? UtilityColours::uiText : UtilityColours::label);
+        g.drawText(text, r, juce::Justification::centred, false);
+    }
 }
 
 void UtilityStripComponent::paint(juce::Graphics& g)
@@ -1094,6 +1049,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     g.fillAll(UtilityColours::background);
 
     auto v = visibleRange();
+    drawChartGround(g, v);
     drawChunkLines(g, v);
 
     // One block per song instead of every section in the project, which at this zoom is a
@@ -1160,23 +1116,24 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     double delta = wheel.deltaY != 0.0f ? wheel.deltaY : wheel.deltaX;
     if (delta == 0.0) return;
 
-    int zoomBefore = zoom;
+    double spanBefore = viewSpanQN;
     double viewBefore = viewStartQN;
 
     if (e.mods.isCommandDown())
     {
         zoomAbout(e.getPosition().y, delta > 0.0 ? -1 : 1);
     }
-    // Shift skips structure: one notch, one section, which is the jump you actually want
-    // when reading a chart rather than scrubbing through it. The one wheel gesture that
-    // moves the playhead, and it brings the view with it rather than leaving you to find
-    // where it went.
+    // Shift skips structure: one notch, one moment worth stopping at, which is the jump you
+    // actually want when reading a chart rather than scrubbing through it. The one wheel
+    // gesture that moves the playhead, and it brings the view with it rather than leaving you
+    // to find where it went. Leaving the chart you are in takes a second notch, since that is
+    // the one jump that is easy to make by accident and annoying to undo.
     //
     // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
     // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
     else if (e.mods.isShiftDown())
     {
-        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
+        double target = clampSeek(resistChartCross(snapStep(delta > 0.0 ? 1 : -1)));
         if (onSeekTo) onSeekTo(target);
         centreViewOn(target);
     }
@@ -1200,7 +1157,7 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
 
     // A notch that moved nothing moved nothing under the pointer either, so the hover it is
     // already showing is still aimed at what it says. Same test the follow latch uses.
-    if (zoom == zoomBefore && viewStartQN == viewBefore) return;
+    if (viewSpanQN == spanBefore && viewStartQN == viewBefore) return;
 
     // The pointer has not moved, but everything under it has. Keeping the hover where the
     // cursor happens to sit means the highlight jumps between sections as they slide past,
@@ -1217,43 +1174,141 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
 // The next section line from the playhead in `direction`, or where we already are when
 // there is none that way. Stepping back from inside a section lands on its own start
 // first, the way a transport's previous-marker key does.
-double UtilityStripComponent::sectionStep(int direction) const
+double UtilityStripComponent::nearestBarLine(double qn) const
+{
+    double before = barLineAtOrBefore(qn);
+    double after = before + std::max(0.25, barLengthQN(tempoMap, before));
+
+    return (qn - before) <= (after - qn) ? before : after;
+}
+
+// Every moment worth stopping at, which is a different question from every section start.
+// A chart's edges matter, a section's end matters where it is not just the next one's start,
+// and a scrap of MIDI sitting on its own out past the charts matters because finding it any
+// other way means scrubbing blind through empty timeline.
+std::vector<double> UtilityStripComponent::snapPoints() const
+{
+    std::vector<double> points { 0.0, projectEndQN() };
+
+    if (songs != nullptr)
+        for (const auto& song : songs->getSongs())
+        {
+            points.push_back(song.startQN);
+            points.push_back(song.endQN);
+        }
+
+    if (sections != nullptr)
+    {
+        const auto& list = sections->getSections();
+        for (size_t i = 0; i < list.size(); ++i)
+        {
+            double start = list[i].position.toDouble();
+            points.push_back(start);
+
+            // Where the next section starts this is a duplicate and merges away, which is
+            // the common case. It earns its place on the last section of a chart, whose end
+            // is the chart's rather than another section's.
+            const auto* song = songAt(start);
+            points.push_back(i + 1 < list.size() ? list[i + 1].position.toDouble()
+                           : song != nullptr    ? song->endQN
+                                                : projectEndQN());
+        }
+    }
+
+    // Only out past the charts. Inside one the sections already say where everything is, and
+    // clustering there would bury them under a stop per phrase.
+    std::vector<StripViewMath::NoteSpan> loose;
+    for (const auto& src : noteSources)
+    {
+        if (src.notes == nullptr) continue;
+
+        for (const auto& note : *src.notes)
+        {
+            double start = note.startPPQ.toDouble();
+            if (songAt(start) != nullptr) continue;
+
+            loose.push_back({ start, note.endPPQ.toDouble() });
+        }
+    }
+
+    std::sort(loose.begin(), loose.end(),
+              [](const StripViewMath::NoteSpan& a, const StripViewMath::NoteSpan& b)
+              { return a.startQN < b.startQN; });
+
+    double gapQN = CLUSTER_GAP_BARS * std::max(0.25, barLengthQN(tempoMap, 0.0));
+    for (const auto& span : StripViewMath::clusterSpans(loose, gapQN))
+    {
+        points.push_back(nearestBarLine(span.startQN));
+        points.push_back(nearestBarLine(span.endQN));
+    }
+
+    return StripViewMath::mergedPoints(std::move(points), GridMath::TICK);
+}
+
+const SongList::Song* UtilityStripComponent::chartContaining(double qn) const
+{
+    if (songs == nullptr) return nullptr;
+
+    for (const auto& song : songs->getSongs())
+        if (qn >= song.startQN - GridMath::TICK && qn <= song.endQN + GridMath::TICK)
+            return &song;
+
+    return nullptr;
+}
+
+// Leaving a chart is the jump worth making you mean it. Held at the edge you are leaving by,
+// which is itself a snap point, so the first notch parks you on the boundary and the second
+// takes you off it. Resting re-arms, the same way every other detent here does, so a notch
+// after a pause never springs you into the next chart.
+double UtilityStripComponent::resistChartCross(double targetQN)
 {
     double now = playheadPPQ.toDouble();
-    if (sections == nullptr) return now;
+    const auto* from = chartContaining(now);
 
-    const auto& list = sections->getSections();
+    // Not in a chart, so there is no edge of one to be held at. Wandering the empty timeline
+    // between charts is not a crossing.
+    if (from == nullptr) { crossDetent.clear(); return targetQN; }
+    if (chartContaining(targetQN) == from) { crossDetent.clear(); return targetQN; }
+
+    double edge = targetQN > now ? from->endQN : from->startQN;
+
+    return crossDetent.resolveCounted(targetQN, edge, CHART_CROSS_NOTCHES,
+                                      (long long)juce::Time::currentTimeMillis(),
+                                      CHART_CROSS_RESET_MS);
+}
+
+double UtilityStripComponent::snapStep(int direction) const
+{
+    auto points = snapPoints();
+    if (points.empty()) return playheadPPQ.toDouble();
+
+    double now = playheadPPQ.toDouble();
 
     if (direction > 0)
     {
-        for (const auto& s : list)
-            if (GridMath::after(s.position.toDouble(), now)) return s.position.toDouble();
+        for (double p : points)
+            if (GridMath::after(p, now)) return p;
 
-        // Past the last section, so the end of the chart is the next thing worth stopping
-        // at. Without this the wheel dies on the final section and the tail of the chart is
-        // only reachable by scrubbing.
-        return chartEndQN();
+        return points.back();
     }
 
-    // Landing on the current section's own start is the right answer once, the way a
-    // transport's previous-marker key works. Press again while you are still near that start
-    // and you meant the section before it, which is also what stops playback carrying you
-    // back onto the same start every notch.
+    // Landing on the point you are sitting just past is the right answer once, the way a
+    // transport's previous-marker key works. Press again while still near it and you meant
+    // the one before, which is also what stops playback carrying you back onto it every
+    // notch.
     double from = now;
-    if (const auto* current = sections->sectionAt(PPQ(now)))
-    {
-        double start = current->position.toDouble();
-        if (now - start <= secondsToQN(tempoMap, now, SECTION_BACKSTEP_GRACE_S))
-            from = start;
-    }
+    for (auto it = points.rbegin(); it != points.rend(); ++it)
+        if (GridMath::before(*it, now))
+        {
+            if (now - *it <= secondsToQN(tempoMap, now, BACKSTEP_GRACE_S)) from = *it;
+            break;
+        }
 
-    // Seeded at the chart's start so stepping back off the first section lands there rather
-    // than staying put, the mirror of running off the last one onto the end.
-    double best = chartStartQN();
-    for (const auto& s : list)
+    double best = points.front();
+    for (double p : points)
     {
-        if (!GridMath::before(s.position.toDouble(), from)) break;
-        best = s.position.toDouble();
+        if (!GridMath::before(p, from)) break;
+        best = p;
     }
     return best;
 }
@@ -1611,6 +1666,9 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 
     if (minusBounds().contains(p)) { zoomOut(); return; }
     if (plusBounds().contains(p))  { zoomIn();  return; }
+
+    if (prevChartBounds().contains(p)) { gotoAdjacentChart(-1); return; }
+    if (nextChartBounds().contains(p)) { gotoAdjacentChart(1);  return; }
     if (!inTrackArea(p)) return;
 
     // In the overview the chunks are the only objects there are, so they take the click
@@ -1674,17 +1732,16 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
     if (!inTrackArea(e.getPosition())) return;
 
     // Opening a song lands the playhead at its start, because a click is the gesture that
-    // moves the cursor. The name is not part of the target: double clicking there is two
-    // renames, not a way in.
+    // moves the cursor, and frames the whole chart. The name is not part of the target:
+    // double clicking there is two renames, not a way in.
     if (songOverview() && songNameAt(e.getPosition()) < 0)
     {
         int chunk = songChunkAt(e.getPosition());
         const auto* song = songs != nullptr ? songs->at(chunk) : nullptr;
         if (song != nullptr)
         {
-            if (onSeekTo) onSeekTo(song->startQN);
-            enterSong(song);
-            setZoom(DEFAULT_ZOOM_BARS, song);
+            if (onSeekTo) onSeekTo(clampSeek(song->startQN));
+            setView(song->startQN, song->endQN - song->startQN);
             return;
         }
     }
