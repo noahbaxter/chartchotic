@@ -1032,6 +1032,8 @@ void ChartchoticAudioProcessorEditor::resized()
     state.setProperty("editorWidth", getWidth(), nullptr);
     state.setProperty("editorHeight", getHeight(), nullptr);
 
+    utilityStripWidth = computeUtilityStripWidth();
+
     // Virtual scene dimensions. The strip is not part of the scene, so it comes off the
     // width before the highway geometry is derived from it.
     sceneWidth = getWidth() - (utilityStripVisible ? utilityStripWidth : 0);
