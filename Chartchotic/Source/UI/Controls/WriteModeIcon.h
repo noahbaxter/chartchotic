@@ -104,10 +104,9 @@ public:
             onClick();
     }
 
-private:
     // Pencil glyph: a tilted body with a pointed tip on the bottom-right and a
     // small flat eraser stub on the top-left. Drawn as a filled Path so it
-    // stays crisp at any scale.
+    // stays crisp at any scale. Public so the write bar's Draw button uses the same one.
     static void drawPencil(juce::Graphics& g, juce::Rectangle<float> box)
     {
         const float s = box.getWidth();
@@ -154,6 +153,7 @@ private:
         g.fillPath(p);
     }
 
+private:
     bool    active = false;
     SubMode mode   = SubMode::Draw;
     std::unique_ptr<juce::Drawable> cursorIcon;
