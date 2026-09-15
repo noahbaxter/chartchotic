@@ -27,6 +27,7 @@ class TrackImageCache;
 struct HighwayFrameData {
     TimeBasedTrackWindow trackWindow;
     TimeBasedSustainWindow sustainWindow;
+    TimeBasedSustainWindow phraseWindow;   // star power bands and fill lanes, for the editor views
     TimeBasedGridlineMap gridlines;
     TimeBasedFlipRegions flipRegions;
     TimeBasedEventMarkers eventMarkers;
@@ -107,7 +108,11 @@ public:
     void setShowLaneSeparators(bool on) { sceneRenderer.showLaneSeparators = on; repaint(); }
     void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
     void setShowHighway(bool on)        { showHighway = on; repaint(); }
-    void setWriteMode(bool on)          { sceneRenderer.setWriteMode(on); repaint(); }
+    void setWriteMode(bool on)          { writeModeOn = on; sceneRenderer.setWriteMode(on); applyEditorView(); repaint(); }
+
+    // The editor view decides which phrase overlays draw. They are a write-mode thing, so
+    // with write mode off every view looks like Notes.
+    void setEditorView(EditorView v)    { editorView = v; applyEditorView(); repaint(); }
 
     void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; PositionMath::bemaniHwyScale = length; rebuildTrack(); repaint(); }
     void setTexture(const juce::Image& img) { trackRenderer.setTexture(img); }
@@ -118,6 +123,14 @@ public:
     void setBarScale(float)             { repaint(); }
 
     static constexpr float labelIconSize = 40.0f;
+
+private:
+    bool writeModeOn = false;
+    EditorView editorView = EditorView::Notes;
+    EditorView shownView() const { return writeModeOn ? editorView : EditorView::Notes; }
+    void applyEditorView() { sceneRenderer.setShowActivation(shownView() == EditorView::Phrase); }
+
+public:
 
     bool showPartLabel = false;
     bool showDifficultyLabel = false;

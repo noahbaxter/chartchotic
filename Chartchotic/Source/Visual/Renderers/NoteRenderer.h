@@ -35,6 +35,8 @@ public:
     bool showGems = true;
     bool showBars = true;
     float barModeDim = 1.0f;
+    // Phrase view: grow each fill's activation gem so the note that triggers star power stands out.
+    bool showActivation = false;
     float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
     float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
     PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;

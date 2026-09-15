@@ -34,6 +34,8 @@
 #include "Visual/Managers/AssetManager.h"
 #include "Visual/Renderers/SceneRenderer.h"
 #include "Visual/Art/TrackRenderer.h"
+#include "Visual/Art/GemIconArt.h"
+#include "UI/Theme.h"
 #include "Visual/Geometry/PositionMath.h"
 #include "Visual/Geometry/PositionConstants.h"
 #include "Visual/Utils/DrawingConstants.h"
@@ -258,13 +260,18 @@ int main(int argc, char** argv)
     juce::StringArray onlyParts;
     juce::String dumpStomp;   // if set: save the baked Stomp bar asset alone and exit
     juce::String dumpKick;    // if set: save the baked kick bars (fat + elite thin) and exit
+    juce::String dumpIcons;   // if set: save the write bar's gem icons as one sheet and exit
     bool bemani = false;      // --bemani: flat (Bemani) mode instead of perspective
+    // Editor view overlays, as HighwayComponent appends them in write mode.
+    bool spView = false;      // --sp-view: star power bands
+    bool phraseView = false;  // --phrase-view: fill lanes and the activation gem
 
     for (int i = 1; i < argc; ++i)
     {
         juce::String a(argv[i]);
         if      (a == "--dump-stomp" && i + 1 < argc) dumpStomp = argv[++i];
         else if (a == "--dump-kick"  && i + 1 < argc) dumpKick = argv[++i];
+        else if (a == "--dump-icons" && i + 1 < argc) dumpIcons = argv[++i];
         else if (a == "--part"   && i + 1 < argc) partName = argv[++i];
         else if (a == "--width"  && i + 1 < argc) W = juce::String(argv[++i]).getIntValue();
         else if (a == "--aspect" && i + 1 < argc) aspect = juce::String(argv[++i]).getDoubleValue();
@@ -281,6 +288,8 @@ int main(int argc, char** argv)
         else if (a == "--flam-two-overlays") flamOneOverlay = false;
         else if (a == "--rails-only") railsOnly = true;
         else if (a == "--bemani") bemani = true;
+        else if (a == "--sp-view") spView = true;
+        else if (a == "--phrase-view") phraseView = true;
         else if (a == "--only" && i + 1 < argc) onlyParts.addTokens(argv[++i], ",", "");
         else if (! a.startsWith("--")) outPath = a;
     }
@@ -325,6 +334,51 @@ int main(int argc, char** argv)
         g.drawImageAt(*thin, 0, fat->getHeight());
         g.drawImageAt(*accent, 0, fat->getHeight() * 2);
         juce::File f(dumpKick);
+        f.deleteFile();
+        juce::FileOutputStream os(f);
+        juce::PNGImageFormat png;
+        png.writeImageToStream(sheet, os);
+        return 0;
+    }
+
+    // The write bar's icons at button size, each in a square cell with the button's inset, so
+    // how the gems fill their buttons can be checked without the plugin.
+    if (dumpIcons.isNotEmpty())
+    {
+        constexpr int cell = 48, pad = 2;
+        GemIconArt icons(assets);
+        using Draw = std::function<bool(juce::Graphics&, juce::Rectangle<float>)>;
+        struct Item { int squares; Draw draw; };
+        const std::vector<Item> items = {
+            { 1, [&](auto& g, auto r) { return icons.drawGuitarGem(g, r, Gem::HOPO_GHOST); } },
+            { 1, [&](auto& g, auto r) { return icons.drawGuitarGem(g, r, Gem::NOTE); } },
+            { 1, [&](auto& g, auto r) { return icons.drawGuitarGem(g, r, Gem::TAP_ACCENT); } },
+            { 1, [&](auto& g, auto r) { return icons.drawDrumGem(g, r, Gem::HOPO_GHOST); } },
+            { 1, [&](auto& g, auto r) { return icons.drawDrumGem(g, r, Gem::NOTE); } },
+            { 1, [&](auto& g, auto r) { return icons.drawDrumGem(g, r, Gem::TAP_ACCENT); } },
+            { 1, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getCymYellowImage()).isEmpty(); } },
+            { 1, [&](auto& g, auto r) { return icons.drawFlam(g, r); } },
+            { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarOpenImage()).isEmpty(); } },
+            { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarKickImage()).isEmpty(); } },
+        };
+
+        int total = 0;
+        for (const auto& it : items) total += it.squares * cell + pad;
+        juce::Image sheet(juce::Image::ARGB, total + pad, cell + pad * 2, true);
+        juce::Graphics g(sheet);
+        g.fillAll(juce::Colour(Theme::panelNeutralBg));
+
+        int x = pad;
+        for (const auto& it : items)
+        {
+            auto button = juce::Rectangle<float>((float)x, (float)pad, (float)(it.squares * cell), (float)cell);
+            g.setColour(juce::Colour(Theme::darkBg));
+            g.fillRect(button);
+            it.draw(g, button.reduced(cell * 0.05f));
+            x += it.squares * cell + pad;
+        }
+
+        juce::File f(dumpIcons);
         f.deleteFile();
         juce::FileOutputStream os(f);
         juce::PNGImageFormat png;
@@ -416,6 +470,25 @@ int main(int argc, char** argv)
     TimeBasedGridlineMap   gridlines     = showGridlines ? fake.gridlines : TimeBasedGridlineMap{};
     TimeBasedFlipRegions   flipRegions;
     TimeBasedEventMarkers  eventMarkers;
+
+    // Phrases sit over content the fake scenes already have, near the strikeline where they
+    // read: the basic gems and dynamics on drums, the frets and HOPOs/taps on guitar.
+    if (spView && !isElite)
+        sustainWindow.push_back({ 0.10, 0.40, 0u, SustainType::STAR_POWER, GemWrapper(Gem::NOTE, true) });
+
+    if (phraseView && !isElite)
+    {
+        const double fillEnd = isDrums ? 0.70 : 0.78;
+        uint lastColumn = isDrums ? 4u : 5u;
+        for (uint c = 1; c <= lastColumn; ++c)
+            sustainWindow.push_back({ 0.42, fillEnd, c, SustainType::BRE, GemWrapper(Gem::NOTE) });
+
+        if (isDrums)
+        {
+            for (auto& gem : trackWindow[fillEnd]) if (gem.gem != Gem::NONE) gem.activation = true;
+            scene.setShowActivation(true);
+        }
+    }
 
     // windowSpan == 1 so note time == perspective depth; content is authored in
     // depth units directly, out past 1.0 into the extended board.

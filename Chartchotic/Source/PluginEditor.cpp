@@ -800,7 +800,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     interactionController.onStateChanged = [this]() {
         writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
         bool wm = interactionController.writeModeActive();
-        forAllHighways([wm](auto& hw) { hw.setWriteMode(wm); });
+        auto view = interactionController.view();
+        forAllHighways([wm, view](auto& hw) { hw.setWriteMode(wm); hw.setEditorView(view); });
 
         if (toolbar.refreshFromWriteController())
             resized();

@@ -50,16 +50,23 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     double windowTimeSpan = windowEndTime - windowStartTime;
 
-    bool isLane = (sustain.sustainType == SustainType::LANE);
+    // Phrases from the editor views take the lane shape. Only the caller decides whether they
+    // are shown, so the lane and sustain toggles do not hide them.
+    bool starPowerBand = sustain.sustainType == SustainType::STAR_POWER;
+    bool phrase = starPowerBand || sustain.sustainType == SustainType::BRE;
+    bool isLane = (sustain.sustainType == SustainType::LANE) || phrase;
 
     // The 108 roll lane sits on a virtual pedal column, which has no lane coords of its own, so
-    // it borrows the hi-hat's and spans the pedal zone like the bars it covers.
+    // it borrows the hi-hat's and spans the pedal zone like the bars it covers. A star power
+    // band borrows the kick/open column, which already spans the whole highway.
     bool pedalLane = isLane && getRenderType(activePart) == RenderType::ELITE_DRUMS
                             && isElitePedalColumn(sustain.gemColumn);
-    uint drawColumn = pedalLane ? (uint)ELITE_HIHAT_COLUMN : sustain.gemColumn;
+    uint drawColumn = pedalLane     ? (uint)ELITE_HIHAT_COLUMN
+                    : starPowerBand ? (uint)DRUM_KICK_COLUMN
+                                    : sustain.gemColumn;
 
     // Gate by render toggle
-    if (isLane && !showLanes) return;
+    if (!phrase && isLane && !showLanes) return;
     if (!isLane && !showSustains) return;
 
     bool hitAnimationsOn = state.getProperty("hitIndicators");
@@ -107,7 +114,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     // sustains still use position-space offsets
     if (PositionMath::bemaniMode)
     {
-        if (sustain.sustainType == SustainType::LANE)
+        if (isLane)
         {
             // Zero out position-space offsets — pixel padding applied after Y conversion
             startOffset = 0.0f;
@@ -130,10 +137,13 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = assetManager.getLaneColour(drawColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
+    auto colour = starPowerBand ? PHRASE_STAR_POWER_COLOUR
+                : assetManager.getLaneColour(drawColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart,
+                                             shouldBeWhite && !phrase);
 
     for (const auto& ts : tintedSustains)
     {
+        if (phrase) break;
         if (ts.lane != (int)sustain.gemColumn) continue;
         bool match = ts.matchStart
             ? std::abs(sustain.startTime - ts.startTime) < kTimeEpsilon
@@ -152,6 +162,16 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
             else                sustainWidth = LANE_WIDTH;
             sustainDrawOrder = DrawOrder::LANE;
             break;
+        case SustainType::STAR_POWER:
+            opacity = PHRASE_STAR_POWER_OPACITY;
+            sustainWidth = LANE_OPEN_WIDTH;
+            sustainDrawOrder = DrawOrder::LANE;
+            break;
+        case SustainType::BRE:
+            opacity = LANE_OPACITY;
+            sustainWidth = LANE_WIDTH;
+            sustainDrawOrder = DrawOrder::LANE;
+            break;
         case SustainType::SUSTAIN:
         default:
             opacity = SUSTAIN_OPACITY;
@@ -161,7 +181,8 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     }
 
     (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][drawColumn].push_back([=](juce::Graphics& g) {
-        this->drawSustainBody(g, drawColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
+        this->drawSustainBody(g, drawColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane,
+                              starPowerBand);
     });
 }
 
@@ -200,7 +221,10 @@ void SustainRenderer::drawHiHatSustain(const TimeBasedSustainEvent& sustain, dou
         });
 }
 
-void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
+// `acrossBoard` spans the whole fretboard instead of one column. The kick column cannot stand in
+// for that in perspective: its lane coords are not the board's, which is why kick gems measure
+// off the fretboard edge instead.
+void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane, bool acrossBoard)
 {
     bool isDrums = isDrumLike(activePart);
     const auto* config = currentConfig;
@@ -221,8 +245,10 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
         laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
 
     int laneIdx = PositionMath::bemaniMode ? bemaniIdx : -1;
-    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
-    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
+    auto startLane = acrossBoard ? getColumnEdge(startPosition, *config->fretboardCoords, 1.0f)
+                                 : getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
+    auto endLane   = acrossBoard ? getColumnEdge(endPosition, *config->fretboardCoords, 1.0f)
+                                 : getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
 
     // Bemani mode: simple shapes, no perspective geometry
     if (PositionMath::bemaniMode)
