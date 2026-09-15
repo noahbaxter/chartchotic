@@ -5,6 +5,7 @@
 #include "../HelpTypes.h"
 #include "PillToggle.h"
 #include "SegmentedButtons.h"
+#include "DropdownButton.h"
 #include "ValueStepper.h"
 #include "../../Editor/InteractionController.h"
 
@@ -13,6 +14,11 @@ class WriteSubToolbar : public juce::Component
 public:
     explicit WriteSubToolbar(InteractionController& ic) : interactionController(ic)
     {
+        juce::StringArray viewLabels;
+        for (const auto& v : VIEWS) viewLabels.add(v.label);
+        viewButtons.setItems(viewLabels);
+        addAndMakeVisible(viewButtons);
+
         modeButtons.setItems({"Draw", "Edit"});
         addAndMakeVisible(modeButtons);
 
@@ -42,6 +48,7 @@ public:
         flamToggle.setToggleState(false, juce::dontSendNotification);
         addChildComponent(flamToggle);
 
+        viewButtons.setCornerRadius(3.0f);
         for (auto* seg : { &modeButtons, &guitarForceButtons, &drumDynamicButtons })
             seg->setCornerRadius(3.0f);
         for (auto* pill : { &snapToggle, &barToggle, &cymbalToggle, &flamToggle })
@@ -49,6 +56,7 @@ public:
         divisionStepper.setCornerRadius(3.0f);
         tupletStepper.setCornerRadius(3.0f);
 
+        addHoverZone(viewButtons,        {},         "what every highway and the strip show, and what a click writes");
         addHoverZone(modeButtons,        {"Q"},      "draw places notes, edit selects & modifies");
         // Modifier hints run in the same order as the segments they sit under,
         // matching the home-row slots in ModifierSlots.h.
@@ -62,6 +70,7 @@ public:
         addHoverZone(flamToggle,         {"F"},                    "flam: grace note before the hit, kicks place 1x + 2x");
     }
 
+    std::function<void(EditorView)> onViewChanged;
     std::function<void(SubMode)> onSubModeChanged;
     std::function<void(bool)> onSnapChanged;
     std::function<void(int delta)> onStepDivisionStep;
@@ -77,6 +86,11 @@ public:
 
     void wireCallbacks()
     {
+        viewButtons.onSelectionChanged = [this](int idx) {
+            if (onViewChanged && idx >= 0 && idx < (int)std::size(VIEWS))
+                onViewChanged(VIEWS[idx].view);
+        };
+
         modeButtons.onSelectionChanged = [this](int idx) {
             if (onSubModeChanged)
                 onSubModeChanged(idx == 0 ? SubMode::Draw : SubMode::Edit);
@@ -131,7 +145,16 @@ public:
         bool drawMode = interactionController.subMode() == SubMode::Draw;
         bool editMode = !drawMode;
         bool hasSel = editMode && interactionController.hasEditSelection();
+        bool notesView = interactionController.view() == EditorView::Notes;
         juce::Colour modeAccent = drawMode ? juce::Colour(Theme::purple) : juce::Colour(Theme::blue);
+
+        viewButtons.setAccentColour(modeAccent);
+        for (int i = 0; i < (int)std::size(VIEWS); ++i)
+            if (VIEWS[i].view == interactionController.view())
+                viewButtons.setSelectedIndex(i);
+
+        // Open/kick filtering only means anything while gems are what a click writes.
+        barToggle.setDisabled(!notesView);
 
         if (barHelpZone)
             barHelpZone->setDescription({"B"}, drums ? "only interact with kick notes"
@@ -180,7 +203,7 @@ public:
         cymbalToggle.setVisible(showCym);
         flamToggle.setVisible(showFlam);
 
-        bool modifiersEnabled = drawMode || hasSel;
+        bool modifiersEnabled = notesView && (drawMode || hasSel);
 
         if (drums)
         {
@@ -249,6 +272,7 @@ public:
                 g.drawText(text, r.getX(), 0, r.getWidth(), labelH,
                            juce::Justification::centred, false);
             };
+            draw("VIEW",     labelGroupView);
             draw("MODE",     labelGroupLeft);
             draw("GRID",     labelGroupCenter);
             draw("NOTE TYPE", labelGroupRight);
@@ -271,9 +295,18 @@ public:
         int controlY = labelH + padTop + (available - rowH) / 2;
 
         float u = (float)juce::jmax(8, juce::roundToInt(controlArea * SUBTOOLBAR_HEIGHT_SCALE)) * SUBTOOLBAR_WIDTH_SCALE;
+
+        // Widths come off the row height, so a tall row in a narrow window runs off both ends.
+        // Shrink the unit until the whole row fits instead.
+        const float totalU = SUBTOOLBAR_VIEW_W + SUBTOOLBAR_MODE_W + 0.25f + SUBTOOLBAR_BAR_W
+                           + SUBTOOLBAR_SNAP_W + 0.15f + SUBTOOLBAR_STEP_W * 2.0f + 0.15f
+                           + SUBTOOLBAR_MOD_W + SUBTOOLBAR_COL_GAP * 3.0f;
+        u = juce::jmin(u, (float)getWidth() * SUBTOOLBAR_FIT_FRACTION / totalU);
+
         int gap = juce::jmax(2, (int)(u * 0.15f));
         int colGap = (int)(u * SUBTOOLBAR_COL_GAP);
 
+        int viewW = (int)(u * SUBTOOLBAR_VIEW_W);
         int modeW = (int)(u * SUBTOOLBAR_MODE_W);
         int barW  = (int)(u * SUBTOOLBAR_BAR_W);
         int snapW = (int)(u * SUBTOOLBAR_SNAP_W);
@@ -284,13 +317,15 @@ public:
         int leftGrpW   = modeW + intraGap + barW;
         int centerGrpW = snapW + gap + stepW + gap + stepW;
         int rightGrpW  = modW;
-        int totalW = leftGrpW + colGap + centerGrpW + colGap + rightGrpW;
+        int totalW = viewW + colGap + leftGrpW + colGap + centerGrpW + colGap + rightGrpW;
         int startX = (getWidth() - totalW) / 2;
 
-        int leftX   = startX;
+        int viewX   = startX;
+        int leftX   = viewX + viewW + colGap;
         int centerX = leftX + leftGrpW + colGap;
         int rightX  = centerX + centerGrpW + colGap;
 
+        viewButtons.setBounds(viewX, controlY, viewW, rowH);
         modeButtons.setBounds(leftX, controlY, modeW, rowH);
         barToggle.setBounds(leftX + modeW + intraGap, controlY, barW, rowH);
 
@@ -313,6 +348,7 @@ public:
             guitarForceButtons.setBounds(rightX, controlY, modW, rowH);
         }
 
+        labelGroupView   = { viewX,   0, viewW,      labelH };
         labelGroupLeft   = { leftX,   0, leftGrpW,   labelH };
         labelGroupCenter = { centerX, 0, centerGrpW, labelH };
         labelGroupRight  = { rightX,  0, rightGrpW,  labelH };
@@ -366,6 +402,16 @@ private:
 
     InteractionController& interactionController;
 
+    struct ViewItem { EditorView view; const char* label; };
+    static constexpr ViewItem VIEWS[] = {
+        { EditorView::Notes,     "Notes" },
+        { EditorView::StarPower, "SP" },
+        { EditorView::Phrase,    "Phrase" },
+        { EditorView::Sections,  "Sections" },
+        { EditorView::Tempo,     "Tempo" },
+    };
+
+    DropdownButton   viewButtons;
     SegmentedButtons modeButtons;
     PillToggle       barToggle      {"BAR"};
 
@@ -382,7 +428,7 @@ private:
     HoverHelpZone* barHelpZone = nullptr;
 
     int labelH = 0;
-    juce::Rectangle<int> labelGroupLeft, labelGroupCenter, labelGroupRight;
+    juce::Rectangle<int> labelGroupView, labelGroupLeft, labelGroupCenter, labelGroupRight;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WriteSubToolbar)
 };

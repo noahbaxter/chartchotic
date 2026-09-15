@@ -4,9 +4,9 @@
         UtilityStripComponent.h
         Author: Noah Baxter
 
-        Vertical time-axis strip beside the highways, for everything that is not a
-        gem on a lane: sections, and (later) star power, solo and fill. [coda] is the
-        BRE tool's to draw, since that is the only thing its position means anything to.
+        Vertical time-axis strip beside the highways: a read-only overview of the
+        editor's current view at song scale, and a way around the project. Nothing
+        is written from it; the highways author.
 
         The view is a window on the whole project: a position and a span, free to sit
         anywhere and at any width. A chart is a region the window may be inside, never
@@ -18,6 +18,7 @@
         than per bar: a line every bar is a wash, a line every 4 or 8 is a ruler.
 
         Design: docs/superpowers/specs/2026-09-10-utility-strip-design.md
+                docs/superpowers/specs/2026-09-15-editor-views-design.md
 
     ==============================================================================
 */
@@ -38,6 +39,7 @@
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "StripViewMath.h"
+#include "StripPhraseMath.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
 
@@ -79,27 +81,26 @@ namespace UtilityColours
     inline const juce::Colour label        = juce::Colour(0xFF7D7D85);
     inline const juce::Colour panelFill    = juce::Colour(0xFF1B1B1F);
     inline const juce::Colour noteMark     = juce::Colour(0xFF6E6E7A);
-    inline const juce::Colour marqueeFill  = juce::Colour(0x333E77B8);
-    inline const juce::Colour deleteFill   = juce::Colour(0x33C04A3A);
     inline const juce::Colour loopFill     = juce::Colour(0x2FD8B65A);
-    inline const juce::Colour selectedLine = juce::Colour(0xFFFFFFFF);
-    inline const juce::Colour namePlateHover = juce::Colour(0xFF2E4A72);
     // Follow still switched on but taken out of gear by a scroll: armed rather than acting,
     // which is a different thing from off and reads as a warning rather than as a layer.
     inline const juce::Colour followHeldFill = juce::Colour(0x3AD8B65A);
     inline const juce::Colour followHeldLine = juce::Colour(0xFFD8B65A);
     inline const juce::Colour followHeldText = juce::Colour(0xFFE8CE96);
-    // An armed edit mode, which changes what the mouse does rather than what is drawn. Green
-    // so it cannot be mistaken for a lit layer toggle or for follow being out of gear.
-    inline const juce::Colour modeActiveFill = juce::Colour(0x3A4FB06A);
-    inline const juce::Colour modeActiveLine = juce::Colour(0xFF4FB06A);
-    inline const juce::Colour modeActiveText = juce::Colour(0xFFA8E2BA);
-    // The draggable band behind a section while section editing is on, sized to the hit test
-    // rather than to the line. Translucent so the note map underneath still reads.
-    inline const juce::Colour sectionGrab         = juce::Colour(0x242F5F96);
-    inline const juce::Colour sectionGrabHover    = juce::Colour(0x453E77B8);
-    inline const juce::Colour sectionGrabSelected = juce::Colour(0x5A4E8FD8);
+    // A song block under the pointer in the overview.
+    inline const juce::Colour songChunkHover = juce::Colour(0x453E77B8);
 
+    // Phrase columns, in the colours the games draw them: star power the pale blue it lights
+    // the highway, solo the deeper blue of a solo lane, a fill purple and a BRE orange.
+    inline const juce::Colour phraseStarPower = juce::Colour(0xCC8FD8FF);
+    inline const juce::Colour phraseSolo      = juce::Colour(0xCC3F7FE0);
+    inline const juce::Colour phraseFill      = juce::Colour(0xCCA06CD8);
+    inline const juce::Colour phraseBre       = juce::Colour(0xCCE08A3C);
+    // 120-124 on a part that has no fills, sitting before the coda: not a BRE yet, so it is
+    // drawn as the data it is rather than as something that plays.
+    inline const juce::Colour phraseInert     = juce::Colour(0x665E5E68);
+    inline const juce::Colour phraseColumnLine = juce::Colour(0xFF26262C);
+    inline const juce::Colour codaLine        = juce::Colour(0xFFE08A3C);
 }
 
 class UtilityStripComponent : public juce::Component
@@ -146,6 +147,23 @@ public:
 
     void setNoteSources(std::vector<NoteSource> s) { noteSources = std::move(s); }
 
+    // The part the phrase columns read. Only ever the focused one: phrases are per part, and
+    // a column per instrument is a later addition, not this.
+    void setPhraseSource(const std::vector<MidiCache::CachedNote>* notes, Part part)
+    {
+        phraseNotes = notes;
+        phrasePart = part;
+    }
+
+    // The editor's view, which decides what the strip draws. It never decides what a click
+    // does: the strip only navigates.
+    void setEditorView(EditorView v)
+    {
+        if (editorView == v) return;
+        editorView = v;
+        repaint();
+    }
+
     // Merged MIDI clip extents for the whole project. Where several charts share one
     // timeline this is the only thing that says where each of them stops.
     void setClipSpans(const std::vector<ClipSpan>* s) { clipSpans = s; }
@@ -155,7 +173,7 @@ public:
     void setSongs(const SongList* s) { songs = s; }
 
     // Section the playhead is inside, for the banner over the highway. Empty when there is
-    // none, or when the strip's own sections filter is off.
+    // none.
     juce::String currentSectionName() const;
 
     // The chart the playhead is in, for the banner over the highway. Empty in the gap between
@@ -203,68 +221,16 @@ public:
     // one notch covers the same proportion of screen at every zoom. Clicking snaps to a bar.
     std::function<void(double targetQN)> onSeekTo;
 
-    // Whole replacement set, because renaming or inserting one section can renumber the
-    // rest and the writer takes them all at once anyway.
-    struct SectionEdit { double qn; juce::String name; };
-    std::function<void(const std::vector<SectionEdit>&)> onSectionsEdited;
-
     std::function<void(double startQN, double endQN)> onTimeSelection;
 
-    // Naming a song names its EVENTS item, addressed by where the item starts.
+    // Naming a song names its EVENTS item, addressed by where the item starts. Project
+    // metadata rather than chart data, so it is the one thing the strip still writes.
     std::function<void(double startQN, const juce::String& name)> onSongRenamed;
 
-    // A layer toggle flipped, for saving it alongside the other view toggles. Follow's latch
-    // is deliberately not reported: what you asked for persists, where you are does not.
-    std::function<void(const juce::String& key, bool on)> onLayerToggled;
-
-    // Drops the selected sections. Answers false when nothing was selected, which is what
-    // lets the editor offer the delete key on to the highway instead.
-    bool deleteSelection();
-
-    // Every layer's saved key, so restoring can walk the layers without a second list to
-    // keep in step with this one. A layer with nothing saved keeps its built-in default,
-    // which is why there is no defaults list to hand out.
-    std::vector<juce::String> layerKeys() const
-    {
-        std::vector<juce::String> keys;
-        for (const auto& f : filters) keys.push_back(f.key);
-
-        return keys;
-    }
-
-    // Unknown keys are ignored, so a project saved with a layer that no longer exists still
-    // opens rather than tripping over its own state.
-    void setLayerOn(const juce::String& key, bool on)
-    {
-        for (auto& f : filters)
-            if (key == f.key) { f.on = on; return; }
-    }
-
-    // What the strip lets you edit. Its own axis, deliberately not the highway's write mode:
-    // the two surfaces author different things, and turning on note editing has no business
-    // taking the playhead off the strip's mouse button.
-    enum class EditMode { None, Sections };
-
-    void setEditMode(EditMode mode)
-    {
-        if (editMode == mode) return;
-        editMode = mode;
-        selection.clear();
-        if (onEditModeChanged) onEditModeChanged((int)editMode);
-        repaint();
-    }
-
-    EditMode getEditMode() const { return editMode; }
-
-    // Restore only. Out-of-range values fall back to None rather than throwing, so state
-    // saved by a build with more modes than this one still opens.
-    void setEditModeIndex(int index)
-    {
-        editMode = index == (int)EditMode::Sections ? EditMode::Sections : EditMode::None;
-        selection.clear();
-    }
-
-    std::function<void(int mode)> onEditModeChanged;
+    // Follow was switched on or off, for saving. The latch is deliberately not reported: what
+    // you asked for persists, where you are does not.
+    std::function<void(bool on)> onFollowChanged;
+    void setFollowOn(bool on) { followSetting = on; }
 
     StripCommandMapper& commandMapper() { return mapper; }
 
@@ -315,16 +281,16 @@ private:
     {
         float scale = 1.0f;
 
-        juce::Font sectionLabel, filter, measure, measureBold, footerButton, playheadTab,
+        juce::Font sectionLabel, columnLabel, measure, measureBold, footerButton, playheadTab,
                    songName;
 
         int labelH, labelMinGap, labelLineGap, labelInsetX, labelTextPad;
-        int filterRowH, modeRowH, filterGap;
+        int segmentGap;
         int buttonW, zoomInset;
         int songInfoH, songNameH, songInfoPad;
         int songChunkInset, measureDrop, measureRowH, playheadTabH;
 
-        float sectionLineH, sectionLineSelectedExtra;
+        float sectionLineH;
         float stickyHoverLineGap, stickyHoverLineH;
     };
 
@@ -352,52 +318,17 @@ private:
     // Every size the strip draws text at, in one place and all through Theme::getUIFont, so
     // the panel uses the app's typeface rather than whatever JUCE defaults to.
     static constexpr float SECTION_LABEL_PT = 16.0f;
-    static constexpr float FILTER_PT = 11.0f;
+    static constexpr float COLUMN_LABEL_PT = 11.0f;
     static constexpr float MEASURE_PT = 10.0f;
     // How far above its line a ruler number sits: clear of the line without reading as part
     // of the bar above it.
     static constexpr int MEASURE_DROP = 14;
     static constexpr float PLAYHEAD_TAB_PT = 11.0f;
-    // One row of segments across the top rather than a list you expand: four toggles fit
-    // the width, and a panel that has to be opened to see what is on hides its own state.
-    static constexpr int FILTER_ROW_H = 22;
-    // The mode row sits above the layer toggles and is deliberately a separate control: one
-    // says what the strip draws, the other what a drag does to it.
-    static constexpr int MODE_ROW_H = 22;
-    static constexpr int FILTER_GAP = 2;
+    static constexpr int SEGMENT_GAP = 2;
+    static constexpr float FOLLOW_GLYPH_INSET = 0.28f;   // of the button, each side
 
-    // The key is what the layer is saved under, spelled out rather than derived from the
-    // label so that renaming what the button says cannot silently orphan saved state.
-    struct Filter { const char* label; const char* key; bool on; };
-    // Sections are the reason the strip exists, so they are on and stay first. Follow is a
-    // behaviour rather than something drawn, but this block is the strip's only switch panel
-    // and a toggle nobody can find is a toggle nobody turns off.
-    // Short enough that all of them fit across without drawFittedText shrinking any: a row
-    // of ellipses is worse than a shorter word. Tempo and meter have no toggle: they are
-    // already in the DAW, and the strip does not spend its width repeating them.
-    Filter filters[4] = { { "sect",   "stripSections", true },
-                          { "notes",  "stripNotes",    true },
-                          { "bars",   "stripMeasures", true },
-                          { "follow", "stripFollow",   true } };
-
-    static constexpr int FILTER_FOLLOW = 3;
-
-    bool filterOn(int i) const { return filters[i].on; }
-
-    int filterAreaHeight() const { return m.modeRowH + m.filterRowH; }
-
-    struct ModeButton { const char* label; EditMode mode; };
-    static constexpr ModeButton MODES[] = { { "sections", EditMode::Sections } };
-
-    juce::Rectangle<int> modeButtonBounds(int i) const
-    {
-        int count = (int)std::size(MODES);
-        int w = getWidth() / count;
-        bool last = i == count - 1;
-        return { i * w, 0, last ? getWidth() - i * w : w, m.modeRowH };
-    }
-
-    void drawModes(juce::Graphics& g) const;
+    EditorView editorView = EditorView::Notes;
+    bool followSetting = true;
 
     struct View { double startQN, endQN; };
     View visibleRange() const;
@@ -421,7 +352,7 @@ private:
     // coming than of what has gone, without losing sight of what you just played.
     static constexpr double FOLLOW_POSITION = 0.35;
 
-    int trackTop() const { return filterAreaHeight(); }
+    int trackTop() const { return 0; }
     int trackHeight() const { return std::max(1, getHeight() - footerAreaHeight() - trackTop()); }
 
     double yForQN(double qn, const View& v) const
@@ -600,9 +531,7 @@ private:
     static constexpr int MEASURE_ROW_H = 12;
     static constexpr int PLAYHEAD_TAB_H = 16;
 
-    // Two targets per section: the name plate renames, the rest of its row jumps to it.
     int sectionHeaderAt(juce::Point<int> p) const;
-    int sectionNameAt(juce::Point<int> p) const;
     juce::Rectangle<int> sectionHeaderBounds(size_t index, const View& v) const;
     juce::Rectangle<int> sectionRowBounds(size_t index, const View& v) const;
     int stickyIndex(const View& v) const;
@@ -614,7 +543,6 @@ private:
     std::vector<juce::Rectangle<int>> labelPlates(const View& v) const;
 
     static constexpr float SECTION_LINE_H = 2.0f;
-    static constexpr float SECTION_LINE_SELECTED_EXTRA = 1.0f;
 
     static constexpr int LABEL_H = 19;
     static constexpr int LABEL_MIN_GAP = 2;
@@ -628,21 +556,24 @@ private:
     static constexpr float STICKY_HOVER_LINE_H = 2.0f;
     // A section this close to the snapped hover bar counts as the one being pointed at.
 
-    // Zoom floats over the top-right of the track instead of taking a footer row. Faint until
-    // the pointer is on it, so it stays out of the way of the map it sits on.
+    // Follow and zoom float over the top-right of the track instead of taking a row. Faint
+    // until the pointer is on them, so they stay out of the way of the map they sit on.
     static constexpr int ZOOM_INSET = 4;
     static constexpr float ZOOM_IDLE_ALPHA = 0.35f;
     bool zoomHovered = false;
 
     juce::Rectangle<int> zoomBounds() const
     {
-        int w = m.buttonW * 2 + m.filterGap;
+        int w = m.buttonW * 3 + m.segmentGap * 2;
         return { getWidth() - m.zoomInset - w, trackTop() + m.zoomInset, w, m.buttonW };
     }
-    juce::Rectangle<int> minusBounds() const { return zoomBounds().withWidth(m.buttonW); }
+    juce::Rectangle<int> followButtonBounds() const { return zoomBounds().withWidth(m.buttonW); }
+    juce::Rectangle<int> minusBounds() const
+    { return zoomBounds().withTrimmedLeft(m.buttonW + m.segmentGap).withWidth(m.buttonW); }
     juce::Rectangle<int> plusBounds() const
-    { return zoomBounds().withTrimmedLeft(m.buttonW + m.filterGap); }
+    { return zoomBounds().withTrimmedLeft((m.buttonW + m.segmentGap) * 2); }
     void drawZoomOverlay(juce::Graphics& g) const;
+    void drawFollowButton(juce::Graphics& g, float alpha) const;
 
     // Square arrows at either end of the name row. Arrows alone, no words: the name between
     // them says what they move off.
@@ -651,15 +582,6 @@ private:
     juce::Rectangle<int> nextChartBounds() const
     { return { getWidth() - m.songInfoPad - m.songNameH, songInfoTop() + m.songInfoPad,
                m.songNameH, m.songNameH }; }
-    // Equal segments across the width, last one taking the rounding so the group ends flush
-    // with the strip rather than a pixel or two short of it.
-    juce::Rectangle<int> filterButtonBounds(int i) const
-    {
-        int count = (int)std::size(filters);
-        int w = getWidth() / count;
-        bool last = i == count - 1;
-        return { i * w, m.modeRowH, last ? getWidth() - i * w : w, m.filterRowH };
-    }
 
     void drawChartGround(juce::Graphics& g, const View& v) const;
     void drawChunkLines(juce::Graphics& g, const View& v) const;
@@ -668,7 +590,26 @@ private:
     void drawClipEdges(juce::Graphics& g, const View& v) const;
     int litSectionIndex(const View& v) const;
     void drawNotes(juce::Graphics& g, const View& v) const;
-    void drawFilters(juce::Graphics& g) const;
+
+    //==========================================================================
+    // Phrase columns, drawn in place of the note map in the SP and Phrase views
+
+    const std::vector<MidiCache::CachedNote>* phraseNotes = nullptr;
+    Part phrasePart = Part::GUITAR;
+
+    bool showsPhrases() const
+    { return editorView == EditorView::StarPower || editorView == EditorView::Phrase; }
+
+    // The kinds the current view shows, one column each.
+    std::vector<StripPhraseMath::Kind> phraseColumns() const;
+    juce::Rectangle<int> phraseColumnBounds(int column, int count) const;
+
+    // One kind's phrases on the focused part, read off its reference pitch.
+    std::vector<StripPhraseMath::PhraseSpan> phraseSpans(StripPhraseMath::Kind kind) const;
+    std::optional<double> codaQN() const;
+
+    juce::Colour phraseColour(StripPhraseMath::Kind kind, double startQN) const;
+    void drawPhrases(juce::Graphics& g, const View& v) const;
 
     const SongSections* sections = nullptr;
     const TempoTimeSignatureMap* tempoMap = nullptr;
@@ -694,64 +635,32 @@ private:
     // during playback drops the latch without touching the setting, and pressing play sets
     // it again.
     bool followEngaged = true;
-    bool followOn() const { return filterOn(FILTER_FOLLOW); }
+    bool followOn() const { return followSetting; }
 
     AssetManager* assetManager = nullptr;
     PPQ playheadPPQ { 0.0 };
     int hoverY = -1;
     int hoverSection = -1;
-    int hoverName = -1;
 
     // Where the pointer was when a scroll last started. Hover stays off until it is
     // somewhere else, so the move event a scroll leaves behind does not count as pointing.
     bool hoverHeld = false;
     juce::Point<int> hoverHeldFrom;
 
-    EditMode editMode = EditMode::None;
     StripCommandMapper mapper;
 
-    std::vector<int> selection;        // indices into the section list
     bool   dragActive = false;
     int    dragAnchorY = 0;
-    // The grabbed section.s own position, so a drag lands it on the grid rather than shifting
-    // it by a grid step and preserving whatever offset it already had.
-    double dragAnchorQN = 0.0;
     int    dragCurrentY = 0;
-    double dragMoveDeltaQN = 0.0;
     StripCommand dragCommand = StripCommand::None;
-
-    // One editor for both, because only one thing is ever being renamed and the two commit
-    // to completely different places.
-    enum class RenameTarget { Section, Song };
 
     std::unique_ptr<juce::TextEditor> renameEditor;
     int renameIndex = -1;
-    RenameTarget renameTarget = RenameTarget::Section;
     int hoverSongChunk = -1;
 
-    StripMode stripMode() const
-    { return editMode == EditMode::Sections ? StripMode::Write : StripMode::Play; }
-
-    bool sectionEditing() const { return editMode == EditMode::Sections; }
-    bool isSelected(int index) const
-    { return std::find(selection.begin(), selection.end(), index) != selection.end(); }
-
     void dispatch(StripCommand cmd, const juce::MouseEvent& e);
-    void beginRename(int index);
     void commitRename();
-    // How far section `index` is drawn from where it actually sits, while a move drag is in
-    // flight. Everything that positions a section goes through this, so the line, the name
-    // plate and the bar number all preview together instead of one of them moving alone.
-    double movePreviewQN(size_t index) const
-    {
-        if (!dragActive || dragCommand != StripCommand::UpdateMove) return 0.0;
-
-        return isSelected((int)index) ? dragMoveDeltaQN : 0.0;
-    }
-
-    void commitSections(std::vector<SectionEdit> edits);
-    std::vector<SectionEdit> currentEdits() const;
-    void drawMarquee(juce::Graphics& g) const;
+    void drawTimeSelection(juce::Graphics& g) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UtilityStripComponent)
 };

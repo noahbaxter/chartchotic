@@ -242,7 +242,7 @@ enum class WriteCommand {
     // Key commands
     ToggleWriteMode,
     ToggleSubMode,
-    CycleLayer,
+    ToggleLaneTool,
     ToggleSnap,
     ToggleTuplet,
     CycleTuplet,
@@ -261,9 +261,10 @@ enum class WriteCommand {
 
 enum class SubMode { Draw, Edit };
 
-// The second authoring axis, orthogonal to SubMode: Draw/Edit is how you interact, this is
-// what you interact with. Meta is text events and lands with the sections work.
-enum class ChartLayer { Note, Phrase, Meta };
+// One for the whole editor, orthogonal to SubMode: Draw/Edit is how you interact, the view is
+// what every highway and the strip show and what a click writes.
+// Design: docs/superpowers/specs/2026-09-15-editor-views-design.md
+enum class EditorView { Notes, StarPower, Phrase, Sections, Tempo };
 enum class DrumDynamic { Normal, Ghost, Accent };
 enum class GuitarForce { None, Hopo, Strum, Tap };
 

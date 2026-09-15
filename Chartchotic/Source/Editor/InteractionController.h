@@ -25,6 +25,8 @@ public:
 
     bool        writeModeActive() const { return writeController.writeModeActive(); }
     SubMode     subMode()         const { return writeController.subMode(); }
+    EditorView  view()            const { return writeController.view(); }
+    bool        laneTool()        const { return writeController.laneTool(); }
     int         stepDivision()    const { return writeController.stepDivision(); }
     int         tuplet()          const { return writeController.tuplet(); }
     bool        snapEnabled()     const { return writeController.snapEnabled(); }
@@ -40,6 +42,7 @@ public:
 
     void setWriteModeActive(bool v) { writeController.setWriteModeActive(v); }
     void setSubMode(SubMode m)      { writeController.setSubMode(m); }
+    void setView(EditorView v);
     void setStepDivision(int d)     { writeController.setStepDivision(d); }
     void setTuplet(int t)           { writeController.setTuplet(t); }
     void cycleTuplet()              { writeController.cycleTuplet(); }
@@ -65,6 +68,8 @@ public:
 
 private:
     bool isEditActive() const;
+    // Only the Notes view writes from the highway until the other views get their authoring.
+    bool highwayAuthors() const { return writeController.view() == EditorView::Notes; }
     void applyModifierSlot(const ModifierSlot& slot);
 
     juce::ValueTree& state;

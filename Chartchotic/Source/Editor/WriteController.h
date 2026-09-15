@@ -10,7 +10,8 @@ public:
 
     bool         writeModeActive() const { return writeModeActiveFlag; }
     SubMode      subMode()         const { return currentSubMode; }
-    ChartLayer   layer()           const { return currentLayer; }
+    EditorView   view()            const { return currentView; }
+    bool         laneTool()        const { return laneToolFlag; }
     PhraseTarget phraseTarget()    const { return currentPhraseTarget; }
 
     // Everything worth preserving about a copied note. velocity carries drum
@@ -37,8 +38,8 @@ public:
 
     void setWriteModeActive(bool active);
     void setSubMode(SubMode mode);
-    void setLayer(ChartLayer l);
-    void cycleLayer();
+    void setView(EditorView v);
+    void setLaneTool(bool on);
     void setPhraseTarget(PhraseTarget t);
     void setStepDivision(int division);
     void setTuplet(int t);
@@ -66,7 +67,9 @@ private:
     juce::ValueTree& state;
 
     SubMode      currentSubMode      = SubMode::Draw;
-    ChartLayer   currentLayer        = ChartLayer::Note;
+    EditorView   currentView         = EditorView::Notes;
+    // Inside the Notes view: a drag writes a lane marker instead of a sustain.
+    bool         laneToolFlag        = false;
     PhraseTarget currentPhraseTarget = PhraseTarget::Lane1;
     bool         writeModeActiveFlag = false;
 

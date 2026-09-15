@@ -105,13 +105,15 @@ constexpr float SUBTOOLBAR_WIDTH_SCALE  = 0.85f; // shrink/grow all control widt
 constexpr float SUBTOOLBAR_HEIGHT_SCALE = 0.80f; // shrink/grow control height (rest becomes padding)
 constexpr float SUBTOOLBAR_PAD_TOP      = 0.0f;  // extra space above controls (fraction of control area)
 constexpr float SUBTOOLBAR_PAD_BOTTOM   = 0.1f; // extra space below controls (fraction of control area)
+constexpr float SUBTOOLBAR_FIT_FRACTION = 0.96f; // widest share of the row the controls may take
+constexpr float SUBTOOLBAR_VIEW_W    = 5.5f;
 constexpr float SUBTOOLBAR_MODE_W    = 5.0f;
 constexpr float SUBTOOLBAR_BAR_W     = 2.5f;
 constexpr float SUBTOOLBAR_SNAP_W    = 1.5f;
 constexpr float SUBTOOLBAR_STEP_W    = 3.0f;
 constexpr float SUBTOOLBAR_MOD_W     = 10.0f;
 constexpr float SUBTOOLBAR_CYM_W     = 1.5f;
-constexpr float SUBTOOLBAR_COL_GAP   = 2.0f;
+constexpr float SUBTOOLBAR_COL_GAP   = 0.75f;
 
 // Footer
 constexpr float FOOTER_RATIO       = 0.055f;
