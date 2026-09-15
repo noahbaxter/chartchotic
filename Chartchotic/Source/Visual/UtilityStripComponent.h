@@ -67,6 +67,8 @@ namespace UtilityColours
     inline const juce::Colour clipEdge     = juce::Colour(0x996E8FB5);
     inline const juce::Colour sectionText  = juce::Colour(0xFF9CC4F5);
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
+    // The chart name in the footer, in the same white as the name over the highway.
+    inline const juce::Colour chartName    = juce::Colour(Theme::textWhite);
     inline const juce::Colour hoverLine    = juce::Colour(0xFFBFD4EC);
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
     inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
@@ -313,13 +315,14 @@ private:
     {
         float scale = 1.0f;
 
-        juce::Font sectionLabel, filter, measure, measureBold, footerButton, footerLabel,
-                   playheadTab;
+        juce::Font sectionLabel, filter, measure, measureBold, footerButton, playheadTab,
+                   songName;
 
         int labelH, labelMinGap, labelLineGap, labelInsetX, labelTextPad;
         int filterRowH, modeRowH, filterGap;
-        int footerH, navRowH, navNameH, buttonW;
-        int songChunkInset, measureDrop;
+        int buttonW, zoomInset;
+        int songInfoH, songNameH, songInfoPad;
+        int songChunkInset, measureDrop, measureRowH, playheadTabH;
 
         float sectionLineH, sectionLineSelectedExtra;
         float stickyHoverLineGap, stickyHoverLineH;
@@ -335,19 +338,16 @@ private:
     static constexpr size_t PLATE_CACHE_MAX = 2048;
     int plateTextWidth(const juce::String& name) const;
 
-    // The zoom readout and the song name are the two things you read from across the room
-    // while charting, so both are sized past the strip's own label scale.
-    static constexpr int FOOTER_H = 28;
-    // Chart navigation gets its own row rather than squeezing in beside the zoom controls:
-    // two word-width buttons and a bar count do not fit one strip width between them.
-    static constexpr int NAV_ROW_H = 24;
-    // The chart you are in, named above the buttons that move between them, so the pair says
-    // where you are going from as well as where you can go.
-    static constexpr int NAV_NAME_H = 17;
-    int footerAreaHeight() const { return m.footerH + m.navNameH + m.navRowH; }
+    // What you are in: the chart's name between the arrows that step to its neighbours.
+    static constexpr int SONG_INFO_H = 28;
+    static constexpr int SONG_NAME_H = 20;
+    static constexpr int SONG_INFO_PAD = 4;
+    static constexpr float SONG_NAME_PT = 15.0f;
+    int footerAreaHeight() const { return m.songInfoH; }
+    int songInfoTop() const { return getHeight() - m.songInfoH; }
+    void drawSongInfo(juce::Graphics& g) const;
     static constexpr int BUTTON_W = 24;
     static constexpr float FOOTER_BUTTON_PT = 16.0f;
-    static constexpr float FOOTER_LABEL_PT = 12.0f;
 
     // Every size the strip draws text at, in one place and all through Theme::getUIFont, so
     // the panel uses the app's typeface rather than whatever JUCE defaults to.
@@ -372,10 +372,13 @@ private:
     // Sections are the reason the strip exists, so they are on and stay first. Follow is a
     // behaviour rather than something drawn, but this block is the strip's only switch panel
     // and a toggle nobody can find is a toggle nobody turns off.
-    Filter filters[4] = { { "sections", "stripSections", true },
-                          { "notes",    "stripNotes",    true  },
-                          { "measures", "stripMeasures", true },
-                          { "follow",   "stripFollow",   true } };
+    // Short enough that all of them fit across without drawFittedText shrinking any: a row
+    // of ellipses is worse than a shorter word. Tempo and meter have no toggle: they are
+    // already in the DAW, and the strip does not spend its width repeating them.
+    Filter filters[4] = { { "sect",   "stripSections", true },
+                          { "notes",  "stripNotes",    true },
+                          { "bars",   "stripMeasures", true },
+                          { "follow", "stripFollow",   true } };
 
     static constexpr int FILTER_FOLLOW = 3;
 
@@ -575,6 +578,28 @@ private:
 
     void drawMeasureNumber(juce::Graphics& g, float y, double qn, NumberWeight weight) const;
 
+    // Five things want to put a number in the right-hand gutter: the ruler, a section start,
+    // the hover bar, a pinned label's real measure, and the playhead's own tab. They used to
+    // draw in paint order and land on top of each other. Now the whole set is resolved
+    // before any of it is drawn, most specific first, and a number that would collide with
+    // one already claimed is dropped rather than stacked under it.
+    struct NumberDraw { float y; double qn; NumberWeight weight; };
+    mutable std::vector<NumberDraw> numberDraws;
+    mutable std::vector<juce::Range<int>> numberRows;
+
+    void resolveMeasureNumbers(const View& v) const;
+    juce::Range<int> numberRowAt(float y) const;
+    bool claimNumberRow(juce::Range<int> row) const;
+    bool claimNumber(float y, double qn, NumberWeight weight) const;
+    void drawMeasureNumbers(juce::Graphics& g) const;
+
+    // Plates for this paint, built once by resolveMeasureNumbers and read by drawSections
+    // rather than rebuilt.
+    mutable std::vector<juce::Rectangle<int>> framePlates;
+
+    static constexpr int MEASURE_ROW_H = 12;
+    static constexpr int PLAYHEAD_TAB_H = 16;
+
     // Two targets per section: the name plate renames, the rest of its row jumps to it.
     int sectionHeaderAt(juce::Point<int> p) const;
     int sectionNameAt(juce::Point<int> p) const;
@@ -603,23 +628,29 @@ private:
     static constexpr float STICKY_HOVER_LINE_H = 2.0f;
     // A section this close to the snapped hover bar counts as the one being pointed at.
 
-    // The zoom row sits above the name, which sits above the nav row, so each is measured off
-    // the bottom in turn.
-    int zoomRowTop() const { return getHeight() - footerAreaHeight(); }
-    int navNameTop() const { return getHeight() - m.navRowH - m.navNameH; }
-    int navRowTop() const { return getHeight() - m.navRowH; }
+    // Zoom floats over the top-right of the track instead of taking a footer row. Faint until
+    // the pointer is on it, so it stays out of the way of the map it sits on.
+    static constexpr int ZOOM_INSET = 4;
+    static constexpr float ZOOM_IDLE_ALPHA = 0.35f;
+    bool zoomHovered = false;
 
-    juce::Rectangle<int> minusBounds() const
-    { return { 4, zoomRowTop() + 2, m.buttonW, m.footerH - 4 }; }
+    juce::Rectangle<int> zoomBounds() const
+    {
+        int w = m.buttonW * 2 + m.filterGap;
+        return { getWidth() - m.zoomInset - w, trackTop() + m.zoomInset, w, m.buttonW };
+    }
+    juce::Rectangle<int> minusBounds() const { return zoomBounds().withWidth(m.buttonW); }
     juce::Rectangle<int> plusBounds() const
-    { return { 4 + m.buttonW + 2, zoomRowTop() + 2, m.buttonW, m.footerH - 4 }; }
+    { return zoomBounds().withTrimmedLeft(m.buttonW + m.filterGap); }
+    void drawZoomOverlay(juce::Graphics& g) const;
 
-    // Split down the middle, each half taking its own rounding so the pair ends flush.
+    // Square arrows at either end of the name row. Arrows alone, no words: the name between
+    // them says what they move off.
     juce::Rectangle<int> prevChartBounds() const
-    { return { 4, navRowTop() + 1, getWidth() / 2 - 5, m.navRowH - 4 }; }
+    { return { m.songInfoPad, songInfoTop() + m.songInfoPad, m.songNameH, m.songNameH }; }
     juce::Rectangle<int> nextChartBounds() const
-    { return { getWidth() / 2 + 1, navRowTop() + 1, getWidth() - getWidth() / 2 - 5,
-               m.navRowH - 4 }; }
+    { return { getWidth() - m.songInfoPad - m.songNameH, songInfoTop() + m.songInfoPad,
+               m.songNameH, m.songNameH }; }
     // Equal segments across the width, last one taking the rounding so the group ends flush
     // with the strip rather than a pixel or two short of it.
     juce::Rectangle<int> filterButtonBounds(int i) const
@@ -638,7 +669,6 @@ private:
     int litSectionIndex(const View& v) const;
     void drawNotes(juce::Graphics& g, const View& v) const;
     void drawFilters(juce::Graphics& g) const;
-    void drawFooter(juce::Graphics& g) const;
 
     const SongSections* sections = nullptr;
     const TempoTimeSignatureMap* tempoMap = nullptr;

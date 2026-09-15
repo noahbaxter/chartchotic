@@ -228,11 +228,108 @@ juce::String UtilityStripComponent::positionLabel(double qn) const
     return TempoTimeSignatureEventHelper::formatMeasureBeat(measure, mb.beatInMeasure);
 }
 
+juce::Range<int> UtilityStripComponent::numberRowAt(float y) const
+{
+    int top = (int)y - m.measureDrop;
+    return { top - m.labelMinGap, top + m.measureRowH + m.labelMinGap };
+}
+
+bool UtilityStripComponent::claimNumberRow(juce::Range<int> row) const
+{
+    for (const auto& taken : numberRows)
+        if (row.getEnd() > taken.getStart() && taken.getEnd() > row.getStart()) return false;
+
+    numberRows.push_back(row);
+    return true;
+}
+
+bool UtilityStripComponent::claimNumber(float y, double qn, NumberWeight weight) const
+{
+    if (!claimNumberRow(numberRowAt(y))) return false;
+
+    numberDraws.push_back({ y, qn, weight });
+    return true;
+}
+
+// Most specific first, so the general ones give way. The playhead claims a row without
+// asking for a number: it draws its own tab, and what matters here is that nothing else
+// lands under it.
+void UtilityStripComponent::resolveMeasureNumbers(const View& v) const
+{
+    numberDraws.clear();
+    numberRows.clear();
+    framePlates = labelPlates(v);
+
+    const float top = (float)trackTop();
+    const float bottom = top + (float)trackHeight();
+    auto inTrack = [&](float y) { return y >= top && y <= bottom; };
+
+    // The zoom buttons sit over the right edge where the numbers go, so their row is taken
+    // before any number can claim it.
+    auto zoom = zoomBounds();
+    claimNumberRow({ zoom.getY() - m.labelMinGap, zoom.getBottom() + m.labelMinGap });
+
+    float py = (float)yForQN(playheadPPQ.toDouble(), v);
+    if (inTrack(py))
+    {
+        int tabTop = (int)py - m.playheadTabH - 3;
+        claimNumberRow({ tabTop - m.labelMinGap, tabTop + m.playheadTabH + m.labelMinGap });
+    }
+
+    if (!filterOn(2)) return;
+
+    // The bar under the cursor, on the same guards drawHover draws its line by: where that
+    // line is suppressed there is no cursor number to place either.
+    if (hoverY >= 0
+        && !(dragActive && dragCommand == StripCommand::UpdateMove)
+        && !(hoverSection >= 0 && hoverSection == stickyIndex(v)))
+    {
+        double barQN = snappedBarQN(hoverY, v);
+        float y = (float)yForQN(barQN, v);
+        if (inTrack(y)) claimNumber(y, barQN, NumberWeight::Cursor);
+    }
+
+    if (sections != nullptr && !songOverview())
+    {
+        const auto& list = sections->getSections();
+        int sticky = stickyIndex(v);
+
+        // A pinned label sits nowhere near its own line, so the measure it really starts on
+        // hangs off the label instead. Claimed before the ruler so it cannot be crowded out.
+        if (sticky >= 0 && sticky == hoverSection && (size_t)sticky < framePlates.size()
+            && !framePlates[(size_t)sticky].isEmpty())
+        {
+            float ly = std::min((float)framePlates[(size_t)sticky].getBottom()
+                                    + m.stickyHoverLineGap,
+                                top + (float)trackHeight() - m.stickyHoverLineH);
+            claimNumber(ly, list[(size_t)sticky].position.toDouble(), NumberWeight::Cursor);
+        }
+
+        for (size_t i = 0; i < list.size(); ++i)
+        {
+            if (framePlates[i].isEmpty()) continue;
+
+            double qn = list[i].position.toDouble() + movePreviewQN(i);
+            if (qn < v.startQN || qn > v.endQN) continue;
+
+            float y = (float)yForQN(qn, v);
+            if (inTrack(y)) claimNumber(y, qn, NumberWeight::Section);
+        }
+    }
+
+    // The ruler claims last, as it walks its own lines in drawChunkLines: it is the one
+    // number that is scenery, so it is the one that gives way.
+}
+
+void UtilityStripComponent::drawMeasureNumbers(juce::Graphics& g) const
+{
+    for (const auto& n : numberDraws)
+        drawMeasureNumber(g, n.y, n.qn, n.weight);
+}
+
 void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, double qn,
                                               NumberWeight weight) const
 {
-    if (!filterOn(2)) return;
-
     g.setFont(weight == NumberWeight::Cursor ? m.measureBold : m.measure);
     // Above its line, like every other label here: time runs upward, so a number sitting
     // below its line reads as belonging to the bar before it.
@@ -384,8 +481,6 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
     const float w = (float)getWidth();
     g.setColour(UtilityColours::hoverLine);
     g.fillRect(0.0f, y, w, 1.5f);
-
-    drawMeasureNumber(g, y, barQN, NumberWeight::Cursor);
 }
 
 void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) const
@@ -439,7 +534,7 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
 
         // Only the heavy lines get a number, and only faintly. Numbering every chunk was the
         // obnoxious version; numbering none of them left the ruler with nothing to read off.
-        if (major) drawMeasureNumber(g, y, qn, NumberWeight::Grid);
+        if (major && filterOn(2)) claimNumber(y, qn, NumberWeight::Grid);
     }
 }
 
@@ -506,6 +601,8 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     const auto& s = list[index];
     float y = (float)yForQN(s.position.toDouble() + movePreviewQN(index), v);
 
+    // Capped at the strip's edge, so a long name is trimmed rather than running off it. The
+    // plate is the hit test too, so what you can click stays what you can see.
     int plateW = std::min(getWidth() - m.labelInsetX * 2,
                           plateTextWidth(s.name) + m.labelTextPad);
     int top = (int)y - m.labelH - m.labelLineGap;
@@ -903,7 +1000,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     const auto& list = sections->getSections();
     const float top = (float)trackTop();
 
-    auto plates = labelPlates(v);
+    const auto& plates = framePlates;
 
     // The bar the cursor snapped to. A section sitting on it is the thing a click would
     // land on, so it answers in the hover's own colour rather than staying structure blue.
@@ -923,10 +1020,9 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         bool sticky = ((int)i == stickyIndex(v));
         if ((qn < v.startQN || qn > v.endQN) && !sticky) continue;
 
-        // The number belongs to the name beside it, so it goes when the name goes.
+        // The number belongs to the name beside it, so it goes when the name goes. Claimed
+        // in resolveMeasureNumbers and drawn with the rest of them.
         bool labelled = !plates[i].isEmpty();
-        if (labelled && qn >= v.startQN && qn <= v.endQN)
-            drawMeasureNumber(g, y, qn, NumberWeight::Section);
 
         bool selected = isSelected((int)i);
         bool underCursor = GridMath::same(qn, hoverQN);
@@ -992,7 +1088,6 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
                                 top + (float)trackHeight() - m.stickyHoverLineH);
             g.setColour(UtilityColours::hoverLine);
             g.fillRect(0.0f, ly, w, m.stickyHoverLineH);
-            drawMeasureNumber(g, ly, qn, NumberWeight::Cursor);
         }
     }
 }
@@ -1068,39 +1163,37 @@ void UtilityStripComponent::drawFilters(juce::Graphics& g) const
     g.fillRect(0, trackTop() - 1, getWidth(), 1);
 }
 
-void UtilityStripComponent::drawFooter(juce::Graphics& g) const
+// Alpha is folded into each colour rather than drawn through a transparency layer, which
+// would allocate an image every frame for two buttons.
+void UtilityStripComponent::drawZoomOverlay(juce::Graphics& g) const
 {
-    auto minus = minusBounds();
-    auto plus = plusBounds();
-
-    g.setColour(UtilityColours::panelFill);
-    g.fillRect(0, zoomRowTop(), getWidth(), footerAreaHeight());
-
-    g.setFont(m.footerButton);
+    const float alpha = zoomHovered ? 1.0f : ZOOM_IDLE_ALPHA;
     bool canOut = viewSpanQN < projectEndQN() - GridMath::TICK;
     bool canIn  = viewSpanQN > minSpanQN() + GridMath::TICK;
 
-    for (auto [r, text, enabled] : { std::tuple{ minus, "-", canOut },
-                                     std::tuple{ plus,  "+", canIn } })
+    g.setFont(m.footerButton);
+    for (auto [r, text, enabled] : { std::tuple{ minusBounds(), "-", canOut },
+                                     std::tuple{ plusBounds(),  "+", canIn } })
     {
-        g.setColour(UtilityColours::chunkLineBig);
+        g.setColour(UtilityColours::panelFill.withMultipliedAlpha(alpha));
+        g.fillRect(r);
+        g.setColour(UtilityColours::chunkLineBig.withMultipliedAlpha(alpha));
         g.drawRect(r, 1);
-        g.setColour(enabled ? UtilityColours::uiText : UtilityColours::label);
+        g.setColour((enabled ? UtilityColours::uiText : UtilityColours::label)
+                        .withMultipliedAlpha(alpha));
         g.drawText(text, r, juce::Justification::centred, false);
     }
+}
 
-    g.setColour(UtilityColours::uiText);
-    g.setFont(m.footerLabel);
-    // Counted in bars at every width now that there are no named rungs left, except the one
-    // that covers everything: "project" says more there than a bar count nobody can picture.
-    double bars = viewSpanQN / std::max(1.0e-6, barLengthQN(tempoMap, viewStartQN));
-    juce::String extent = viewSpanQN >= projectEndQN() - GridMath::TICK
-                        ? juce::String("project")
-                        : juce::String(juce::roundToInt(bars)) + " bars";
+void UtilityStripComponent::drawSongInfo(juce::Graphics& g) const
+{
+    const int top = songInfoTop();
+    const int pad = m.songInfoPad;
 
-    g.drawText(extent,
-               plus.getRight() + 6, plus.getY(), getWidth() - plus.getRight() - 10,
-               plus.getHeight(), juce::Justification::centredLeft, false);
+    g.setColour(UtilityColours::panelFill);
+    g.fillRect(0, top, getWidth(), m.songInfoH);
+    g.setColour(UtilityColours::border);
+    g.fillRect(0, top, getWidth(), 1);
 
     // Greyed rather than hidden at the ends of the project, so the pair keeps its shape and
     // you can see there is nothing that way rather than watching a button vanish.
@@ -1113,24 +1206,28 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
             if (GridMath::after(song.startQN, now))  hasNext = true;
         }
 
-    // Between two charts there is no name to give, and "nearest" would be a different claim
-    // from "the one you are in", so it says nothing rather than something not quite true.
-    const auto* inChart = songAt(now);
-    g.setColour(inChart != nullptr ? UtilityColours::sectionText : UtilityColours::label);
-    g.setFont(m.footerLabel);
-    g.drawText(inChart != nullptr ? inChart->name : juce::String("no chart"),
-               4, navNameTop(), getWidth() - 8, m.navNameH,
-               juce::Justification::centred, true);
+    auto prev = prevChartBounds();
+    auto next = nextChartBounds();
 
-    g.setFont(m.footerLabel);
-    for (auto [r, text, enabled] : { std::tuple{ prevChartBounds(), "< prev chart", hasPrev },
-                                     std::tuple{ nextChartBounds(), "next chart >", hasNext } })
+    g.setFont(m.footerButton);
+    for (auto [r, text, enabled] : { std::tuple{ prev, "<", hasPrev },
+                                     std::tuple{ next, ">", hasNext } })
     {
         g.setColour(UtilityColours::chunkLineBig);
         g.drawRect(r, 1);
         g.setColour(enabled ? UtilityColours::uiText : UtilityColours::label);
         g.drawText(text, r, juce::Justification::centred, false);
     }
+
+    // Between two charts there is no name to give, and "nearest" would be a different claim
+    // from "the one you are in", so it says nothing rather than something not quite true.
+    const auto* inChart = songAt(now);
+    const int nameX = prev.getRight() + pad;
+    g.setColour(inChart != nullptr ? UtilityColours::chartName : UtilityColours::label);
+    g.setFont(m.songName);
+    g.drawText(inChart != nullptr ? inChart->name : juce::String("no chart"),
+               nameX, top + pad, next.getX() - pad - nameX, m.songNameH,
+               juce::Justification::centred, true);
 }
 
 void UtilityStripComponent::resized()
@@ -1152,8 +1249,8 @@ void UtilityStripComponent::rebuildMetrics()
     m.measure      = pt(MEASURE_PT);
     m.measureBold  = m.measure.boldened();
     m.footerButton = pt(FOOTER_BUTTON_PT);
-    m.footerLabel  = pt(FOOTER_LABEL_PT);
     m.playheadTab  = pt(PLAYHEAD_TAB_PT).boldened();
+    m.songName     = pt(SONG_NAME_PT);
 
     m.labelH       = px(LABEL_H);
     m.labelMinGap  = px(LABEL_MIN_GAP);
@@ -1165,13 +1262,17 @@ void UtilityStripComponent::rebuildMetrics()
     m.modeRowH   = px(MODE_ROW_H);
     m.filterGap  = px(FILTER_GAP);
 
-    m.footerH  = px(FOOTER_H);
-    m.navRowH  = px(NAV_ROW_H);
-    m.navNameH = px(NAV_NAME_H);
-    m.buttonW  = px(BUTTON_W);
+    m.buttonW   = px(BUTTON_W);
+    m.zoomInset = px(ZOOM_INSET);
+
+    m.songInfoH   = px(SONG_INFO_H);
+    m.songNameH   = px(SONG_NAME_H);
+    m.songInfoPad = px(SONG_INFO_PAD);
 
     m.songChunkInset = px(SONG_CHUNK_INSET);
     m.measureDrop    = px(MEASURE_DROP);
+    m.measureRowH    = px(MEASURE_ROW_H);
+    m.playheadTabH   = px(PLAYHEAD_TAB_H);
 
     m.sectionLineH             = SECTION_LINE_H * m.scale;
     m.sectionLineSelectedExtra = SECTION_LINE_SELECTED_EXTRA * m.scale;
@@ -1202,7 +1303,13 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     g.fillAll(UtilityColours::background);
 
     auto v = visibleRange();
+
+    // Before anything draws: which numbers get a row, and the plate list the rest of the
+    // paint reads rather than rebuilding.
+    resolveMeasureNumbers(v);
+
     drawChartGround(g, v);
+
     drawChunkLines(g, v);
 
     // One block per song instead of every section in the project, which at this zoom is a
@@ -1221,6 +1328,10 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
     drawMarquee(g);
     drawHover(g, v);
+
+    // One pass over the whole arbitrated set, above every line that owns one of them, so a
+    // number is never half under a band or a section plate.
+    drawMeasureNumbers(g);
 
     // The current moment has to win against everything else drawn here, so it gets a glow,
     // a solid bar and a nub on each edge rather than a hairline.
@@ -1255,9 +1366,10 @@ void UtilityStripComponent::paint(juce::Graphics& g)
         g.drawText(text, tab, juce::Justification::centred, false);
     }
 
+    drawZoomOverlay(g);
     drawModes(g);
     drawFilters(g);
-    drawFooter(g);
+    drawSongInfo(g);
 
     g.setColour(UtilityColours::border);
     g.drawRect(getLocalBounds(), 1);
@@ -1890,7 +2002,9 @@ void UtilityStripComponent::mouseUp(const juce::MouseEvent& e)
 
 void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
 {
-    if (!inTrackArea(e.getPosition())) return;
+    // Two quick zoom clicks are two zooms, already handled in mouseDown, not a double click
+    // on whatever section sits under the buttons.
+    if (!inTrackArea(e.getPosition()) || zoomBounds().contains(e.getPosition())) return;
 
     // Opening a song lands the playhead at its start, because a click is the gesture that
     // moves the cursor, and frames the whole chart. The name is not part of the target:
@@ -1920,7 +2034,16 @@ void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
         hoverHeld = false;
     }
 
-    int y = inTrackArea(e.getPosition()) ? e.getPosition().y : -1;
+    // Over the zoom buttons the pointer is on a control, not on the map, so the bar and
+    // section hover under it goes away while they light up.
+    bool onZoom = zoomBounds().contains(e.getPosition());
+    if (onZoom != zoomHovered)
+    {
+        zoomHovered = onZoom;
+        repaint();
+    }
+
+    int y = !onZoom && inTrackArea(e.getPosition()) ? e.getPosition().y : -1;
     int section = y >= 0 ? sectionHeaderAt(e.getPosition()) : -1;
     int name = y >= 0 ? sectionNameAt(e.getPosition()) : -1;
     int chunk = y >= 0 ? songChunkAt(e.getPosition()) : -1;
@@ -1954,7 +2077,9 @@ void UtilityStripComponent::clearHover()
 void UtilityStripComponent::mouseExit(const juce::MouseEvent&)
 {
     hoverHeld = false;   // leaving and coming back is pointing again
+    zoomHovered = false;
     clearHover();
+    repaint();
 }
 
 // Marquee, delete span and time selection are all a band between two drag points; only the
