@@ -61,9 +61,9 @@ inline std::vector<ModifierSlot> phraseSlotsFor(RenderType type)
     return slots;
 }
 
-inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type, ChartLayer layer)
+inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type, bool laneTool)
 {
-    if (layer == ChartLayer::Phrase) return phraseSlotsFor(type);
+    if (laneTool) return phraseSlotsFor(type);
 
     switch (type)
     {

@@ -243,6 +243,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Managers/GridlineGenerator.h
         # UI - Controls
         Chartchotic/Source/UI/Controls/CheckboxToggle.h
+        Chartchotic/Source/UI/Controls/DropdownButton.h
         Chartchotic/Source/UI/Controls/PanelSectionHeader.h
         Chartchotic/Source/UI/Controls/PillToggle.h
         Chartchotic/Source/UI/Controls/PopupMenuButton.h

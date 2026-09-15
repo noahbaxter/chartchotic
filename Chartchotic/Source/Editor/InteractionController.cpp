@@ -56,33 +56,44 @@ void InteractionController::onFrame(MidiWriter* writer, InstrumentSession* sessi
     editController.onFrameTick();
 }
 
+void InteractionController::setView(EditorView v)
+{
+    if (writeController.view() == v) return;
+    // A selection made in one view means nothing in the next.
+    editController.clearSelection();
+    writeController.setView(v);
+}
+
 void InteractionController::onPointerMove(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     writeController.onPointerMove(p, ctx);
-    editController.onPointerMove(p, ctx);
+    if (highwayAuthors()) editController.onPointerMove(p, ctx);
 }
 
 void InteractionController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
+    if (!highwayAuthors()) return;
     if (isEditActive()) editController.onPointerDown(p, ctx);
     else                writeController.onPointerDown(p, ctx);
 }
 
 void InteractionController::onPointerDrag(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
+    if (!highwayAuthors()) return;
     if (isEditActive()) editController.onPointerDrag(p, ctx);
     else                writeController.onPointerDrag(p, ctx);
 }
 
 void InteractionController::onPointerUp(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
+    if (!highwayAuthors()) return;
     if (isEditActive()) editController.onPointerUp(p, ctx);
     else                writeController.onPointerUp(p, ctx);
 }
 
 void InteractionController::onPointerDoubleClick(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
-    if (isEditActive())
+    if (highwayAuthors() && isEditActive())
         editController.onPointerDoubleClick(p, ctx);
 }
 
@@ -100,6 +111,26 @@ void InteractionController::onPointerCancel()
 bool InteractionController::onKeyPress(const juce::KeyPress& key)
 {
     auto cmd = writeController.resolveKeyCommand(key);
+
+    // Outside Notes the keys that act on gems have nothing to act on. Mode and grid keys
+    // still work, since the other views use the same grid.
+    if (!highwayAuthors())
+    {
+        switch (cmd)
+        {
+            case WriteCommand::ToggleWriteMode:
+            case WriteCommand::ToggleSubMode:
+            case WriteCommand::ToggleSnap:
+            case WriteCommand::ToggleTuplet:
+            case WriteCommand::CycleTuplet:
+            case WriteCommand::StepDown:
+            case WriteCommand::StepUp:
+                return writeController.onKeyPress(key);
+            default:
+                return false;
+        }
+    }
+
     if (cmd == WriteCommand::ToggleBarMode)
     {
         setBarMode(!barModeFlag);
@@ -112,7 +143,7 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
     if (cmd >= WriteCommand::ModifierSlot1 && cmd <= WriteCommand::ModifierSlot5)
     {
         int index = (int)cmd - (int)WriteCommand::ModifierSlot1;
-        auto slots = modifierSlotsFor(getRenderType(activePart()), writeController.layer());
+        auto slots = modifierSlotsFor(getRenderType(activePart()), writeController.laneTool());
         if (index >= (int)slots.size())
             return false;
 

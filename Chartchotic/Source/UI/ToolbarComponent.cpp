@@ -107,6 +107,10 @@ void ToolbarComponent::initTopBar()
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
+    writeSubToolbar.onViewChanged = [this](EditorView view) {
+        interactionController.setView(view);
+    };
+
     writeSubToolbar.onSnapChanged = [this](bool on) {
         interactionController.setSnapEnabled(on);
         if (interactionController.onStateChanged) interactionController.onStateChanged();

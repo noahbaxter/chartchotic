@@ -85,15 +85,6 @@ public:
             }
         }
 
-        // Delete is routed by what is selected rather than by who holds focus. The strip is
-        // a surface you dip into, so taking keyboard focus on click would cost the highway
-        // its write-mode keys for the rest of the gesture.
-        if (key.getKeyCode() == juce::KeyPress::deleteKey
-            || key.getKeyCode() == juce::KeyPress::backspaceKey)
-        {
-            if (utilityStripVisible && utilityStrip.deleteSelection()) return true;
-        }
-
         if (interactionController.onKeyPress(key))
             return true;
 
@@ -305,7 +296,7 @@ private:
     }
 
     // The section the playhead is inside, spelled over the highway the way the games title
-    // it. It rides on the strip: no strip, or sections filtered off there, and it is gone.
+    // it. It rides on the strip: no strip and it is gone.
     bool sectionBannerVisible = true;
 
     void toggleSectionBanner()

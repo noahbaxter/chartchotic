@@ -9,14 +9,20 @@ namespace
     const juce::Identifier kWriteStepDivision { "writeStepDivision" };
     const juce::Identifier kWriteTuplet       { "writeTuplet" };
     const juce::Identifier kWriteSnap         { "writeSnap" };
-    const juce::Identifier kWriteChartLayer   { "writeChartLayer" };
+    const juce::Identifier kEditorView        { "editorView" };
 
     static const juce::String kSubModeDraw { "draw" };
     static const juce::String kSubModeEdit { "edit" };
 
-    static const juce::String kLayerNote   { "note" };
-    static const juce::String kLayerPhrase { "phrase" };
-    static const juce::String kLayerMeta   { "meta" };
+    // Spelled out rather than saved as the enum's index, so reordering the views cannot
+    // silently reopen a project on a different one.
+    const struct { EditorView view; const char* name; } kViewNames[] = {
+        { EditorView::Notes,     "notes" },
+        { EditorView::StarPower, "sp" },
+        { EditorView::Phrase,    "phrase" },
+        { EditorView::Sections,  "sections" },
+        { EditorView::Tempo,     "tempo" },
+    };
 
     SubMode parseSubMode(const juce::String& s, SubMode fallback)
     {
@@ -30,22 +36,18 @@ namespace
         return (m == SubMode::Edit) ? kSubModeEdit : kSubModeDraw;
     }
 
-    ChartLayer parseLayer(const juce::String& s, ChartLayer fallback)
+    EditorView parseView(const juce::String& s, EditorView fallback)
     {
-        if (s == kLayerPhrase) return ChartLayer::Phrase;
-        if (s == kLayerMeta)   return ChartLayer::Meta;
-        if (s == kLayerNote)   return ChartLayer::Note;
+        for (const auto& v : kViewNames)
+            if (s == v.name) return v.view;
         return fallback;
     }
 
-    const juce::String& layerToString(ChartLayer l)
+    juce::String viewToString(EditorView view)
     {
-        switch (l)
-        {
-            case ChartLayer::Phrase: return kLayerPhrase;
-            case ChartLayer::Meta:   return kLayerMeta;
-            default:                 return kLayerNote;
-        }
+        for (const auto& v : kViewNames)
+            if (view == v.view) return v.name;
+        return kViewNames[0].name;
     }
 }
 
@@ -62,8 +64,8 @@ void WriteController::loadPersistedState()
     if (state.hasProperty(kWriteSubMode))
         currentSubMode = parseSubMode(state.getProperty(kWriteSubMode).toString(), currentSubMode);
 
-    if (state.hasProperty(kWriteChartLayer))
-        currentLayer = parseLayer(state.getProperty(kWriteChartLayer).toString(), currentLayer);
+    if (state.hasProperty(kEditorView))
+        currentView = parseView(state.getProperty(kEditorView).toString(), currentView);
 
     if (state.hasProperty(kWriteStepDivision))
         currentStepDivision = juce::jlimit(1, 64, (int)state.getProperty(kWriteStepDivision));
@@ -84,6 +86,7 @@ void WriteController::loadPersistedState()
 bool WriteController::canWrite(const AuthoringPoint& p) const
 {
     return writeModeActive()
+        && currentView == EditorView::Notes
         && !isPlaying()
         && currentSubMode == SubMode::Draw
         && p.onHighway
@@ -110,6 +113,7 @@ void WriteController::recomputeGhost()
 
     if (!lastPointValid)                                  return;
     if (!writeModeActive())                               return;
+    if (currentView != EditorView::Notes)                 return;
     if (isPlaying())                                      return;
     if (!lastPoint.onHighway || lastPoint.laneIndex < 0)  return;
 
@@ -234,18 +238,19 @@ void WriteController::setSubMode(SubMode mode)
     stateDidChange();
 }
 
-void WriteController::setLayer(ChartLayer l)
+void WriteController::setView(EditorView v)
 {
-    if (currentLayer == l) return;
-    currentLayer = l;
-    state.setProperty(kWriteChartLayer, layerToString(l), nullptr);
+    if (currentView == v) return;
+    currentView = v;
+    state.setProperty(kEditorView, viewToString(v), nullptr);
     stateDidChange();
 }
 
-// Meta is skipped until text-event authoring exists, so the cycle cannot land somewhere inert.
-void WriteController::cycleLayer()
+void WriteController::setLaneTool(bool on)
 {
-    setLayer(currentLayer == ChartLayer::Note ? ChartLayer::Phrase : ChartLayer::Note);
+    if (laneToolFlag == on) return;
+    laneToolFlag = on;
+    stateDidChange();
 }
 
 void WriteController::setPhraseTarget(PhraseTarget t)
@@ -437,7 +442,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 {
     double clickQN = snapQN(p.rawProjectQN);
 
-    if (currentLayer == ChartLayer::Phrase)
+    if (laneToolFlag)
     {
         handleBeginPhrase(p, trackIdx, clickQN);
         return;
@@ -552,7 +557,7 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
 
     if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
     {
-        if (currentLayer == ChartLayer::Phrase)
+        if (laneToolFlag)
         {
             // Created rather than chain-extended: a phrase has no gem under it to extend.
             for (int pitch : sustainDragTarget.pitches)
@@ -857,7 +862,7 @@ bool WriteController::onKeyPress(const juce::KeyPress& key)
     {
         case WriteCommand::ToggleWriteMode: setWriteModeActive(!writeModeActive()); return true;
         case WriteCommand::ToggleSubMode:   setSubMode(subMode() == SubMode::Draw ? SubMode::Edit : SubMode::Draw); return true;
-        case WriteCommand::CycleLayer:      cycleLayer();                                     return true;
+        case WriteCommand::ToggleLaneTool:  setLaneTool(!laneTool());                         return true;
         case WriteCommand::ToggleSnap:      setSnapEnabled(!snapEnabled());                   return true;
         case WriteCommand::StepDown:        setStepDivision(std::max(1, stepDivision() / 2)); return true;
         case WriteCommand::StepUp:          setStepDivision(stepDivision() * 2);              return true;

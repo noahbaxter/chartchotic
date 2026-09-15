@@ -210,13 +210,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, targetQN)));
     };
     // Qualified because the constructor's own `state` parameter shadows the member here.
-    utilityStrip.onLayerToggled = [this](const juce::String& key, bool on)
+    utilityStrip.onFollowChanged = [this](bool on)
     {
-        this->state.setProperty(key, on, nullptr);
-    };
-    utilityStrip.onEditModeChanged = [this](int mode)
-    {
-        this->state.setProperty("stripEditMode", mode, nullptr);
+        this->state.setProperty("stripFollow", on, nullptr);
     };
     utilityStrip.onSongRenamed = [this](double startQN, const juce::String& name)
     {
@@ -226,28 +222,6 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         if (!writer->setSongName(startQN, name.toStdString())) return;
 
         // The name lives on the EVENTS item, so the strip only sees it after a re-read.
-        if (auto* session = audioProcessor.getInstrumentSession())
-        {
-            const auto& tracks = session->getTracks();
-            for (int i = 0; i < (int)tracks.size(); ++i)
-                if (tracks[i].part == Part::EVENTS)
-                    session->invalidateTrack(i);
-        }
-    };
-    utilityStrip.onSectionsEdited =
-        [this](const std::vector<UtilityStripComponent::SectionEdit>& edits)
-    {
-        auto* writer = audioProcessor.getReaperMidiProvider().getWriter();
-        if (writer == nullptr || !writer->isAvailable()) return;
-
-        std::vector<MidiWriter::SectionInfo> out;
-        out.reserve(edits.size());
-        for (const auto& e : edits)
-            out.push_back({ e.qn, e.name.toStdString() });
-
-        if (!writer->setSections(out)) return;
-
-        // The EVENTS track has to be re-read for the strip to show what just landed.
         if (auto* session = audioProcessor.getInstrumentSession())
         {
             const auto& tracks = session->getTracks();
@@ -463,7 +437,19 @@ void ChartchoticAudioProcessorEditor::onFrame()
                 sources.push_back(src);
             }
         }
+
+        // Phrases belong to one part, and the strip shows the one the mouse is working in.
+        int focus = effectiveFocusSlot();
+        if (focus < (int)sources.size())
+            utilityStrip.setPhraseSource(sources[(size_t)focus].notes, sources[(size_t)focus].part);
+        else
+            utilityStrip.setPhraseSource(nullptr, Part::GUITAR);
+
         utilityStrip.setNoteSources(std::move(sources));
+
+        // The view is a write-mode overlay, so with write mode off the strip reads as Notes.
+        utilityStrip.setEditorView(interactionController.writeModeActive()
+                                   ? interactionController.view() : EditorView::Notes);
 
         utilityStrip.setPlaying(audioProcessor.isPlaying);
         utilityStrip.setPlayhead(lastKnownPosition);
@@ -1293,14 +1279,8 @@ void ChartchoticAudioProcessorEditor::loadState()
         });
     }
 
-    // Restore the utility strip's layer toggles. Only keys that were actually saved are
-    // applied, so a layer added later comes up on its own default rather than off.
-    for (const auto& key : utilityStrip.layerKeys())
-        if (state.hasProperty(key))
-            utilityStrip.setLayerOn(key, (bool)state[key]);
-
-    if (state.hasProperty("stripEditMode"))
-        utilityStrip.setEditModeIndex((int)state["stripEditMode"]);
+    if (state.hasProperty("stripFollow"))
+        utilityStrip.setFollowOn((bool)state["stripFollow"]);
 
     // Restore highway length (apply per-instrument scale)
     {
