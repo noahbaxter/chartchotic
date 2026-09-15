@@ -164,6 +164,15 @@ TrackTextEvents ReaperMidiProvider::getAllTextEventsFromTrack(int trackIndex)
     return noteFetcher->fetchAllTextEvents(trackIndex);
 }
 
+std::vector<ReaperMidiProvider::ReaperItemSpan>
+ReaperMidiProvider::getItemSpansFromTrack(int trackIndex)
+{
+    if (!noteFetcher)
+        return {};
+
+    return noteFetcher->fetchItemSpans(trackIndex);
+}
+
 double ReaperMidiProvider::getCurrentPlayPosition()
 {
     if (!reaperApiInitialized || !apis.GetPlayPosition2Ex)

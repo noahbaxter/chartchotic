@@ -1,5 +1,6 @@
 #include "WriteController.h"
 #include "../Midi/Utils/MidiConstants.h"
+#include "../Midi/Utils/GridMath.h"
 #include <limits>
 
 namespace
@@ -320,7 +321,7 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
         // existing duration across when we land on the same note.
         auto existing = findNote(sustainDragTrackIdx, sustainPendingClickQN, sustainDragTarget.single());
         double duration = (existing.noteIndex >= 0
-                           && std::abs(existing.startQN - sustainPendingClickQN) < kQNEpsilon)
+                           && GridMath::same(existing.startQN, sustainPendingClickQN))
                         ? existing.endQN - existing.startQN : 0.0;
         placeNote(sustainDragTrackIdx, sustainPendingClickQN,
                   sustainDragTarget.single(), sustainDragLane, resolveVelocity(), duration);
@@ -423,7 +424,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         // hit note also means clicking further along a sustain body creates a
         // new note at that step, which previously fell through and did nothing.
         double duration = 0.0;
-        if (onExistingNote && std::abs(p.hitNoteStartQN - clickQN) < kQNEpsilon)
+        if (onExistingNote && GridMath::same(p.hitNoteStartQN, clickQN))
         {
             auto found = findNote(trackIdx, p.hitNoteStartQN, pitch);
             if (found.noteIndex >= 0) duration = found.endQN - found.startQN;
@@ -578,15 +579,15 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
     double hi = std::max(fromQN, toQN);
 
     double firstStep = snapToStep(lo, currentStepDivision, currentTuplet);
-    if (firstStep < lo - 0.001) firstStep += spacing;
+    if (GridMath::before(firstStep, lo)) firstStep += spacing;
 
-    for (double qn = firstStep; qn <= hi + 0.001; qn += spacing)
+    for (double qn = firstStep; !GridMath::after(qn, hi); qn += spacing)
     {
         double snapped = snapToStep(qn, currentStepDivision, currentTuplet);
 
         bool alreadyPainted = false;
         for (const auto& pn : paintedNotes)
-            if (std::abs(pn.qn - snapped) < 0.001) { alreadyPainted = true; break; }
+            if (GridMath::same(pn.qn, snapped)) { alreadyPainted = true; break; }
         if (alreadyPainted) continue;
 
         if (!stamp.empty())
@@ -627,7 +628,7 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
                                          : resolveActivePitch(lane);
             if (pitch < 0) continue;
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
-            if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
+            if (pre.noteIndex >= 0 && GridMath::same(pre.startQN, snapped))
                 continue;
             placeNote(paintDragTrackIdx, snapped, pitch, paintLane, resolveVelocity());
             paintedNotes.push_back({ snapped, paintLane });
@@ -642,7 +643,7 @@ void WriteController::paintShrinkTo(double lo, double hi)
     bool drums = isDrums();
     for (auto it = paintedNotes.begin(); it != paintedNotes.end(); )
     {
-        if (it->qn < lo - 0.001 || it->qn > hi + 0.001)
+        if (GridMath::before(it->qn, lo) || GridMath::after(it->qn, hi))
         {
             if (!stamp.empty())
             {
@@ -716,7 +717,7 @@ void WriteController::handleEndErase()
             // inside it. Erasing a head is not a reason to shorten its
             // neighbour.
             if (eraseClickedNoteQN >= 0.0
-                && std::abs(cn.note.endQN - eraseClickedNoteQN) < kQNEpsilon)
+                && GridMath::same(cn.note.endQN, eraseClickedNoteQN))
                 continue;
             truncateNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch, cn.lane);
         }

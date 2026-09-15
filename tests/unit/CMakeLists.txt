@@ -29,6 +29,11 @@ target_sources(unit_tests PRIVATE
     test_instrument_mapper.cpp
     test_authoring_config.cpp
     test_track_resolver.cpp
+    test_song_sections.cpp
+    test_song_list.cpp
+    test_strip_view_math.cpp
+    test_grid_math.cpp
+    test_events_track_text.cpp
     test_frame.cpp
     ${SOURCE_ROOT}/Editor/AuthoringConfig.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp

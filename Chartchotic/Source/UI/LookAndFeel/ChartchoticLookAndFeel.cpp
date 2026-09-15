@@ -19,7 +19,19 @@ ChartchoticLookAndFeel::ChartchoticLookAndFeel()
     setColour(juce::TextButton::buttonColourId, juce::Colour(Theme::darkBgLighter));
     setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::textWhite));
     setColour(juce::TextButton::textColourOnId, juce::Colour(Theme::textWhite));
+
+    setColour(juce::PopupMenu::backgroundColourId, juce::Colour(Theme::darkBg));
+    setColour(juce::PopupMenu::textColourId, juce::Colour(Theme::textWhite));
+    setColour(juce::PopupMenu::headerTextColourId, juce::Colour(Theme::textDim));
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(Theme::coral));
+    setColour(juce::PopupMenu::highlightedTextColourId, juce::Colour(Theme::textWhite));
 }
+
+juce::Font ChartchoticLookAndFeel::getPopupMenuFont()
+{
+    return Theme::getUIFont(popupMenuPt);
+}
+
 
 //==============================================================================
 // ToggleButton (used by debug panels)

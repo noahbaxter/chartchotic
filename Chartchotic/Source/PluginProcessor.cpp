@@ -474,8 +474,11 @@ void ChartchoticAudioProcessor::requestTimelinePositionChange(PPQ newPosition)
         // Use REAPER's SetEditCurPos to move the edit cursor
         if (auto* reaper_SetEditCurPos = (void(*)(double, bool, bool))getReaperApi("SetEditCurPos"))
         {
+            // seekplay, the third argument, is what makes a click land while the transport
+            // is running: without it the edit cursor moves and playback carries on from
+            // wherever it already was.
             double timeInSeconds = reaperMidiProvider.ppqToTime(newPosition.toDouble());
-            reaper_SetEditCurPos(timeInSeconds, true, false);
+            reaper_SetEditCurPos(timeInSeconds, true, true);
         }
     }
     // For non-REAPER hosts, we can't directly control playback position

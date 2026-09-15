@@ -1,6 +1,8 @@
 #include "InstrumentSession.h"
 #include "Utils/InstrumentMapper.h"
 
+#include <algorithm>
+
 const std::vector<MidiCache::CachedNote> InstrumentSession::emptyNotes;
 const TrackTextEvents InstrumentSession::emptyTextEvents;
 const DiscoFlipState InstrumentSession::emptyDiscoFlip;
@@ -103,15 +105,48 @@ void InstrumentSession::setDiscovery(std::unique_ptr<TrackDiscovery> newDiscover
     discovery = std::move(newDiscovery);
 }
 
+// Clips overlap across tracks — guitar, drums and EVENTS all cover the same song — so the
+// union is what matters: one span per chart on the timeline, whatever it is made of.
+void InstrumentSession::rebuildClipSpans()
+{
+    std::vector<ClipSpan> all;
+    for (const auto& td : trackData)
+        all.insert(all.end(), td.clipSpans.begin(), td.clipSpans.end());
+
+    std::sort(all.begin(), all.end(),
+              [](const ClipSpan& a, const ClipSpan& b) { return a.startQN < b.startQN; });
+
+    clipSpans.clear();
+    for (const auto& span : all)
+    {
+        if (!clipSpans.empty() && span.startQN <= clipSpans.back().endQN)
+            clipSpans.back().endQN = std::max(clipSpans.back().endQN, span.endQN);
+        else
+            clipSpans.push_back(span);
+    }
+}
+
 void InstrumentSession::fetchTrackData(int idx)
 {
     auto& td = trackData[idx];
     td.notes = provider->fetchNotes(tracks[idx]);
     td.textEvents = provider->fetchTextEvents(tracks[idx]);
+    td.clipSpans = provider->fetchClipSpans(tracks[idx]);
     td.discoFlipState.buildFromTextEvents(td.textEvents);
     td.strictHatPedalState.buildFromTextEvents(td.textEvents);
     td.starPowerState.buildFromNotes(td.notes, InstrumentMapper::starPowerPitch(tracks[idx].part));
     td.lastHash = provider->getTrackHash(tracks[idx]);
+
+    // Song-scoped, so it lives on the session rather than the track it happens to come from.
+    // The song list is built from this track's own spans rather than the merged ones: the
+    // merge is what would collapse an album item and the per-song items inside it into one.
+    if (tracks[idx].part == Part::EVENTS)
+    {
+        songSections.buildFromTextEvents(td.textEvents);
+        songs.buildFromSpans(td.clipSpans);
+    }
+
+    rebuildClipSpans();
 }
 
 void InstrumentSession::invalidateTrack(int trackIdx)

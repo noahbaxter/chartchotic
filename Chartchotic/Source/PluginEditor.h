@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <map>
 #include <set>
@@ -16,6 +17,7 @@
 #include "PluginProcessor.h"
 #include "Visual/HighwaySlot.h"
 #include "Visual/TrackImageCache.h"
+#include "Visual/UtilityStripComponent.h"
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/ChartTypes.h"
 #include "Midi/Utils/TimeConverter.h"
@@ -57,6 +59,41 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
+        // Ahead of the write-mode keys: the strip is editor chrome, not an authoring tool,
+        // so it toggles whether or not write mode is on.
+        if (!key.getModifiers().isAnyModifierKeyDown())
+        {
+            if (key.getKeyCode() == 'U') { toggleUtilityStrip(); return true; }
+            if (key.getKeyCode() == 'M' && utilityStripVisible)
+            {
+                utilityStrip.toggleZoom();
+                return true;
+            }
+
+            // Next to the view toggle because they are the same kind of thing: getting
+            // around the project rather than editing it. Brackets would have been the
+            // obvious pair, but write mode owns those for the step division.
+            if (key.getKeyCode() == ',' && utilityStripVisible)
+            {
+                utilityStrip.gotoAdjacentChart(-1);
+                return true;
+            }
+            if (key.getKeyCode() == '.' && utilityStripVisible)
+            {
+                utilityStrip.gotoAdjacentChart(1);
+                return true;
+            }
+        }
+
+        // Delete is routed by what is selected rather than by who holds focus. The strip is
+        // a surface you dip into, so taking keyboard focus on click would cost the highway
+        // its write-mode keys for the rest of the gesture.
+        if (key.getKeyCode() == juce::KeyPress::deleteKey
+            || key.getKeyCode() == juce::KeyPress::backspaceKey)
+        {
+            if (utilityStripVisible && utilityStrip.deleteSelection()) return true;
+        }
+
         if (interactionController.onKeyPress(key))
             return true;
 
@@ -226,6 +263,72 @@ private:
     // (top-left, just below the toolbar). Click toggles write mode; key
     // shortcuts (W/Q) still work via WriteController.
     WriteModeIcon writeModeIcon;
+
+    // Song-scoped time axis beside the highways. Toggleable, so the grid reflows for it
+    // rather than reserving space.
+    UtilityStripComponent utilityStrip;
+    bool utilityStripVisible = true;
+    static constexpr int utilityStripMargin = 6;
+
+    // The strip is a unit with a shape of its own, not a fixed slab. Width takes a share of
+    // the editor and everything the strip draws is sized off it, but the aspect bounds hold
+    // that share to a column: a short wide window gets no stubby fat ruler, a tall narrow
+    // one no hairline. Same fit-it-into-the-space move the toolbar and the bemani highways
+    // make, run on both ends.
+    static constexpr double utilityStripWidthRatio = 0.14;
+    static constexpr double utilityStripMinAspect = 0.16;  // width:height, floor
+    static constexpr double utilityStripMaxAspect = 0.38;  // width:height, ceiling
+    // The aspect floor pushes width up on a tall window, which is the one direction it can
+    // eat the highway, so the share it may take of the editor caps it either way.
+    static constexpr double utilityStripMaxShare = 0.22;
+    static constexpr int utilityStripMinWidth = 170;
+    static constexpr int utilityStripMaxWidth = 420;
+
+    // Resolved in resized() before any geometry derives from it.
+    int utilityStripWidth = utilityStripMinWidth;
+
+    int computeUtilityStripWidth() const
+    {
+        double byAspect = juce::jlimit(getHeight() * utilityStripMinAspect,
+                                       getHeight() * utilityStripMaxAspect,
+                                       getWidth() * utilityStripWidthRatio);
+        double capped = std::min(byAspect, getWidth() * utilityStripMaxShare);
+        return juce::jlimit(utilityStripMinWidth, utilityStripMaxWidth,
+                            juce::roundToInt(capped));
+    }
+
+    void toggleUtilityStrip()
+    {
+        utilityStripVisible = !utilityStripVisible;
+        state.setProperty("showUtilityStrip", utilityStripVisible, nullptr);
+        resized();
+    }
+
+    // The section the playhead is inside, spelled over the highway the way the games title
+    // it. It rides on the strip: no strip, or sections filtered off there, and it is gone.
+    bool sectionBannerVisible = true;
+
+    void toggleSectionBanner()
+    {
+        sectionBannerVisible = !sectionBannerVisible;
+        state.setProperty("showSectionBanner", sectionBannerVisible, nullptr);
+        repaint();
+    }
+
+    void drawSectionBanner(juce::Graphics& g);
+    int drawBannerLine(juce::Graphics& g, const juce::String& name, float size, int left, int y);
+
+    static constexpr float sectionBannerHeightRatio = 0.034f;
+    static constexpr float sectionBannerMinPt = 13.0f;
+    static constexpr float sectionBannerTopGap = 0.5f;    // of its own text height
+    static constexpr int sectionBannerShadowPx = 2;
+    // Enough below the section to read as its heading rather than as a second title.
+    static constexpr float songBannerScale = 0.62f;
+    static constexpr float bannerLineGap = 1.15f;         // of the line's own text height
+    // The white the logo sets CHART in, over the shadow it needs to stay readable on
+    // whatever background art is loaded.
+    inline static const juce::Colour sectionBannerText = juce::Colour(Theme::textWhite);
+    inline static const juce::Colour sectionBannerShadow = juce::Colour(0x99000000);
 
     //==============================================================================
     // UI Elements

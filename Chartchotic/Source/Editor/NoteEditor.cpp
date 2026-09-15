@@ -1,6 +1,7 @@
 #include "NoteEditor.h"
 #include "AuthoringTypes.h"
 #include "AuthoringConfig.h"
+#include "../Midi/Utils/GridMath.h"
 
 #include "../Midi/Providers/MidiWriter.h"
 #include "../Midi/InstrumentSession.h"
@@ -97,7 +98,7 @@ bool NoteEditor::chainExtendNotes(int trackIdx, double startQN, double endQN, in
     if (!midiWriter || !instrumentSession) return false;
 
     auto prev = midiWriter->findNote(trackIdx, startQN, pitch);
-    if (prev.noteIndex >= 0 && prev.startQN < startQN - kQNEpsilon)
+    if (prev.noteIndex >= 0 && GridMath::before(prev.startQN, startQN))
     {
         if (batchActive)
             midiWriter->batchMoveNote(trackIdx, prev.noteIndex, prev.startQN, startQN, pitch);
@@ -110,8 +111,8 @@ bool NoteEditor::chainExtendNotes(int trackIdx, double startQN, double endQN, in
 
     double lastNoteEnd = endQN;
     auto tail = midiWriter->findNote(trackIdx, endQN, pitch);
-    if (tail.noteIndex >= 0 && tail.startQN > notes.back().startQN + kQNEpsilon
-        && tail.startQN < endQN + kQNEpsilon)
+    if (tail.noteIndex >= 0 && GridMath::after(tail.startQN, notes.back().startQN)
+        && !GridMath::after(tail.startQN, endQN))
         lastNoteEnd = tail.startQN;
 
     bool changed = false;
@@ -175,7 +176,7 @@ double NoteEditor::resolveOverlaps(int trackIdx, double startQN, double endQN, i
     if (!midiWriter) return endQN;
 
     auto prev = midiWriter->findNote(trackIdx, startQN, pitch);
-    if (prev.noteIndex >= 0 && prev.startQN < startQN - kQNEpsilon)
+    if (prev.noteIndex >= 0 && GridMath::before(prev.startQN, startQN))
     {
         if (batchActive)
             midiWriter->batchMoveNote(trackIdx, prev.noteIndex, prev.startQN, startQN, pitch);
@@ -186,7 +187,7 @@ double NoteEditor::resolveOverlaps(int trackIdx, double startQN, double endQN, i
     auto inRange = midiWriter->findNotesInRange(trackIdx, startQN, endQN, pitch);
     for (const auto& n : inRange)
     {
-        if (n.startQN > startQN + kQNEpsilon)
+        if (GridMath::after(n.startQN, startQN))
         {
             endQN = n.startQN;
             break;
@@ -204,10 +205,10 @@ void NoteEditor::resolveOverlapsAt(int trackIdx, double startQN, int pitch)
     for (;;)
     {
         auto atPos = midiWriter->findNotesInRange(trackIdx,
-            startQN - kQNEpsilon, startQN + kQNEpsilon, pitch);
+            startQN - GridMath::TICK, startQN + GridMath::TICK, pitch);
         int count = 0;
         for (const auto& n : atPos)
-            if (std::abs(n.startQN - startQN) <= kQNEpsilon) count++;
+            if (GridMath::same(n.startQN, startQN)) count++;
         if (count <= 1) break;
 
         auto dup = midiWriter->findNote(trackIdx, startQN, pitch);
@@ -220,10 +221,10 @@ void NoteEditor::resolveOverlapsAt(int trackIdx, double startQN, int pitch)
         std::max(0.0, startQN - kSustainLookbackQN), startQN, pitch);
     for (const auto& n : before)
     {
-        if (n.startQN < startQN - kQNEpsilon && n.endQN > startQN + kQNEpsilon)
+        if (GridMath::before(n.startQN, startQN) && GridMath::after(n.endQN, startQN))
         {
             auto pred = midiWriter->findNote(trackIdx, n.startQN, pitch);
-            if (pred.noteIndex >= 0 && pred.startQN < startQN - kQNEpsilon)
+            if (pred.noteIndex >= 0 && GridMath::before(pred.startQN, startQN))
                 midiWriter->batchMoveNote(trackIdx, pred.noteIndex, pred.startQN, startQN, pitch);
         }
     }
@@ -233,10 +234,10 @@ void NoteEditor::resolveOverlapsAt(int trackIdx, double startQN, int pitch)
     if (self.noteIndex >= 0)
     {
         auto ahead = midiWriter->findNotesInRange(trackIdx,
-            startQN + kQNEpsilon, self.endQN + kQNEpsilon, pitch);
+            startQN + GridMath::TICK, self.endQN + GridMath::TICK, pitch);
         for (const auto& a : ahead)
         {
-            if (a.startQN > startQN + kQNEpsilon)
+            if (GridMath::after(a.startQN, startQN))
             {
                 midiWriter->batchMoveNote(trackIdx, self.noteIndex,
                     self.startQN, a.startQN, pitch);
