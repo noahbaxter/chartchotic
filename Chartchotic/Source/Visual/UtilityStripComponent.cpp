@@ -26,14 +26,18 @@ namespace
 
     // Lines are drawn per chunk, not per bar. A bar line every bar is a grey wash at any
     // useful zoom; 4 or 8 bars reads as a ruler. The chunk grows until it has room.
+    //
+    // It shrinks below a bar too, once there is room for that. Snapping follows whatever is
+    // drawn, so this is also what decides the finest position the strip can place a section
+    // at: floored at one bar, a section on beat 3 was simply not expressible.
     constexpr float CHUNK_MIN_GAP_PX = 26.0f;
 
-    int chunkBars(double pxPerBar)
+    // One beat, which is what a bar is `num` of. Only equal to a quarter of a bar in 4/4.
+    double beatLengthQN(const TempoTimeSignatureMap* map, double qn)
     {
-        for (int chunk : { 1, 2, 4, 8, 16, 32, 64 })
-            if (chunk * pxPerBar >= CHUNK_MIN_GAP_PX)
-                return chunk;
-        return 128;
+        if (map == nullptr || map->empty()) return 1.0;
+        auto state = TempoTimeSignatureEventHelper::getEffectiveStateAtPPQ(*map, PPQ(qn));
+        return 4.0 / (double)std::max(1, state.timeSigDenominator);
     }
 
     MouseButton buttonOf(const juce::MouseEvent& e)
@@ -206,23 +210,53 @@ UtilityStripComponent::View UtilityStripComponent::visibleRange() const
 
 // Numbers only appear where they mean something: section starts, and wherever the cursor
 // is. Numbering every chunk was the obnoxious version.
-void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, int measure,
-                                              bool emphasised) const
+juce::String UtilityStripComponent::positionLabel(double qn) const
+{
+    int measure = measureAtQN(qn);
+    if (tempoMap == nullptr) return juce::String(measure);
+
+    auto mb = TempoTimeSignatureEventHelper::pPqToMeasureBeat(PPQ(qn), *tempoMap);
+
+    // A downbeat is just the bar. The shared formatter appends ".1" to every one of them,
+    // which is noise on a bar line and is its own long-standing wart rather than something
+    // worth inheriting here.
+    if (std::abs(mb.beatInMeasure - 1.0) < TempoTimeSignatureEventHelper::beatTick)
+        return juce::String(measure);
+
+    // The strip's own measure rather than the formatter's, so the beat is appended to the
+    // same bar number the rest of the strip counts by and the two can never disagree.
+    return TempoTimeSignatureEventHelper::formatMeasureBeat(measure, mb.beatInMeasure);
+}
+
+void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, double qn,
+                                              NumberWeight weight) const
 {
     if (!filterOn(2)) return;
 
     auto font = Theme::getUIFont(MEASURE_PT);
-    g.setFont(emphasised ? font.boldened() : font);
+    g.setFont(weight == NumberWeight::Cursor ? font.boldened() : font);
     // Above its line, like every other label here: time runs upward, so a number sitting
     // below its line reads as belonging to the bar before it.
-    auto text = juce::String(measure);
+    auto text = positionLabel(qn);
     int tw = g.getCurrentFont().getStringWidth(text) + 8;
     int tx = getWidth() - tw - 3;
     int ty = (int)y - 14;
 
-    g.setColour(UtilityColours::background.withAlpha(0.8f));
-    g.fillRect(tx, ty, tw, 12);
-    g.setColour(emphasised ? UtilityColours::uiText : UtilityColours::measureText);
+    // A ruler number is scenery: no plate behind it, and faint enough that it never competes
+    // with a section start or the cursor. Those two keep the plate, which is what makes them
+    // readable over the note map wherever they land.
+    if (weight != NumberWeight::Grid)
+    {
+        g.setColour(UtilityColours::background.withAlpha(0.8f));
+        g.fillRect(tx, ty, tw, 12);
+    }
+
+    g.setColour(weight == NumberWeight::Cursor
+                    ? UtilityColours::uiText
+                    : weight == NumberWeight::Grid
+                        ? UtilityColours::measureText.withAlpha(GRID_NUMBER_ALPHA)
+                        : UtilityColours::measureText);
+
     g.drawText(text, tx, ty, tw, 12, juce::Justification::centred, false);
 }
 
@@ -232,17 +266,26 @@ int UtilityStripComponent::measureAtQN(double qn) const
                     : (int)(qn / 4.0) + 1;
 }
 
-int UtilityStripComponent::sectionStartMeasure(double qn) const
+// Where the 4/8/16 chunk grouping restarts: the last structural edge at or before `qn`. A
+// section start is one, and so is a chart's own start and end. Counting bars across the gap
+// between two charts puts the groupings on beats that mean nothing in either of them, and a
+// chart that does not begin on a section start would inherit the one before it otherwise.
+int UtilityStripComponent::groupAnchorMeasure(double qn) const
 {
-    auto measureAt = [this](double q)
-    {
-        return tempoMap ? TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(q), *tempoMap)
-                        : (int)(q / 4.0) + 1;
-    };
+    double anchor = -1.0;
 
-    if (sections == nullptr) return 1;
-    const auto* s = sections->sectionAt(PPQ(qn));
-    return s != nullptr ? measureAt(s->position.toDouble()) : 1;
+    if (sections != nullptr)
+        if (const auto* s = sections->sectionAt(PPQ(qn)))
+            anchor = s->position.toDouble();
+
+    if (songs != nullptr)
+        for (const auto& song : songs->getSongs())
+        {
+            if (song.startQN <= qn) anchor = std::max(anchor, song.startQN);
+            if (song.endQN <= qn)   anchor = std::max(anchor, song.endQN);
+        }
+
+    return anchor >= 0.0 ? measureAtQN(anchor) : 1;
 }
 
 // Bar lines are walked rather than divided. Bar length is not constant (Embedded has a 6/4
@@ -262,24 +305,40 @@ double UtilityStripComponent::barLineAtOrBefore(double qn) const
 
 // How many bars a drawn grid line is worth at this zoom. Snapping and the ruler read the
 // same number, so you can only ever land on a line you can see.
-int UtilityStripComponent::visibleChunk(const View& v) const
+double UtilityStripComponent::visibleChunk(const View& v) const
 {
-    double len = barLengthQN(tempoMap, v.startQN);
-    double pxPerBar = trackHeight() * len / std::max(1.0e-6, v.endQN - v.startQN);
-    return chunkBars(pxPerBar);
+    double pxPerQN = trackHeight() / std::max(1.0e-6, v.endQN - v.startQN);
+
+    return StripViewMath::gridStepQN(barLengthQN(tempoMap, v.startQN),
+                                     beatLengthQN(tempoMap, v.startQN),
+                                     pxPerQN, CHUNK_MIN_GAP_PX);
 }
 
 // Walked from zero like every other grid question here, because chunk lines are counted in
 // measures from the section they are in, not in QN from the origin.
 double UtilityStripComponent::chunkLineAtOrBefore(double qn, const View& v) const
 {
-    int chunk = visibleChunk(v);
+    double step = visibleChunk(v);
+    double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
+
+    // Below a bar the answer is inside the bar `qn` falls in, so there is nothing to walk:
+    // beats are counted from that bar's own start, which keeps them right across a meter
+    // change instead of drifting from the origin.
+    if (step < barLen - GridMath::TICK)
+    {
+        double barStart = barLineAtOrBefore(qn);
+        double past = std::floor((qn - barStart) / step + 1.0e-9);
+
+        return barStart + std::max(0.0, past) * step;
+    }
+
+    int chunk = std::max(1, (int)std::lround(step / barLen));
     double cur = 0.0;
     double best = 0.0;
 
     for (int guard = 0; guard < MAX_BARS_WALKED && cur <= qn; ++guard)
     {
-        if ((measureAtQN(cur) - sectionStartMeasure(cur)) % chunk == 0) best = cur;
+        if ((measureAtQN(cur) - groupAnchorMeasure(cur)) % chunk == 0) best = cur;
         cur += std::max(0.25, barLengthQN(tempoMap, cur));
     }
     return best;
@@ -327,33 +386,61 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
     g.setColour(UtilityColours::hoverLine);
     g.fillRect(0.0f, y, w, 1.5f);
 
-    drawMeasureNumber(g, y, measureAtQN(barQN), true);
+    drawMeasureNumber(g, y, barQN, NumberWeight::Cursor);
 }
 
 void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) const
 {
-    int chunk = visibleChunk(v);
+    double step = visibleChunk(v);
 
     const float w = (float)getWidth();
+    const float top = (float)trackTop();
+    const float bottom = top + (float)trackHeight();
 
     for (double qn = barLineAtOrBefore(std::max(0.0, v.startQN)); qn <= v.endQN;
          qn += std::max(0.25, barLengthQN(tempoMap, qn)))
     {
         float y = (float)yForQN(qn, v);
-        if (y < (float)trackTop() || y > (float)(trackTop() + trackHeight())) continue;
 
         int measure = tempoMap ? TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(qn), *tempoMap)
                                : (int)(qn / 4.0) + 1;
 
         // Counted from the section that contains this bar, so the 4/8/16 groupings land on
         // musical boundaries instead of wherever bar 1 happened to put them.
-        int barsIn = measure - sectionStartMeasure(qn);
-        if (barsIn % chunk != 0) continue;
+        int barsIn = measure - groupAnchorMeasure(qn);
+
+        double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
+        bool subBar = step < barLen - GridMath::TICK;
+        int chunk = std::max(1, (int)std::lround(step / barLen));
+
+        // Subdivisions go down first and dimmer, so the bar they belong to still reads as the
+        // stronger line. Without that separation the eye loses where the bars are entirely.
+        if (subBar)
+        {
+            g.setColour(UtilityColours::subBarLine);
+            for (double sub = qn + step; sub < qn + barLen - GridMath::TICK; sub += step)
+            {
+                float sy = (float)yForQN(sub, v);
+                if (sy < top || sy > bottom) continue;
+
+                g.fillRect(0.0f, sy, w, 1.0f);
+            }
+        }
+        else if (barsIn % chunk != 0) continue;
+
+        if (y < top || y > bottom) continue;
 
         // Every fourth chunk is heavier, so the eye can count groups without reading numbers.
-        bool major = (barsIn / chunk) % 4 == 0;
+        // Below a bar the bar itself is that grouping, so every fourth bar takes the weight.
+        int group = subBar ? barsIn : barsIn / chunk;
+        bool major = group % 4 == 0;
+
         g.setColour(major ? UtilityColours::chunkLineBig : UtilityColours::chunkLine);
         g.fillRect(0.0f, y, w, major ? 2.0f : 1.0f);
+
+        // Only the heavy lines get a number, and only faintly. Numbering every chunk was the
+        // obnoxious version; numbering none of them left the ruler with nothing to read off.
+        if (major) drawMeasureNumber(g, y, qn, NumberWeight::Grid);
     }
 }
 
@@ -837,7 +924,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         // The number belongs to the name beside it, so it goes when the name goes.
         bool labelled = !plates[i].isEmpty();
         if (labelled && qn >= v.startQN && qn <= v.endQN)
-            drawMeasureNumber(g, y, measureAtQN(qn), false);
+            drawMeasureNumber(g, y, qn, NumberWeight::Section);
 
         bool selected = isSelected((int)i);
         bool underCursor = GridMath::same(qn, hoverQN);
@@ -903,7 +990,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
                                 top + (float)trackHeight() - STICKY_HOVER_LINE_H);
             g.setColour(UtilityColours::hoverLine);
             g.fillRect(0.0f, ly, w, STICKY_HOVER_LINE_H);
-            drawMeasureNumber(g, ly, measureAtQN(qn), true);
+            drawMeasureNumber(g, ly, qn, NumberWeight::Cursor);
         }
     }
 }
