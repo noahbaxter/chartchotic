@@ -51,6 +51,9 @@ namespace UtilityColours
     inline const juce::Colour border       = juce::Colour(0xFF303036);
     inline const juce::Colour chunkLine    = juce::Colour(0xFF3A3A42);
     inline const juce::Colour chunkLineBig = juce::Colour(0xFF56565F);
+    // Below a bar. A clear step under the bar line it sits inside, because a subdivision
+    // drawn at the same weight as a bar line loses you the bars altogether.
+    inline const juce::Colour subBarLine   = juce::Colour(0xFF26262C);
     // Structure stays neutral like the neck; the section label is the one accent.
     inline const juce::Colour sectionLine  = juce::Colour(0xFF6E8FB5);
     // Faint on purpose: the band sits under the note map, so anything heavier reads as a
@@ -386,7 +389,9 @@ private:
     double snappedBarQN(int y, const View& v) const;
     double barLineAtOrBefore(double qn) const;
     double chunkLineAtOrBefore(double qn, const View& v) const;
-    int visibleChunk(const View& v) const;
+    // The grid step in quarter notes at this zoom. Below a bar it is a beat, or a division
+    // of one, rather than a fraction of the bar.
+    double visibleChunk(const View& v) const;
     // Everywhere shift+scroll will stop, sorted and deduped. Chart edges, section edges, and
     // out past the charts, the scraps of MIDI that sit on their own.
     std::vector<double> snapPoints() const;
@@ -508,10 +513,20 @@ private:
 
     void drawHover(juce::Graphics& g, const View& v) const;
 
-    // Measure the containing section starts on, or 1 before the first section.
-    int sectionStartMeasure(double qn) const;
+    // Measure of the last structural edge at or before `qn`: a section start, or a chart
+    // start or end. What the chunk grouping counts from.
+    int groupAnchorMeasure(double qn) const;
     int measureAtQN(double qn) const;
-    void drawMeasureNumber(juce::Graphics& g, float y, int measure, bool emphasised) const;
+    // "6" on a downbeat, "6.2" on a beat, "6.2.5" off one. Takes a position rather than a
+    // measure, because once the grid subdivides the bar number alone stops saying where you
+    // are: every line in the bar would read the same.
+    juce::String positionLabel(double qn) const;
+    // How loudly a position says itself. Grid numbers are scenery on the heavier ruler lines;
+    // a section start and the cursor are events, and those always read clearly.
+    enum class NumberWeight { Grid, Section, Cursor };
+    static constexpr float GRID_NUMBER_ALPHA = 0.5f;
+
+    void drawMeasureNumber(juce::Graphics& g, float y, double qn, NumberWeight weight) const;
 
     // Two targets per section: the name plate renames, the rest of its row jumps to it.
     int sectionHeaderAt(juce::Point<int> p) const;

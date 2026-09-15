@@ -102,6 +102,32 @@ inline View spanAbout(View v, double anchor, double spanQN,
     return clamp(held - anchor * span, span, projectEndQN, minSpanQN);
 }
 
+// The grid step in quarter notes: the finest step that still leaves `minGapPx` between lines,
+// so the grid densifies as you zoom in and thins as you zoom out without ever becoming a wash.
+//
+// Below a bar the unit is the BEAT, not a fraction of the bar. Those are the same thing only
+// in 4/4: splitting a bar in four puts a line every two beats of 8/8 and every three of 12/8,
+// and a line that does not sit on a beat cannot be named by one, which is how a quarter-bar
+// grid ends up labelled 5.3, 5.5, 5.7. Snapping follows whatever is drawn, so this also
+// decides the finest position the strip can place anything at.
+inline double gridStepQN(double barQN, double beatQN, double pxPerQN, double minGapPx)
+{
+    if (barQN <= 0.0 || beatQN <= 0.0 || pxPerQN <= 0.0) return std::max(barQN, 1.0);
+
+    // Finest first. A "beat" as long as the bar is just the bar, so it falls through.
+    for (double div : { 4.0, 2.0, 1.0 })
+    {
+        double step = beatQN / div;
+        if (step >= barQN) continue;
+        if (step * pxPerQN >= minGapPx) return step;
+    }
+
+    for (double bars : { 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0 })
+        if (bars * barQN * pxPerQN >= minGapPx) return bars * barQN;
+
+    return 128.0 * barQN;
+}
+
 // A stretch of timeline with something in it.
 struct NoteSpan
 {
