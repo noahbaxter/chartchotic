@@ -44,7 +44,11 @@ public:
 
     std::string getTrackHash(const InstrumentTrackInfo& track) override
     {
-        return reaperProvider.getTrackHash(track.sourceTrackIndex, true);
+        // Sections and [coda] are text events, so a notes-only hash cannot see them change
+        // and an undo of a section edit goes unnoticed. EVENTS carries no notes at all, so
+        // hashing its full state costs nothing worth saving.
+        bool notesOnly = track.part != Part::EVENTS;
+        return reaperProvider.getTrackHash(track.sourceTrackIndex, notesOnly);
     }
 
 private:
