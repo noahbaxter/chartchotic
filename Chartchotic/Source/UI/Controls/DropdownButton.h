@@ -2,12 +2,16 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
+#include "PopupMenuButton.h"
 
 // One-of-many picker that shows only the current choice, for a row too tight for every option
-// to sit side by side. Click opens a menu, the wheel steps through the items in place.
+// to sit side by side. Click opens the app's own panel below it, the wheel steps through the
+// items in place.
 class DropdownButton : public juce::Component
 {
 public:
+    ~DropdownButton() override { closePanel(); }
+
     void setItems(const juce::StringArray& labels) { items = labels; repaint(); }
 
     void setSelectedIndex(int index)
@@ -28,11 +32,11 @@ public:
     {
         auto bounds = getLocalBounds().toFloat().reduced(1.0f);
         auto cornerSize = (cornerRadius >= 0.0f) ? cornerRadius : Theme::pillCorner;
-        bool hovering = isMouseOver();
+        bool lit = isMouseOver() || panel != nullptr;
 
-        g.setColour(juce::Colour(hovering ? Theme::darkBgHover : Theme::darkBg));
+        g.setColour(juce::Colour(lit ? Theme::darkBgHover : Theme::darkBg));
         g.fillRoundedRectangle(bounds, cornerSize);
-        g.setColour(accent.withAlpha(hovering ? 0.8f : 0.5f));
+        g.setColour(accent.withAlpha(lit ? 0.8f : 0.5f));
         g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
 
         const float arrowW = bounds.getHeight() * ARROW_W_RATIO;
@@ -55,17 +59,8 @@ public:
     void mouseUp(const juce::MouseEvent& e) override
     {
         if (!getLocalBounds().contains(e.getPosition()) || items.isEmpty()) return;
-
-        juce::PopupMenu menu;
-        for (int i = 0; i < items.size(); ++i)
-            menu.addItem(i + 1, items[i], true, i == selectedIndex);
-
-        juce::Component::SafePointer<DropdownButton> safe(this);
-        menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
-                           [safe](int result)
-                           {
-                               if (safe != nullptr && result > 0) safe->choose(result - 1);
-                           });
+        if (panel != nullptr) closePanel();
+        else                  openPanel();
     }
 
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& wheel) override
@@ -81,6 +76,104 @@ public:
 private:
     static constexpr float ARROW_W_RATIO = 0.9f;     // of the height
     static constexpr float ARROW_SIZE_RATIO = 0.25f; // of the arrow column
+    static constexpr float PANEL_PAD_RATIO = 0.18f;  // of a row, around the list
+    static constexpr int PANEL_GAP = 4;              // px between button and panel
+
+    class Row : public juce::Component
+    {
+    public:
+        Row(DropdownButton& o, int i) : owner(o), index(i) {}
+
+        void paint(juce::Graphics& g) override
+        {
+            auto r = getLocalBounds().toFloat();
+            bool selected = index == owner.selectedIndex;
+
+            if (selected || isMouseOver())
+            {
+                g.setColour(selected ? owner.accent : juce::Colour(Theme::darkBgHover));
+                g.fillRoundedRectangle(r, Theme::pillCorner);
+            }
+
+            g.setColour(juce::Colour(selected || isMouseOver() ? Theme::textWhite : Theme::textDim));
+            g.setFont(Theme::controlFont);
+            g.drawText(owner.items[index], r.toNearestInt(), juce::Justification::centred);
+        }
+
+        void mouseEnter(const juce::MouseEvent&) override { repaint(); }
+        void mouseExit(const juce::MouseEvent&) override  { repaint(); }
+
+        // Deferred, because choosing closes the panel and that deletes this row.
+        void mouseUp(const juce::MouseEvent& e) override
+        {
+            if (!getLocalBounds().contains(e.getPosition())) return;
+            juce::Component::SafePointer<DropdownButton> safe(&owner);
+            int chosen = index;
+            juce::MessageManager::callAsync([safe, chosen] {
+                if (safe == nullptr) return;
+                safe->closePanel();
+                safe->choose(chosen);
+            });
+        }
+
+    private:
+        DropdownButton& owner;
+        int index;
+    };
+
+    void openPanel()
+    {
+        auto* topLevel = Theme::getOverlayParent(this);
+        if (topLevel == nullptr) return;
+
+        panel = std::make_unique<PopupPanel>();
+        panel->setOutlined(false);
+
+        const int rowH = getHeight();
+        const int pad = juce::roundToInt(rowH * PANEL_PAD_RATIO);
+        int textW = 0;
+        for (const auto& item : items)
+            textW = juce::jmax(textW, juce::roundToInt(Theme::controlFont.getStringWidthFloat(item)));
+
+        const int w = juce::jmax(getWidth(), textW + rowH + pad * 2);
+        panel->setSize(w, items.size() * rowH + pad * 2);
+
+        for (int i = 0; i < items.size(); ++i)
+        {
+            auto row = std::make_unique<Row>(*this, i);
+            row->setBounds(pad, pad + i * rowH, w - pad * 2, rowH);
+            panel->getContent().addAndMakeVisible(*row);
+            rows.push_back(std::move(row));
+        }
+
+        // Under the button, held inside the window.
+        auto below = topLevel->getLocalPoint(this, juce::Point<int>(0, getHeight() + PANEL_GAP));
+        int x = juce::jlimit(0, juce::jmax(0, topLevel->getWidth() - w), below.x);
+        panel->setTopLeftPosition(x, below.y);
+
+        topLevel->addAndMakeVisible(panel.get());
+        panel->onContentLaidOut();
+
+        panel->onOutsideMouseDown = [this](const juce::MouseEvent& e) {
+            // The button's own click toggles it shut on mouse up.
+            if (e.eventComponent == this) return;
+            juce::Component::SafePointer<DropdownButton> safe(this);
+            juce::MessageManager::callAsync([safe] { if (safe != nullptr) safe->closePanel(); });
+        };
+        overlayParent = topLevel;
+        overlayParent->addMouseListener(panel.get(), true);
+        repaint();
+    }
+
+    void closePanel()
+    {
+        if (panel == nullptr) return;
+        if (overlayParent != nullptr) overlayParent->removeMouseListener(panel.get());
+        overlayParent = nullptr;
+        rows.clear();
+        panel.reset();
+        repaint();
+    }
 
     void choose(int index)
     {
@@ -94,4 +187,8 @@ private:
     int selectedIndex = 0;
     juce::Colour accent { Theme::coral };
     float cornerRadius = -1.0f;
+
+    std::unique_ptr<PopupPanel> panel;
+    std::vector<std::unique_ptr<Row>> rows;
+    juce::Component::SafePointer<juce::Component> overlayParent;
 };
