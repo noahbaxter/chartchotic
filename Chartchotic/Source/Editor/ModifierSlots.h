@@ -74,9 +74,10 @@ inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type, bool laneTool
         case RenderType::FIVE_LANE_DRUMS:
         case RenderType::ELITE_DRUMS:
         {
+            // Soft to loud, so normal sits between the two it is the middle of.
             std::vector<ModifierSlot> slots = {
-                { ModifierGroup::Dynamic, (int)DrumDynamic::Normal, "normal" },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Ghost,  "ghost"  },
+                { ModifierGroup::Dynamic, (int)DrumDynamic::Normal, "normal" },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Accent, "accent" },
             };
             const auto* cfg = getAuthoringConfig(type);

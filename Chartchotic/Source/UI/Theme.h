@@ -22,6 +22,10 @@ public:
     static constexpr juce::uint32 textDim       = 0xFFAAAAAA;
     static constexpr juce::uint32 toolbarBg     = 0xCC111111;
     static constexpr juce::uint32 sceneBg      = 0xFF000000;
+    // The utility strip's neutral ground and hairline, shared by the write bar so the two
+    // read as one set of chrome.
+    static constexpr juce::uint32 panelNeutralBg   = 0xFF121214;
+    static constexpr juce::uint32 panelNeutralLine = 0xFF303036;
 
     // Accent palette (matches logo dot cluster)
     static constexpr juce::uint32 green  = 0xFF5CB85C;

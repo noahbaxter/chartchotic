@@ -809,6 +809,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         forEachHighway([](auto& hw) { hw.repaint(); });
     };
 
+    toolbar.getWriteSubToolbar().setAssetManager(&assetManager);
     toolbar.getWriteSubToolbar().onHoverHelp = [this](const HelpText& h) {
         footer.setHelpText(h);
     };
