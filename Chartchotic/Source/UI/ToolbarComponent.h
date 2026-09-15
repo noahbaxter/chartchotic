@@ -59,6 +59,16 @@ public:
     void setPanelTopMargin(int m) { chartButton.setPanelTopMargin(m); settingsButton.setPanelTopMargin(m); }
     void setPanelBottomMargin(int m) { chartButton.setPanelBottomMargin(m); settingsButton.setPanelBottomMargin(m); }
 
+    // Keeps the sub-toolbar row clear of the utility strip below it, so the strip can run
+    // the full height of the window instead of being pushed down every time write mode
+    // comes on. The editor owns the strip's width, so it is the one that sets this.
+    void setSubToolbarLeftInset(int px)
+    {
+        if (subToolbarLeftInset == px) return;
+        subToolbarLeftInset = px;
+        resized();
+    }
+
     // Reset instrument selector to simple Guitar/Drums (for discovery-off mode)
     void resetToManualMode();
 
@@ -164,6 +174,7 @@ private:
     InteractionController& interactionController;
     bool reaperMode = false;
     bool multiInstrumentMode = false;
+    int subToolbarLeftInset = 0;
 
     //==============================================================================
     // Top bar — always visible

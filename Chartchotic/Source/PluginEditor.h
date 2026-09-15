@@ -70,6 +70,15 @@ public:
             }
         }
 
+        // Delete is routed by what is selected rather than by who holds focus. The strip is
+        // a surface you dip into, so taking keyboard focus on click would cost the highway
+        // its write-mode keys for the rest of the gesture.
+        if (key.getKeyCode() == juce::KeyPress::deleteKey
+            || key.getKeyCode() == juce::KeyPress::backspaceKey)
+        {
+            if (utilityStripVisible && utilityStrip.deleteSelection()) return true;
+        }
+
         if (interactionController.onKeyPress(key))
             return true;
 

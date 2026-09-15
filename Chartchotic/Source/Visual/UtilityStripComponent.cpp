@@ -88,7 +88,12 @@ namespace
 // chart is the song view with extra steps to get there.
 std::vector<int> UtilityStripComponent::availableZooms() const
 {
-    if (const auto* song = songAtPlayhead()) return availableZoomsFor(song);
+    // The chart on screen when there is one, and otherwise the playhead's, which is what the
+    // session view has to offer a way back into.
+    const auto* inside = enteredSong();
+    if (inside == nullptr) inside = songAtPlayhead();
+
+    if (inside != nullptr) return availableZoomsFor(inside);
 
     // No EVENTS items anywhere, so nothing confines anything: every bar step is available
     // and session means the whole project. The song rung has no song to be.
@@ -144,12 +149,27 @@ void UtilityStripComponent::stepZoom(int direction)
     int index = (int)std::distance(steps.begin(), at) + direction;
     if (index < 0 || index >= (int)steps.size()) return;
 
+    auto before = visibleRange();
+    int wasZoom = zoom;
     zoom = steps[(size_t)index];
+
+    // Stepping in off the session view enters the playhead's chart, the same one aiming a
+    // zoom at it would, so the button and the wheel do not disagree about where you are.
+    if (wasZoom == ZOOM_SESSION && zoom != ZOOM_SESSION) enterSong(songAtPlayhead());
 
     // Arriving at a bar rung from a fixed-span one, the scroll offset is whatever it was
     // last time, which may be nowhere near. Frame the playhead, which is the one position
-    // the view can assume you care about when you did not aim at anything.
-    if (zoom > 0) centreViewOn(playheadPPQ.toDouble());
+    // the view can assume you care about when you did not aim at anything, unless it is in
+    // a different chart from the one on screen: then hold what you were already looking at
+    // rather than slamming to the edge nearest the cursor.
+    if (zoom > 0)
+    {
+        const auto* inside = confiningSong();
+        bool playheadShown = inside == nullptr || songAtPlayhead() == inside;
+
+        centreViewOn(playheadShown ? playheadPPQ.toDouble()
+                                   : (before.startQN + before.endQN) * 0.5);
+    }
 
     repaint();
 }
@@ -215,25 +235,23 @@ void UtilityStripComponent::zoomAbout(int y, int direction)
     double anchorQN = qnForY(y, before);
     double fromBottom = (trackTop() + trackHeight() - y) / (double)trackHeight();
 
-    // Zooming in from the session view enters the chart under the pointer, at the moment
-    // under the pointer: you aimed at a block, so that is the one you land in, and where in
-    // it you were pointing is where you arrive. The playhead's own chart does not get a say.
+    // Zooming in from the session view enters the chart the playhead is in. The pointer
+    // picks which moment to frame everywhere else, but which chart you are working on is
+    // the one the cursor is already sitting in, whatever the pointer happens to be over.
     if (zoom == ZOOM_SESSION && direction < 0)
     {
-        const auto* target = songAt(anchorQN);
-        if (target == nullptr) return;   // pointing at a gap, so there is nothing to enter
+        const auto* target = songAtPlayhead();
+        if (target == nullptr) return;   // cursor in a gap, so there is nothing to enter
 
-        if (onSeekTo) onSeekTo(anchorQN);
+        enterSong(target);
         setZoom(ZOOM_SONG, target);
         return;
     }
 
     stepZoom(direction);
 
-    // Zooming in is aiming: the point you closed in on becomes the one you are working at,
-    // so the playhead lands there. Zooming out is only widening what you can see, so it
-    // moves nothing.
-    if (direction < 0 && onSeekTo) onSeekTo(clampSeek(anchorQN));
+    // Zooming is looking, in both directions: the point you closed in on decides what the
+    // view frames, not where the cursor goes. Moving the playhead is what clicking is for.
 
     // The song and session views are fixed spans with nothing to slide.
     if (zoom <= 0) return;
@@ -278,8 +296,8 @@ void UtilityStripComponent::drawMeasureNumber(juce::Graphics& g, float y, int me
 {
     if (!filterOn(2)) return;
 
-    g.setFont(juce::Font(juce::FontOptions(10.0f, emphasised ? juce::Font::bold
-                                                             : juce::Font::plain)));
+    auto font = Theme::getUIFont(MEASURE_PT);
+    g.setFont(emphasised ? font.boldened() : font);
     // Above its line, like every other label here: time runs upward, so a number sitting
     // below its line reads as belonging to the bar before it.
     auto text = juce::String(measure);
@@ -375,6 +393,11 @@ double UtilityStripComponent::snappedBarQN(int y, const View& v) const
 void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
 {
     if (hoverY < 0) return;
+
+    // Mid-move the section being dragged is already drawn at the bar it would land on, with
+    // its own line and number. Adding the cursor's own pair on top of it leaves you reading
+    // which of two markers a few pixels apart is the one you are placing.
+    if (dragActive && dragCommand == StripCommand::UpdateMove) return;
 
     // Over the frozen label, that section's own line and number stand in for this one.
     // Two numbers a few pixels apart, one for the bar under the cursor and one for the
@@ -480,11 +503,11 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     if (sections == nullptr || index >= sections->getSections().size()) return {};
     const auto& list = sections->getSections();
     const auto& s = list[index];
-    float y = (float)yForQN(s.position.toDouble(), v);
+    float y = (float)yForQN(s.position.toDouble() + movePreviewQN(index), v);
 
-    juce::Font f(juce::FontOptions(16.0f, juce::Font::bold));
-    int tw = std::min(getWidth() - 12, f.getStringWidth(s.name) + 10);
-    int top = (int)y - LABEL_H - 2;
+    int plateW = std::min(getWidth() - LABEL_INSET_X * 2,
+                          sectionLabelFont().getStringWidth(s.name) + LABEL_TEXT_PAD);
+    int top = (int)y - LABEL_H - LABEL_LINE_GAP;
 
     // The section you are currently inside pins to the bottom once its own line has
     // scrolled past, so its name is always readable and still clickable. The next section
@@ -493,17 +516,22 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     if (index == (size_t)stickyIndex(v))
     {
         float bottom = (float)(trackTop() + trackHeight());
-        float pinned = bottom - LABEL_H - 2;
+        float pinned = bottom - LABEL_H - LABEL_LINE_GAP;
 
         if (index + 1 < list.size())
         {
+            // Clear of the next section's plate, not just of its line. That plate ends 2px
+            // above the line, so pinning to the line leaves the two exactly touching, the
+            // collision pass counts that as an overlap, and one of them is dropped: the next
+            // name blinks out and only comes back once this one has scrolled away. The name
+            // you are scrolling towards is the one that must survive.
             float nextY = (float)yForQN(list[index + 1].position.toDouble(), v);
-            pinned = std::max(pinned, nextY - 2.0f);
+            pinned = std::max(pinned, nextY - (float)LABEL_LINE_GAP + (float)LABEL_MIN_GAP);
         }
         top = std::min(top, (int)pinned);
     }
 
-    return { 3, top, tw + 6, LABEL_H };
+    return { LABEL_INSET_X, top, plateW, LABEL_H };
 }
 
 // Where the charted MIDI stops: the last note end on any mapped part, the end of the last
@@ -536,6 +564,20 @@ double UtilityStripComponent::clipEndAt(double qn) const
         if (qn < span.endQN) return span.endQN;
     }
     return 0.0;
+}
+
+double UtilityStripComponent::chartStartQN() const
+{
+    const auto* song = confiningSong();
+    return song != nullptr ? song->startQN : 0.0;
+}
+
+// clampSeek trims the half-open end off this for anything that seeks, so it can answer the
+// song's own end rather than second-guessing where the last legal tick is.
+double UtilityStripComponent::chartEndQN() const
+{
+    const auto* song = confiningSong();
+    return song != nullptr ? song->endQN : contentEndQN();
 }
 
 double UtilityStripComponent::clampSeek(double qn) const
@@ -638,20 +680,41 @@ std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View&
     plates.assign(list.size(), juce::Rectangle<int>());
 
     const int bottom = trackTop() + trackHeight();
-    int lastTop = bottom + LABEL_MIN_GAP;
-    const int sticky = stickyIndex(v);
 
-    for (size_t i = 0; i < list.size(); ++i)
+    auto clear = [&](const juce::Rectangle<int>& plate)
     {
-        auto plate = sectionHeaderBounds(i, v);
-        if (plate.isEmpty() || plate.getY() > bottom) continue;
+        for (const auto& kept : plates)
+            if (!kept.isEmpty()
+                && plate.getBottom() + LABEL_MIN_GAP > kept.getY()
+                && kept.getBottom() + LABEL_MIN_GAP > plate.getY())
+                return false;
+        return true;
+    };
 
-        // Time runs up the strip, so each plate has to clear the one below it.
-        if ((int)i != sticky && plate.getBottom() + LABEL_MIN_GAP > lastTop) continue;
+    auto place = [&](int i, bool claim)
+    {
+        if (i < 0 || i >= (int)list.size() || !plates[(size_t)i].isEmpty()) return;
 
-        plates[i] = plate;
-        lastTop = plate.getY();
-    }
+        auto plate = sectionHeaderBounds((size_t)i, v);
+        if (plate.isEmpty() || plate.getY() > bottom) return;
+        if (!claim && !clear(plate)) return;
+
+        plates[(size_t)i] = plate;
+    };
+
+    // The section the playhead is in claims its name before anything else can crowd it out.
+    // In a cluster too tight for every label, the one you are inside is the one worth
+    // reading, and it is the only one whose absence you would actually notice.
+    place(litSectionIndex(v), true);
+
+    // The pinned label is the same argument once its own line has scrolled below the view,
+    // but it yields to the playhead's section on the rare frame where they differ.
+    place(stickyIndex(v), false);
+
+    // Everything else, bottom up, first come first served.
+    for (int i = 0; i < (int)list.size(); ++i)
+        place(i, false);
+
     return plates;
 }
 
@@ -834,7 +897,10 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 
     for (size_t i = 0; i < list.size(); ++i)
     {
-        double qn = list[i].position.toDouble();
+        // Where it is drawn, which during a move drag is not where it is stored. Everything
+        // below works in preview space so the line, the name and the bar number travel as
+        // one object under the cursor.
+        double qn = list[i].position.toDouble() + movePreviewQN(i);
         double endQN = sectionEndQN(i, v);
         if (endQN < v.startQN || qn > v.endQN) continue;
 
@@ -851,21 +917,35 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         bool selected = isSelected((int)i);
         bool underCursor = GridMath::same(qn, hoverQN);
 
-        // A move drag previews by shifting the selected markers rather than committing.
-        if (selected && dragActive && dragCommand == StripCommand::UpdateMove)
-            y = (float)yForQN(qn + dragMoveDeltaQN, v);
+        // Editing on draws the grab target instead of implying it: this is the exact
+        // rectangle sectionHeaderAt hit-tests, so the thing you can drag is the thing you
+        // can see. The line stays thin on top of it, because the band says what you can
+        // grab and the line still has to say where the section actually starts.
+        if (sectionEditing())
+        {
+            auto row = sectionRowBounds(i, v);
+            if (!row.isEmpty())
+            {
+                g.setColour(selected      ? UtilityColours::sectionGrabSelected
+                            : underCursor ? UtilityColours::sectionGrabHover
+                                          : UtilityColours::sectionGrab);
+                g.fillRect(row);
+            }
+        }
 
         if (y >= top && y <= top + trackHeight())
         {
             g.setColour(selected     ? UtilityColours::selectedLine
                         : underCursor ? UtilityColours::hoverLine
                                       : UtilityColours::sectionLine);
-            g.fillRect(0.0f, y, w, selected ? 3.0f : 2.0f);
+
+            g.fillRect(0.0f, y, w, SECTION_LINE_H
+                                   + (selected ? SECTION_LINE_SELECTED_EXTRA : 0.0f));
         }
 
         if (!labelled) continue;
 
-        g.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
+        g.setFont(sectionLabelFont());
         // Straight from the hit-test bounds, so a pinned label is clickable where it is
         // drawn rather than where its line would have put it.
         auto plate = plates[i];
@@ -901,20 +981,34 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
             drawMeasureNumber(g, ly, measureAtQN(qn), true);
         }
     }
+}
 
-    if (sections->hasCoda())
+// The mode row. Coloured apart from the layer toggles below it on purpose: one says what the
+// strip draws, the other what the mouse does to it, and confusing the two costs you a chart.
+void UtilityStripComponent::drawModes(juce::Graphics& g) const
+{
+    g.setColour(UtilityColours::background);
+    g.fillRect(0, 0, getWidth(), MODE_ROW_H);
+
+    g.setFont(Theme::getUIFont(FILTER_PT));
+
+    for (int i = 0; i < (int)std::size(MODES); ++i)
     {
-        double qn = sections->getCodaPPQ().toDouble();
-        if (qn >= v.startQN && qn <= v.endQN)
-        {
-            float y = (float)yForQN(qn, v);
-            g.setColour(UtilityColours::codaLine);
-            g.fillRect(0.0f, y, w, 2.0f);
-            g.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
-            g.drawText("coda", 6, (int)y - 21, (int)w - 12, 19,
-                       juce::Justification::centredLeft, true);
-        }
+        auto seg = modeButtonBounds(i).reduced(FILTER_GAP, FILTER_GAP);
+        bool on = editMode == MODES[i].mode;
+
+        g.setColour(on ? UtilityColours::modeActiveFill : UtilityColours::panelFill);
+        g.fillRect(seg);
+        g.setColour(on ? UtilityColours::modeActiveLine : UtilityColours::chunkLine);
+        g.drawRect(seg, 1);
+
+        g.setColour(on ? UtilityColours::modeActiveText : UtilityColours::label);
+        g.drawFittedText(juce::String("edit ") + MODES[i].label, seg.reduced(3, 0),
+                         juce::Justification::centred, 1, 0.7f);
     }
+
+    g.setColour(UtilityColours::border);
+    g.fillRect(0, MODE_ROW_H - 1, getWidth(), 1);
 }
 
 // A segmented row of toggles, each one lit when its layer is on, so what the strip is
@@ -922,9 +1016,9 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 void UtilityStripComponent::drawFilters(juce::Graphics& g) const
 {
     g.setColour(UtilityColours::panelFill);
-    g.fillRect(0, 0, getWidth(), FILTER_ROW_H);
+    g.fillRect(0, MODE_ROW_H, getWidth(), FILTER_ROW_H);
 
-    g.setFont(juce::Font(juce::FontOptions(11.0f)));
+    g.setFont(Theme::getUIFont(FILTER_PT));
 
     for (int i = 0; i < (int)std::size(filters); ++i)
     {
@@ -968,7 +1062,7 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
     g.setColour(UtilityColours::panelFill);
     g.fillRect(0, getHeight() - FOOTER_H, getWidth(), FOOTER_H);
 
-    g.setFont(juce::Font(juce::FontOptions(13.0f)));
+    g.setFont(Theme::getUIFont(FOOTER_BUTTON_PT));
     auto steps = availableZooms();
     bool canOut = !steps.empty() && zoom != steps.back();
     bool canIn  = !steps.empty() && zoom != steps.front();
@@ -982,8 +1076,8 @@ void UtilityStripComponent::drawFooter(juce::Graphics& g) const
         g.drawText(text, r, juce::Justification::centred, false);
     }
 
-    g.setColour(UtilityColours::label);
-    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    g.setColour(UtilityColours::uiText);
+    g.setFont(Theme::getUIFont(FOOTER_LABEL_PT));
     // The two widest rungs are different views rather than wider spans, so they are named
     // rather than counted.
     juce::String extent = zoom == ZOOM_SESSION ? "session"
@@ -1036,7 +1130,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
         // The current bar hangs off the right edge, always visible, so "where am I" never
         // needs a hover. Sits above the line, the direction time runs.
-        g.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        g.setFont(Theme::getUIFont(PLAYHEAD_TAB_PT).boldened());
         auto text = juce::String(measureAtQN(playheadPPQ.toDouble()));
         int tw = g.getCurrentFont().getStringWidth(text) + 12;
         int th = 16;
@@ -1052,6 +1146,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
         g.drawText(text, tab, juce::Justification::centred, false);
     }
 
+    drawModes(g);
     drawFilters(g);
     drawFooter(g);
 
@@ -1065,6 +1160,48 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     double delta = wheel.deltaY != 0.0f ? wheel.deltaY : wheel.deltaX;
     if (delta == 0.0) return;
 
+    int zoomBefore = zoom;
+    double viewBefore = viewStartQN;
+
+    if (e.mods.isCommandDown())
+    {
+        zoomAbout(e.getPosition().y, delta > 0.0 ? -1 : 1);
+    }
+    // Shift skips structure: one notch, one section, which is the jump you actually want
+    // when reading a chart rather than scrubbing through it. The one wheel gesture that
+    // moves the playhead, and it brings the view with it rather than leaving you to find
+    // where it went.
+    //
+    // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
+    // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
+    else if (e.mods.isShiftDown())
+    {
+        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
+        if (onSeekTo) onSeekTo(target);
+        centreViewOn(target);
+    }
+    // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
+    // trackpad glides instead of clacking between bar lines. Snapping lives where it is
+    // aimed, on hover and on click. The playhead does not come along.
+    //
+    // Only a scroll that moved something takes follow out of gear, and only while the
+    // transport is running. Spinning the wheel on a fixed-span view, or against the end of a
+    // chart, is not you asking to read elsewhere. Neither is scrolling while paused: follow
+    // does nothing then and play re-arms it, so the latch would read out of gear over a view
+    // nothing was chasing.
+    else
+    {
+        auto v = visibleRange();
+        double qnPerPx = (v.endQN - v.startQN) / trackHeight();
+
+        if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx) && playing)
+            followEngaged = false;
+    }
+
+    // A notch that moved nothing moved nothing under the pointer either, so the hover it is
+    // already showing is still aimed at what it says. Same test the follow latch uses.
+    if (zoom == zoomBefore && viewStartQN == viewBefore) return;
+
     // The pointer has not moved, but everything under it has. Keeping the hover where the
     // cursor happens to sit means the highlight jumps between sections as they slide past,
     // which reads as the strip flickering rather than scrolling.
@@ -1075,38 +1212,6 @@ void UtilityStripComponent::mouseWheelMove(const juce::MouseEvent& e,
     hoverHeldFrom = e.getPosition();
     hoverHeld = true;
     clearHover();
-
-    if (e.mods.isCommandDown())
-    {
-        zoomAbout(e.getPosition().y, delta > 0.0 ? -1 : 1);
-        return;
-    }
-
-    // Shift skips structure: one notch, one section, which is the jump you actually want
-    // when reading a chart rather than scrubbing through it. The one wheel gesture that
-    // moves the playhead, and it brings the view with it rather than leaving you to find
-    // where it went.
-    //
-    // Deliberately does not drop the follow latch: it is a jump to somewhere specific, not
-    // the reading-ahead that follow gets out of the way of, so playback carries on as it was.
-    if (e.mods.isShiftDown())
-    {
-        double target = clampSeek(sectionStep(delta > 0.0 ? 1 : -1));
-        if (onSeekTo) onSeekTo(target);
-        centreViewOn(target);
-        return;
-    }
-
-    // A bare wheel scrolls the view free of the grid: the wheel's own travel, scaled, so a
-    // trackpad glides instead of clacking between bar lines. Snapping lives where it is
-    // aimed, on hover and on click. The playhead does not come along.
-    //
-    // Only a scroll that moved something takes follow out of gear. Spinning the wheel on a
-    // fixed-span view, or against the end of a chart, is not you asking to read elsewhere.
-    auto v = visibleRange();
-    double qnPerPx = (v.endQN - v.startQN) / trackHeight();
-
-    if (scrollViewBy(delta * WHEEL_PIXELS_PER_UNIT * qnPerPx)) followEngaged = false;
 }
 
 // The next section line from the playhead in `direction`, or where we already are when
@@ -1123,7 +1228,11 @@ double UtilityStripComponent::sectionStep(int direction) const
     {
         for (const auto& s : list)
             if (GridMath::after(s.position.toDouble(), now)) return s.position.toDouble();
-        return now;
+
+        // Past the last section, so the end of the chart is the next thing worth stopping
+        // at. Without this the wheel dies on the final section and the tail of the chart is
+        // only reachable by scrubbing.
+        return chartEndQN();
     }
 
     // Landing on the current section's own start is the right answer once, the way a
@@ -1138,7 +1247,9 @@ double UtilityStripComponent::sectionStep(int direction) const
             from = start;
     }
 
-    double best = now;
+    // Seeded at the chart's start so stepping back off the first section lands there rather
+    // than staying put, the mirror of running off the last one onto the end.
+    double best = chartStartQN();
     for (const auto& s : list)
     {
         if (!GridMath::before(s.position.toDouble(), from)) break;
@@ -1158,11 +1269,42 @@ std::vector<UtilityStripComponent::SectionEdit> UtilityStripComponent::currentEd
 
 void UtilityStripComponent::commitSections(std::vector<SectionEdit> edits)
 {
+    // Held by position rather than by index, because sorting renumbers everything after a
+    // move. Without this a drag deselects the section you just dragged, so moving one and
+    // then deleting it takes two separate clicks on the same object.
+    std::vector<double> wasSelected;
+    for (int i : selection)
+        if (i >= 0 && i < (int)edits.size()) wasSelected.push_back(edits[(size_t)i].qn);
+
     std::sort(edits.begin(), edits.end(),
               [](const SectionEdit& a, const SectionEdit& b) { return a.qn < b.qn; });
+
     if (onSectionsEdited) onSectionsEdited(edits);
+
     selection.clear();
+    for (double qn : wasSelected)
+        for (int i = 0; i < (int)edits.size(); ++i)
+            if (GridMath::same(edits[(size_t)i].qn, qn)) { selection.push_back(i); break; }
+
     repaint();
+}
+
+bool UtilityStripComponent::deleteSelection()
+{
+    if (selection.empty() || sections == nullptr) return false;
+
+    auto edits = currentEdits();
+
+    // Highest index first, so each erase leaves the lower ones where they were.
+    auto doomed = selection;
+    std::sort(doomed.begin(), doomed.end(), std::greater<int>());
+
+    for (int i : doomed)
+        if (i >= 0 && i < (int)edits.size()) edits.erase(edits.begin() + i);
+
+    selection.clear();
+    commitSections(std::move(edits));
+    return true;
 }
 
 void UtilityStripComponent::beginRename(int index)
@@ -1176,6 +1318,9 @@ void UtilityStripComponent::beginRename(int index)
     auto plate = sectionHeaderBounds((size_t)index, v);
 
     renameEditor = std::make_unique<juce::TextEditor>();
+    // The same face and size as the label it sits on top of, so the name does not jump as
+    // it goes from drawn to editable.
+    renameEditor->setFont(sectionLabelFont());
     renameEditor->setText(sections->getSections()[(size_t)index].name, false);
     renameEditor->selectAll();
     renameEditor->setBounds(plate.withWidth(std::max(90, getWidth() - plate.getX() - 6)));
@@ -1330,6 +1475,9 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
             auto edits = currentEdits();
             if (object >= 0)
             {
+                // Cleared first, or the commit tries to re-select by a position that is
+                // about to belong to a different section.
+                selection.clear();
                 edits.erase(edits.begin() + object);
                 commitSections(std::move(edits));
             }
@@ -1357,6 +1505,7 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
             if (object >= 0)
             {
                 auto edits = currentEdits();
+                selection.clear();
                 edits.erase(edits.begin() + object);
                 commitSections(std::move(edits));
             }
@@ -1427,6 +1576,15 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 
     if (renameEditor != nullptr) commitRename();
 
+    // Clicking the mode you are already in leaves it, so the same button arms and disarms
+    // rather than needing somewhere else to click to get back to plain navigation.
+    for (int i = 0; i < (int)std::size(MODES); ++i)
+        if (modeButtonBounds(i).contains(p))
+        {
+            setEditMode(editMode == MODES[i].mode ? EditMode::None : MODES[i].mode);
+            return;
+        }
+
     for (int i = 0; i < (int)std::size(filters); ++i)
         if (filterButtonBounds(i).contains(p))
         {
@@ -1441,6 +1599,7 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
             }
 
             filters[i].on = !filters[i].on;
+            if (onLayerToggled) onLayerToggled(filters[i].key, filters[i].on);
 
             // Switching follow back on puts it in gear too, so it never reads on while
             // doing nothing.
@@ -1514,9 +1673,9 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
 {
     if (!inTrackArea(e.getPosition())) return;
 
-    // Opening a song means landing the playhead in it and stepping in, since which song you
-    // are in follows the playhead. The name is not part of the target: double clicking there
-    // is two renames, not a way in.
+    // Opening a song lands the playhead at its start, because a click is the gesture that
+    // moves the cursor. The name is not part of the target: double clicking there is two
+    // renames, not a way in.
     if (songOverview() && songNameAt(e.getPosition()) < 0)
     {
         int chunk = songChunkAt(e.getPosition());
@@ -1524,6 +1683,7 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
         if (song != nullptr)
         {
             if (onSeekTo) onSeekTo(song->startQN);
+            enterSong(song);
             setZoom(DEFAULT_ZOOM_BARS, song);
             return;
         }

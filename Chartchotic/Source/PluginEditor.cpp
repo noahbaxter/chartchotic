@@ -209,6 +209,15 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     {
         audioProcessor.requestTimelinePositionChange(PPQ(std::max(0.0, targetQN)));
     };
+    // Qualified because the constructor's own `state` parameter shadows the member here.
+    utilityStrip.onLayerToggled = [this](const juce::String& key, bool on)
+    {
+        this->state.setProperty(key, on, nullptr);
+    };
+    utilityStrip.onEditModeChanged = [this](int mode)
+    {
+        this->state.setProperty("stripEditMode", mode, nullptr);
+    };
     utilityStrip.onSongRenamed = [this](double startQN, const juce::String& name)
     {
         auto* writer = audioProcessor.getReaperMidiProvider().getWriter();
@@ -456,7 +465,6 @@ void ChartchoticAudioProcessorEditor::onFrame()
         }
         utilityStrip.setNoteSources(std::move(sources));
 
-        utilityStrip.setWriteMode(interactionController.writeModeActive());
         utilityStrip.setPlaying(audioProcessor.isPlaying);
         utilityStrip.setPlayhead(lastKnownPosition);
         utilityStrip.repaint();
@@ -1075,13 +1083,18 @@ void ChartchoticAudioProcessorEditor::resized()
     // highways reflow around it rather than sitting under it.
     int stripW = utilityStripVisible ? utilityStripWidth : 0;
     utilityStrip.setVisible(utilityStripVisible);
+
+    // The sub-toolbar starts where the strip ends, so turning write mode on no longer
+    // shortens the strip to make room for a row it does not overlap anyway.
+    toolbar.setSubToolbarLeftInset(stripW);
+
     if (utilityStripVisible)
     {
-        // Inset from the window edge and the toolbar so the strip reads as a panel rather
-        // than as part of the chrome it sits against.
-        utilityStrip.setBounds(utilityStripMargin, tbHeight + utilityStripMargin,
+        // Hung off the top row alone rather than the whole toolbar: the sub-toolbar sits
+        // beside the strip now, so counting its height here would give back the squish.
+        utilityStrip.setBounds(utilityStripMargin, tbStripHeight + utilityStripMargin,
                                stripW - utilityStripMargin * 2,
-                               getHeight() - tbHeight - footerH - utilityStripMargin * 2);
+                               getHeight() - tbStripHeight - footerH - utilityStripMargin * 2);
         utilityStrip.toFront(false);
     }
 
@@ -1277,6 +1290,15 @@ void ChartchoticAudioProcessorEditor::loadState()
             hw.showHighway = hwy;
         });
     }
+
+    // Restore the utility strip's layer toggles. Only keys that were actually saved are
+    // applied, so a layer added later comes up on its own default rather than off.
+    for (const auto& key : utilityStrip.layerKeys())
+        if (state.hasProperty(key))
+            utilityStrip.setLayerOn(key, (bool)state[key]);
+
+    if (state.hasProperty("stripEditMode"))
+        utilityStrip.setEditModeIndex((int)state["stripEditMode"]);
 
     // Restore highway length (apply per-instrument scale)
     {

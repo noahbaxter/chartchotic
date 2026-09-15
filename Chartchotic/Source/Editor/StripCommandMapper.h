@@ -112,6 +112,9 @@ public:
             { StripMode::Write, EventType::Drag, MouseButton::Left, none, true,  needsTarget, StripCommand::UpdateMove },
             { StripMode::Write, EventType::Up,   MouseButton::Left, none, true,  needsTarget, StripCommand::CommitMove },
 
+            // Write on never transports. A click that moved the playhead every time you
+            // meant to deselect made placing sections a fight, and the wheel still gets you
+            // anywhere in the chart, so nothing is lost by taking it off the mouse button.
             { StripMode::Write, EventType::Down, MouseButton::Left, none, false, needsTarget, StripCommand::BeginMarquee },
             { StripMode::Write, EventType::Drag, MouseButton::Left, none, false, needsTarget, StripCommand::UpdateMarquee },
             { StripMode::Write, EventType::Up,   MouseButton::Left, none, false, needsTarget, StripCommand::CommitMarquee },

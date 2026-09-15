@@ -551,8 +551,9 @@ void ToolbarComponent::resized()
     if (interactionController.writeModeActive())
     {
         int subH = getHeight() - stripH;
+        int subX = juce::jlimit(0, getWidth(), subToolbarLeftInset);
         writeSubToolbar.setVisible(true);
-        writeSubToolbar.setBounds(0, stripH, getWidth(), subH);
+        writeSubToolbar.setBounds(subX, stripH, getWidth() - subX, subH);
     }
     else
     {

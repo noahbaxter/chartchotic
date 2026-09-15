@@ -5,7 +5,8 @@
         Author: Noah Baxter
 
         Vertical time-axis strip beside the highways, for everything that is not a
-        gem on a lane: sections, [coda], and (later) star power, solo and fill.
+        gem on a lane: sections, and (later) star power, solo and fill. [coda] is the
+        BRE tool's to draw, since that is the only thing its position means anything to.
 
         Zoom runs from 8 bars up to the whole song, then out to the session: every
         chart on the timeline, drawn as a block each. The view scrolls on its own and
@@ -21,6 +22,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <optional>
 #include "../Midi/SongSections.h"
 #include "../Midi/SongList.h"
 #include "../Midi/Utils/TimeConverter.h"   // defines TempoTimeSignatureMap, which the helper assumes
@@ -32,6 +34,7 @@
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "../UI/ControlConstants.h"
+#include "../UI/Theme.h"
 
 // Neutral and dark, in the same family as the neck rather than a UI blue.
 namespace UtilityColours
@@ -54,7 +57,6 @@ namespace UtilityColours
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
     inline const juce::Colour hoverLine    = juce::Colour(0xFFBFD4EC);
     inline const juce::Colour measureText  = juce::Colour(0xFF5E5E68);
-    inline const juce::Colour codaLine     = juce::Colour(0xFFC98A5A);
     inline const juce::Colour playhead     = juce::Colour(0xFFFFFFFF);
     // The bar-number tab is a readout, not the playhead itself, so it sits a good way
     // below white: a solid white plate that size is the brightest thing on the strip.
@@ -73,6 +75,16 @@ namespace UtilityColours
     inline const juce::Colour followHeldFill = juce::Colour(0x3AD8B65A);
     inline const juce::Colour followHeldLine = juce::Colour(0xFFD8B65A);
     inline const juce::Colour followHeldText = juce::Colour(0xFFE8CE96);
+    // An armed edit mode, which changes what the mouse does rather than what is drawn. Green
+    // so it cannot be mistaken for a lit layer toggle or for follow being out of gear.
+    inline const juce::Colour modeActiveFill = juce::Colour(0x3A4FB06A);
+    inline const juce::Colour modeActiveLine = juce::Colour(0xFF4FB06A);
+    inline const juce::Colour modeActiveText = juce::Colour(0xFFA8E2BA);
+    // The draggable band behind a section while section editing is on, sized to the hit test
+    // rather than to the line. Translucent so the note map underneath still reads.
+    inline const juce::Colour sectionGrab         = juce::Colour(0x242F5F96);
+    inline const juce::Colour sectionGrabHover    = juce::Colour(0x453E77B8);
+    inline const juce::Colour sectionGrabSelected = juce::Colour(0x5A4E8FD8);
 
 }
 
@@ -87,11 +99,15 @@ public:
     {
         playheadPPQ = ppq;
 
-        // Playing off the end of a chart leaves nothing to be confined to, and every rung
-        // below session is a view of one song. Dropping to session is what zooming out would
-        // do anyway, and it beats holding a song rung with no song to show.
-        if (zoom != ZOOM_SESSION && hasSongs() && songAtPlayhead() == nullptr)
-            zoom = ZOOM_SESSION;
+        // Playing out of the chart on screen leaves the strip showing somewhere the music no
+        // longer is, so it drops to session, which is what zooming out would do anyway. Only
+        // while the transport runs: with it stopped, a chart the cursor is not in is one you
+        // are reading, not one you have left.
+        if (playing && zoom != ZOOM_SESSION && hasSongs())
+        {
+            const auto* inside = confiningSong();
+            if (inside == nullptr || songAtPlayhead() != inside) zoom = ZOOM_SESSION;
+        }
 
         if (playing && followOn() && followEngaged) centreViewOn(ppq.toDouble());
     }
@@ -131,11 +147,13 @@ public:
     // none, or when the strip's own sections filter is off.
     juce::String currentSectionName() const;
 
-    // The chart the playhead is in, for the banner over the highway. Empty only in the gap
-    // between two charts, where there is genuinely no chart to name.
+    // The chart on screen, for the banner over the highway, falling back to the playhead's
+    // in the session view. Empty only in the gap between two charts.
     juce::String currentSongName() const
     {
-        const auto* song = songAtPlayhead();
+        const auto* song = confiningSong();
+        if (song == nullptr) song = songAtPlayhead();
+
         return song != nullptr ? song->name : juce::String();
     }
 
@@ -168,9 +186,9 @@ public:
         setZoom(zoom == ZOOM_SESSION ? DEFAULT_ZOOM_BARS : ZOOM_SESSION);
     }
 
-    // Zooming keeps the moment under the pointer where it is, the way a map does. The strip
-    // has no scroll offset of its own, so holding that point still means moving the
-    // playhead, which is the same thing scrolling the strip already does.
+    // Zooming keeps the moment under the pointer where it is, the way a map does, by moving
+    // the view rather than the playhead. Entering a chart from the session view is the one
+    // exception, since which chart the strip is in is read off the playhead.
     void zoomAbout(int y, int direction);
 
     // Scrolling the map seeks, freely: the wheel's travel scaled by the visible span, so
@@ -187,13 +205,58 @@ public:
     // Naming a song names its EVENTS item, addressed by where the item starts.
     std::function<void(double startQN, const juce::String& name)> onSongRenamed;
 
-    void setWriteMode(bool on)
+    // A layer toggle flipped, for saving it alongside the other view toggles. Follow's latch
+    // is deliberately not reported: what you asked for persists, where you are does not.
+    std::function<void(const juce::String& key, bool on)> onLayerToggled;
+
+    // Drops the selected sections. Answers false when nothing was selected, which is what
+    // lets the editor offer the delete key on to the highway instead.
+    bool deleteSelection();
+
+    // Every layer's saved key, so restoring can walk the layers without a second list to
+    // keep in step with this one. A layer with nothing saved keeps its built-in default,
+    // which is why there is no defaults list to hand out.
+    std::vector<juce::String> layerKeys() const
     {
-        if (writeMode == on) return;
-        writeMode = on;
+        std::vector<juce::String> keys;
+        for (const auto& f : filters) keys.push_back(f.key);
+
+        return keys;
+    }
+
+    // Unknown keys are ignored, so a project saved with a layer that no longer exists still
+    // opens rather than tripping over its own state.
+    void setLayerOn(const juce::String& key, bool on)
+    {
+        for (auto& f : filters)
+            if (key == f.key) { f.on = on; return; }
+    }
+
+    // What the strip lets you edit. Its own axis, deliberately not the highway's write mode:
+    // the two surfaces author different things, and turning on note editing has no business
+    // taking the playhead off the strip's mouse button.
+    enum class EditMode { None, Sections };
+
+    void setEditMode(EditMode mode)
+    {
+        if (editMode == mode) return;
+        editMode = mode;
         selection.clear();
+        if (onEditModeChanged) onEditModeChanged((int)editMode);
         repaint();
     }
+
+    EditMode getEditMode() const { return editMode; }
+
+    // Restore only. Out-of-range values fall back to None rather than throwing, so state
+    // saved by a build with more modes than this one still opens.
+    void setEditModeIndex(int index)
+    {
+        editMode = index == (int)EditMode::Sections ? EditMode::Sections : EditMode::None;
+        selection.clear();
+    }
+
+    std::function<void(int mode)> onEditModeChanged;
 
     StripCommandMapper& commandMapper() { return mapper; }
 
@@ -212,6 +275,7 @@ private:
     // Pixels of map travel per unit of wheel delta. JUCE's own viewport rate (14px of a
     // 16px step), so the strip scrolls at the speed everything else in the OS does.
     static constexpr double WHEEL_PIXELS_PER_UNIT = 224.0;
+
     // How long after landing on a section's start a second step back means the section
     // before it rather than that same start again. Long enough to press twice deliberately,
     // short enough that coming back later restarts the section you are listening to.
@@ -224,25 +288,56 @@ private:
     static constexpr float CLIP_EDGE_DASH = 4.0f;
     // A section within this of a clip edge counts as marking it, so the two never double up.
     static constexpr double CLIP_EDGE_TOLERANCE_QN = 0.01;
-    static constexpr int FOOTER_H = 20;
-    static constexpr int BUTTON_W = 18;
+    // The zoom readout and the song name are the two things you read from across the room
+    // while charting, so both are sized past the strip's own label scale.
+    static constexpr int FOOTER_H = 28;
+    static constexpr int BUTTON_W = 24;
+    static constexpr float FOOTER_BUTTON_PT = 16.0f;
+    static constexpr float FOOTER_LABEL_PT = 12.0f;
+
+    // Every size the strip draws text at, in one place and all through Theme::getUIFont, so
+    // the panel uses the app's typeface rather than whatever JUCE defaults to.
+    static constexpr float SECTION_LABEL_PT = 16.0f;
+    static constexpr float FILTER_PT = 11.0f;
+    static constexpr float MEASURE_PT = 10.0f;
+    static constexpr float PLAYHEAD_TAB_PT = 11.0f;
     // One row of segments across the top rather than a list you expand: four toggles fit
     // the width, and a panel that has to be opened to see what is on hides its own state.
     static constexpr int FILTER_ROW_H = 22;
+    // The mode row sits above the layer toggles and is deliberately a separate control: one
+    // says what the strip draws, the other what a drag does to it.
+    static constexpr int MODE_ROW_H = 22;
     static constexpr int FILTER_GAP = 2;
 
-    struct Filter { const char* label; bool on; };
+    // The key is what the layer is saved under, spelled out rather than derived from the
+    // label so that renaming what the button says cannot silently orphan saved state.
+    struct Filter { const char* label; const char* key; bool on; };
     // Sections are the reason the strip exists, so they are on and stay first. Follow is a
     // behaviour rather than something drawn, but this block is the strip's only switch panel
     // and a toggle nobody can find is a toggle nobody turns off.
-    Filter filters[4] = { { "sections", true }, { "notes", false },
-                          { "measures", true }, { "follow", true } };
+    Filter filters[4] = { { "sections", "stripSections", true },
+                          { "notes",    "stripNotes",    true  },
+                          { "measures", "stripMeasures", true },
+                          { "follow",   "stripFollow",   true } };
 
     static constexpr int FILTER_FOLLOW = 3;
 
     bool filterOn(int i) const { return filters[i].on; }
 
-    int filterAreaHeight() const { return FILTER_ROW_H; }
+    int filterAreaHeight() const { return MODE_ROW_H + FILTER_ROW_H; }
+
+    struct ModeButton { const char* label; EditMode mode; };
+    static constexpr ModeButton MODES[] = { { "sections", EditMode::Sections } };
+
+    juce::Rectangle<int> modeButtonBounds(int i) const
+    {
+        int count = (int)std::size(MODES);
+        int w = getWidth() / count;
+        bool last = i == count - 1;
+        return { i * w, 0, last ? getWidth() - i * w : w, MODE_ROW_H };
+    }
+
+    void drawModes(juce::Graphics& g) const;
 
     struct View { double startQN, endQN; };
     View visibleRange() const;
@@ -293,6 +388,12 @@ private:
     double contentEndQN() const;
     double clipEndAt(double qn) const;
 
+    // The ends of the chart you are in. Where a section step lands when there is no section
+    // left to reach that way, so the wheel walks off the first and last section onto the
+    // start and end of the chart rather than sticking to them.
+    double chartStartQN() const;
+    double chartEndQN() const;
+
     // Every seek the strip issues goes through here, so a picked song bounds scrubbing,
     // clicking and section stepping alike rather than only one of them.
     double clampSeek(double qn) const;
@@ -316,7 +417,7 @@ private:
     // Measured and drawn through the same call, or a plate sized with one font and filled
     // with another ellipsises names that would have fit.
     static juce::Font sectionLabelFont()
-    { return juce::Font(juce::FontOptions(16.0f, juce::Font::bold)); }
+    { return Theme::getUIFont(SECTION_LABEL_PT).boldened(); }
 
     // The song covering `qn`, or nullptr in a gap. Items cannot overlap, so there is at most
     // one and the first match is the answer.
@@ -332,13 +433,36 @@ private:
 
     const SongList::Song* songAtPlayhead() const { return songAt(playheadPPQ.toDouble()); }
 
+    // The chart you stepped into, held rather than read back off the playhead so that
+    // entering one is looking at it rather than moving the cursor into it. Ignored in the
+    // session view, which is not inside anything, so leaving never has to clear it.
+    const SongList::Song* enteredSong() const
+    {
+        if (zoom == ZOOM_SESSION || !enteredSongStartQN.has_value() || songs == nullptr)
+            return nullptr;
+
+        return songs->startingAt(*enteredSongStartQN);
+    }
+
+    void enterSong(const SongList::Song* song)
+    {
+        enteredSongStartQN = song != nullptr ? std::optional<double>(song->startQN)
+                                             : std::nullopt;
+    }
+
     // A project with no EVENTS items at all is a different thing from a position between
     // two charts: there is nothing to confine to anywhere, rather than just not here.
     bool hasSongs() const { return songs != nullptr && songs->size() > 0; }
 
-    // Confined to one chart at every zoom but the session view.
+    // Confined to one chart at every zoom but the session view: the one you entered, or the
+    // playhead's when you arrived by zooming in rather than by aiming at a chart.
     const SongList::Song* confiningSong() const
-    { return zoom == ZOOM_SESSION ? nullptr : songAtPlayhead(); }
+    {
+        if (zoom == ZOOM_SESSION) return nullptr;
+
+        const auto* entered = enteredSong();
+        return entered != nullptr ? entered : songAtPlayhead();
+    }
 
     static constexpr int MAX_BARS_WALKED = 100000;
 
@@ -367,8 +491,16 @@ private:
     // Plate per section, empty where the name was dropped for crowding.
     std::vector<juce::Rectangle<int>> labelPlates(const View& v) const;
 
+    static constexpr float SECTION_LINE_H = 2.0f;
+    static constexpr float SECTION_LINE_SELECTED_EXTRA = 1.0f;
+
     static constexpr int LABEL_H = 19;
     static constexpr int LABEL_MIN_GAP = 2;
+    // A plate sits this far above the line it names, and this far in from each edge of the
+    // strip. The gap is what the pinned label has to clear to leave the next name its room.
+    static constexpr int LABEL_LINE_GAP = 2;
+    static constexpr int LABEL_INSET_X = 3;
+    static constexpr int LABEL_TEXT_PAD = 16;
     // Clear of the pinned plate, close enough to read as that label's own underline.
     static constexpr float STICKY_HOVER_LINE_GAP = 2.0f;
     static constexpr float STICKY_HOVER_LINE_H = 2.0f;
@@ -385,7 +517,7 @@ private:
         int count = (int)std::size(filters);
         int w = getWidth() / count;
         bool last = i == count - 1;
-        return { i * w, 0, last ? getWidth() - i * w : w, FILTER_ROW_H };
+        return { i * w, MODE_ROW_H, last ? getWidth() - i * w : w, FILTER_ROW_H };
     }
 
     void drawChunkLines(juce::Graphics& g, const View& v) const;
@@ -410,6 +542,10 @@ private:
     // somewhere else. Same as clicking around a DAW's arrange view with follow turned off.
     double viewStartQN = 0.0;
 
+    // Set by entering a chart, read through enteredSong(). Nothing clears it: the session
+    // view ignores it, and entering anywhere else overwrites it.
+    std::optional<double> enteredSongStartQN;
+
     bool playing = false;
     // Follow is the user's setting; engaged is whether it is currently acting. Scrolling
     // during playback drops the latch without touching the setting, and pressing play sets
@@ -428,7 +564,7 @@ private:
     bool hoverHeld = false;
     juce::Point<int> hoverHeldFrom;
 
-    bool writeMode = false;
+    EditMode editMode = EditMode::None;
     StripCommandMapper mapper;
 
     std::vector<int> selection;        // indices into the section list
@@ -447,13 +583,26 @@ private:
     RenameTarget renameTarget = RenameTarget::Section;
     int hoverSongChunk = -1;
 
-    StripMode stripMode() const { return writeMode ? StripMode::Write : StripMode::Play; }
+    StripMode stripMode() const
+    { return editMode == EditMode::Sections ? StripMode::Write : StripMode::Play; }
+
+    bool sectionEditing() const { return editMode == EditMode::Sections; }
     bool isSelected(int index) const
     { return std::find(selection.begin(), selection.end(), index) != selection.end(); }
 
     void dispatch(StripCommand cmd, const juce::MouseEvent& e);
     void beginRename(int index);
     void commitRename();
+    // How far section `index` is drawn from where it actually sits, while a move drag is in
+    // flight. Everything that positions a section goes through this, so the line, the name
+    // plate and the bar number all preview together instead of one of them moving alone.
+    double movePreviewQN(size_t index) const
+    {
+        if (!dragActive || dragCommand != StripCommand::UpdateMove) return 0.0;
+
+        return isSelected((int)index) ? dragMoveDeltaQN : 0.0;
+    }
+
     void commitSections(std::vector<SectionEdit> edits);
     std::vector<SectionEdit> currentEdits() const;
     void drawMarquee(juce::Graphics& g) const;
