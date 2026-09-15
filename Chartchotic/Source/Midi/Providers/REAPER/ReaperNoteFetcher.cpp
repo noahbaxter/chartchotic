@@ -11,6 +11,10 @@
 #include "ReaperApiHelpers.h"
 #include "../../../Host/ReaperTrackDetector.h"
 
+// REAPER writes into a caller-supplied buffer with no length argument, so this has to be
+// comfortably longer than any take name a person types.
+static constexpr int TAKE_NAME_BUF = 512;
+
 ReaperNoteFetcher::ReaperNoteFetcher(std::function<void*(const char*)> reaperApiFunc, const ReaperAPIs& apis)
     : getReaperApi(reaperApiFunc), apis(apis)
 {
@@ -155,6 +159,63 @@ TrackTextEvents ReaperNoteFetcher::fetchAllTextEvents(int trackIndex)
     }
 
     return events;
+}
+
+// Item extents, not note extents: an item can be trimmed well past its last note, and the
+// gap between two items is what separates one chart from the next on a shared timeline.
+std::vector<ReaperMidiProvider::ReaperItemSpan> ReaperNoteFetcher::fetchItemSpans(int trackIndex)
+{
+    JUCE_ASSERT_MESSAGE_THREAD
+
+    std::vector<ReaperMidiProvider::ReaperItemSpan> spans;
+
+    if (!apis.isLoaded() || !getReaperApi || !apis.GetMediaItemInfo_Value
+        || !apis.TimeMap2_timeToQN || !apis.CountMediaItems || !apis.GetMediaItem)
+        return spans;
+
+    try
+    {
+        juce::ScopedLock lock(apiLock);
+
+        void* project = ReaperApiHelpers::getProject(getReaperApi);
+        if (!project) return spans;
+
+        void* targetTrack = getTargetTrack(project, trackIndex);
+        if (!targetTrack) return spans;
+
+        int itemCount = apis.CountMediaItems(project);
+        for (int itemIdx = 0; itemIdx < itemCount; itemIdx++)
+        {
+            void* item = apis.GetMediaItem(project, itemIdx);
+            if (!item) continue;
+
+            void* take = apis.GetActiveTake(item);
+            if (!take) continue;
+
+            if (apis.GetMediaItemTake_Track(take) != targetTrack) continue;
+
+            double pos = apis.GetMediaItemInfo_Value(item, "D_POSITION");
+            double len = apis.GetMediaItemInfo_Value(item, "D_LENGTH");
+            if (len <= 0.0) continue;
+
+            // Empty when the take was never named or the API is missing, which the song
+            // list handles with its own fallbacks rather than inventing a name here.
+            char nameBuf[TAKE_NAME_BUF] = { 0 };
+            if (apis.GetSetMediaItemTakeInfo_String)
+                apis.GetSetMediaItemTakeInfo_String(take, "P_NAME", nameBuf, false);
+
+            spans.push_back({ apis.TimeMap2_timeToQN(project, pos),
+                              apis.TimeMap2_timeToQN(project, pos + len),
+                              juce::String(nameBuf) });
+        }
+    }
+    catch (...)
+    {
+    }
+
+    std::sort(spans.begin(), spans.end(),
+              [](const auto& a, const auto& b) { return a.startQN < b.startQN; });
+    return spans;
 }
 
 void ReaperNoteFetcher::extractTextEventsFromTake(void* take, TrackTextEvents& outEvents)

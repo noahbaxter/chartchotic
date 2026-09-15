@@ -46,6 +46,9 @@ public:
     // Fetch all text events from a track
     TrackTextEvents fetchAllTextEvents(int trackIndex = -1);
 
+    // Fetch the extents of every MIDI item on a track, in QN
+    std::vector<ReaperMidiProvider::ReaperItemSpan> fetchItemSpans(int trackIndex = -1);
+
 private:
     std::function<void*(const char*)> getReaperApi;  // For track detection only
     const ReaperAPIs& apis;

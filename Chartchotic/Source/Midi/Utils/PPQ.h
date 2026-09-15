@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
 
 class PPQ
 {
@@ -8,9 +9,14 @@ public:
     static constexpr double PPQ_RESOLUTION = 960.0;
 
     // Constructors
+    //
+    // Rounded, not truncated. A position that has been through seconds and back comes in a
+    // hair either side of the tick it means, and truncating sent every one of those a whole
+    // tick backwards: a seek would land below the marker it asked for, and positions built
+    // by adding a triplet at a time drifted a tick at a time.
     PPQ() : scaledValue(0) {}
-    PPQ(float ppq) : scaledValue(static_cast<int64_t>(ppq * PPQ_RESOLUTION)) {}
-    PPQ(double ppq) : scaledValue(static_cast<int64_t>(ppq * PPQ_RESOLUTION)) {}
+    PPQ(float ppq) : scaledValue(std::llround(ppq * PPQ_RESOLUTION)) {}
+    PPQ(double ppq) : scaledValue(std::llround(ppq * PPQ_RESOLUTION)) {}
     PPQ(int scaledPPQ) : scaledValue(static_cast<int64_t>(scaledPPQ)) {}
     PPQ(int64_t scaledPPQ) : scaledValue(scaledPPQ) {}
 
@@ -21,12 +27,10 @@ public:
     // Arithmetic operations
     PPQ operator+(const PPQ &other) const { return PPQ(scaledValue + other.scaledValue); }
     PPQ operator-(const PPQ &other) const { return PPQ(scaledValue - other.scaledValue); }
-    PPQ operator*(const PPQ &other) const { return PPQ((scaledValue * other.scaledValue) / PPQ_RESOLUTION); }
-    PPQ operator/(const PPQ &other) const { return PPQ((scaledValue * PPQ_RESOLUTION) / other.scaledValue); }
-    PPQ operator+(double ppq) const { return PPQ(scaledValue + static_cast<int64_t>(ppq * PPQ_RESOLUTION)); }
-    PPQ operator-(double ppq) const { return PPQ(scaledValue - static_cast<int64_t>(ppq * PPQ_RESOLUTION)); }
-    PPQ operator*(double ppq) const { return PPQ(static_cast<int64_t>(scaledValue * ppq)); }
-    PPQ operator/(double ppq) const { return PPQ(static_cast<int64_t>(scaledValue / ppq)); }
+    PPQ operator+(double ppq) const { return PPQ(scaledValue + std::llround(ppq * PPQ_RESOLUTION)); }
+    PPQ operator-(double ppq) const { return PPQ(scaledValue - std::llround(ppq * PPQ_RESOLUTION)); }
+    PPQ operator*(double ppq) const { return PPQ(std::llround(scaledValue * ppq)); }
+    PPQ operator/(double ppq) const { return PPQ(std::llround(scaledValue / ppq)); }
 
     // Comparison operators
     bool operator<(const PPQ &other) const { return scaledValue < other.scaledValue; }
@@ -37,12 +41,17 @@ public:
     bool operator!=(const PPQ &other) const { return scaledValue != other.scaledValue; }
 
     // Comparison operators (PPQ vs double)
-    bool operator>(double other) const { return scaledValue > static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator<(double other) const { return scaledValue < static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator>=(double other) const { return scaledValue >= static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator<=(double other) const { return scaledValue <= static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator==(double other) const { return scaledValue == static_cast<int64_t>(other * PPQ_RESOLUTION); }
-    bool operator!=(double other) const { return scaledValue != static_cast<int64_t>(other * PPQ_RESOLUTION); }
+    //
+    // The operand keeps its full precision: quantising it first turned any tolerance finer
+    // than a tick into zero, so `pos > now + epsilon` silently asked `pos > now` and every
+    // guard written that way did nothing. Compare where we actually are against the number
+    // as given, and a caller's epsilon means what it says.
+    bool operator>(double other) const { return toDouble() > other; }
+    bool operator<(double other) const { return toDouble() < other; }
+    bool operator>=(double other) const { return toDouble() >= other; }
+    bool operator<=(double other) const { return toDouble() <= other; }
+    bool operator==(double other) const { return toDouble() == other; }
+    bool operator!=(double other) const { return toDouble() != other; }
 
     // Comparison operators (PPQ vs int64_t)
     bool operator>(int64_t other) const { return scaledValue > other; }
@@ -60,7 +69,7 @@ public:
     }
     PPQ &operator+=(double ppq)
     {
-        scaledValue += static_cast<int64_t>(ppq * PPQ_RESOLUTION);
+        scaledValue += std::llround(ppq * PPQ_RESOLUTION);
         return *this;
     }
     PPQ &operator+=(int scaledPPQ)
@@ -75,7 +84,7 @@ public:
     }
     PPQ &operator-=(double ppq)
     {
-        scaledValue -= static_cast<int64_t>(ppq * PPQ_RESOLUTION);
+        scaledValue -= std::llround(ppq * PPQ_RESOLUTION);
         return *this;
     }
     PPQ &operator-=(int scaledPPQ)
@@ -116,5 +125,5 @@ static PPQ fromScaled(int64_t scaledValue)
 
 static PPQ fromDouble(double value)
 {
-    return PPQ(static_cast<int64_t>(value * PPQ::PPQ_RESOLUTION));
+    return PPQ(static_cast<int64_t>(std::llround(value * PPQ::PPQ_RESOLUTION)));
 }

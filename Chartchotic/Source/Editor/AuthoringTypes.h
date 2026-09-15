@@ -4,12 +4,12 @@
 #include <vector>
 #include <JuceHeader.h>
 #include "../Utils/ChartTypes.h"
+#include "../Midi/Utils/GridMath.h"
 
 //==============================================================================
 // Authoring types shared between HighwayComponent (event dispatcher),
 // WriteController (state owner), and GridlineGenerator (step grid).
 
-constexpr double kQNEpsilon   = 0.001;
 constexpr double kTimeEpsilon = 0.002;
 
 // Length given to a note that carries no sustain of its own. Placement, copy
@@ -92,7 +92,7 @@ struct MarqueeRect
 
     bool contains(double qn, int lane) const
     {
-        return qn >= qnLo - 0.001 && qn <= qnHi + 0.001
+        return !GridMath::before(qn, qnLo) && !GridMath::after(qn, qnHi)
             && lane >= laneLo && lane <= laneHi;
     }
 };
