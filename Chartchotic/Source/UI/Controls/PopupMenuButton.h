@@ -62,9 +62,14 @@ public:
         g.setColour(juce::Colour(Theme::darkBg).withAlpha(Theme::panelBgAlpha));
         g.fillRoundedRectangle(getLocalBounds().toFloat(), Theme::panelRadius);
 
+        if (!outlined) return;
         g.setColour(juce::Colour(Theme::coral).withAlpha(0.5f));
         g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), Theme::panelRadius, 1.0f);
     }
+
+    // The coral edge marks a menu panel. A small list hanging off its own button reads as part
+    // of that button, and the edge only makes it shout.
+    void setOutlined(bool shouldOutline) { outlined = shouldOutline; repaint(); }
 
     void resized() override
     {
@@ -118,6 +123,7 @@ private:
 
     juce::Component content;
     juce::ScrollBar scrollbar;
+    bool outlined = true;
     int contentHeight = 0;
     int scrollOffset = 0;
     static constexpr int scrollPixelsPerWheelUnit = 60;
