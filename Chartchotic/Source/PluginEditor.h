@@ -68,6 +68,20 @@ public:
                 utilityStrip.toggleZoom();
                 return true;
             }
+
+            // Next to the view toggle because they are the same kind of thing: getting
+            // around the project rather than editing it. Brackets would have been the
+            // obvious pair, but write mode owns those for the step division.
+            if (key.getKeyCode() == ',' && utilityStripVisible)
+            {
+                utilityStrip.gotoAdjacentChart(-1);
+                return true;
+            }
+            if (key.getKeyCode() == '.' && utilityStripVisible)
+            {
+                utilityStrip.gotoAdjacentChart(1);
+                return true;
+            }
         }
 
         // Delete is routed by what is selected rather than by who holds focus. The strip is
