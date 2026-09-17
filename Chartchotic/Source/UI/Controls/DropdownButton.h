@@ -25,6 +25,10 @@ public:
 
     std::function<void(int index)> onSelectionChanged;
 
+    // A dropdown you click or scroll on does not need to advertise the fact with a chevron, and
+    // on a short value the arrow column costs more than the value it sits next to.
+    void setArrowVisible(bool v) { arrowVisible = v; repaint(); }
+
     void setAccentColour(juce::Colour c) { accent = c; repaint(); }
     void setCornerRadius(float r) { cornerRadius = r; repaint(); }
 
@@ -39,7 +43,7 @@ public:
         g.setColour(accent.withAlpha(lit ? 0.8f : 0.5f));
         g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
 
-        const float arrowW = bounds.getHeight() * ARROW_W_RATIO;
+        const float arrowW = arrowVisible ? bounds.getHeight() * ARROW_W_RATIO : 0.0f;
         auto textArea = bounds.withTrimmedRight(arrowW).toNearestInt();
 
         g.setColour(juce::Colour(Theme::textWhite));
@@ -47,13 +51,16 @@ public:
         if (juce::isPositiveAndBelow(selectedIndex, items.size()))
             g.drawText(items[selectedIndex], textArea, juce::Justification::centred);
 
-        const float cx = bounds.getRight() - arrowW * 0.5f;
-        const float cy = bounds.getCentreY();
-        const float s = arrowW * ARROW_SIZE_RATIO;
-        juce::Path arrow;
-        arrow.addTriangle(cx - s, cy - s * 0.5f, cx + s, cy - s * 0.5f, cx, cy + s * 0.5f);
-        g.setColour(juce::Colour(Theme::textDim));
-        g.fillPath(arrow);
+        if (arrowVisible)
+        {
+            const float cx = bounds.getRight() - arrowW * 0.5f;
+            const float cy = bounds.getCentreY();
+            const float s = arrowW * ARROW_SIZE_RATIO;
+            juce::Path arrow;
+            arrow.addTriangle(cx - s, cy - s * 0.5f, cx + s, cy - s * 0.5f, cx, cy + s * 0.5f);
+            g.setColour(juce::Colour(Theme::textDim));
+            g.fillPath(arrow);
+        }
     }
 
     void mouseUp(const juce::MouseEvent& e) override
@@ -73,8 +80,12 @@ public:
     void mouseEnter(const juce::MouseEvent&) override { repaint(); }
     void mouseExit(const juce::MouseEvent&) override  { repaint(); }
 
+    // Public so a caller sizing a dropdown reserves exactly the column the paint trims off. Held
+    // separately, the two drifted and the text ellipsised inside a button wide enough for it.
+    static constexpr float ARROW_W_RATIO = 0.5f;     // of the height
+
 private:
-    static constexpr float ARROW_W_RATIO = 0.9f;     // of the height
+    bool arrowVisible = true;
     static constexpr float ARROW_SIZE_RATIO = 0.25f; // of the arrow column
     static constexpr float PANEL_PAD_RATIO = 0.18f;  // of a row, around the list
     static constexpr int PANEL_GAP = 4;              // px between button and panel
