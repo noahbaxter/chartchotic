@@ -100,7 +100,9 @@ constexpr float TOOLBAR_RATIO          = 0.06f;  // fraction of editor width
 constexpr int   TOOLBAR_MAX_HEIGHT     = 100;    // cap (px)
 
 // Sub-toolbar (write mode row below main strip)
-constexpr bool  SUBTOOLBAR_SHOW_LABELS = true;   // tiny group headers above controls
+// The controls read as what they are, so the headers mostly restated them and cost a row of
+// height doing it.
+constexpr bool  SUBTOOLBAR_SHOW_LABELS = false;  // tiny group headers above controls
 constexpr float SUBTOOLBAR_HEIGHT_RATIO = SUBTOOLBAR_SHOW_LABELS ? 1.1f : 0.85f;
 
 // Sub-toolbar control scaling. Buttons are squares; widths below are in squares.
@@ -110,8 +112,10 @@ constexpr float SUBTOOLBAR_PAD_BOTTOM   = 0.1f; // extra space below controls (f
 constexpr float SUBTOOLBAR_FIT_FRACTION = 0.96f; // widest share of the row the controls may take
 constexpr float SUBTOOLBAR_VIEW_SQUARES = 3.5f;
 constexpr float SUBTOOLBAR_BAR_SQUARES  = 2.0f;
-constexpr float SUBTOOLBAR_GROUP_GAP    = 0.6f;
-constexpr float SUBTOOLBAR_ITEM_GAP     = 0.15f;
+// Tight like a tool palette: items in a group sit all but flush, and the gap between groups is
+// just enough to read as a break. The old spacing let each control float on its own.
+constexpr float SUBTOOLBAR_GROUP_GAP    = 0.35f;
+constexpr float SUBTOOLBAR_ITEM_GAP     = 0.04f;
 
 // Footer
 constexpr float FOOTER_RATIO       = 0.055f;
