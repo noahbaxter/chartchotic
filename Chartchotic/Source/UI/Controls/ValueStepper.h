@@ -90,15 +90,14 @@ public:
         if (editor != nullptr)
             return;
 
-        // Arrows
-        g.setFont(juce::Font(Theme::arrowFontSize));
-
+        // Arrows: drawn, not glyphs. A triangle always fits the zone it is given, where a
+        // font glyph depends on the typeface having it and on the zone being wide enough.
         auto leftArrow = valueRect.withWidth(arrowZoneWidth());
         auto rightArrow = valueRect.withLeft(valueRect.getRight() - arrowZoneWidth());
         g.setColour(atMin ? juce::Colour(Theme::textDim).withAlpha(0.2f) : accent.withAlpha(hovering ? 1.0f : 0.7f));
-        g.drawText(juce::CharPointer_UTF8("\xe2\x97\x80"), leftArrow, juce::Justification::centred, false);
+        drawArrow(g, leftArrow, false);
         g.setColour(atMax ? juce::Colour(Theme::textDim).withAlpha(0.2f) : accent.withAlpha(hovering ? 1.0f : 0.7f));
-        g.drawText(juce::CharPointer_UTF8("\xe2\x96\xb6"), rightArrow, juce::Justification::centred, false);
+        drawArrow(g, rightArrow, true);
 
         // Value text
         auto textRect = valueRect.withLeft(valueRect.getX() + arrowZoneWidth())
@@ -195,6 +194,21 @@ public:
         repaint();
         hideTooltip();
     }
+
+    // A solid triangle centred in `zone`, pointing right or left.
+    static void drawArrow(juce::Graphics& g, juce::Rectangle<float> zone, bool pointsRight)
+    {
+        const float size = juce::jmin(zone.getWidth(), zone.getHeight()) * ARROW_GLYPH_SCALE;
+        const float cx = zone.getCentreX(), cy = zone.getCentreY();
+        const float half = size * 0.5f;
+        const float tip = pointsRight ? cx + half * 0.7f : cx - half * 0.7f;
+        const float back = pointsRight ? cx - half * 0.7f : cx + half * 0.7f;
+
+        juce::Path arrow;
+        arrow.addTriangle(back, cy - half, back, cy + half, tip, cy);
+        g.fillPath(arrow);
+    }
+    static constexpr float ARROW_GLYPH_SCALE = 0.5f;   // of the zone's shorter side
 
     // Arrow hit zones default to the theme's size. A stepper sized off its own row can set
     // them itself, or they eat the value between them when that row is small.
