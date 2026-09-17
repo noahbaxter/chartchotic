@@ -113,9 +113,18 @@ constexpr float SUBTOOLBAR_FIT_FRACTION = 0.96f; // widest share of the row the 
 constexpr float SUBTOOLBAR_VIEW_SQUARES = 3.5f;
 constexpr float SUBTOOLBAR_BAR_SQUARES  = 2.0f;
 // Tight like a tool palette: items in a group sit all but flush, and the gap between groups is
-// just enough to read as a break. The old spacing let each control float on its own.
-constexpr float SUBTOOLBAR_GROUP_GAP    = 0.35f;
+// wide enough that the clusters read as separate tools rather than one long strip. The grouping
+// does the work the removed headers used to.
+constexpr float SUBTOOLBAR_GROUP_GAP    = 1.1f;
 constexpr float SUBTOOLBAR_ITEM_GAP     = 0.04f;
+// Left margin, as a share of a square. The row starts here rather than centring, so the mode
+// selector sits where the eye lands first and the groups spread into the width instead of
+// floating in the middle of it.
+constexpr float SUBTOOLBAR_LEFT_MARGIN  = 0.8f;
+
+// How long a control has to be hovered before its tooltip shows. Long enough not to fire while
+// the cursor crosses the bar on its way somewhere else.
+constexpr int   TOOLTIP_DELAY_MS = 600;
 
 // Footer
 constexpr float FOOTER_RATIO       = 0.055f;
