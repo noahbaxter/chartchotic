@@ -90,9 +90,9 @@ namespace UtilityColours
     // A song block under the pointer in the overview.
     inline const juce::Colour songChunkHover = juce::Colour(0x453E77B8);
 
-    // Phrase columns, in the colours the games draw them: star power the pale blue it lights
-    // the highway, solo the deeper blue of a solo lane, a fill purple and a BRE orange.
-    inline const juce::Colour phraseStarPower = juce::Colour(0xCC8FD8FF);
+    // Phrase columns, in the colours the games draw them: star power white, solo the deeper
+    // blue of a solo lane, a fill purple and a BRE orange.
+    inline const juce::Colour phraseStarPower = juce::Colour(0xCCFFFFFF);
     inline const juce::Colour phraseSolo      = juce::Colour(0xCC3F7FE0);
     inline const juce::Colour phraseFill      = juce::Colour(0xCCA06CD8);
     inline const juce::Colour phraseBre       = juce::Colour(0xCCE08A3C);
