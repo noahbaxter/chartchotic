@@ -122,6 +122,7 @@ void ToolbarComponent::initTopBar()
 
     writeSubToolbar.onLaneToolChanged = [this](bool on) {
         interactionController.setLaneTool(on);
+        if (onLaneToolActive) onLaneToolActive(on);
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 

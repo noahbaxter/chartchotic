@@ -134,6 +134,9 @@ public:
         flamToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
             return gemIcons->drawFlam(g, r);
         });
+        laneToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
+            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlSelected));
+        });
         barToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
             bool drums = isDrumLike(interactionController.activePart());
             return !gemIcons->drawImage(g, r, drums ? assetManager->getBarKickImage()
@@ -168,6 +171,7 @@ public:
             auto kinds = PhraseMath::kindsFor(interactionController.activePart());
             if (onPhraseKindChanged && idx >= 0 && idx < (int)kinds.size())
                 onPhraseKindChanged(kinds[(size_t)idx]);
+            if (onLaneToolChanged) onLaneToolChanged(false);
             selectView(EditorView::Phrase);
         };
 
@@ -194,8 +198,10 @@ public:
             if (onBarModeChanged) onBarModeChanged(barToggle.getToggleState());
         };
 
+        // Picks lanes rather than toggling them: it is one of the exclusive choices, so it stays
+        // on until a note type or phrase kind takes the turn, the same as those do to each other.
         laneToggle.onClick = [this]() {
-            if (onLaneToolChanged) onLaneToolChanged(laneToggle.getToggleState());
+            if (onLaneToolChanged) onLaneToolChanged(true);
             selectView(EditorView::Notes);
         };
 
@@ -203,11 +209,13 @@ public:
             static const GuitarForce forces[] = { GuitarForce::None, GuitarForce::Hopo,
                                                    GuitarForce::Strum, GuitarForce::Tap };
             if (onGuitarForceChanged) onGuitarForceChanged(forces[idx]);
+            if (onLaneToolChanged) onLaneToolChanged(false);
             selectView(EditorView::Notes);
         };
 
         drumDynamicButtons.onSelectionChanged = [this](int idx) {
             if (onDrumDynamicChanged) onDrumDynamicChanged(DYNAMIC_ORDER[idx]);
+            if (onLaneToolChanged) onLaneToolChanged(false);
             selectView(EditorView::Notes);
         };
 
@@ -234,6 +242,10 @@ public:
         bool hasSel = editMode && interactionController.hasEditSelection();
         bool notesView = interactionController.view() == EditorView::Notes;
         const bool phraseView = interactionController.view() == EditorView::Phrase;
+        // Lanes are written on the note highway, so the view alone cannot say whether a note type
+        // or the lane tool holds the turn.
+        const bool laneMode = interactionController.laneTool();
+        const bool noteTypeActive = notesView && !laneMode;
         // One neutral for both sub-modes. Draw and Edit are told apart by which segment is lit,
         // not by the bar changing colour under you.
         juce::Colour modeAccent = juce::Colour(Theme::controlSelected);
@@ -320,10 +332,13 @@ public:
         {
             drumDynamicButtons.setAlpha(modifiersEnabled ? 1.0f : 0.35f);
             drumDynamicButtons.setInterceptsMouseClicks(modifiersEnabled, modifiersEnabled);
-            cymbalToggle.setDisabled(!modifiersEnabled);
+            // Cymbal is only drawable on a plain drum note, so it greys anywhere a click writes
+            // something else. Without this it would be settable in a mode that drops it again.
+            const bool plainNotes = noteTypeActive && !interactionController.barMode();
+            cymbalToggle.setDisabled(!modifiersEnabled || !plainNotes);
             flamToggle.setDisabled(!modifiersEnabled);
 
-            if (!notesView) drumDynamicButtons.setSelectedIndex(-1);
+            if (!noteTypeActive) drumDynamicButtons.setSelectedIndex(-1);
             else if (modifiersEnabled)
             {
                 auto dyn = interactionController.drumDynamic();
@@ -338,7 +353,7 @@ public:
             guitarForceButtons.setAlpha(modifiersEnabled ? 1.0f : 0.35f);
             guitarForceButtons.setInterceptsMouseClicks(modifiersEnabled, modifiersEnabled);
 
-            if (!notesView) guitarForceButtons.setSelectedIndex(-1);
+            if (!noteTypeActive) guitarForceButtons.setSelectedIndex(-1);
             else if (modifiersEnabled)
             {
                 auto force = interactionController.guitarForce();
@@ -408,7 +423,8 @@ public:
         const int noteSquares = juce::jmax((int)guitarForceItems, (int)drumDynamicItems + 1);
         const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES * 2.0f
                             + SNAP_SQUARES;
-        const float gapSquares = SUBTOOLBAR_GROUP_GAP * 3.0f + SUBTOOLBAR_ITEM_GAP * 4.0f;
+        const float gapSquares = SUBTOOLBAR_GROUP_GAP * 3.0f + SUBTOOLBAR_ITEM_GAP * 4.0f
+                               + SUBTOOLBAR_LEFT_MARGIN;
 
         // A stepper is two arrow zones that scale with the squares plus room for its value in
         // pixels, so the value text comes off the width first and the squares shrink into what
@@ -438,7 +454,9 @@ public:
         const int totalW = modeW + noteW + phraseW + gridW + groupGap * 3;
 
         const int controlY = labelH + padTop + (available - side) / 2;
-        int x = (getWidth() - totalW) / 2;
+        // Left-aligned, but never off the end: a narrow window falls back to centring what fits.
+        int x = juce::roundToInt(side * SUBTOOLBAR_LEFT_MARGIN);
+        if (x + totalW > getWidth()) x = juce::jmax(0, (getWidth() - totalW) / 2);
 
         auto place = [&](juce::Component& c, int w) {
             c.setBounds(x, controlY, w, side);
@@ -532,6 +550,17 @@ private:
         auto zone = std::make_unique<HoverHelpZone>(target, keys, desc);
         auto* ptr = zone.get();
         hoverZones.push_back(std::move(zone));
+
+        // The same words the help strip gets, as a tooltip on the control itself. With the group
+        // headers gone the strip is the only thing naming these, and it only reads if you know
+        // to look at it.
+        if (auto* client = dynamic_cast<juce::SettableTooltipClient*>(&target))
+        {
+            juce::StringArray shortcuts;
+            for (const auto& k : keys) shortcuts.add(k);
+            client->setTooltip(shortcuts.isEmpty() ? desc
+                                                   : desc + "  (" + shortcuts.joinIntoString(", ") + ")");
+        }
         return ptr;
     }
 

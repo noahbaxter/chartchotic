@@ -347,6 +347,7 @@ void HighwayComponent::paint(juce::Graphics& g)
             return false;
         };
         auto typeForKind = [](int kind) {
+            if (kind == OverlayState::PREVIEW_KIND_LANE) return SustainType::LANE;
             switch ((PhraseMath::Kind)kind)
             {
                 case PhraseMath::Kind::StarPower: return SustainType::STAR_POWER;
