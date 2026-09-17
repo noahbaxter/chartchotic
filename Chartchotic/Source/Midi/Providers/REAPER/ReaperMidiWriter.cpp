@@ -10,6 +10,7 @@
 #include "ReaperMidiWriter.h"
 #include "ReaperApiHelpers.h"
 #include "../../Utils/GridMath.h"
+#include "../../EventsTrackText.h"
 
 #include <algorithm>
 
@@ -560,4 +561,66 @@ bool ReaperMidiWriter::setSongName(double startQN, const std::string& name)
     }
 
     return false;
+}
+
+bool ReaperMidiWriter::setCoda(std::optional<double> qn)
+{
+    juce::ScopedLock lock(writeLock);
+
+    void* project = ReaperApiHelpers::getProject(getReaperApi);
+    if (!project) return false;
+
+    if (!apis.MIDI_CountEvts || !apis.MIDI_GetTextSysexEvt
+        || !apis.MIDI_DeleteTextSysexEvt || !apis.MIDI_InsertTextSysexEvt
+        || !apis.MIDI_GetPPQPosFromProjQN)
+        return false;
+
+    if (qn.has_value() && ensureEventsTake(project) == nullptr) return false;
+
+    auto takes = eventsTakes(project);
+
+    // Matched through the same classifier the reader uses, so a "[ coda ]" someone typed by
+    // hand is cleared too rather than surviving as a second coda.
+    for (const auto& et : takes)
+    {
+        int noteCount = 0, ccCount = 0, textCount = 0;
+        apis.MIDI_CountEvts(et.take, &noteCount, &ccCount, &textCount);
+
+        for (int i = textCount - 1; i >= 0; --i)
+        {
+            bool selected = false, muted = false;
+            double ppq = 0.0;
+            int type = 0;
+            char msg[1024] = {};
+            int msgSize = sizeof(msg);
+
+            if (!apis.MIDI_GetTextSysexEvt(et.take, i, &selected, &muted, &ppq, &type,
+                                           msg, &msgSize))
+                continue;
+            if (type != kTextEventType) continue;
+
+            auto evt = EventsTrackText::classify(juce::String(msg, (size_t)msgSize));
+            if (evt.kind == EventsTrackText::Kind::Coda)
+                apis.MIDI_DeleteTextSysexEvt(et.take, i);
+        }
+    }
+
+    if (qn.has_value())
+    {
+        void* take = takeCovering(takes, *qn);
+        if (take == nullptr) return false;
+
+        static const std::string text = "[coda]";
+        double ppq = apis.MIDI_GetPPQPosFromProjQN(take, *qn);
+        if (!apis.MIDI_InsertTextSysexEvt(take, false, false, ppq, kTextEventType,
+                                          text.c_str(), (int)text.size()))
+            return false;
+    }
+
+    if (apis.MIDI_Sort)
+        for (const auto& et : takes)
+            apis.MIDI_Sort(et.take);
+
+    if (!inBatch) endUndoBlock(project, "Chartchotic: Move coda");
+    return true;
 }

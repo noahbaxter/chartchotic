@@ -57,6 +57,7 @@ public:
         guitarForceButtons.setItems({"Auto", "HOPO", "Strum", "Tap"});
         addChildComponent(guitarForceButtons);
 
+
         drumDynamicButtons.setItems({"Ghost", "Normal", "Accent"});
         addChildComponent(drumDynamicButtons);
 
@@ -67,7 +68,10 @@ public:
         addChildComponent(flamToggle);
 
         viewButtons.setCornerRadius(3.0f);
-        for (auto* seg : { &modeButtons, &guitarForceButtons, &drumDynamicButtons })
+        addChildComponent(phraseKindButtons);
+
+        for (auto* seg : { &modeButtons, &guitarForceButtons, &drumDynamicButtons,
+                           &phraseKindButtons })
             seg->setCornerRadius(3.0f);
         for (auto* pill : { &snapToggle, &barToggle, &cymbalToggle, &flamToggle })
             pill->setCornerRadius(3.0f);
@@ -76,6 +80,7 @@ public:
 
         addHoverZone(viewButtons,        {},         "what every highway and the strip show, and what a click writes");
         addHoverZone(modeButtons,        {"Q"},      "draw places notes, edit selects & modifies");
+        addHoverZone(phraseKindButtons,  {"A", "S", "D", "F"}, "which phrase a drag writes");
         // Modifier hints run in the same order as the segments they sit under,
         // matching the home-row slots in ModifierSlots.h.
         barHelpZone = addHoverZone(barToggle, {"B"}, "only interact with open notes");
@@ -134,6 +139,7 @@ public:
     }
 
     std::function<void(EditorView)> onViewChanged;
+    std::function<void(PhraseMath::Kind)> onPhraseKindChanged;
     std::function<void(SubMode)> onSubModeChanged;
     std::function<void(bool)> onSnapChanged;
     std::function<void(int delta)> onStepDivisionStep;
@@ -152,6 +158,12 @@ public:
         viewButtons.onSelectionChanged = [this](int idx) {
             if (onViewChanged && idx >= 0 && idx < (int)std::size(VIEWS))
                 onViewChanged(VIEWS[idx].view);
+        };
+
+        phraseKindButtons.onSelectionChanged = [this](int idx) {
+            auto kinds = PhraseMath::kindsFor(interactionController.activePart());
+            if (onPhraseKindChanged && idx >= 0 && idx < (int)kinds.size())
+                onPhraseKindChanged(kinds[(size_t)idx]);
         };
 
         modeButtons.onSelectionChanged = [this](int idx) {
@@ -207,6 +219,7 @@ public:
         bool editMode = !drawMode;
         bool hasSel = editMode && interactionController.hasEditSelection();
         bool notesView = interactionController.view() == EditorView::Notes;
+        const bool phraseView = interactionController.view() == EditorView::Phrase;
         juce::Colour modeAccent = drawMode ? juce::Colour(Theme::purple) : juce::Colour(Theme::blue);
 
         viewButtons.setAccentColour(modeAccent);
@@ -214,8 +227,10 @@ public:
             if (VIEWS[i].view == interactionController.view())
                 viewButtons.setSelectedIndex(i);
 
-        // Open/kick filtering only means anything while gems are what a click writes.
+        // Open/kick filtering only means anything while gems are what a click writes, and a
+        // phrase view has no use for it at all, so it goes away rather than sitting there greyed.
         barToggle.setDisabled(!notesView);
+        barToggle.setVisible(!phraseView);
 
         if (barHelpZone)
             barHelpZone->setDescription({"B"}, drums ? "only interact with kick notes"
@@ -256,11 +271,22 @@ public:
 
         // Cym and Flam share one pill slot; no kit has both.
         const auto* cfg = getAuthoringConfig(interactionController.activePart());
-        bool showCym  = drums && cfg && cfg->hasCymbalToggle;
-        bool showFlam = drums && cfg && cfg->hasFlamToggle;
+        bool showCym  = drums && cfg && cfg->hasCymbalToggle && !phraseView;
+        bool showFlam = drums && cfg && cfg->hasFlamToggle && !phraseView;
 
-        guitarForceButtons.setVisible(!drums);
-        drumDynamicButtons.setVisible(drums);
+        // The Phrase view writes phrases, so its slot picks which one rather than a note type.
+        auto kinds = PhraseMath::kindsFor(interactionController.activePart());
+        juce::StringArray kindLabels;
+        for (auto k : kinds) kindLabels.add(PhraseMath::phraseShortLabel(k));
+        phraseKindButtons.setItems(kindLabels);
+        phraseKindButtons.setAccentColour(modeAccent);
+        for (int i = 0; i < (int)kinds.size(); ++i)
+            if (kinds[(size_t)i] == interactionController.phraseKind())
+                phraseKindButtons.setSelectedIndex(i);
+
+        phraseKindButtons.setVisible(phraseView);
+        guitarForceButtons.setVisible(!drums && !phraseView);
+        drumDynamicButtons.setVisible(drums && !phraseView);
         cymbalToggle.setVisible(showCym);
         flamToggle.setVisible(showFlam);
 
@@ -326,7 +352,8 @@ public:
                            juce::Justification::centred, false);
             };
             draw("MODE",      labelGroupMode);
-            draw("NOTE TYPE", labelGroupNote);
+            draw(interactionController.view() == EditorView::Phrase ? "PHRASE" : "NOTE TYPE",
+                 labelGroupNote);
             draw("GRID",      labelGroupGrid);
             draw("VIEW",      labelGroupView);
         }
@@ -395,7 +422,12 @@ public:
 
         labelGroupNote = { x, 0, noteW, labelH };
         const int noteSlotEnd = x + noteSlotW;
-        if (drums)
+        if (interactionController.view() == EditorView::Phrase)
+        {
+            place(phraseKindButtons,
+                  side * (int)PhraseMath::kindsFor(interactionController.activePart()).size());
+        }
+        else if (drums)
         {
             place(drumDynamicButtons, side * (int)drumDynamicItems);
             x += itemGap;
@@ -494,10 +526,11 @@ private:
                                                           : juce::Colour(Theme::textDim);
     }
 
+    // No separate SP view: Phrase shows and writes star power, solo and fill as three lanes, so
+    // an SP-only view was one more place to be in for no extra reach.
     struct ViewItem { EditorView view; const char* label; };
     static constexpr ViewItem VIEWS[] = {
         { EditorView::Notes,     "Notes" },
-        { EditorView::StarPower, "SP" },
         { EditorView::Phrase,    "Phrase" },
         { EditorView::Sections,  "Sections" },
         { EditorView::Tempo,     "Tempo" },
@@ -505,6 +538,7 @@ private:
 
     DropdownButton   viewButtons;
     SegmentedButtons modeButtons;
+    SegmentedButtons phraseKindButtons;
     PillToggle       barToggle      {"BAR"};
 
     PillToggle       snapToggle     {"Snap"};
@@ -540,7 +574,7 @@ private:
                                 + Theme::controlFont.getHeight() * STEPPER_TEXT_PAD);
     }
     static constexpr float STEPPER_TEXT_PAD = 0.3f;        // of the font height
-    static constexpr float STEPPER_ARROW_SQUARES = 0.45f;  // each arrow zone, in squares
+    static constexpr float STEPPER_ARROW_SQUARES = 0.6f;   // each arrow zone, in squares
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WriteSubToolbar)
 };

@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "AuthoringControllerBase.h"
+#include "PhraseWriter.h"
 
 class WriteController : public AuthoringControllerBase
 {
@@ -12,6 +13,7 @@ public:
     SubMode      subMode()         const { return currentSubMode; }
     EditorView   view()            const { return currentView; }
     bool         laneTool()        const { return laneToolFlag; }
+    PhraseMath::Kind phraseKind()  const { return currentPhraseKind; }
     PhraseTarget phraseTarget()    const { return currentPhraseTarget; }
 
     // Everything worth preserving about a copied note. velocity carries drum
@@ -40,6 +42,15 @@ public:
     void setSubMode(SubMode mode);
     void setView(EditorView v);
     void setLaneTool(bool on);
+    void setPhraseKind(PhraseMath::Kind k);
+
+    // What a phrase gesture could not do, for the footer to say. Cleared when read.
+    std::function<void(const juce::String&)> onPhraseRefused;
+
+    // A phrase write only refreshes InstrumentSession, which is what the utility strip reads.
+    // The highway parses its own copy of the MIDI, so it has to be told to re-read or the
+    // phrase does not appear until the 50ms hash poll happens to notice.
+    std::function<void()> onChartWritten;
     void setPhraseTarget(PhraseTarget t);
     void setStepDivision(int division);
     void setTuplet(int t);
@@ -70,6 +81,29 @@ private:
     EditorView   currentView         = EditorView::Notes;
     // Inside the Notes view: a drag writes a lane marker instead of a sustain.
     bool         laneToolFlag        = false;
+    // Inside the Phrase view: which phrase a drag writes. SP has only its own kind.
+    PhraseMath::Kind currentPhraseKind = PhraseMath::Kind::Solo;
+
+    // Phrase drag: a range on the part's own track, not a lane.
+    bool   phraseDragActive = false;
+    bool   phraseDragResizing = false;   // dragging an existing phrase's end rather than a new one
+    double phraseDragStartQN = 0.0;
+    double phraseDragEndQN = 0.0;
+
+    PhraseMath::Kind kindForView() const;
+    bool phraseViewActive() const;
+    // Every phrase of the active kind on the active part, in order.
+    std::vector<PhraseMath::PhraseSpan> phrasesOnPart() const;
+    // Same, for one named kind, so the overlay can carry all three at once.
+    std::vector<PhraseMath::PhraseSpan> phrasesOfKind(PhraseMath::Kind kind) const;
+    // Where the song's coda is, which is what tells a fill from a BRE on the shared 120 markers.
+    std::optional<double> codaQN() const;
+    void recomputePhraseHover();
+    void handlePhraseDown(const AuthoringPoint& p, const AuthoringContext& ctx);
+    void handlePhraseDrag(const AuthoringPoint& p);
+    void handlePhraseUp();
+    void clearPhraseDrag();
+    void recomputePhrasePreview();
     PhraseTarget currentPhraseTarget = PhraseTarget::Lane1;
     bool         writeModeActiveFlag = false;
 

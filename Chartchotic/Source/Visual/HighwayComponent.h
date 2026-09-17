@@ -16,6 +16,7 @@
 #include "../Utils/ChartTypes.h"
 #include "../Midi/Utils/TimeConverter.h"
 #include "../Editor/AuthoringTypes.h"
+#include "PhraseMath.h"
 #include "Renderers/SceneRenderer.h"
 #include "Art/TrackRenderer.h"
 #include "Managers/AssetManager.h"
@@ -31,6 +32,7 @@ struct HighwayFrameData {
     TimeBasedGridlineMap gridlines;
     TimeBasedFlipRegions flipRegions;
     TimeBasedEventMarkers eventMarkers;
+    TimeBasedEventMarkers sectionMarkers;   // named gates, for the Sections view
     double windowStartTime = 0.0;
     double windowEndTime = 1.0;
     float scrollOffset = 0.0f;
@@ -124,11 +126,38 @@ public:
 
     static constexpr float labelIconSize = 40.0f;
 
+public:
+    // Authoring state that every highway shows, so it cannot come from the focus-gated overlay.
+    void setBarMode(bool on) { barModeOn = on; }
+
+    // A BRE is one song-global phrase written to every part at once, so its preview has to show
+    // on every highway rather than only the one the cursor is over. The overlay cannot carry it:
+    // that is gated to the focused slot and comes back blank everywhere else.
+    void setGlobalPhrasePreview(const OverlayState::PhrasePreview& drag,
+                                const OverlayState::PhrasePreview& hover)
+    {
+        globalPhraseDrag = drag;
+        globalPhraseHover = hover;
+    }
+
 private:
     bool writeModeOn = false;
+    bool barModeOn = false;
+    OverlayState::PhrasePreview globalPhraseDrag;
+    OverlayState::PhrasePreview globalPhraseHover;
     EditorView editorView = EditorView::Notes;
     EditorView shownView() const { return writeModeOn ? editorView : EditorView::Notes; }
-    void applyEditorView() { sceneRenderer.setShowActivation(shownView() == EditorView::Phrase); }
+    bool phraseViewActive() const
+    {
+        auto v = shownView();
+        return v == EditorView::StarPower || v == EditorView::Phrase;
+    }
+    void applyEditorView()
+    {
+        sceneRenderer.setShowActivation(shownView() == EditorView::Phrase);
+        sceneRenderer.setPhraseDim(phraseViewActive() ? PHRASE_VIEW_GEM_DIM : 1.0f);
+        sceneRenderer.setPhraseViewActive(shownView() == EditorView::Phrase);
+    }
 
 public:
 

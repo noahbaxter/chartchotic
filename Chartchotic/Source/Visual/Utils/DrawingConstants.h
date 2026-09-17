@@ -40,8 +40,32 @@ constexpr float LANE_OPACITY = 0.4f;         // Lane sustain opacity
 inline const juce::Colour PHRASE_STAR_POWER_COLOUR { 0xFFFFFFFF };
 constexpr float PHRASE_STAR_POWER_OPACITY = 0.3f;
 
+// Phrase view: a solo covers the whole board too, in the blue the games light it. Kept dark so
+// it reads as a solo rather than as the blue lane.
+inline const juce::Colour PHRASE_SOLO_COLOUR { 0xFF1E3F78 };
+constexpr float PHRASE_SOLO_OPACITY = 0.22f;
+
+// Bar mode: how far the lanes that are not bar notes fade back.
+constexpr float BAR_MODE_DIM = 0.3f;
+
+
+// Phrase view: a phrase is what the view is for, so it draws well up from the faint wash it is
+// in the note views. Multiplied rather than replaced, so each kind keeps its relative weight, and
+// capped short of opaque so the gems under it stay findable.
+constexpr float PHRASE_VIEW_OPACITY_BOOST = 2.5f;
+
+// A BRE covers the same columns as a fill and would otherwise be indistinguishable from one.
+// It keeps the lane colours, pulled toward white and drawn harder, so it reads as the one
+// song-wide freestyle moment rather than another activation phrase.
+constexpr float PHRASE_BRE_WHITEN = 0.45f;
+constexpr float PHRASE_BRE_OPACITY = 0.5f;
+
 // Phrase view: the activation note at the end of a drum fill grows by this much.
 constexpr float PHRASE_ACTIVATION_SCALE = 1.3f;
+
+// How far gems fade back under a phrase drawn over them. Faded, not hidden: which notes a
+// phrase covers is the point of these views.
+constexpr float PHRASE_VIEW_GEM_DIM = 0.55f;
 
 // Elite hi-hat ringing zone: solid until fadeStart, then a fainter tail. The span matches the
 // pedal bar's so a ring lines up with the bar that generated it.

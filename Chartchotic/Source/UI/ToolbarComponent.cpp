@@ -111,6 +111,10 @@ void ToolbarComponent::initTopBar()
         interactionController.setView(view);
     };
 
+    writeSubToolbar.onPhraseKindChanged = [this](PhraseMath::Kind kind) {
+        interactionController.setPhraseKind(kind);
+    };
+
     writeSubToolbar.onSnapChanged = [this](bool on) {
         interactionController.setSnapEnabled(on);
         if (interactionController.onStateChanged) interactionController.onStateChanged();

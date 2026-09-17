@@ -126,6 +126,21 @@ struct OverlayState
     bool                     drawPreviewVisible = false;
     std::vector<PreviewNote> drawPreviewNotes;
 
+    // Phrase drag preview, in the SP and Phrase views: a range with no lane, drawn as the
+    // phrase it would write.
+    struct PhrasePreview
+    {
+        bool   visible = false;
+        double startQN = 0.0;
+        double endQN = 0.0;
+        int    kind = 0;      // PhraseMath::Kind, as an int so AuthoringTypes stays free of it
+    };
+    PhrasePreview phrasePreview;
+
+    // Hover preview: one grid step at the snapped cursor, so a phrase view shows what a click
+    // would start the way the note views show a ghost gem.
+    PhrasePreview phraseHover;
+
     // Erase sweep preview
     bool                     eraseSweepVisible = false;
     std::vector<PreviewNote> eraseSweepTargets;
@@ -263,7 +278,6 @@ enum class SubMode { Draw, Edit };
 
 // One for the whole editor, orthogonal to SubMode: Draw/Edit is how you interact, the view is
 // what every highway and the strip show and what a click writes.
-// Design: docs/superpowers/specs/2026-09-15-editor-views-design.md
 enum class EditorView { Notes, StarPower, Phrase, Sections, Tempo };
 enum class DrumDynamic { Normal, Ghost, Accent };
 enum class GuitarForce { None, Hopo, Strum, Tap };

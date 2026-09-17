@@ -364,6 +364,9 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
     float opacity = (opacityOverride >= 0.0f) ? opacityOverride : calculateOpacity(position);
     if (!barNote && barModeDim < 1.0f) opacity *= barModeDim;
+    // Phrase views: gems fade back so the band or lane over them reads, but stay visible
+    // enough to see which notes a phrase covers. The activation gem keeps full strength.
+    if (phraseDim < 1.0f && !gemWrapper.activation) opacity *= phraseDim;
     // Ghost kicks read as a fainter bar. Placeholder for elite kick dynamics until there is
     // real art; the accent half is a separate thicker bake, so only the ghost needs this.
     if (barNote && gemWrapper.gem == Gem::HOPO_GHOST)

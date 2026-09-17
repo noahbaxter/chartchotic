@@ -48,6 +48,7 @@ public:
     std::vector<SectionInfo> getSections() override;
     bool setSections(const std::vector<SectionInfo>& sections) override;
     bool setSongName(double startQN, const std::string& name) override;
+    bool setCoda(std::optional<double> qn) override;
 
 private:
     // EVENTS is a plain REAPER track named "EVENTS". It can hold several MIDI items: one

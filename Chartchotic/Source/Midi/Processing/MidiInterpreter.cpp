@@ -72,6 +72,15 @@ PartWindow MidiInterpreter::resolveAllDifficulties(PPQ windowStart, PPQ windowEn
         shared = TrackResolver::extract(noteStateMapArray, windowStart, windowEnd, latencyEnd, cfg.bemaniMode, isElite);
     }
 
+    // Before resolve, so star power reaches both the band and the gems that sit inside it.
+    if (phraseOverride.active)
+    {
+        shared.modifiers.starPower = phraseOverride.starPower;
+        shared.modifiers.solo      = phraseOverride.solo;
+        shared.modifiers.fill      = phraseOverride.fill;
+        shared.modifiers.bre       = phraseOverride.bre;
+    }
+
     // Resolve on local data — no locks
     return TrackResolver::resolve(shared, cfg);
 }

@@ -3,6 +3,7 @@
 #include "AuthoringTypes.h"
 #include "AuthoringConfig.h"
 #include "../UI/ControlConstants.h"
+#include "../Visual/PhraseMath.h"
 #include <vector>
 
 //==============================================================================

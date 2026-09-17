@@ -36,6 +36,20 @@ class MidiInterpreter
 
 		const juce::ValueTree& getState() const { return state; }
 
+		// Phrases as InstrumentSession read them off this part's OWN track. The note state map
+		// is parsed from whichever track the plugin sits on, which is not necessarily this
+		// part's, so a phrase written here would otherwise never reach the highway: neither as
+		// a band nor as the star power that decides whether a gem draws as an SP gem.
+		struct PhraseOverride
+		{
+			bool active = false;
+			std::vector<ModifierRange> starPower;
+			std::vector<ModifierRange> solo;
+			std::vector<ModifierRange> fill;
+			std::vector<ModifierRange> bre;
+		};
+		void setPhraseOverride(PhraseOverride o) { phraseOverride = std::move(o); }
+
 		NoteStateMapArray &noteStateMapArray;
 		juce::CriticalSection &noteStateMapLock;
 
@@ -46,4 +60,5 @@ class MidiInterpreter
 		juce::ValueTree &state;
 		const DiscoFlipState* discoFlip = nullptr;
 		const StrictHatPedalState* strictHatPedal = nullptr;
+		PhraseOverride phraseOverride;
 };
