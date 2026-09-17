@@ -11,6 +11,7 @@
 #include "AssetManager.h"
 #include "../Geometry/PositionConstants.h"
 #include "../Utils/LaneColours.h"
+#include "../Utils/DrawingConstants.h"
 #include "../Art/BarGemArt.h"
 
 namespace
@@ -24,7 +25,11 @@ namespace
     // valueScale < 1 darkens the recoloured body (leaves neutral framing alone). Green is the most
     // luminant hue, so the bright metallic cymbal master reads too neon in green even at the right
     // saturation; pull its value down without touching the other colours or the square notes.
-    juce::Image recolorGem(const juce::Image& master, juce::Colour target, float valueScale = 1.0f)
+    // neutralFloor drags the recolour weight up off the source's own saturation, so the neutral
+    // framing and highlights a gem keeps by design also take the hue. 0 leaves them alone, which
+    // is what every ordinary gem wants; the activation cut is the exception.
+    juce::Image recolorGem(const juce::Image& master, juce::Colour target, float valueScale = 1.0f,
+                           float neutralFloor = 0.0f)
     {
         const float th = target.getHue();
         const float ts = target.getSaturation();
@@ -37,6 +42,7 @@ namespace
                 // Weight the recolour by how saturated the source pixel is: neutral framing
                 // stays put, the colour body swaps hue. Ramp (not a hard cut) avoids a seam.
                 float w = juce::jlimit(0.0f, 1.0f, (px.getSaturation() - 0.18f) / 0.30f);
+                w = juce::jmax(w, neutralFloor);
                 float v = juce::jlimit(0.0f, 1.0f, px.getBrightness() * valueScale);
                 auto reh = juce::Colour::fromHSV(th, ts, v, px.getFloatAlpha());
                 bmp.setPixelColour(x, y, px.interpolatedWith(reh, w));
@@ -656,6 +662,20 @@ juce::Image* AssetManager::getOverlayImage(Gem gem, Part part)
     }
 
     return nullptr;
+}
+
+juce::Image* AssetManager::getTintedGlyph(juce::Image* source, juce::Colour tint, float neutralPull)
+{
+    if (source == nullptr || !source->isValid()) return source;
+
+    // Pull quantised into the key: a float key would miss on rounding and rebake every frame.
+    const auto key = std::make_tuple((const juce::Image*)source, tint.getARGB(),
+                                     (int)std::lround(juce::jlimit(0.0f, 1.0f, neutralPull) * 100.0f));
+    auto it = tintedGlyphs.find(key);
+    if (it == tintedGlyphs.end())
+        it = tintedGlyphs.emplace(key, recolorGem(*source, tint, 1.0f, neutralPull)).first;
+
+    return &it->second;
 }
 
 juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPowerActive)

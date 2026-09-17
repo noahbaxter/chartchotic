@@ -247,6 +247,18 @@ void ToolbarComponent::initChartPanel()
         if (onLanesChanged) onLanesChanged(lanesToggle.getToggleState());
     };
 
+    fillsToggle.onClick = [this]() {
+        if (onFillsChanged) onFillsChanged(fillsToggle.getToggleState());
+    };
+
+    breToggle.onClick = [this]() {
+        if (onBreChanged) onBreChanged(breToggle.getToggleState());
+    };
+
+    activationToggle.onClick = [this]() {
+        if (onActivationChanged) onActivationChanged(activationToggle.getToggleState());
+    };
+
     gridlinesToggle.onClick = [this]() {
         if (onGridlinesChanged) onGridlinesChanged(gridlinesToggle.getToggleState());
     };
@@ -285,6 +297,9 @@ void ToolbarComponent::initChartPanel()
     chartButton.addPanelChild(&barsToggle);
     chartButton.addPanelChild(&sustainsToggle);
     chartButton.addPanelChild(&lanesToggle);
+    chartButton.addPanelChild(&fillsToggle);
+    chartButton.addPanelChild(&breToggle);
+    chartButton.addPanelChild(&activationToggle);
     chartButton.addPanelChild(&gridlinesToggle);
     chartButton.addPanelChild(&hitIndicatorsToggle);
     chartButton.addPanelChild(&sceneHeader);
@@ -292,7 +307,7 @@ void ToolbarComponent::initChartPanel()
     chartButton.addPanelChild(&laneSeparatorsToggle);
     chartButton.addPanelChild(&strikelineToggle);
     chartButton.addPanelChild(&highwayToggle);
-    chartButton.setPanelSize(175, 340);
+    chartButton.setPanelSize(175, 372);
     chartButton.onLayoutPanel = [this](juce::Component* panel) { layoutChartPanel(panel); };
     chartButton.setMenuGroup(&squareMenuGroup);
     squareMenuGroup.add(&chartButton, [this]() { chartButton.dismissPanel(); });
@@ -707,6 +722,9 @@ void ToolbarComponent::loadState()
     barsToggle.setToggleState(!state.hasProperty("showBars") || (bool)state["showBars"]);
     sustainsToggle.setToggleState(!state.hasProperty("showSustains") || (bool)state["showSustains"]);
     lanesToggle.setToggleState(!state.hasProperty("showLanes") || (bool)state["showLanes"]);
+    fillsToggle.setToggleState(!state.hasProperty("showFills") || (bool)state["showFills"]);
+    breToggle.setToggleState(!state.hasProperty("showBre") || (bool)state["showBre"]);
+    activationToggle.setToggleState(!state.hasProperty("showActivation") || (bool)state["showActivation"]);
     starPowerToggle.setToggleState(!state.hasProperty("starPower") || (bool)state["starPower"]);
     gridlinesToggle.setToggleState(!state.hasProperty("showGridlines") || (bool)state["showGridlines"]);
     hitIndicatorsToggle.setToggleState(!state.hasProperty("hitIndicators") || (bool)state["hitIndicators"]);
@@ -952,6 +970,11 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
     lanesToggle.setBounds(margin, y, elemW, elemH);
     gridlinesToggle.setBounds(margin + col3, y, elemW, elemH);
     hitIndicatorsToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
+    y += elemH + elemGap;
+
+    fillsToggle.setBounds(margin, y, elemW, elemH);
+    breToggle.setBounds(margin + col3, y, elemW, elemH);
+    activationToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
     y += elemH + sectionGap;
 
     // --- Scene (static environment) ---

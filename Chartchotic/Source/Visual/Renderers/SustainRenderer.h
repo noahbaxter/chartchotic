@@ -55,6 +55,14 @@ private:
     DrawCallMap* currentDrawCallMap = nullptr;
     bool showLanes = true, showSustains = true;
 
+public:
+    // The lane colour spread of a fill and of a BRE, each hideable on its own. The activation
+    // band has its own toggle rather than riding on the fill's: it is the part a player reads,
+    // and it stays useful with the colour spread turned off.
+    bool showFills = true, showBre = true, showActivationLane = true;
+
+private:
+
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
     void drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
                          float opacity, float sustainWidth, juce::Colour colour, bool isLane);

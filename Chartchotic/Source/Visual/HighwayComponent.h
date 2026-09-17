@@ -105,6 +105,15 @@ public:
     void setShowBars(bool on)           { sceneRenderer.showBars = on; repaint(); }
     void setShowSustains(bool on)       { sceneRenderer.showSustains = on; repaint(); }
     void setShowLanes(bool on)          { sceneRenderer.showLanes = on; repaint(); }
+    void setShowFills(bool on)          { sceneRenderer.showFills = on; repaint(); }
+    void setShowBre(bool on)            { sceneRenderer.showBre = on; repaint(); }
+    void setShowActivationLane(bool on)
+    {
+        showActivationOn = on;
+        sceneRenderer.showActivationLane = on;
+        applyEditorView();
+        repaint();
+    }
     void setShowGridlines(bool on)      { sceneRenderer.showGridlines = on; repaint(); }
     void setShowTrack(bool on)          { sceneRenderer.showTrack = on; repaint(); }
     void setShowLaneSeparators(bool on) { sceneRenderer.showLaneSeparators = on; repaint(); }
@@ -133,18 +142,23 @@ public:
     // A BRE is one song-global phrase written to every part at once, so its preview has to show
     // on every highway rather than only the one the cursor is over. The overlay cannot carry it:
     // that is gated to the focused slot and comes back blank everywhere else.
-    void setGlobalPhrasePreview(const OverlayState::PhrasePreview& drag,
-                                const OverlayState::PhrasePreview& hover)
+    //
+    // Pulled at paint, not pushed: the hover moves with the cursor, and onStateChanged (the only
+    // push channel) does not fire on pointer move or exit, so a pushed hover both lagged the
+    // cursor and outlived it.
+    struct GlobalPhrase
     {
-        globalPhraseDrag = drag;
-        globalPhraseHover = hover;
-    }
+        OverlayState::PhrasePreview drag;
+        OverlayState::PhrasePreview hover;
+    };
+    using GlobalPhraseGetter = std::function<GlobalPhrase()>;
+    void setGlobalPhraseGetter(GlobalPhraseGetter g) { globalPhraseGetter = std::move(g); }
 
 private:
     bool writeModeOn = false;
     bool barModeOn = false;
-    OverlayState::PhrasePreview globalPhraseDrag;
-    OverlayState::PhrasePreview globalPhraseHover;
+    bool showActivationOn = true;
+    GlobalPhraseGetter globalPhraseGetter;
     EditorView editorView = EditorView::Notes;
     EditorView shownView() const { return writeModeOn ? editorView : EditorView::Notes; }
     bool phraseViewActive() const
@@ -154,7 +168,10 @@ private:
     }
     void applyEditorView()
     {
-        sceneRenderer.setShowActivation(shownView() == EditorView::Phrase);
+        // The lane and the grown gem are one toggle in both modes. Reading a chart, which note
+        // takes star power is worth as much as it is while authoring, and the lane alone does not
+        // say it: the grown gem is what picks that note out of the fill it sits in.
+        sceneRenderer.setShowActivation(showActivationOn);
         sceneRenderer.setPhraseDim(phraseViewActive() ? PHRASE_VIEW_GEM_DIM : 1.0f);
         sceneRenderer.setPhraseViewActive(shownView() == EditorView::Phrase);
     }

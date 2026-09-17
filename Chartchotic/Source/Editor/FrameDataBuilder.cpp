@@ -54,6 +54,15 @@ static TimeBasedEventMarkers buildSectionMarkers(const FrameContext& ctx, PPQ cu
     return markers;
 }
 
+// The part's phrases plus the active difficulty's fill activation bands, which live apart
+// because the note a fill activates on differs per difficulty.
+static SustainWindow allPhrases(const PartWindow& partWindow, const DifficultyWindow& diffWindow)
+{
+    SustainWindow out = partWindow.phraseWindow;
+    out.insert(out.end(), diffWindow.phraseWindow.begin(), diffWindow.phraseWindow.end());
+    return out;
+}
+
 // Phrases for one part, read off that part's own track in the session. Returned inactive when
 // there is no session, which leaves the interpreter's own parse alone.
 static MidiInterpreter::PhraseOverride sessionPhrases(const FrameContext& ctx, Part part)
@@ -152,7 +161,7 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-    out.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
+    out.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
     out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.sectionMarkers = buildSectionMarkers(ctx, cursorPPQ, ppqToTime);
@@ -281,7 +290,7 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
             HighwayFrameData frameData;
             frameData.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
             frameData.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-            frameData.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
+            frameData.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
             frameData.gridlines = sharedGridlines;
             frameData.eventMarkers = sharedMarkers;
             frameData.sectionMarkers = sharedSections;
@@ -372,7 +381,7 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-    out.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
+    out.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
     out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;

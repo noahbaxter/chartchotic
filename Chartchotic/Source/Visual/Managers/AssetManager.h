@@ -12,6 +12,7 @@
 
 #include <JuceHeader.h>
 #include <map>
+#include <tuple>
 #include "../../Utils/ChartTypes.h"
 
 class AssetManager
@@ -30,6 +31,12 @@ public:
     juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
     juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);
+
+    // Any glyph, recoloured to any colour. neutralPull decides how far the gem's neutral pixels
+    // -- its white highlights and framing -- follow: 0 leaves them, which is how ordinary gems
+    // keep their highlights, and 1 takes the whole sprite. Built on first use and cached per
+    // (source, colour, pull), because it is a full per-pixel pass and must never run per frame.
+    juce::Image* getTintedGlyph(juce::Image* source, juce::Colour tint, float neutralPull);
 
     // Bar/Open notes
     juce::Image* getBarKickImage() { return &barKickImage; }
@@ -174,6 +181,9 @@ private:
     juce::Image barWhiteAccentImage;
     juce::Image barStompImage;           // Elite hi-hat pedal bar, solid yellow (col 10)
     juce::Image barSplashImage;          // Elite hi-hat pedal bar, white body + gold keyline (col 11)
+
+    // Tinted glyph cuts, keyed by the glyph they came from, the colour applied, and the pull.
+    std::map<std::tuple<const juce::Image*, juce::uint32, int>, juce::Image> tintedGlyphs;
 
     // Cymbal notes
     juce::Image cymBlueImage;

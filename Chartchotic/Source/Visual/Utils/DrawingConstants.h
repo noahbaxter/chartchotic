@@ -60,8 +60,49 @@ constexpr float PHRASE_VIEW_OPACITY_BOOST = 2.5f;
 constexpr float PHRASE_BRE_WHITEN = 0.45f;
 constexpr float PHRASE_BRE_OPACITY = 0.5f;
 
-// Phrase view: the activation note at the end of a drum fill grows by this much.
-constexpr float PHRASE_ACTIVATION_SCALE = 1.3f;
+// Phrase view: the activation note at the end of a drum fill is recut in a more vivid version of
+// its own lane colour, so it reads as the note that takes star power without changing size -- a
+// note drawn at the wrong size reads as a different note.
+constexpr float PHRASE_ACTIVATION_VIVID_SATURATION = 1.5f;
+constexpr float PHRASE_ACTIVATION_VIVID_BRIGHTEN = 0.25f;
+// How far the gem's neutral pixels -- its white highlights and framing -- get pulled to the lane
+// hue. This is the part that actually reads: the rest of the gem is already that colour.
+constexpr float PHRASE_ACTIVATION_VIVID_NEUTRAL_PULL = 0.7f;
+
+// The activation band is the lane's own colour at full strength where it meets the gem, fading
+// to nothing along its length, so it reads as pointing at the note rather than covering it.
+constexpr float PHRASE_ACTIVATION_OPACITY = 0.8f;
+
+// Clone Hero draws the activation lane as the lane's two rails rather than a filled lane, which
+// keeps the gems underneath readable. This is how much of the middle is missing.
+constexpr float PHRASE_ACTIVATION_HOLE_FRACTION = 0.1f;
+
+// A kick's lane is the whole board, so the same fraction leaves a gap several times wider in
+// pixels than it does on a hand lane. Its rails reach further in to close that back up.
+constexpr float PHRASE_ACTIVATION_HOLE_FRACTION_BAR = 0.07f;
+
+// Each rail also fades across its width, solid at the lane's outer edge to nothing at the inner.
+// It is banded because a fill takes one gradient and the length fade already has it: enough strips
+// to read as smooth, each overlapping the next by a fraction of a strip to hide the seams. The
+// curve bends the falloff -- above 1 holds the colour out at the edge and drops off later.
+// Hand lanes cut lengthwise into vertical strips, sized in pixels so a wider lane gets more of
+// them rather than wider ones. A kick's board-wide lane cuts across depth instead.
+constexpr float PHRASE_ACTIVATION_EDGE_STRIP_PX = 5.0f;
+constexpr int PHRASE_ACTIVATION_EDGE_STRIPS_MIN = 8;
+constexpr int PHRASE_ACTIVATION_EDGE_STRIPS_MAX = 80;
+constexpr int PHRASE_ACTIVATION_DEPTH_BANDS = 28;
+constexpr int PHRASE_ACTIVATION_EDGE_CURVE_STOPS = 6;
+// Bands abut rather than overlap. Overlapping translucent fills stack to roughly double alpha in
+// the shared strip, and that jump reads far louder than the thin antialiased seam it was hiding.
+constexpr float PHRASE_ACTIVATION_EDGE_OVERLAP = 0.0f;
+constexpr float PHRASE_ACTIVATION_EDGE_FADE_CURVE = 1.0f;
+
+// The bar closing the band's top end at the note, as a fraction of the lane's width there, so it
+// keeps its thickness relative to the lane at any depth.
+constexpr float PHRASE_ACTIVATION_CAP_THICKNESS = 0.07f;
+// A kick's lane is the whole board, roughly five times a hand lane, so its cap takes a fraction
+// scaled down to match -- landing near the thickness of the kick bar it caps.
+constexpr float PHRASE_ACTIVATION_CAP_THICKNESS_BAR = 0.014f;
 
 // How far gems fade back under a phrase drawn over them. Faded, not hidden: which notes a
 // phrase covers is the point of these views.

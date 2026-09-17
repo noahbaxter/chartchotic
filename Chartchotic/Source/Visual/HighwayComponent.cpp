@@ -23,6 +23,9 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
 {
     // Sync activePart from state
     setActivePart(getPartFromState(state));
+    // The view flags default on here but off in the renderer, and nothing reconciled them until
+    // something happened to toggle a view. Push them down once at birth so they start in step.
+    applyEditorView();
 #ifdef DEBUG
     debugColour = juce::Colour::fromHSV(
         juce::Random::getSystemRandom().nextFloat(), 0.4f, 0.4f, 1.0f);
@@ -331,6 +334,10 @@ void HighwayComponent::paint(juce::Graphics& g)
         auto shownHere = [view](SustainType t) {
             const bool phrase = t == SustainType::SOLO || t == SustainType::BRE
                              || t == SustainType::FILL;
+            // The activation lane says where star power can be taken, which a player wants to
+            // see while watching, not only while authoring. Its own toggle hides it; no view
+            // does. Everything else below is about what this view is for.
+            if (t == SustainType::ACTIVATION)  return true;
             // Notes shows solo, fill and BRE as read-only context. Star power is left to the
             // gems, which already draw themselves as SP inside a phrase.
             if (view == EditorView::Notes)     return phrase;
@@ -380,12 +387,14 @@ void HighwayComponent::paint(juce::Graphics& g)
         // is blank.
         if (projectQNToSeconds)
         {
-            const auto drag  = globalPhraseDrag.visible  ? globalPhraseDrag
-                             : ov != nullptr             ? ov->phrasePreview
-                                                         : OverlayState::PhrasePreview{};
-            const auto hover = globalPhraseHover.visible ? globalPhraseHover
-                             : ov != nullptr             ? ov->phraseHover
-                                                         : OverlayState::PhrasePreview{};
+            const GlobalPhrase global = globalPhraseGetter ? globalPhraseGetter() : GlobalPhrase{};
+
+            const auto drag  = global.drag.visible  ? global.drag
+                             : ov != nullptr        ? ov->phrasePreview
+                                                    : OverlayState::PhrasePreview{};
+            const auto hover = global.hover.visible ? global.hover
+                             : ov != nullptr        ? ov->phraseHover
+                                                    : OverlayState::PhrasePreview{};
 
             // The phrase being dragged, then the hover block, drawn as what they would write.
             if (drag.visible)  emitPhrase(typeForKind(drag.kind), drag.startQN, drag.endQN);

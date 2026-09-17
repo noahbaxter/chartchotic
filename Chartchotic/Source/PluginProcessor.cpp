@@ -74,6 +74,9 @@ void ChartchoticAudioProcessor::initializeDefaultState()
     state.setProperty("showBars", DEFAULT_SHOW_BARS, nullptr);
     state.setProperty("showSustains", DEFAULT_SHOW_SUSTAINS, nullptr);
     state.setProperty("showLanes", DEFAULT_SHOW_LANES, nullptr);
+    state.setProperty("showFills", DEFAULT_SHOW_FILLS, nullptr);
+    state.setProperty("showBre", DEFAULT_SHOW_BRE, nullptr);
+    state.setProperty("showActivation", DEFAULT_SHOW_ACTIVATION, nullptr);
     state.setProperty("showGridlines", DEFAULT_SHOW_GRIDLINES, nullptr);
     state.setProperty("showTrack", DEFAULT_SHOW_TRACK, nullptr);
     state.setProperty("showLaneSeparators", DEFAULT_SHOW_LANE_SEPARATORS, nullptr);
