@@ -78,10 +78,37 @@ public:
         return true;
     }
 
+    // A lane: the band, with the run of gems it covers sitting on top of it. Drawn rather than
+    // lettered because a lane has a shape a chart author already reads on the highway.
+    bool drawLane(juce::Graphics& g, juce::Rectangle<float> r, juce::Colour laneColour) const
+    {
+        auto* gem = assets.getDrumGlyphImage(GemWrapper(Gem::NOTE), DRUM_COLUMN, false);
+        if (gem == nullptr || !gem->isValid()) return false;
+
+        // Vertical, because that is how a lane runs on the highway: a band up the column with
+        // its gems stacked on it. Laid out sideways the icon read as a sustain.
+        auto band = r.withSizeKeepingCentre(r.getWidth() * LANE_BAND_HEIGHT, r.getHeight());
+        g.setColour(laneColour.withAlpha(LANE_BAND_ALPHA));
+        g.fillRoundedRectangle(band, band.getWidth() * 0.35f);
+
+        const float cell = r.getHeight() / (float)LANE_GEM_COUNT;
+        const float size = juce::jmin(cell * LANE_GEM_FILL, r.getWidth() * LANE_GEM_FILL);
+        for (int i = 0; i < LANE_GEM_COUNT; ++i)
+        {
+            auto slot = juce::Rectangle<float>(r.getX(), r.getY() + cell * (float)i, r.getWidth(), cell);
+            drawImage(g, slot.withSizeKeepingCentre(size, size), gem);
+        }
+        return true;
+    }
+
 private:
     static constexpr juce::uint8 VISIBLE_ALPHA = 8;
     static constexpr float FLAM_OFFSET = 0.3f;       // of the icon, how far the two gems sit apart
     static constexpr float FLAM_GRACE_ALPHA = 0.55f;
+    static constexpr int   LANE_GEM_COUNT = 4;       // gems shown sitting on the lane
+    static constexpr float LANE_GEM_FILL = 0.8f;     // of its cell, so the run does not touch
+    static constexpr float LANE_BAND_HEIGHT = 0.72f; // of the icon
+    static constexpr float LANE_BAND_ALPHA = 0.55f;
 
     // Scanned once per image and kept, keyed by the pixel buffer so a rescaled asset is
     // measured afresh rather than reusing the old one's bounds.

@@ -114,6 +114,7 @@ public:
         applyEditorView();
         repaint();
     }
+    void setLaneToolActive(bool on)     { laneToolOn = on; applyEditorView(); repaint(); }
     void setShowGridlines(bool on)      { sceneRenderer.showGridlines = on; repaint(); }
     void setShowTrack(bool on)          { sceneRenderer.showTrack = on; repaint(); }
     void setShowLaneSeparators(bool on) { sceneRenderer.showLaneSeparators = on; repaint(); }
@@ -158,6 +159,7 @@ private:
     bool writeModeOn = false;
     bool barModeOn = false;
     bool showActivationOn = DEFAULT_SHOW_ACTIVATION;
+    bool laneToolOn = false;
     GlobalPhraseGetter globalPhraseGetter;
     EditorView editorView = EditorView::Notes;
     EditorView shownView() const { return writeModeOn ? editorView : EditorView::Notes; }
@@ -172,7 +174,9 @@ private:
         // takes star power is worth as much as it is while authoring, and the lane alone does not
         // say it: the grown gem is what picks that note out of the fill it sits in.
         sceneRenderer.setShowActivation(showActivationOn);
-        sceneRenderer.setPhraseDim(phraseViewActive() ? PHRASE_VIEW_GEM_DIM : 1.0f);
+        // Lane mode dims the gems for the same reason a phrase view does: the lane is what you
+        // are working on, and it is drawn behind notes that would otherwise sit on top of it.
+        sceneRenderer.setPhraseDim(phraseViewActive() || laneToolOn ? PHRASE_VIEW_GEM_DIM : 1.0f);
         sceneRenderer.setPhraseViewActive(shownView() == EditorView::Phrase);
     }
 

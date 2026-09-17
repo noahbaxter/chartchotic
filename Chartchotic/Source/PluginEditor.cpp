@@ -49,11 +49,14 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         auto& hw = *slots[i].highway;
         // Claim focus before dispatching so the edit lands on the highway the
         // mouse is over. Drags do not re-claim, that would retarget the stroke.
-        hw.setOnPointerMove       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerMove(p, c); });
+        // Moving over a highway does not take it over: focus follows a click, not the cursor.
+        // Passing a hover through from an unfocused slot would be worse than ignoring it, since
+        // the point would be read against the focused highway's lanes and ghost the wrong place.
+        hw.setOnPointerMove       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { if (i != focusedSlot) return; interactionController.onPointerMove(p, c); });
         hw.setOnPointerDown       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDown(p, c); });
         hw.setOnPointerDrag       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDrag(p, c); });
         hw.setOnPointerUp         ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerUp(p, c); });
-        hw.setOnPointerExit       ([this]() { interactionController.onPointerExit(); });
+        hw.setOnPointerExit       ([this, i]() { if (i != focusedSlot) return; interactionController.onPointerExit(); });
         hw.setOnPointerCancel     ([this]() { interactionController.onPointerCancel(); });
         hw.setOnPointerDoubleClick([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDoubleClick(p, c); });
         hw.onMouseWheel = [this](const juce::MouseEvent& e, const juce::MouseWheelDetails& w) { handleHighwayScroll(e, w); };
@@ -660,6 +663,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onBarsChanged = [this](bool on) { state.setProperty("showBars", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBars(on); }); };
     toolbar.onSustainsChanged = [this](bool on) { state.setProperty("showSustains", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowSustains(on); }); };
     toolbar.onLanesChanged = [this](bool on) { state.setProperty("showLanes", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowLanes(on); }); };
+    toolbar.onLaneToolActive = [this](bool on) { forEachHighway([on](auto& hw) { hw.setLaneToolActive(on); }); };
     toolbar.onFillsChanged = [this](bool on) { state.setProperty("showFills", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowFills(on); }); };
     toolbar.onBreChanged = [this](bool on) { state.setProperty("showBre", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBre(on); }); };
     toolbar.onActivationChanged = [this](bool on) { state.setProperty("showActivation", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowActivationLane(on); }); };

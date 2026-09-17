@@ -51,7 +51,17 @@ public:
     void setSnapEnabled(bool v)     { writeController.setSnapEnabled(v); }
     void clearEditSelection()       { editController.clearSelection(); }
     void setBarMode(bool v);
-    void setLaneTool(bool v)        { writeController.setLaneTool(v); }
+    void setLaneTool(bool v)        { writeController.setLaneTool(v); dropCymbalUnlessPlainNotes(); }
+
+    // A cymbal is a property of a drum pad hit, so it only means anything while plain notes are
+    // what a click writes. A kick bar, a lane and every phrase are written as something else, and
+    // leaving the flag set through them would have it come back on a note the user never set it
+    // for. Enforced here rather than at each caller so the keyboard and the bar cannot disagree.
+    void dropCymbalUnlessPlainNotes()
+    {
+        if (!cymbalMode()) return;
+        if (barMode() || laneTool() || view() != EditorView::Notes) setCymbalMode(false);
+    }
     void setActivePart(Part p)        { writeController.setActivePart(p); editController.setActivePart(p); }
     void setActiveSkill(SkillLevel s) { writeController.setActiveSkill(s); editController.setActiveSkill(s); }
     void setDrumDynamic(DrumDynamic d){ writeController.setDrumDynamic(d); editController.setDrumDynamic(d); }

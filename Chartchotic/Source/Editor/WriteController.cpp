@@ -109,7 +109,9 @@ void WriteController::recomputePhraseHover()
 {
     overlayState.phraseHover = {};
 
-    if (!phraseViewActive() || phraseDragActive)          return;
+    // The lane tool writes through the phrase path, so it previews through it too: hovering with
+    // it on showed the gem a click would place, which is not what a click places.
+    if (!(phraseViewActive() || laneToolFlag) || phraseDragActive) return;
     if (!lastPointValid || !writeModeActive())            return;
     if (isPlaying() || !lastPoint.onHighway)              return;
 
@@ -118,14 +120,16 @@ void WriteController::recomputePhraseHover()
 
     const auto kind = kindForView();
     const double step = stepSpacingQN(currentStepDivision, currentTuplet);
-    overlayState.phraseHover = { true, qn, qn + step, (int)kind };
+    overlayState.phraseHover = { true, qn, qn + step,
+                                 laneToolFlag ? OverlayState::PREVIEW_KIND_LANE : (int)kind };
 
     // Borrows the ghost cursor's label, the way the alternating-kick hint does, with no lane so
     // no gem is drawn with it.
     overlayState.ghostVisible   = true;
     overlayState.ghostQN        = qn;
     overlayState.ghostLane      = -1;
-    overlayState.ghostModeLabel = PhraseMath::phraseLabel(kind, activePart());
+    overlayState.ghostModeLabel = laneToolFlag ? "LANE"
+                                               : PhraseMath::phraseLabel(kind, activePart());
 }
 
 void WriteController::recomputeGhost()
@@ -158,7 +162,9 @@ void WriteController::recomputeGhost()
     if (altKickArmed)
         overlayState.ghostModeLabel = "ALTERNATE KICKS";
 
-    if (currentSubMode == SubMode::Draw
+    // The lane tool has its own span preview from recomputePhraseHover; a gem ghost on top of it
+    // would advertise a note the click is not going to write.
+    if (currentSubMode == SubMode::Draw && !laneToolFlag
         && !sustainDragActive && !paintDragActive && !eraseDragActive
         && !stampCaptureActive)
     {
@@ -519,7 +525,8 @@ void WriteController::clearPhraseDrag()
 void WriteController::recomputePhrasePreview()
 {
     overlayState.phrasePreview = { phraseDragActive, phraseDragStartQN, phraseDragEndQN,
-                                   (int)kindForView() };
+                                   laneToolFlag ? OverlayState::PREVIEW_KIND_LANE
+                                                : (int)kindForView() };
     // Suppresses itself while the drag owns the range, so the two never draw at once.
     recomputePhraseHover();
     if (onStateChanged) onStateChanged();
