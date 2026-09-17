@@ -5,7 +5,7 @@
 
 // Compact pill-shaped on/off toggle.
 // Filled coral when ON, outlined when OFF. Hover highlights.
-class PillToggle : public juce::Component
+class PillToggle : public juce::Component, public juce::SettableTooltipClient
 {
 public:
     PillToggle(const juce::String& text) : label(text) {}

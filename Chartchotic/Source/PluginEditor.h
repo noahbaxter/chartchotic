@@ -249,6 +249,9 @@ private:
 
     // UI Components
     ToolbarComponent toolbar;
+    // Nothing in the app displayed a tooltip before this: the controls stored them and no window
+    // existed to show them. Owned by the editor so every control under it is covered.
+    juce::TooltipWindow tooltipWindow { this, TOOLTIP_DELAY_MS };
 
     // Floating mode chip — owned by the editor so it sits over the highway
     // (top-left, just below the toolbar). Click toggles write mode; key

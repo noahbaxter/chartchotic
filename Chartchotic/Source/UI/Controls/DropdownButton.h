@@ -7,7 +7,7 @@
 // One-of-many picker that shows only the current choice, for a row too tight for every option
 // to sit side by side. Click opens the app's own panel below it, the wheel steps through the
 // items in place.
-class DropdownButton : public juce::Component
+class DropdownButton : public juce::Component, public juce::SettableTooltipClient
 {
 public:
     ~DropdownButton() override { closePanel(); }
