@@ -216,8 +216,9 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
                      : bre        ? PHRASE_BRE_OPACITY
                      : activation ? PHRASE_ACTIVATION_OPACITY
                                   : LANE_OPACITY;
-    const float opacity = phraseViewActive ? std::min(1.0f, base * PHRASE_VIEW_OPACITY_BOOST)
-                                           : base;
+    const float opacity = !phraseViewActive ? base
+                        : starPower         ? PHRASE_STAR_POWER_VIEW_OPACITY
+                                            : std::min(1.0f, base * PHRASE_VIEW_OPACITY_BOOST);
     const float gridZ = phraseGridZ;
 
     (*currentDrawCallMap)[(int)DrawOrder::LANE][band ? 0 : column].push_back([=](juce::Graphics& g) {
@@ -487,6 +488,18 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
     int laneIdx = PositionMath::bemaniMode ? bemaniIdx : -1;
     auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
     auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
+
+    // Gems sit on a curvature arc; a sustain running off one has to sit on the same arc or it
+    // meets its gem at only one depth. Taken per end, because the lift scales with depth: a single
+    // offset for the whole body would line the start up and leave the far end out by the
+    // difference. Kicks and open bars are drawn flat, so they take no lift.
+    if (!PositionMath::bemaniMode && !isBar)
+    {
+        const float arc = noteArcOffsetStrike(gemColumn, isDrums ? noteCurvatureDrums
+                                                                : noteCurvatureGuitar);
+        startLane.centerY += arc * depthWidthRatio(startPosition);
+        endLane.centerY   += arc * depthWidthRatio(endPosition);
+    }
 
     // Bemani mode: simple shapes, no perspective geometry
     if (PositionMath::bemaniMode)

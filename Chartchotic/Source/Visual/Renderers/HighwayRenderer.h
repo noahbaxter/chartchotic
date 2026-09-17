@@ -83,6 +83,37 @@ protected:
         return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
     }
 
+    // The vertical bow a gem row sits on, in strike-reference pixels. It peaks at the centre lane
+    // and falls to nothing at the outer ones, so it is per column rather than a constant, and
+    // depthWidthRatio scales it to the depth it is drawn at. Anything that has to meet a gem, a
+    // sustain starting at one above all, takes the same lift from here: a hand-tuned constant can
+    // only line the two up at one column and one depth, which is what it looks like everywhere else.
+    float noteArcOffsetStrike(uint gemColumn, float curvature) const
+    {
+        if (curvature == 0.0f || currentConfig == nullptr || laneCoords == nullptr) return 0.0f;
+
+        auto strike = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, width, height,
+                                                     PositionConstants::HIGHWAY_POS_START, posEnd);
+        const float fbSW = strike.rightX - strike.leftX;
+        const float dist = PositionMath::columnDistFromCenter(*currentConfig->fretboardCoords,
+                                                              laneCoords[resolveLaneIndex(gemColumn)]);
+        // Elite's canvas is wider, not taller, so the width factor divides back down or the centre
+        // lanes bow too far. Same correction the gem itself takes.
+        return fbSW * PositionConstants::FRETBOARD_SCALE * curvature * (1.0f - dist * dist)
+             / currentConfig->boardWidthScale;
+    }
+
+    // Strike-reference pixels to current pixels at a depth.
+    float depthWidthRatio(float position) const
+    {
+        auto strike = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, width, height,
+                                                     PositionConstants::HIGHWAY_POS_START, posEnd);
+        auto cur    = PositionMath::getFretboardEdge(getRenderType(activePart), position, width, height,
+                                                     PositionConstants::HIGHWAY_POS_START, posEnd);
+        const float sw = strike.rightX - strike.leftX;
+        return sw > 0.0f ? (cur.rightX - cur.leftX) / sw : 1.0f;
+    }
+
     // Gem column -> index into laneCoords, part-generic and bounded to laneCount.
     // Guitar columns map straight through; drums remap the kick/2x virtual column.
     uint resolveLaneIndex(uint gemColumn) const

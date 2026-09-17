@@ -69,6 +69,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
+    sustainRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
+    sustainRenderer.noteCurvatureDrums = noteCurvatureDrums;
     noteRenderer.setFlamShape(flamTypeWidths, flamSubLaneSpread, flamTilt, flamSingleOverlay);
     noteRenderer.gemScale = isDrums ? drumGemScale : guitarGemScale;
     noteRenderer.barScale = isDrums ? drumBarScale : guitarBarScale;

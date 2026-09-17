@@ -157,7 +157,7 @@ public:
 private:
     bool writeModeOn = false;
     bool barModeOn = false;
-    bool showActivationOn = true;
+    bool showActivationOn = DEFAULT_SHOW_ACTIVATION;
     GlobalPhraseGetter globalPhraseGetter;
     EditorView editorView = EditorView::Notes;
     EditorView shownView() const { return writeModeOn ? editorView : EditorView::Notes; }

@@ -37,6 +37,12 @@ public:
     // In the phrase view a phrase is the subject rather than context, so it draws stronger.
     bool phraseViewActive = false;
 
+    // The same curvature the gems are drawn with. A sustain starts at a gem, so it has to bow by
+    // the same amount that gem does, which means tracking the tunable rather than a copy of the
+    // default. SceneRenderer points both renderers at the same values.
+    float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
+    float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
+
     struct TintedSustain { int lane; double startTime; double endTime; juce::Colour colour; bool matchStart = false; };
     std::vector<TintedSustain> tintedSustains;
 
@@ -59,7 +65,8 @@ public:
     // The lane colour spread of a fill and of a BRE, each hideable on its own. The activation
     // band has its own toggle rather than riding on the fill's: it is the part a player reads,
     // and it stays useful with the colour spread turned off.
-    bool showFills = true, showBre = true, showActivationLane = true;
+    bool showFills = DEFAULT_SHOW_FILLS, showBre = DEFAULT_SHOW_BRE,
+         showActivationLane = DEFAULT_SHOW_ACTIVATION;
 
 private:
 
