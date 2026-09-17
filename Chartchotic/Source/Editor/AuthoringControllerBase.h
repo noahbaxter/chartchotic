@@ -123,6 +123,9 @@ protected:
     }
 
     // Backend track id, for anything going out to the MIDI provider (findNote, writes).
+    // For writes that do not go through a note at all, like phrases.
+    MidiWriter* midiWriter() const { return noteEditor.getMidiWriter(); }
+
     int resolveTrackIdx() const
     {
         if (instrumentSession == nullptr) return -1;

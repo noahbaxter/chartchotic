@@ -29,6 +29,14 @@ public:
 
     PositionConstants::LaneShapeConfig laneShape;
 
+    // Where gridlines sit, so phrase fills can meet them: the scene's gridline z offset (current
+    // pixels at the strikeline) and position offset. Set before populate.
+    float phraseGridZ = 0.0f;
+    float phrasePosOffset = 0.0f;
+
+    // In the phrase view a phrase is the subject rather than context, so it draws stronger.
+    bool phraseViewActive = false;
+
     struct TintedSustain { int lane; double startTime; double endTime; juce::Colour colour; bool matchStart = false; };
     std::vector<TintedSustain> tintedSustains;
 
@@ -49,8 +57,11 @@ private:
 
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
     void drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
-                         float opacity, float sustainWidth, juce::Colour colour, bool isLane,
-                         bool acrossBoard = false);
+                         float opacity, float sustainWidth, juce::Colour colour, bool isLane);
+
+    // Star power bands and fill lanes: flat fills whose ends trace the gridline centreline,
+    // so a phrase that starts and stops on gridlines meets them with no seam.
+    void drawPhrase(const TimeBasedSustainEvent& phrase, double windowStartTime, double windowEndTime);
 
     // Elite hi-hat ringing zone, solid to fadeStartTime then a fainter tail.
     void drawHiHatSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);

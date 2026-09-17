@@ -185,6 +185,9 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     {
         ScopedPhaseMeasure m(lastPhaseTiming.sustains_us, collectPhaseTiming);
         sustainRenderer.laneShape = laneShape;
+        sustainRenderer.phraseGridZ = offsets.gridZ * resScale;
+        sustainRenderer.phrasePosOffset = gridlinePosOffset;
+        sustainRenderer.phraseViewActive = phraseViewActive;
         sustainRenderer.populate(drawCallMap, sustainWindow, windowStartTime, windowEndTime,
                                  width, height, showLanes, showSustains,
                                  highwayPosEnd,
@@ -211,11 +214,15 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                    farFadeEnd, farFadeLen, farFadeCurve);
     }
 
-    // TODO: enable event marker rendering (tempo/timesig changes, sections, lyrics, etc.)
-    // textEventRenderer.activePart = activePart;
-    // textEventRenderer.populateEventMarkers(drawCallMap, eventMarkers, windowStartTime, windowEndTime,
-    //                                        width, height, highwayPosEnd,
-    //                                        farFadeEnd, farFadeLen, farFadeCurve);
+    // Named gates: the Sections view's sections today, tempo and lyrics when those views land.
+    // The caller decides which markers a view shows and passes only those.
+    if (!eventMarkers.empty())
+    {
+        textEventRenderer.activePart = activePart;
+        textEventRenderer.populateEventMarkers(drawCallMap, eventMarkers, windowStartTime, windowEndTime,
+                                               width, height, highwayPosEnd,
+                                               farFadeEnd, farFadeLen, farFadeCurve);
+    }
 
     // Detect and add animations to drawCallMap (if enabled)
     {

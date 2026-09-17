@@ -438,13 +438,6 @@ void ChartchoticAudioProcessorEditor::onFrame()
             }
         }
 
-        // Phrases belong to one part, and the strip shows the one the mouse is working in.
-        int focus = effectiveFocusSlot();
-        if (focus < (int)sources.size())
-            utilityStrip.setPhraseSource(sources[(size_t)focus].notes, sources[(size_t)focus].part);
-        else
-            utilityStrip.setPhraseSource(nullptr, Part::GUITAR);
-
         utilityStrip.setNoteSources(std::move(sources));
 
         // The view is a write-mode overlay, so with write mode off the strip reads as Notes.
@@ -797,11 +790,39 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     // changes (W/Q toggles, [/]/S/T grid changes). When the sub-toolbar's
     // visibility flips, the toolbar reports a new height — trigger our own
     // resized() so the highway reclaims/yields the row's space.
+    // A refused phrase says why in the footer, where the rest of the write-mode help goes.
+    interactionController.setPhraseRefusedHandler([this](const juce::String& reason) {
+        footer.setHelpText({ dim(reason) });
+    });
+
+    interactionController.setChartWrittenHandler([this]() {
+        audioProcessor.invalidateReaperCache();
+    });
+
     interactionController.onStateChanged = [this]() {
         writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
         bool wm = interactionController.writeModeActive();
         auto view = interactionController.view();
-        forAllHighways([wm, view](auto& hw) { hw.setWriteMode(wm); hw.setEditorView(view); });
+        bool bar = interactionController.barMode();
+
+        // A BRE spans every part, so its preview goes to every highway rather than only the
+        // focused one. Everything else stays per-part and comes through the overlay as before.
+        const auto& ov = interactionController.getOverlayState();
+        auto ifBre = [](const OverlayState::PhrasePreview& p) {
+            return p.visible && (PhraseMath::Kind)p.kind == PhraseMath::Kind::Bre
+                 ? p : OverlayState::PhrasePreview{};
+        };
+        // Only the drag. The hover is a cursor affordance and belongs on the highway the cursor
+        // is actually over: broadcast, it sat on every other highway as a stray one-step block
+        // that outlived the gesture that made it.
+        auto breDrag = ifBre(ov.phrasePreview);
+
+        forAllHighways([wm, view, bar, breDrag](auto& hw) {
+            hw.setWriteMode(wm);
+            hw.setEditorView(view);
+            hw.setBarMode(bar);
+            hw.setGlobalPhrasePreview(breDrag, {});
+        });
 
         if (toolbar.refreshFromWriteController())
             resized();

@@ -31,6 +31,9 @@ struct ModifierRanges {
     // Track level, not per skill.
     std::vector<ModifierRange> solo;
     std::vector<ModifierRange> fill;
+    // Same markers as `fill`, split out by [coda] before resolve so the two can be told apart
+    // downstream. Only the session-backed path fills this; a raw parse leaves it empty.
+    std::vector<ModifierRange> bre;
     std::vector<ModifierRange> tap;
     std::array<std::vector<ModifierRange>, 4> hopoForce;    // indexed by SkillLevel
     std::array<std::vector<ModifierRange>, 4> strumForce;    // indexed by SkillLevel

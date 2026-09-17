@@ -88,6 +88,8 @@ class SceneRenderer
         std::vector<SustainRenderer::TintedSustain>& getTintedSustains() { return sustainRenderer.tintedSustains; }
         void setBarModeDim(float dim) { noteRenderer.barModeDim = dim; }
         void setShowActivation(bool on) { noteRenderer.showActivation = on; }
+        void setPhraseDim(float dim) { noteRenderer.phraseDim = dim; }
+        void setPhraseViewActive(bool on) { phraseViewActive = on; }
         const std::vector<NoteRenderer::NoteHitBox>& getNoteHitBoxes() const { return noteRenderer.getHitBoxes(); }
 
 #ifdef DEBUG
@@ -145,6 +147,9 @@ class SceneRenderer
 
         // Lane shape config (tuneable)
         PositionConstants::LaneShapeConfig laneShape;
+
+        // Set from the editor view: phrases draw stronger where they are the subject.
+        bool phraseViewActive = false;
 
 
         // Far-end fade: farFadeEnd is user-controlled ("highway length")

@@ -473,11 +473,17 @@ int main(int argc, char** argv)
 
     // Phrases sit over content the fake scenes already have, near the strikeline where they
     // read: the basic gems and dynamics on drums, the frets and HOPOs/taps on guitar.
+    if ((spView || phraseView) && !isElite)
+        scene.setPhraseDim(PHRASE_VIEW_GEM_DIM);
+
     if (spView && !isElite)
         sustainWindow.push_back({ 0.10, 0.40, 0u, SustainType::STAR_POWER, GemWrapper(Gem::NOTE, true) });
 
     if (phraseView && !isElite)
     {
+        // A solo over the near gems, then a fill past it: the two the Phrase view draws.
+        sustainWindow.push_back({ 0.02, 0.38, 0u, SustainType::SOLO, GemWrapper(Gem::NOTE) });
+
         const double fillEnd = isDrums ? 0.70 : 0.78;
         uint lastColumn = isDrums ? 4u : 5u;
         for (uint c = 1; c <= lastColumn; ++c)

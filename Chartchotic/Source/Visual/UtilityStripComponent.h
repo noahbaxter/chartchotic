@@ -39,7 +39,7 @@
 #include "Managers/AssetManager.h"
 #include "../Editor/StripCommandMapper.h"
 #include "StripViewMath.h"
-#include "StripPhraseMath.h"
+#include "PhraseMath.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
 
@@ -135,9 +135,9 @@ public:
         if (playing) followEngaged = true;
     }
 
-    // Whole-song notes for the focused part, drawn as a density map rather than a chart.
-    // One per visible highway. The map splits its width between them, so a single
-    // instrument spreads across the strip and four share it.
+    // Whole-song notes, drawn as a density map rather than a chart, or as phrase columns in
+    // the phrase views. One per visible highway. The strip splits its width between them, so
+    // a single instrument spreads across it and four share it.
     struct NoteSource
     {
         const std::vector<MidiCache::CachedNote>* notes = nullptr;
@@ -146,14 +146,6 @@ public:
     };
 
     void setNoteSources(std::vector<NoteSource> s) { noteSources = std::move(s); }
-
-    // The part the phrase columns read. Only ever the focused one: phrases are per part, and
-    // a column per instrument is a later addition, not this.
-    void setPhraseSource(const std::vector<MidiCache::CachedNote>* notes, Part part)
-    {
-        phraseNotes = notes;
-        phrasePart = part;
-    }
 
     // The editor's view, which decides what the strip draws. It never decides what a click
     // does: the strip only navigates.
@@ -594,21 +586,22 @@ private:
     //==========================================================================
     // Phrase columns, drawn in place of the note map in the SP and Phrase views
 
-    const std::vector<MidiCache::CachedNote>* phraseNotes = nullptr;
-    Part phrasePart = Part::GUITAR;
-
     bool showsPhrases() const
     { return editorView == EditorView::StarPower || editorView == EditorView::Phrase; }
 
-    // The kinds the current view shows, one column each.
-    std::vector<StripPhraseMath::Kind> phraseColumns() const;
-    juce::Rectangle<int> phraseColumnBounds(int column, int count) const;
+    // The note map's side inset, so phrase columns line up with the notes they replace.
+    static constexpr float PHRASE_COLUMN_INSET = 3.0f;
 
-    // One kind's phrases on the focused part, read off its reference pitch.
-    std::vector<StripPhraseMath::PhraseSpan> phraseSpans(StripPhraseMath::Kind kind) const;
+    // The kinds the current view shows. Each visible highway gets its own column, like the
+    // note map, and each kind a sub-column inside it.
+    std::vector<PhraseMath::Kind> phraseColumns() const;
+
+    // One kind's phrases on one part, read off its reference pitch.
+    std::vector<PhraseMath::PhraseSpan> phraseSpans(PhraseMath::Kind kind,
+                                                         const NoteSource& source) const;
     std::optional<double> codaQN() const;
 
-    juce::Colour phraseColour(StripPhraseMath::Kind kind, double startQN) const;
+    juce::Colour phraseColour(PhraseMath::Kind kind, double startQN, Part part) const;
     void drawPhrases(juce::Graphics& g, const View& v) const;
 
     const SongSections* sections = nullptr;

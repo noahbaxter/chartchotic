@@ -818,7 +818,10 @@ TEST_CASE("TrackResolver - a fill lays a lane on every hand column and none on t
     {
         auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
         auto pw = TrackResolver::resolve(shared, drumsConfig());
-        REQUIRE(countPhrases(pw, SustainType::BRE) == 4);
+        // A raw parse has no [coda] to read, so 120-124 comes through as a fill. Telling a BRE
+        // apart needs the song's coda, which only the session-backed path has.
+        REQUIRE(countPhrases(pw, SustainType::FILL) == 4);
+        REQUIRE(countPhrases(pw, SustainType::BRE) == 0);
         for (const auto& p : pw.phraseWindow)
             REQUIRE(p.gemColumn != (uint)DRUM_KICK_COLUMN);
     }
@@ -827,7 +830,18 @@ TEST_CASE("TrackResolver - a fill lays a lane on every hand column and none on t
     {
         auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
         auto pw = TrackResolver::resolve(shared, TrackResolver::Config{});
-        REQUIRE(countPhrases(pw, SustainType::BRE) == 5);
+        REQUIRE(countPhrases(pw, SustainType::FILL) == 5);
+    }
+
+    SECTION("split out as a BRE once the coda says so")
+    {
+        auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+        shared.modifiers.bre = shared.modifiers.fill;
+        shared.modifiers.fill.clear();
+
+        auto pw = TrackResolver::resolve(shared, drumsConfig());
+        REQUIRE(countPhrases(pw, SustainType::BRE) == 4);
+        REQUIRE(countPhrases(pw, SustainType::FILL) == 0);
     }
 }
 

@@ -8,6 +8,7 @@
 */
 
 #include "TrackResolver.h"
+#include "../../Visual/PhraseMath.h"
 #include "../Utils/MidiConstants.h"
 
 //==============================================================================
@@ -196,33 +197,26 @@ PartWindow TrackResolver::resolve(const SharedWindow& shared, const Config& cfg)
 // Phrases → phraseWindow
 //==============================================================================
 
-namespace
-{
-    // The columns a fill lane covers: every hand lane, never the kick.
-    std::pair<uint, uint> handColumns(Part part)
-    {
-        switch (getRenderType(part))
-        {
-            case RenderType::FOUR_LANE_DRUMS: return { 1, 4 };
-            case RenderType::FIVE_LANE_DRUMS: return { 1, 5 };
-            case RenderType::ELITE_DRUMS:     return { 1, 8 };
-            case RenderType::SIX_FRET:        return { 1, 6 };
-            default:                          return { 1, 5 };
-        }
-    }
-}
-
 void TrackResolver::resolvePhrases(PartWindow& result, const SharedWindow& shared, const Config& cfg)
 {
+    // Star power and solo cover the whole board, so they carry no column.
     for (const auto& sp : shared.modifiers.starPower)
         result.phraseWindow.push_back({ sp.start, sp.end, 0, SustainType::STAR_POWER,
                                         GemWrapper(Gem::NOTE, true) });
 
-    auto [firstColumn, lastColumn] = handColumns(cfg.part);
-    for (const auto& fill : shared.modifiers.fill)
-        for (uint c = firstColumn; c <= lastColumn; ++c)
-            result.phraseWindow.push_back({ fill.start, fill.end, c, SustainType::BRE,
-                                            GemWrapper(Gem::NOTE) });
+    for (const auto& solo : shared.modifiers.solo)
+        result.phraseWindow.push_back({ solo.start, solo.end, 0, SustainType::SOLO,
+                                        GemWrapper(Gem::NOTE) });
+
+    auto [firstColumn, lastColumn] = PhraseMath::handColumns(cfg.part);
+    auto pushColumns = [&](const std::vector<ModifierRange>& ranges, SustainType type) {
+        for (const auto& r : ranges)
+            for (uint c = firstColumn; c <= lastColumn; ++c)
+                result.phraseWindow.push_back({ r.start, r.end, c, type, GemWrapper(Gem::NOTE) });
+    };
+
+    pushColumns(shared.modifiers.fill, SustainType::FILL);
+    pushColumns(shared.modifiers.bre, SustainType::BRE);
 
     // A drum fill ends on the note that activates star power. Guitar has no fills, only
     // BREs, and a BRE activates nothing.

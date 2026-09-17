@@ -67,33 +67,35 @@ void InteractionController::setView(EditorView v)
 void InteractionController::onPointerMove(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     writeController.onPointerMove(p, ctx);
-    if (highwayAuthors()) editController.onPointerMove(p, ctx);
+    if (gemsAuthored()) editController.onPointerMove(p, ctx);
 }
 
+// A phrase is a range, not a note, so the phrase views go to the write controller whichever
+// sub-mode is showing: there is nothing for edit mode to select.
 void InteractionController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     if (!highwayAuthors()) return;
-    if (isEditActive()) editController.onPointerDown(p, ctx);
-    else                writeController.onPointerDown(p, ctx);
+    if (isEditActive() && gemsAuthored()) editController.onPointerDown(p, ctx);
+    else                                  writeController.onPointerDown(p, ctx);
 }
 
 void InteractionController::onPointerDrag(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     if (!highwayAuthors()) return;
-    if (isEditActive()) editController.onPointerDrag(p, ctx);
-    else                writeController.onPointerDrag(p, ctx);
+    if (isEditActive() && gemsAuthored()) editController.onPointerDrag(p, ctx);
+    else                                  writeController.onPointerDrag(p, ctx);
 }
 
 void InteractionController::onPointerUp(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     if (!highwayAuthors()) return;
-    if (isEditActive()) editController.onPointerUp(p, ctx);
-    else                writeController.onPointerUp(p, ctx);
+    if (isEditActive() && gemsAuthored()) editController.onPointerUp(p, ctx);
+    else                                  writeController.onPointerUp(p, ctx);
 }
 
 void InteractionController::onPointerDoubleClick(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
-    if (highwayAuthors() && isEditActive())
+    if (gemsAuthored() && isEditActive())
         editController.onPointerDoubleClick(p, ctx);
 }
 
@@ -112,9 +114,22 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
 {
     auto cmd = writeController.resolveKeyCommand(key);
 
-    // Outside Notes the keys that act on gems have nothing to act on. Mode and grid keys
-    // still work, since the other views use the same grid.
-    if (!highwayAuthors())
+    // In the Phrase view the home row picks which phrase a drag writes, the same way it picks a
+    // note type in the Notes view.
+    if (writeController.view() == EditorView::Phrase
+        && cmd >= WriteCommand::ModifierSlot1 && cmd <= WriteCommand::ModifierSlot5)
+    {
+        int index = (int)cmd - (int)WriteCommand::ModifierSlot1;
+        auto kinds = PhraseMath::kindsFor(activePart());
+        if (index >= (int)kinds.size()) return false;
+
+        writeController.setPhraseKind(kinds[(size_t)index]);
+        return true;
+    }
+
+    // Outside the gem views the keys that act on gems have nothing to act on. Mode and grid
+    // keys still work, since the other views use the same grid.
+    if (!gemsAuthored())
     {
         switch (cmd)
         {
