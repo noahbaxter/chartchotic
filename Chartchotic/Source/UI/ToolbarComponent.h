@@ -94,6 +94,9 @@ public:
     std::function<void(bool)> onBarsChanged;
     std::function<void(bool)> onSustainsChanged;
     std::function<void(bool)> onLanesChanged;
+    std::function<void(bool)> onFillsChanged;
+    std::function<void(bool)> onBreChanged;
+    std::function<void(bool)> onActivationChanged;
     std::function<void(bool)> onGridlinesChanged;
     std::function<void(bool)> onHitIndicatorsChanged;
     std::function<void(bool)> onTrackChanged;
@@ -225,6 +228,9 @@ private:
     PillToggle barsToggle{"Bars"};
     PillToggle sustainsToggle{"Sustains"};
     PillToggle lanesToggle{"Lanes"};
+    PillToggle fillsToggle{"Fills"};
+    PillToggle breToggle{"BRE"};
+    PillToggle activationToggle{"Activation"};
     PillToggle gridlinesToggle{"Gridlines"};
     PillToggle hitIndicatorsToggle{"Hits"};
 

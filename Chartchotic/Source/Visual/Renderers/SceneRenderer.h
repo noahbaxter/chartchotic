@@ -50,6 +50,9 @@ class SceneRenderer
         bool showBars = true;
         bool showSustains = true;
         bool showLanes = true;
+        bool showFills = true;
+        bool showBre = true;
+        bool showActivationLane = true;
         bool showGridlines = true;
         bool showTrack = true;
         bool showLaneSeparators = true;

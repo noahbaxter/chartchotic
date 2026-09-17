@@ -69,6 +69,11 @@ constexpr bool DEFAULT_SHOW_GEMS        = true;
 constexpr bool DEFAULT_SHOW_BARS        = true;
 constexpr bool DEFAULT_SHOW_SUSTAINS    = true;
 constexpr bool DEFAULT_SHOW_LANES       = true;
+// Fills paint every hand lane solid for their whole length, which buries the notes under them.
+// Off by default: the activation lane and its recoloured gem say where the fill is without it.
+constexpr bool DEFAULT_SHOW_FILLS       = false;
+constexpr bool DEFAULT_SHOW_BRE         = true;
+constexpr bool DEFAULT_SHOW_ACTIVATION  = true;
 constexpr bool DEFAULT_SHOW_GRIDLINES   = true;
 constexpr bool DEFAULT_SHOW_HIT_INDICATORS = true;
 constexpr bool DEFAULT_SHOW_STAR_POWER  = true;

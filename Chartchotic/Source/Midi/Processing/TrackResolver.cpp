@@ -197,6 +197,22 @@ PartWindow TrackResolver::resolve(const SharedWindow& shared, const Config& cfg)
 // Phrases → phraseWindow
 //==============================================================================
 
+// Which note in a frame activates star power. A fill can end on a chord, but the game lights one
+// lane, so one gem has to win: green, then blue, yellow, red, and the kick only if no hand plays.
+// That is the hand columns from the outside in, so it holds for 5-lane and elite too without a
+// per-part table.
+static int activationColumn(const TrackFrame& frame, Part part)
+{
+    auto [firstColumn, lastColumn] = PhraseMath::handColumns(part);
+    for (int c = (int)lastColumn; c >= (int)firstColumn; --c)
+        if (frame[(size_t)c].gem != Gem::NONE) return c;
+
+    for (int c = 0; c < (int)frame.size(); ++c)
+        if (frame[(size_t)c].gem != Gem::NONE && isDrumKick((uint)c, part)) return c;
+
+    return -1;
+}
+
 void TrackResolver::resolvePhrases(PartWindow& result, const SharedWindow& shared, const Config& cfg)
 {
     // Star power and solo cover the whole board, so they carry no column.
@@ -209,6 +225,9 @@ void TrackResolver::resolvePhrases(PartWindow& result, const SharedWindow& share
                                         GemWrapper(Gem::NOTE) });
 
     auto [firstColumn, lastColumn] = PhraseMath::handColumns(cfg.part);
+
+    // Both light every hand column, and both come from their markers alone, so they belong to
+    // the part. Only the activation band below depends on the notes.
     auto pushColumns = [&](const std::vector<ModifierRange>& ranges, SustainType type) {
         for (const auto& r : ranges)
             for (uint c = firstColumn; c <= lastColumn; ++c)
@@ -232,12 +251,22 @@ void TrackResolver::resolvePhrases(PartWindow& result, const SharedWindow& share
         --it;
         if (it->first < fill.start) continue;
 
+        const PPQ activationPPQ = it->first;
+
         for (auto& diff : result.difficulties)
         {
-            auto frame = diff.trackWindow.find(it->first);
+            auto frame = diff.trackWindow.find(activationPPQ);
             if (frame == diff.trackWindow.end()) continue;
-            for (auto& gem : frame->second)
-                if (gem.gem != Gem::NONE) gem.activation = true;
+
+            const int column = activationColumn(frame->second, cfg.part);
+            if (column < 0) continue;
+
+            frame->second[(size_t)column].activation = true;
+
+            // The band covers the whole fill, so it can fade from nothing at the fill's start to
+            // full where the note that takes star power is.
+            diff.phraseWindow.push_back({ fill.start, activationPPQ, (uint)column,
+                                          SustainType::ACTIVATION, GemWrapper(Gem::NOTE) });
         }
     }
 }

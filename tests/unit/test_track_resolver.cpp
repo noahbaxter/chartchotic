@@ -760,7 +760,10 @@ TEST_CASE("TrackResolver - a lone 120 off elite is not a fill",
 
 namespace
 {
+    constexpr uint DRUM_KICK = 96;
     constexpr uint DRUM_RED = 97;
+    constexpr uint DRUM_YELLOW = 98;
+    constexpr uint DRUM_BLUE = 99;
     constexpr uint DRUM_GREEN = 100;
 
     void addFill(NoteStateMapArray& notes, double onQN, double offQN)
@@ -791,6 +794,17 @@ namespace
         for (const auto& gem : *frame)
             if (gem.activation) return true;
         return false;
+    }
+
+    // Which columns carry the activation flag, so a chord can be checked for exactly one.
+    std::vector<int> activationColumnsAt(const PartWindow& pw, double qn)
+    {
+        std::vector<int> out;
+        const auto* frame = expertFrameAt(pw, qn);
+        if (frame == nullptr) return out;
+        for (int c = 0; c < (int)frame->size(); ++c)
+            if ((*frame)[(size_t)c].activation) out.push_back(c);
+        return out;
     }
 }
 
@@ -860,6 +874,51 @@ TEST_CASE("TrackResolver - a drum fill's last note is its activation note",
     REQUIRE(activationAt(pw, 6.0));
     REQUIRE_FALSE(activationAt(pw, 3.0));
     REQUIRE_FALSE(activationAt(pw, 7.0));
+}
+
+TEST_CASE("TrackResolver - a chord at the end of a fill activates on one note",
+          "[track_resolver][phrases]")
+{
+    // Green over blue over yellow over red, and a kick only when no hand plays. The game lights
+    // one lane, so a chord must not light several.
+    SECTION("the highest hand column wins")
+    {
+        NoteStateMapArray notes;
+        addFill(notes, 2.0, 6.0);
+        addNote(notes, DRUM_KICK, 6.0, 6.1);
+        addNote(notes, DRUM_RED, 6.0, 6.1);
+        addNote(notes, DRUM_BLUE, 6.0, 6.1);
+
+        auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+        auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+        REQUIRE(activationColumnsAt(pw, 6.0) == std::vector<int>{ 3 });   // blue, not red or kick
+    }
+
+    SECTION("green beats blue")
+    {
+        NoteStateMapArray notes;
+        addFill(notes, 2.0, 6.0);
+        addNote(notes, DRUM_YELLOW, 6.0, 6.1);
+        addNote(notes, DRUM_GREEN, 6.0, 6.1);
+
+        auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+        auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+        REQUIRE(activationColumnsAt(pw, 6.0) == std::vector<int>{ 4 });
+    }
+
+    SECTION("a kick alone still activates")
+    {
+        NoteStateMapArray notes;
+        addFill(notes, 2.0, 6.0);
+        addNote(notes, DRUM_KICK, 6.0, 6.1);
+
+        auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+        auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+        REQUIRE(activationColumnsAt(pw, 6.0) == std::vector<int>{ DRUM_KICK_COLUMN });
+    }
 }
 
 TEST_CASE("TrackResolver - no activation note when the fill runs past the window",

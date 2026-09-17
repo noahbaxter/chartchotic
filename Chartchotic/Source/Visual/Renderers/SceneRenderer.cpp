@@ -188,6 +188,9 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         sustainRenderer.phraseGridZ = offsets.gridZ * resScale;
         sustainRenderer.phrasePosOffset = gridlinePosOffset;
         sustainRenderer.phraseViewActive = phraseViewActive;
+        sustainRenderer.showFills = showFills;
+        sustainRenderer.showBre = showBre;
+        sustainRenderer.showActivationLane = showActivationLane;
         sustainRenderer.populate(drawCallMap, sustainWindow, windowStartTime, windowEndTime,
                                  width, height, showLanes, showSustains,
                                  highwayPosEnd,

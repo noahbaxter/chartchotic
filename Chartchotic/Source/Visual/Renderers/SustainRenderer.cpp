@@ -52,7 +52,8 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     // Phrases from the editor views. Only the caller decides whether they are shown, so the
     // lane and sustain toggles do not hide them.
     if (sustain.sustainType == SustainType::STAR_POWER || sustain.sustainType == SustainType::SOLO
-        || sustain.sustainType == SustainType::BRE || sustain.sustainType == SustainType::FILL)
+        || sustain.sustainType == SustainType::BRE || sustain.sustainType == SustainType::FILL
+        || sustain.sustainType == SustainType::ACTIVATION)
     {
         drawPhrase(sustain, windowStartTime, windowEndTime);
         return;
@@ -189,8 +190,16 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
     const bool starPower = phrase.sustainType == SustainType::STAR_POWER;
     const bool solo = phrase.sustainType == SustainType::SOLO;
     const bool bre = phrase.sustainType == SustainType::BRE;
+    const bool fill = phrase.sustainType == SustainType::FILL;
+    const bool activation = phrase.sustainType == SustainType::ACTIVATION;
     const bool band = starPower || solo;
     const uint column = phrase.gemColumn;
+
+    // The colour spread across the lanes is what these toggles hide. The activation band is not
+    // decoration, it says where star power can be taken, so it survives both being off.
+    if (fill && !showFills) return;
+    if (bre && !showBre)    return;
+    if (activation && !showActivationLane) return;
 
     const juce::Colour laneColour =
         assetManager.getLaneColour(column, isGuitarLike(activePart) ? Part::GUITAR : activePart, false);
@@ -202,10 +211,11 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
                                           : laneColour;
     // In the phrase view a phrase is what you came to look at, so it draws stronger. In the note
     // views it is context sitting over the gems, and stays faint enough to read them through.
-    const float base = starPower ? PHRASE_STAR_POWER_OPACITY
-                     : solo      ? PHRASE_SOLO_OPACITY
-                     : bre       ? PHRASE_BRE_OPACITY
-                                 : LANE_OPACITY;
+    const float base = starPower  ? PHRASE_STAR_POWER_OPACITY
+                     : solo       ? PHRASE_SOLO_OPACITY
+                     : bre        ? PHRASE_BRE_OPACITY
+                     : activation ? PHRASE_ACTIVATION_OPACITY
+                                  : LANE_OPACITY;
     const float opacity = phraseViewActive ? std::min(1.0f, base * PHRASE_VIEW_OPACITY_BOOST)
                                            : base;
     const float gridZ = phraseGridZ;
@@ -255,25 +265,154 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
         };
 
         constexpr int samples = 24;
-        auto [farL, farR] = spanAt(endPos);
-        auto [nearL, nearR] = spanAt(startPos);
 
-        juce::Path path;
-        for (int i = 0; i <= samples; ++i)
-        {
-            float x = farL + (farR - farL) * (float)i / (float)samples;
-            if (i == 0) path.startNewSubPath(x, lineY(endPos, x));
-            else        path.lineTo(x, lineY(endPos, x));
-        }
-        for (int i = 0; i <= samples; ++i)
-        {
-            float x = nearR - (nearR - nearL) * (float)i / (float)samples;
-            path.lineTo(x, lineY(startPos, x));
-        }
-        path.closeSubPath();
+        // A quad of the phrase between two depths and two fractions across its width, curved to
+        // follow the gridlines at both ends. The whole width from end to end for most phrases;
+        // the activation band builds a run of narrow ones to fade across its rails.
+        auto quad = [&](float pFar, float pNear, float f0, float f1) {
+            auto [fl, fr] = spanAt(pFar);
+            auto [nl, nr] = spanAt(pNear);
+            juce::Path path;
+            for (int i = 0; i <= samples; ++i)
+            {
+                float f = f0 + (f1 - f0) * (float)i / (float)samples;
+                float x = fl + (fr - fl) * f;
+                if (i == 0) path.startNewSubPath(x, lineY(pFar, x));
+                else        path.lineTo(x, lineY(pFar, x));
+            }
+            for (int i = 0; i <= samples; ++i)
+            {
+                float f = f1 - (f1 - f0) * (float)i / (float)samples;
+                float x = nl + (nr - nl) * f;
+                path.lineTo(x, lineY(pNear, x));
+            }
+            path.closeSubPath();
+            return path;
+        };
 
-        // Into the far fade the fill fades with the board, like every other lane.
         const float fadeStart = farFadeEnd - farFadeLen;
+
+        // The activation band fades two ways at once: along its length, nothing at the far end and
+        // full where it meets the gem, and across each rail, full at the lane's outer edge and
+        // nothing toward the middle. A fill takes one gradient, so the crossing fade comes from
+        // banding each rail into strips and scaling the length gradient's alpha per strip.
+        if (activation)
+        {
+            const bool barLane = isBarNote(column, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
+            const float hole = (barLane ? PHRASE_ACTIVATION_HOLE_FRACTION_BAR
+                                        : PHRASE_ACTIVATION_HOLE_FRACTION) * 0.5f;
+
+            // Whichever way the band is cut, one of its two fades gets a real gradient and the
+            // other is stepped per strip. A lane's rails are narrow, so cutting them lengthwise
+            // keeps the strips thin and the length fade smooth; a kick's lane is the whole board,
+            // where those same strips are wide enough to read one by one, so it cuts across depth
+            // instead and takes its gradient across the width.
+            auto rail = [&](float fOuter, float fInner) {
+                if (barLane)
+                {
+                    constexpr int bands = PHRASE_ACTIVATION_DEPTH_BANDS;
+                    for (int i = 0; i < bands; ++i)
+                    {
+                        const float u0 = (float)i / (float)bands;
+                        const float u1 = (float)(i + 1) / (float)bands;
+                        const float pNear = startPos + (endPos - startPos) * u0;
+                        const float pFar = startPos + (endPos - startPos)
+                                         * std::min(1.0f, u1 + PHRASE_ACTIVATION_EDGE_OVERLAP / (float)bands);
+
+                        // Length fade, stepped: sampled at the band's midpoint.
+                        const float mid = (u0 + u1) * 0.5f;
+                        const float a = opacity * mid;
+
+                        if (PositionMath::bemaniMode)
+                        {
+                            g.setColour(colour.withAlpha(a));
+                        }
+                        else
+                        {
+                            // Crossing fade as a real gradient across the rail at this depth.
+                            const float pMid = startPos + (endPos - startPos) * mid;
+                            auto [ml, mr] = spanAt(pMid);
+                            juce::ColourGradient grad(colour.withAlpha(a), ml + (mr - ml) * fOuter, 0.0f,
+                                                      colour.withAlpha(0.0f), ml + (mr - ml) * fInner, 0.0f,
+                                                      false);
+                            // Stops bend the ramp: a plain gradient is linear, the curve is not.
+                            for (int s = 1; s < PHRASE_ACTIVATION_EDGE_CURVE_STOPS; ++s)
+                            {
+                                const float t = (float)s / (float)PHRASE_ACTIVATION_EDGE_CURVE_STOPS;
+                                grad.addColour(t, colour.withAlpha(a * std::pow(1.0f - t,
+                                                                   PHRASE_ACTIVATION_EDGE_FADE_CURVE)));
+                            }
+                            g.setGradientFill(grad);
+                        }
+                        g.fillPath(quad(pFar, pNear, fOuter, fInner));
+                    }
+                    return;
+                }
+
+                // Strip count follows the rail's width in pixels, so a wider lane gets more strips
+                // rather than wider ones.
+                auto [wl, wr] = spanAt(endPos);
+                const float railPx = std::abs(wr - wl) * std::abs(fInner - fOuter);
+                const int strips = juce::jlimit(PHRASE_ACTIVATION_EDGE_STRIPS_MIN,
+                                                PHRASE_ACTIVATION_EDGE_STRIPS_MAX,
+                                                (int)(railPx / PHRASE_ACTIVATION_EDGE_STRIP_PX));
+
+                const auto bounds = quad(endPos, startPos, 0.0f, 1.0f).getBounds();
+                for (int i = 0; i < strips; ++i)
+                {
+                    const float t0 = (float)i / (float)strips;
+                    const float t1 = (float)(i + 1) / (float)strips;
+                    const float fa = fOuter + (fInner - fOuter) * t0;
+                    const float fb = fOuter + (fInner - fOuter)
+                                   * std::min(1.0f, t1 + PHRASE_ACTIVATION_EDGE_OVERLAP / (float)strips);
+
+                    // Crossing fade, stepped per strip; the length fade stays a real gradient.
+                    const float edge = std::pow(1.0f - (t0 + t1) * 0.5f, PHRASE_ACTIVATION_EDGE_FADE_CURVE);
+                    const float a = opacity * edge;
+
+                    if (PositionMath::bemaniMode)
+                        g.setColour(colour.withAlpha(a));
+                    else
+                        g.setGradientFill(juce::ColourGradient(colour.withAlpha(a), 0.0f, bounds.getY(),
+                                                               colour.withAlpha(0.0f), 0.0f, bounds.getBottom(),
+                                                               false));
+                    g.fillPath(quad(endPos, startPos, fa, fb));
+                }
+            };
+
+            rail(0.0f, 0.5f - hole);
+            rail(1.0f, 0.5f + hole);
+
+            // A cap across the top end, where the band meets the note. Without it the rails just
+            // run off the end as two separate strips; the cap closes them into one lane that stops
+            // at the gem. Full width and no crossing fade, so it reads as the band's terminus.
+            auto [cl, cr] = spanAt(endPos);
+            // Thickness off the lane's width, so a kick -- whose lane is the whole board -- needs
+            // its own far smaller fraction. The same number there is a slab deep enough to bury
+            // the bars behind it and hide where they start.
+            const float capH = (cr - cl) * (barLane ? PHRASE_ACTIVATION_CAP_THICKNESS_BAR
+                                                    : PHRASE_ACTIVATION_CAP_THICKNESS);
+            juce::Path cap;
+            for (int i = 0; i <= samples; ++i)
+            {
+                const float x = cl + (cr - cl) * (float)i / (float)samples;
+                if (i == 0) cap.startNewSubPath(x, lineY(endPos, x));
+                else        cap.lineTo(x, lineY(endPos, x));
+            }
+            for (int i = samples; i >= 0; --i)
+            {
+                const float x = cl + (cr - cl) * (float)i / (float)samples;
+                cap.lineTo(x, lineY(endPos, x) + capH);
+            }
+            cap.closeSubPath();
+
+            g.setColour(colour.withAlpha(opacity));
+            g.fillPath(cap);
+            return;
+        }
+
+        juce::Path path = quad(endPos, startPos, 0.0f, 1.0f);
+
         if (!PositionMath::bemaniMode && endPos > fadeStart)
         {
             float fadeFrom = std::max(fadeStart, startPos);
