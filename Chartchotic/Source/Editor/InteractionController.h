@@ -51,6 +51,7 @@ public:
     void setSnapEnabled(bool v)     { writeController.setSnapEnabled(v); }
     void clearEditSelection()       { editController.clearSelection(); }
     void setBarMode(bool v);
+    void setLaneTool(bool v)        { writeController.setLaneTool(v); }
     void setActivePart(Part p)        { writeController.setActivePart(p); editController.setActivePart(p); }
     void setActiveSkill(SkillLevel s) { writeController.setActiveSkill(s); editController.setActiveSkill(s); }
     void setDrumDynamic(DrumDynamic d){ writeController.setDrumDynamic(d); editController.setDrumDynamic(d); }

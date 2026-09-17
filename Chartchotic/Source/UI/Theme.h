@@ -26,6 +26,10 @@ public:
     // read as one set of chrome.
     static constexpr juce::uint32 panelNeutralBg   = 0xFF121214;
     static constexpr juce::uint32 panelNeutralLine = 0xFF303036;
+    // What a selected control in the write bar is filled with: the app's own orange, so selection
+    // means the same thing here as everywhere else. One colour for both sub-modes, since Draw and
+    // Edit are told apart by which segment is lit, not by the bar changing hue under you.
+    static constexpr juce::uint32 controlSelected  = coral;
 
     // Accent palette (matches logo dot cluster)
     static constexpr juce::uint32 green  = 0xFF5CB85C;
