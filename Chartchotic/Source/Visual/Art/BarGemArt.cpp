@@ -318,16 +318,15 @@ juce::Image bakeGridline(float thickness, juce::Colour colour, float arch)
     // top of the bow and the ends drop by `arch`, matching the notes' centre-lifted highway
     // curve. Margins match the old marker PNGs (89px) so the drawn width lines up unchanged.
     const int   W        = kGridlineWidth;
-    const float x0       = 89.0f;
-    const float x1       = (float) W - 89.0f;
-    const float cx       = (x0 + x1) * 0.5f;
-    const float half     = (x1 - x0) * 0.5f;
+    const float x0       = kGridlineMargin;
+    const float x1       = (float) W - kGridlineMargin;
     const float endInset = 40.0f;   // horizontal inset of the bottom corners -> diagonal ends
-    const float topPad   = 12.0f;   // headroom above the centre so the bar never clips row 0
+    const float topPad   = kGridlineTopPad;
 
-    auto arc = [&](float x) { float t = (x - cx) / half; return arch * t * t; };
+    // Offset so the top edge sits half a thickness above the shared centreline.
+    auto arc = [&](float x) { return gridlineCentreY(x, thickness, arch) - topPad - thickness * 0.5f; };
 
-    const int H = (int) std::ceil(topPad + thickness + std::abs(arch) + 12.0f);
+    const int H = gridlineCanvasHeight(thickness, arch);
     juce::Image img(juce::Image::ARGB, W, H, true);
     juce::Graphics g(img);
 

@@ -168,15 +168,10 @@ void AssetManager::initAssets()
     // baking a hand-guessed arc the stomp bar then chases. Thickness/alpha reproduce the old PNGs
     // (measure = brightest; beat / half-beat dimmer; half-beat thinner). STEP reuses half-beat.
     {
-        constexpr float gridMeasureThick  = 57.0f;
-        constexpr float gridHalfBeatThick  = 33.0f;
-        // Full-board parabola amplitude (peak-to-edge) in bake px = width * |curvature|, matching
-        // getCurvedImage's arcHeight = srcW * curv over the fretboard span.
-        const float gridArch = (float) GemArt::kGridlineWidth
-                             * std::abs(PositionConstants::NOTE_CURVATURE_DRUMS);
-        markerMeasureImage  = GemArt::bakeGridline(gridMeasureThick,  TrackColours::gridlineMeasure,  gridArch);
-        markerBeatImage     = GemArt::bakeGridline(gridMeasureThick,  TrackColours::gridlineBeat,     gridArch);
-        markerHalfBeatImage = GemArt::bakeGridline(gridHalfBeatThick, TrackColours::gridlineHalfBeat, gridArch);
+        const float gridArch = GemArt::gridlineArch();
+        markerMeasureImage  = GemArt::bakeGridline(GemArt::kGridlineMeasureThickness,  TrackColours::gridlineMeasure,  gridArch);
+        markerBeatImage     = GemArt::bakeGridline(GemArt::kGridlineMeasureThickness,  TrackColours::gridlineBeat,     gridArch);
+        markerHalfBeatImage = GemArt::bakeGridline(GemArt::kGridlineHalfBeatThickness, TrackColours::gridlineHalfBeat, gridArch);
     }
 
     // Write-mode markers: copies of the same source PNGs with their alpha
