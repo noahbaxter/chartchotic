@@ -69,11 +69,9 @@ constexpr bool DEFAULT_SHOW_GEMS        = true;
 constexpr bool DEFAULT_SHOW_BARS        = true;
 constexpr bool DEFAULT_SHOW_SUSTAINS    = true;
 constexpr bool DEFAULT_SHOW_LANES       = true;
-// Fills paint every hand lane solid for their whole length, which buries the notes under them.
-// Off by default: the activation lane and its recoloured gem say where the fill is without it.
-constexpr bool DEFAULT_SHOW_FILLS       = false;
-constexpr bool DEFAULT_SHOW_BRE         = true;
-constexpr bool DEFAULT_SHOW_ACTIVATION  = true;
+// The phrase toggles live in DrawingConstants so the renderers can default their own members
+// from them. They used to be declared here alone, leaving each renderer a hardcoded true that
+// only agreed with this by luck, and disagreed the moment one of these changed.
 constexpr bool DEFAULT_SHOW_GRIDLINES   = true;
 constexpr bool DEFAULT_SHOW_HIT_INDICATORS = true;
 constexpr bool DEFAULT_SHOW_STAR_POWER  = true;

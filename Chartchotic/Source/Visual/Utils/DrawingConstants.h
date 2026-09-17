@@ -39,6 +39,9 @@ constexpr float LANE_OPACITY = 0.4f;         // Lane sustain opacity
 // namespace-scope copy of it can initialise first and come out black.
 inline const juce::Colour PHRASE_STAR_POWER_COLOUR { 0xFFFFFFFF };
 constexpr float PHRASE_STAR_POWER_OPACITY = 0.3f;
+// Star power is the one phrase drawn in pure white, so the shared phrase-view boost blows it out
+// where it merely strengthens the coloured ones. It takes its own value there instead.
+constexpr float PHRASE_STAR_POWER_VIEW_OPACITY = 0.4f;
 
 // Phrase view: a solo covers the whole board too, in the blue the games light it. Kept dark so
 // it reads as a solo rather than as the blue lane.
@@ -59,6 +62,15 @@ constexpr float PHRASE_VIEW_OPACITY_BOOST = 2.5f;
 // song-wide freestyle moment rather than another activation phrase.
 constexpr float PHRASE_BRE_WHITEN = 0.45f;
 constexpr float PHRASE_BRE_OPACITY = 0.5f;
+
+// Whether each phrase kind is drawn at all. Here rather than with the other control defaults so
+// the renderers can default their own members from the same constant the saved state is seeded
+// with, instead of each carrying its own copy that has to be kept in step by hand.
+// A fill paints every hand lane solid for its whole length, which buries the notes under it. Off
+// by default: the activation lane and its recoloured gem say where the fill is without that.
+constexpr bool DEFAULT_SHOW_FILLS = false;
+constexpr bool DEFAULT_SHOW_BRE = true;
+constexpr bool DEFAULT_SHOW_ACTIVATION = true;
 
 // Phrase view: the activation note at the end of a drum fill is recut in a more vivid version of
 // its own lane colour, so it reads as the note that takes star power without changing size -- a
