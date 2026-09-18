@@ -802,59 +802,106 @@ void WriteController::handleCommitLane()
     commitLane(trackIdx, merged, spread);
 }
 
-// What a selection asks a lane to cover: its own extent as the range, and the columns it spans
-// standing in for a drag pulled sideways.
-std::optional<WriteController::LaneSelection>
-WriteController::laneSelectionRange(const std::vector<SelectedNote>& notes) const
+std::vector<WriteController::LaneNote>
+WriteController::laneSelectionNotes(const std::vector<SelectedNote>& notes) const
 {
     const auto* cfg = authoring();
-    if (cfg == nullptr) return std::nullopt;
+    if (cfg == nullptr) return {};
 
-    LaneSelection sel;
-    bool any = false;
-
+    std::vector<LaneNote> picked;
     for (const auto& n : notes)
     {
         if (n.sustainOnly || n.lane < 0) continue;
         // Kicks carry no lane on the shared markers, so selecting them asks for nothing there.
         if (!cfg->lanesPerColumn && n.pitch >= 0
             && cfg->isKickPitch((uint)n.pitch, currentActiveSkill)) continue;
-
-        if (!any)
-        {
-            sel.lo = sel.hi = n.startQN;
-            sel.spread = { n.lane, n.lane };
-            any = true;
-            continue;
-        }
-        sel.lo = std::min(sel.lo, n.startQN);
-        sel.hi = std::max(sel.hi, n.startQN);
-        sel.spread.lo = std::min(sel.spread.lo, n.lane);
-        sel.spread.hi = std::max(sel.spread.hi, n.lane);
+        picked.push_back({ n.startQN, n.lane });
     }
-
-    return any ? std::optional<LaneSelection>(sel) : std::nullopt;
+    return picked;
 }
 
-// The lanes already covering a selection end to end, which is what makes LANE read as on for it.
-std::vector<PhraseMath::PhraseSpan>
-WriteController::lanesCovering(const LaneSelection& sel) const
+// What a selection asks a lane to cover: its own extent as the range, and the columns it spans
+// standing in for a drag pulled sideways.
+std::optional<WriteController::LaneSelection>
+WriteController::laneSelectionRange(const std::vector<SelectedNote>& notes) const
 {
-    std::vector<PhraseMath::PhraseSpan> covering;
-    for (const auto& s : laneSpansOnPart(sel.spread))
-        if (PhraseMath::contains(s, sel.lo, sel.hi)) covering.push_back(s);
-    return covering;
+    const auto picked = laneSelectionNotes(notes);
+    if (picked.empty()) return std::nullopt;
+
+    LaneSelection sel;
+    sel.lo = sel.hi = picked.front().qn;
+    sel.spread = { picked.front().column, picked.front().column };
+
+    for (const auto& n : picked)
+    {
+        sel.lo = std::min(sel.lo, n.qn);
+        sel.hi = std::max(sel.hi, n.qn);
+        sel.spread.lo = std::min(sel.spread.lo, n.column);
+        sel.spread.hi = std::max(sel.spread.hi, n.column);
+    }
+    return sel;
+}
+
+std::vector<WriteController::LanePlacement>
+WriteController::lanesOnPart(LaneSpread spread) const
+{
+    std::vector<LanePlacement> out;
+    if (instrumentSession == nullptr) return out;
+    int idx = resolveSessionTrackIdx();
+    if (idx < 0) return out;
+
+    for (int pitch : laneCandidatePitches(spread))
+        for (const auto& s : PhraseMath::rangesOf(instrumentSession->getNotes(idx), pitch))
+            out.push_back({ s, pitch });
+
+    std::sort(out.begin(), out.end(), [](const LanePlacement& a, const LanePlacement& b) {
+        return a.span.startQN < b.span.startQN; });
+    return out;
+}
+
+std::vector<WriteController::LanePlacement>
+WriteController::lanesInRange(const LaneSelection& sel) const
+{
+    std::vector<LanePlacement> out;
+    for (const auto& l : lanesOnPart(sel.spread))
+        if (PhraseMath::touches(l.span, { sel.lo, sel.hi })) out.push_back(l);
+    return out;
+}
+
+bool WriteController::allSelectedUnderLane(const std::vector<SelectedNote>& notes,
+                                           const std::vector<LanePlacement>& lanes) const
+{
+    const auto picked = laneSelectionNotes(notes);
+    if (picked.empty()) return false;
+
+    for (const auto& n : picked)
+    {
+        bool covered = false;
+        for (const auto& l : lanes)
+            if (GridMath::within(n.qn, l.span.startQN, l.span.endQN)) { covered = true; break; }
+        if (!covered) return false;
+    }
+    return true;
+}
+
+void WriteController::eraseLanePlacement(int trackIdx, const LanePlacement& lane)
+{
+    auto note = findNote(trackIdx, lane.span.startQN, lane.pitch);
+    if (note.noteIndex >= 0 && GridMath::same(note.startQN, lane.span.startQN))
+        eraseMarkerNote(trackIdx, lane.span.startQN, lane.pitch, -1);
 }
 
 bool WriteController::selectionHasLane(const std::vector<SelectedNote>& notes) const
 {
     const auto sel = laneSelectionRange(notes);
-    return sel.has_value() && !lanesCovering(*sel).empty();
+    return sel.has_value() && allSelectedUnderLane(notes, lanesInRange(*sel));
 }
 
-// A lane over a set of selected notes, applied the way a note type is, and a toggle the same
-// way: a selection already under a lane loses it. Adding goes through the same resolve and
-// merge a drag does, so a selection cannot write a lane a drag could not have drawn.
+// A lane over a set of selected notes, applied the way a note type is, in three states. With
+// nothing there it writes one. With a lane already in that stretch of time it grows it to take
+// in whatever was left out, and only once everything selected is covered does a further click
+// take it off. That way a part-covered selection always moves toward being covered rather than
+// flipping between written and not.
 void WriteController::applyLaneToSelection(const std::vector<SelectedNote>& notes)
 {
     int trackIdx = resolveTrackIdx();
@@ -867,25 +914,44 @@ void WriteController::applyLaneToSelection(const std::vector<SelectedNote>& note
         return;
     }
 
-    const auto covering = lanesCovering(*sel);
-    if (!covering.empty())
-    {
-        beginBatch("Chartchotic: Remove lane");
-        for (const auto& span : covering)
-            for (int pitch : laneCandidatePitches(sel->spread))
-            {
-                auto note = findNote(trackIdx, span.startQN, pitch);
-                if (note.noteIndex >= 0 && GridMath::same(note.startQN, span.startQN))
-                    eraseMarkerNote(trackIdx, span.startQN, pitch, -1);
-            }
-        endBatch();
+    // A lane is a range in time, not a property of a note, so a selection reaching across
+    // columns acts on whichever lanes are in that stretch rather than on one lane per column.
+    const auto present = lanesInRange(*sel);
 
-        if (onStateChanged) onStateChanged();
-        if (onChartWritten) onChartWritten();
+    if (present.empty())
+    {
+        commitLane(trackIdx, resolveLaneWrite(sel->lo, sel->hi, sel->spread), sel->spread);
         return;
     }
 
-    commitLane(trackIdx, resolveLaneWrite(sel->lo, sel->hi, sel->spread), sel->spread);
+    if (allSelectedUnderLane(notes, present))
+    {
+        beginBatch("Chartchotic: Remove lane");
+        for (const auto& l : present) eraseLanePlacement(trackIdx, l);
+        endBatch();
+    }
+    else
+    {
+        // Grown on the pitches they were already written on, rather than on whatever a fresh
+        // write would have picked: extending a tremolo must not silently retype it as a trill.
+        double lo = sel->lo, hi = sel->hi;
+        std::vector<int> pitches;
+        for (const auto& l : present)
+        {
+            lo = std::min(lo, l.span.startQN);
+            hi = std::max(hi, l.span.endQN);
+            if (std::find(pitches.begin(), pitches.end(), l.pitch) == pitches.end())
+                pitches.push_back(l.pitch);
+        }
+
+        beginBatch("Chartchotic: Extend lane");
+        for (const auto& l : present) eraseLanePlacement(trackIdx, l);
+        for (int pitch : pitches) createPhraseNote(trackIdx, lo, hi - lo, pitch);
+        endBatch();
+    }
+
+    if (onStateChanged) onStateChanged();
+    if (onChartWritten) onChartWritten();
 }
 
 void WriteController::commitLane(int trackIdx, std::optional<PhraseMath::PhraseSpan> merged,
@@ -972,18 +1038,8 @@ void WriteController::recomputeLanePreview()
 // Every lane already on the part that a new one in this column could merge with.
 std::vector<PhraseMath::PhraseSpan> WriteController::laneSpansOnPart(LaneSpread spread) const
 {
-    if (instrumentSession == nullptr) return {};
-    int idx = resolveSessionTrackIdx();
-    if (idx < 0) return {};
-
     std::vector<PhraseMath::PhraseSpan> spans;
-    for (int pitch : laneCandidatePitches(spread))
-        for (const auto& s : PhraseMath::rangesOf(instrumentSession->getNotes(idx), pitch))
-            spans.push_back(s);
-
-    std::sort(spans.begin(), spans.end(),
-              [](const PhraseMath::PhraseSpan& a, const PhraseMath::PhraseSpan& b) {
-                  return a.startQN < b.startQN; });
+    for (const auto& l : lanesOnPart(spread)) spans.push_back(l.span);
     return spans;
 }
 
