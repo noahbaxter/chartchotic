@@ -144,7 +144,8 @@ public:
             return gemIcons->drawFlam(g, r);
         });
         laneOneToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
-            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlLaneArt), 1);
+            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlLaneArt), 1,
+                                      hasTwoLaneKinds());
         });
         laneTwoToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
             return gemIcons->drawLane(g, r, juce::Colour(Theme::controlLaneArt), 2);
@@ -340,13 +341,8 @@ public:
 
         // Both kinds of type sit on the bar at once: clicking one is what picks the view, so
         // hiding the other would leave no way back to it.
-        // Elite has one roll-lane pitch per pad and no 1-vs-2 variant, so the second lane button
-        // would mean nothing there: the columns a drag reaches are the whole answer.
-        const bool hasTwoLaneKinds = cfg && cfg->phrasePitch
-                                  && cfg->phrasePitch(PhraseTarget::Lane2, SkillLevel::EXPERT, 0) >= 0;
-
         phraseKindButtons.setVisible(true);
-        laneTwoToggle.setVisible(hasTwoLaneKinds);
+        laneTwoToggle.setVisible(hasTwoLaneKinds());
         guitarForceButtons.setVisible(!drums);
         drumDynamicButtons.setVisible(drums);
         cymbalToggle.setVisible(showCym);
@@ -562,6 +558,16 @@ public:
     }
 
 private:
+    // Whether the kit's lanes come in a 1-vs-2 pair. Elite has one roll-lane pitch per pad and
+    // no variant, so the columns a drag reaches are the whole answer: the second button would
+    // mean nothing, and neither would a count on the first.
+    bool hasTwoLaneKinds() const
+    {
+        const auto* cfg = getAuthoringConfig(interactionController.focusPart());
+        return cfg && cfg->phrasePitch
+            && cfg->phrasePitch(PhraseTarget::Lane2, SkillLevel::EXPERT, 0) >= 0;
+    }
+
     struct HoverHelpZone : public juce::MouseListener
     {
         juce::Component& target;

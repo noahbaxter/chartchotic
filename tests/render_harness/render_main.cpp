@@ -582,6 +582,10 @@ int main(int argc, char** argv)
                  Theme::controlSelected },
             { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt), 2); },
                  Theme::controlSelected },
+            // Elite: one band, no count, because its lanes are per-pad in any combination.
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt), 1, false); } },
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt), 1, false); },
+                 Theme::controlSelected },
             { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarOpenImage()).isEmpty(); } },
             { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarKickImage()).isEmpty(); } },
         };
