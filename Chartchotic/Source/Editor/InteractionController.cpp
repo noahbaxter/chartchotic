@@ -136,7 +136,24 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
     if (cmd == WriteCommand::ToggleLaneTool)
     {
         if (view() != EditorView::Notes) return false;
+        // With a selection up, R applies a lane to it rather than arming the tool, matching what
+        // the LANE pill does and what the note-type keys already do to a selection.
+        if (isEditActive() && hasEditSelection()) { applyLaneToSelection(); return true; }
         setLaneTool(!laneTool());
+        return true;
+    }
+
+    // The lane tool has slots of its own, picking which kind of lane a drag writes, so they run
+    // ahead of the gem gate below that the tool deliberately fails.
+    if (laneTool() && view() == EditorView::Notes
+        && cmd >= WriteCommand::ModifierSlot1 && cmd <= WriteCommand::ModifierSlot5)
+    {
+        int index = (int)cmd - (int)WriteCommand::ModifierSlot1;
+        auto slots = modifierSlotsFor(getRenderType(focusPart()), true);
+        if (index >= (int)slots.size()) return false;
+
+        applyModifierSlot(slots[(size_t)index]);
+        writeController.stateDidChange();
         return true;
     }
 
@@ -262,6 +279,14 @@ void InteractionController::applyModifierSlot(const ModifierSlot& slot)
             bool next = !writeController.flamMode();
             setFlamMode(next);
             if (isEditActive()) applyFlamModeToSelection(next);
+            break;
+        }
+        case ModifierGroup::LaneType:
+        {
+            auto target = (PhraseTarget)slot.value;
+            // Retypes the selection rather than only arming, matching the bar's own buttons.
+            if (isEditActive() && hasEditSelection()) setLaneTypeOnSelection(target);
+            else                                      setLaneType(target);
             break;
         }
         case ModifierGroup::Force:

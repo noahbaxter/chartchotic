@@ -261,6 +261,7 @@ int main(int argc, char** argv)
     juce::String dumpStomp;   // if set: save the baked Stomp bar asset alone and exit
     juce::String dumpKick;    // if set: save the baked kick bars (fat + elite thin) and exit
     juce::String dumpIcons;   // if set: save the write bar's gem icons as one sheet and exit
+    int iconCell = 48;        // --icon-cell: pixels per icon in that sheet
     bool bemani = false;      // --bemani: flat (Bemani) mode instead of perspective
     // Editor view overlays, as HighwayComponent appends them in write mode.
     bool spView = false;      // --sp-view: star power bands
@@ -272,6 +273,7 @@ int main(int argc, char** argv)
         if      (a == "--dump-stomp" && i + 1 < argc) dumpStomp = argv[++i];
         else if (a == "--dump-kick"  && i + 1 < argc) dumpKick = argv[++i];
         else if (a == "--dump-icons" && i + 1 < argc) dumpIcons = argv[++i];
+        else if (a == "--icon-cell" && i + 1 < argc) iconCell = juce::String(argv[++i]).getIntValue();
         else if (a == "--part"   && i + 1 < argc) partName = argv[++i];
         else if (a == "--width"  && i + 1 < argc) W = juce::String(argv[++i]).getIntValue();
         else if (a == "--aspect" && i + 1 < argc) aspect = juce::String(argv[++i]).getDoubleValue();
@@ -345,10 +347,14 @@ int main(int argc, char** argv)
     // how the gems fill their buttons can be checked without the plugin.
     if (dumpIcons.isNotEmpty())
     {
-        constexpr int cell = 48, pad = 2;
+        // 48 is the size a button actually gets; --icon-cell blows that up to check the art.
+        const int cell = iconCell, pad = 2;
         GemIconArt icons(assets);
+        icons.tint = juce::Colour(Theme::controlLaneArt);   // as the write bar sets it
         using Draw = std::function<bool(juce::Graphics&, juce::Rectangle<float>)>;
-        struct Item { int squares; Draw draw; };
+        // bg is the button's fill, so an icon can be checked against the colour it will really
+        // sit on: the LANE pill fills with the selection colour the moment the tool is on.
+        struct Item { int squares; Draw draw; juce::uint32 bg = Theme::darkBg; };
         const std::vector<Item> items = {
             { 1, [&](auto& g, auto r) { return icons.drawGuitarGem(g, r, Gem::HOPO_GHOST); } },
             { 1, [&](auto& g, auto r) { return icons.drawGuitarGem(g, r, Gem::NOTE); } },
@@ -358,6 +364,12 @@ int main(int argc, char** argv)
             { 1, [&](auto& g, auto r) { return icons.drawDrumGem(g, r, Gem::TAP_ACCENT); } },
             { 1, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getCymYellowImage()).isEmpty(); } },
             { 1, [&](auto& g, auto r) { return icons.drawFlam(g, r); } },
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt), 1); } },
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt), 2); } },
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt), 1); },
+                 Theme::controlSelected },
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt), 2); },
+                 Theme::controlSelected },
             { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarOpenImage()).isEmpty(); } },
             { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarKickImage()).isEmpty(); } },
         };
@@ -372,7 +384,7 @@ int main(int argc, char** argv)
         for (const auto& it : items)
         {
             auto button = juce::Rectangle<float>((float)x, (float)pad, (float)(it.squares * cell), (float)cell);
-            g.setColour(juce::Colour(Theme::darkBg));
+            g.setColour(juce::Colour(it.bg));
             g.fillRect(button);
             it.draw(g, button.reduced(cell * 0.05f));
             x += it.squares * cell + pad;

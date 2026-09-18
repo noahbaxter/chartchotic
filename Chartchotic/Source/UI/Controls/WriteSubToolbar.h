@@ -38,8 +38,11 @@ public:
         barToggle.setToggleState(false, juce::dontSendNotification);
         addAndMakeVisible(barToggle);
 
-        laneToggle.setToggleState(false, juce::dontSendNotification);
-        addAndMakeVisible(laneToggle);
+        laneOneToggle.setToggleState(false, juce::dontSendNotification);
+        addAndMakeVisible(laneOneToggle);
+
+        laneTwoToggle.setToggleState(false, juce::dontSendNotification);
+        addChildComponent(laneTwoToggle);
 
         snapToggle.setToggleState(ic.snapEnabled(), juce::dontSendNotification);
         snapToggle.setIcon(juce::Drawable::createFromImageData(
@@ -63,6 +66,7 @@ public:
         drumDynamicButtons.setItems({"Ghost", "Normal", "Accent"});
         addChildComponent(drumDynamicButtons);
 
+
         cymbalToggle.setToggleState(false, juce::dontSendNotification);
         addChildComponent(cymbalToggle);
 
@@ -74,7 +78,8 @@ public:
         for (auto* seg : { &modeButtons, &guitarForceButtons, &drumDynamicButtons,
                            &phraseKindButtons })
             seg->setCornerRadius(3.0f);
-        for (auto* pill : { &snapToggle, &barToggle, &laneToggle, &cymbalToggle, &flamToggle })
+        for (auto* pill : { &snapToggle, &barToggle, &laneOneToggle, &laneTwoToggle,
+                            &cymbalToggle, &flamToggle })
             pill->setCornerRadius(3.0f);
         divisionDropdown.setCornerRadius(3.0f);
         tupletDropdown.setCornerRadius(3.0f);
@@ -86,7 +91,8 @@ public:
         // Modifier hints run in the same order as the segments they sit under,
         // matching the home-row slots in ModifierSlots.h.
         barHelpZone = addHoverZone(barToggle, {"B"}, "only interact with open notes");
-        addHoverZone(laneToggle, {"R"}, "drag writes a roll lane instead of notes");
+        addHoverZone(laneOneToggle, {"R", "A"}, "drag writes a roll on one lane");
+        addHoverZone(laneTwoToggle, {"S"},      "drag writes a roll alternating between two lanes");
         addHoverZone(snapToggle,         {"E"},                    "lock note placement to grid");
         addHoverZone(divisionDropdown,   {"[", "]", "⌥scroll"},    "grid spacing (1/4, 1/8, 1/16...)");
         addHoverZone(tupletDropdown,     {"T", "⇧T"},              "tuplet on/off, shift cycles 3/5/7");
@@ -103,6 +109,9 @@ public:
         if (am == nullptr) return;
         assetManager = am;
         gemIcons = std::make_unique<GemIconArt>(*am);
+        // One colour across the row. The gems' own greens and blues are about where a note sits
+        // on the board, which says nothing about what the button does.
+        gemIcons->tint = juce::Colour(Theme::controlLaneArt);
 
         using G = Gem;
         auto guitar = [this](G gem) {
@@ -134,11 +143,14 @@ public:
         flamToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
             return gemIcons->drawFlam(g, r);
         });
-        laneToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
-            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlSelected));
+        laneOneToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
+            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlLaneArt), 1);
+        });
+        laneTwoToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
+            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlLaneArt), 2);
         });
         barToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
-            bool drums = isDrumLike(interactionController.activePart());
+            bool drums = isDrumLike(interactionController.focusPart());
             return !gemIcons->drawImage(g, r, drums ? assetManager->getBarKickImage()
                                                     : assetManager->getBarOpenImage()).isEmpty();
         });
@@ -151,6 +163,8 @@ public:
     // The chosen value, not a delta: the dropdown already knows which one was picked, so the
     // handler no longer has to find the current value in a table before it can move off it.
     std::function<void(bool)> onLaneToolChanged;
+    // A lane button was pressed. Which kind it was; what that does is the handler's call.
+    std::function<void(PhraseTarget)> onLaneKindClicked;
     std::function<void(int division)> onStepDivisionChanged;
     std::function<void(int tuplet)> onTupletChanged;
     std::function<void(bool)> onBarModeChanged;
@@ -168,7 +182,7 @@ public:
         // once, so reaching for a phrase kind says "phrase" as plainly as a view control would,
         // and there is no state where the thing you clicked is not the thing you are writing.
         phraseKindButtons.onSelectionChanged = [this](int idx) {
-            auto kinds = PhraseMath::kindsFor(interactionController.activePart());
+            auto kinds = PhraseMath::kindsFor(interactionController.focusPart());
             if (onPhraseKindChanged && idx >= 0 && idx < (int)kinds.size())
                 onPhraseKindChanged(kinds[(size_t)idx]);
             if (onLaneToolChanged) onLaneToolChanged(false);
@@ -198,10 +212,14 @@ public:
             if (onBarModeChanged) onBarModeChanged(barToggle.getToggleState());
         };
 
-        // Picks lanes rather than toggling them: it is one of the exclusive choices, so it stays
-        // on until a note type or phrase kind takes the turn, the same as those do to each other.
-        laneToggle.onClick = [this]() {
-            if (onLaneToolChanged) onLaneToolChanged(true);
+        // Each button is a lane in its own right, so it reports which kind it is and the handler
+        // decides what that means: arm the tool with it, or put it on the selection.
+        laneOneToggle.onClick = [this]() {
+            if (onLaneKindClicked) onLaneKindClicked(PhraseTarget::Lane1);
+            selectView(EditorView::Notes);
+        };
+        laneTwoToggle.onClick = [this]() {
+            if (onLaneKindClicked) onLaneKindClicked(PhraseTarget::Lane2);
             selectView(EditorView::Notes);
         };
 
@@ -218,6 +236,7 @@ public:
             if (onLaneToolChanged) onLaneToolChanged(false);
             selectView(EditorView::Notes);
         };
+
 
         cymbalToggle.onClick = [this]() {
             if (onCymbalModeChanged) onCymbalModeChanged(cymbalToggle.getToggleState());
@@ -236,7 +255,7 @@ public:
 
     void refreshFromController()
     {
-        bool drums = isDrumLike(interactionController.activePart());
+        bool drums = isDrumLike(interactionController.focusPart());
         bool drawMode = interactionController.subMode() == SubMode::Draw;
         bool editMode = !drawMode;
         bool hasSel = editMode && interactionController.hasEditSelection();
@@ -262,7 +281,8 @@ public:
         divisionDropdown.setAccentColour(modeAccent);
         tupletDropdown.setAccentColour(modeAccent);
         barToggle.setAccentColour(modeAccent);
-        laneToggle.setAccentColour(modeAccent);
+        laneOneToggle.setAccentColour(modeAccent);
+        laneTwoToggle.setAccentColour(modeAccent);
         guitarForceButtons.setAccentColour(modeAccent);
         drumDynamicButtons.setAccentColour(modeAccent);
         cymbalToggle.setAccentColour(modeAccent);
@@ -289,15 +309,13 @@ public:
         barToggle.setToggleState(interactionController.barMode());
         barToggle.setButtonText(drums ? "KICK" : "OPEN");
 
-        laneToggle.setToggleState(interactionController.laneTool());
-
         // Cym and Flam share one pill slot; no kit has both.
-        const auto* cfg = getAuthoringConfig(interactionController.activePart());
+        const auto* cfg = getAuthoringConfig(interactionController.focusPart());
         bool showCym  = drums && cfg && cfg->hasCymbalToggle;
         bool showFlam = drums && cfg && cfg->hasFlamToggle;
 
         // The Phrase view writes phrases, so its slot picks which one rather than a note type.
-        auto kinds = PhraseMath::kindsFor(interactionController.activePart());
+        auto kinds = PhraseMath::kindsFor(interactionController.focusPart());
         juce::StringArray kindLabels;
         for (auto k : kinds) kindLabels.add(PhraseMath::phraseShortLabel(k));
         phraseKindButtons.setItems(kindLabels);
@@ -318,11 +336,33 @@ public:
 
         // Both kinds of type sit on the bar at once: clicking one is what picks the view, so
         // hiding the other would leave no way back to it.
+        // Elite has one roll-lane pitch per pad and no 1-vs-2 variant, so the second lane button
+        // would mean nothing there: the columns a drag reaches are the whole answer.
+        const bool hasTwoLaneKinds = cfg && cfg->phrasePitch
+                                  && cfg->phrasePitch(PhraseTarget::Lane2, SkillLevel::EXPERT, 0) >= 0;
+
         phraseKindButtons.setVisible(true);
+        laneTwoToggle.setVisible(hasTwoLaneKinds);
         guitarForceButtons.setVisible(!drums);
         drumDynamicButtons.setVisible(drums);
         cymbalToggle.setVisible(showCym);
         flamToggle.setVisible(showFlam);
+
+        // Each button lights for its own kind. Over a selection that means the kind actually on
+        // those notes, so clicking the lit one is visibly how it comes off; otherwise it is
+        // whichever kind the tool is armed with.
+        const auto onSelection = (editMode && hasSel)
+                               ? interactionController.selectionLaneKind()
+                               : std::optional<PhraseTarget>{};
+        const bool armed = interactionController.laneTool();
+        const auto armedKind = interactionController.laneType();
+
+        auto lit = [&](PhraseTarget kind) {
+            if (editMode && hasSel) return onSelection.has_value() && *onSelection == kind;
+            return armed && armedKind == kind;
+        };
+        laneOneToggle.setToggleState(lit(PhraseTarget::Lane1));
+        laneTwoToggle.setToggleState(lit(PhraseTarget::Lane2));
 
         // Selectable whatever the view is: clicking one is how you get back to the note view,
         // so they stay live and simply show nothing selected while a phrase kind holds the turn.
@@ -406,7 +446,7 @@ public:
         int h = getHeight();
         if (h <= 0) return;
 
-        bool drums = isDrumLike(interactionController.activePart());
+        bool drums = isDrumLike(interactionController.focusPart());
 
         labelH = SUBTOOLBAR_SHOW_LABELS ? juce::jmax(10, juce::roundToInt(h * 0.3f)) : 0;
         int controlArea = h - labelH;
@@ -421,7 +461,10 @@ public:
         // drums' three plus Cym. Switching parts swaps what is inside it and nothing else
         // on the row moves.
         const int noteSquares = juce::jmax((int)guitarForceItems, (int)drumDynamicItems + 1);
-        const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES * 2.0f
+        // BAR keeps its two squares for the bar art; the lane buttons are a square each beside
+        // it. Budgeted for both even on elite, which shows one, so the row does not shift width
+        // as the part changes.
+        const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES + 2.0f
                             + SNAP_SQUARES;
         const float gapSquares = SUBTOOLBAR_GROUP_GAP * 3.0f + SUBTOOLBAR_ITEM_GAP * 4.0f
                                + SUBTOOLBAR_LEFT_MARGIN;
@@ -449,7 +492,7 @@ public:
 
         const int modeW = side * MODE_SQUARES;
         const int noteSlotW = side * noteSquares + itemGap;
-        const int noteW = noteSlotW + itemGap * 2 + barW * 2;
+        const int noteW = noteSlotW + itemGap * 3 + barW + side * 2;
         const int gridW = side * SNAP_SQUARES + itemGap * 2 + divisionW + tupletW;
         const int totalW = modeW + noteW + phraseW + gridW + groupGap * 3;
 
@@ -483,16 +526,23 @@ public:
             place(guitarForceButtons, side * (int)guitarForceItems);
         }
         x = noteSlotEnd + itemGap;
-        place(barToggle, barW);
+        // A square each: their art is a lane up a column, not a board-wide bar, so the two
+        // squares BAR needs left them swimming in empty space.
+        place(laneOneToggle, side);
+        if (laneTwoToggle.isVisible())
+        {
+            x += itemGap;
+            place(laneTwoToggle, side);
+        }
         x += itemGap;
-        place(laneToggle, barW);
+        place(barToggle, barW);
         x += groupGap;
 
         // Centred in a slot sized for the most kinds any instrument has, so the segments keep one
         // width everywhere and only the spare gap either side changes with the part.
         labelGroupPhrase = { x, 0, phraseW, labelH };
         const int phraseSlotEnd = x + phraseW;
-        const int phraseItems = (int)PhraseMath::kindsFor(interactionController.activePart()).size();
+        const int phraseItems = (int)PhraseMath::kindsFor(interactionController.focusPart()).size();
         x += (phraseW - phraseItems * phraseItemWidth()) / 2;
         place(phraseKindButtons, phraseItems * phraseItemWidth());
         x = phraseSlotEnd + groupGap;
@@ -625,7 +675,11 @@ private:
     PillToggle       barToggle      {"BAR"};
     // Drawing lanes is a third thing a drag can write, alongside notes and phrases, so it sits
     // with the note types rather than among the phrase kinds.
-    PillToggle       laneToggle     {"LANE"};
+    // Two lanes, two buttons, because they are two different things to place and not two
+    // settings of one. Elite shows only the first: it has one roll-lane pitch per pad and no
+    // 1-vs-2 variant to choose between.
+    PillToggle       laneOneToggle  {"LANE"};
+    PillToggle       laneTwoToggle  {"TRILL"};
 
     PillToggle       snapToggle     {"Snap"};
     DropdownButton   divisionDropdown;
@@ -646,6 +700,7 @@ private:
 
     SegmentedButtons guitarForceButtons;
     SegmentedButtons drumDynamicButtons;
+    SegmentedButtons laneTypeButtons;
     PillToggle       cymbalToggle   {"Cym"};
     PillToggle       flamToggle     {"Flam"};
 
@@ -664,6 +719,7 @@ private:
     static constexpr int SNAP_SQUARES = 1;
     static constexpr size_t guitarForceItems = 4;
     static constexpr size_t drumDynamicItems = 3;
+    static constexpr size_t laneTypeItems    = 2;
 
     // Room for the widest value a control can show, whatever is showing now, so it does not
     // change width as the value changes.

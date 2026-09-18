@@ -27,6 +27,8 @@ public:
     SubMode     subMode()         const { return writeController.subMode(); }
     EditorView  view()            const { return writeController.view(); }
     bool        laneTool()        const { return writeController.laneTool(); }
+    PhraseTarget laneType()       const { return writeController.laneType(); }
+    void setLaneType(PhraseTarget t)    { writeController.setLaneType(t); }
     PhraseMath::Kind phraseKind() const { return writeController.phraseKind(); }
     int         stepDivision()    const { return writeController.stepDivision(); }
     int         tuplet()          const { return writeController.tuplet(); }
@@ -80,6 +82,25 @@ public:
     void setGuitarForce(GuitarForce f){ writeController.setGuitarForce(f); editController.setGuitarForce(f); }
     void setCymbalMode(bool c)        { writeController.setCymbalMode(c);  editController.setCymbalMode(c); }
     void setFlamMode(bool f)          { writeController.setFlamMode(f);    editController.setFlamMode(f); }
+
+    // A lane over the selection, alongside the note-type appliers. The selection lives on the
+    // edit controller and the lane write on the write controller, so it is joined up here.
+    void applyLaneToSelection()
+    {
+        writeController.applyLaneToSelection(editController.getSelection());
+    }
+    bool selectionHasLane() const
+    {
+        return writeController.selectionHasLane(editController.getSelection());
+    }
+    std::optional<PhraseTarget> selectionLaneKind() const
+    {
+        return writeController.selectionLaneKind(editController.getSelection());
+    }
+    void setLaneTypeOnSelection(PhraseTarget t)
+    {
+        writeController.setLaneTypeOnSelection(editController.getSelection(), t);
+    }
 
     void applyDrumDynamicToSelection(DrumDynamic d) { editController.applyDrumDynamicToSelection(d); }
     void applyGuitarForceToSelection(GuitarForce f) { editController.applyGuitarForceToSelection(f); }

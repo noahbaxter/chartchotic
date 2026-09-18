@@ -121,8 +121,43 @@ void ToolbarComponent::initTopBar()
     };
 
     writeSubToolbar.onLaneToolChanged = [this](bool on) {
+        // With a selection up, LANE applies to it rather than arming a tool, the same way the
+        // note types do. Arming the draw tool there would drop the selection to do nothing.
+        if (on && interactionController.subMode() == SubMode::Edit
+               && interactionController.hasEditSelection())
+        {
+            interactionController.applyLaneToSelection();
+            if (interactionController.onStateChanged) interactionController.onStateChanged();
+            return;
+        }
+
         interactionController.setLaneTool(on);
         if (onLaneToolActive) onLaneToolActive(on);
+        if (interactionController.onStateChanged) interactionController.onStateChanged();
+    };
+
+    writeSubToolbar.onLaneKindClicked = [this](PhraseTarget t) {
+        const bool overSelection = interactionController.subMode() == SubMode::Edit
+                                && interactionController.hasEditSelection();
+
+        if (overSelection)
+        {
+            // Clicking the kind already on the notes takes it off; clicking the other retypes
+            // to it. Each button behaves as the lane it draws, rather than as a shared setting.
+            const auto onNotes = interactionController.selectionLaneKind();
+            if (onNotes.has_value() && *onNotes == t) interactionController.applyLaneToSelection();
+            else                                      interactionController.setLaneTypeOnSelection(t);
+
+            if (interactionController.onStateChanged) interactionController.onStateChanged();
+            return;
+        }
+
+        // Clicking the armed kind puts the tool away, so each button toggles its own lane.
+        const bool alreadyArmed = interactionController.laneTool()
+                               && interactionController.laneType() == t;
+        interactionController.setLaneType(t);
+        interactionController.setLaneTool(!alreadyArmed);
+        if (onLaneToolActive) onLaneToolActive(!alreadyArmed);
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 

@@ -173,6 +173,12 @@ namespace PhraseMath
         return !GridMath::before(a.endQN, b.startQN) && !GridMath::after(a.startQN, b.endQN);
     }
 
+    // Whether this span covers the whole of [lo, hi], edges counting as covered.
+    inline bool contains(const PhraseSpan& outer, double lo, double hi)
+    {
+        return !GridMath::after(outer.startQN, lo) && !GridMath::before(outer.endQN, hi);
+    }
+
     // Phrases of one kind are a set of ranges, so one drawn over another is not a conflict: it
     // is the same phrase, extended. Returns the union of `range` with everything it touches,
     // which is what gets written in their place.

@@ -14,6 +14,10 @@ public:
     EditorView   view()            const { return currentView; }
     bool         laneTool()        const { return laneToolFlag; }
     PhraseMath::Kind phraseKind()  const { return currentPhraseKind; }
+    // Which of the two shared lane markers a write uses. Picked rather than derived; see
+    // LaneMath.h for why guessing it does not work. Inert on elite, which has no variant.
+    PhraseTarget laneType()        const { return currentLaneType; }
+    void setLaneType(PhraseTarget t);
 
     // Everything worth preserving about a copied note. velocity carries drum
     // dynamics, markerMask carries note type (cymbal/tom, HOPO/strum/tap) as
@@ -41,6 +45,17 @@ public:
     void setSubMode(SubMode mode);
     void setView(EditorView v);
     void setLaneTool(bool on);
+    // A lane over the selected notes, the way a note type applies to a selection. Their extent
+    // is the range and the columns they span decide one lane or two. A toggle: a selection
+    // already under a lane loses it.
+    void applyLaneToSelection(const std::vector<SelectedNote>& notes);
+    // Whether that selection already sits under a lane, so the lane controls can show it lit.
+    bool selectionHasLane(const std::vector<SelectedNote>& notes) const;
+    // And which kind it is, so the right one of the two lights.
+    std::optional<PhraseTarget> selectionLaneKind(const std::vector<SelectedNote>& notes) const;
+    // Picks the kind and writes it over the selection, retyping any lane already there. Never
+    // removes one: that is the LANE toggle's job.
+    void setLaneTypeOnSelection(const std::vector<SelectedNote>& notes, PhraseTarget target);
     void setPhraseKind(PhraseMath::Kind k);
 
     // What a phrase gesture could not do, for the footer to say. Cleared when read.
@@ -102,6 +117,7 @@ private:
     void handlePhraseUp();
     void clearPhraseDrag();
     void recomputePhrasePreview();
+    PhraseTarget currentLaneType     = PhraseTarget::Lane1;
     bool         writeModeActiveFlag = false;
 
     //==========================================================================
@@ -138,9 +154,32 @@ private:
     LaneSpread laneDragSpread() const { return { laneDragColumnLo, laneDragColumnHi }; }
     static LaneSpread oneColumn(int column) { return { column, column }; }
 
+    // Writes a resolved lane, or says why it could not. Shared by the drag and by applying one
+    // to a selection, so the two cannot drift apart.
+    void commitLane(int trackIdx, std::optional<PhraseMath::PhraseSpan> merged, LaneSpread spread);
+
     // A note a lane can snap to or capture: the dragged columns on elite, the whole board minus
     // kicks on the shared markers.
     struct LaneNote { double qn; int column; };
+
+    // What a selection asks a lane to cover: its extent, and the columns it reaches across.
+    struct LaneSelection { double lo = 0.0; double hi = 0.0; LaneSpread spread; };
+    // Selected notes a lane could apply to, filtered the way the lane rules require.
+    std::vector<LaneNote> laneSelectionNotes(const std::vector<SelectedNote>& notes) const;
+    std::optional<LaneSelection> laneSelectionRange(const std::vector<SelectedNote>& notes) const;
+
+    // A lane as written: the range, and the pitch it was written on, so an existing one can be
+    // grown in place instead of being replaced by whatever a fresh write would have chosen.
+    struct LanePlacement { PhraseMath::PhraseSpan span; int pitch; };
+    std::vector<LanePlacement> lanesOnPart(LaneSpread spread) const;
+    // Lanes anywhere in this stretch of time, which is what a selection acts on: a lane is a
+    // range, not a property of a note, so reaching across columns does not mean one per column.
+    std::vector<LanePlacement> lanesInRange(const LaneSelection& sel) const;
+    // Whether every selected note already sits inside one of them.
+    bool allSelectedUnderLane(const std::vector<SelectedNote>& notes,
+                              const std::vector<LanePlacement>& lanes) const;
+    void eraseLanePlacement(int trackIdx, const LanePlacement& lane);
+
     std::vector<LaneNote> laneCandidateNotes(LaneSpread spread) const;
     std::vector<LaneNote> laneNotesIn(double startQN, double endQN, LaneSpread spread) const;
     // The note nearest a point, in either direction, which is what an edge snaps to.
