@@ -66,7 +66,14 @@ void InteractionController::setView(EditorView v)
     // Star power, solo, fill and BRE are written across the whole board, so the kick/open filter
     // has nothing left to narrow. It is another exclusive mode and steps aside for them, the way
     // picking a note type stands the lane tool down.
-    if (v == EditorView::StarPower || v == EditorView::Phrase) setBarMode(false);
+    // Edit mode steps aside too. A phrase is a range with nothing to select, so every click in
+    // these views goes to the write controller regardless; leaving the toggle on Edit showed a
+    // tool that was not the one acting.
+    if (v == EditorView::StarPower || v == EditorView::Phrase)
+    {
+        setBarMode(false);
+        writeController.setSubMode(SubMode::Draw);
+    }
 }
 
 void InteractionController::onPointerMove(const AuthoringPoint& p, const AuthoringContext& ctx)

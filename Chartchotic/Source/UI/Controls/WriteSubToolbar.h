@@ -286,6 +286,13 @@ public:
         int modeIdx = drawMode ? 0 : 1;
         modeButtons.setSelectedIndex(modeIdx);
 
+        // A phrase is a range, not a note: there is nothing there for edit mode to select, and
+        // every click in a phrase view goes to the write controller whatever this says. Greyed
+        // rather than hidden, so the bar keeps one shape as you step through the views.
+        const bool phraseKindView = phraseView || interactionController.view() == EditorView::StarPower;
+        modeButtons.setAlpha(phraseKindView ? 0.35f : 1.0f);
+        modeButtons.setInterceptsMouseClicks(!phraseKindView, !phraseKindView);
+
         bool snapOn = interactionController.snapEnabled();
         snapToggle.setToggleState(snapOn);
 
