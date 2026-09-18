@@ -63,6 +63,12 @@ public:
         drumDynamicButtons.setItems({"Ghost", "Normal", "Accent"});
         addChildComponent(drumDynamicButtons);
 
+        // Takes the note-type slot while the lane tool is on, since a lane is what a drag
+        // writes there. Numbered rather than named because the two markers are called different
+        // things per instrument: tremolo and trill on guitar, 1-lane and 2-lane rolls on drums.
+        laneTypeButtons.setItems({"1", "2"});
+        addChildComponent(laneTypeButtons);
+
         cymbalToggle.setToggleState(false, juce::dontSendNotification);
         addChildComponent(cymbalToggle);
 
@@ -92,6 +98,7 @@ public:
         addHoverZone(tupletDropdown,     {"T", "⇧T"},              "tuplet on/off, shift cycles 3/5/7");
         addHoverZone(guitarForceButtons, {"A", "S", "D", "F"},     "force HOPO, strum, or tap (overrides auto)");
         addHoverZone(drumDynamicButtons, {"A", "S", "D"},          "ghost (soft) or accent (loud) hit");
+        addHoverZone(laneTypeButtons,    {"A", "S"},               "roll on one lane, or alternating between two");
         addHoverZone(cymbalToggle,       {"F"},                    "cymbal placement (PRO drums)");
         addHoverZone(flamToggle,         {"F"},                    "flam: grace note before the hit, kicks place 1x + 2x");
     }
@@ -151,6 +158,7 @@ public:
     // The chosen value, not a delta: the dropdown already knows which one was picked, so the
     // handler no longer has to find the current value in a table before it can move off it.
     std::function<void(bool)> onLaneToolChanged;
+    std::function<void(PhraseTarget)> onLaneTypeChanged;
     std::function<void(int division)> onStepDivisionChanged;
     std::function<void(int tuplet)> onTupletChanged;
     std::function<void(bool)> onBarModeChanged;
@@ -216,6 +224,15 @@ public:
         drumDynamicButtons.onSelectionChanged = [this](int idx) {
             if (onDrumDynamicChanged) onDrumDynamicChanged(DYNAMIC_ORDER[idx]);
             if (onLaneToolChanged) onLaneToolChanged(false);
+            selectView(EditorView::Notes);
+        };
+
+        // Only reports the pick. Whether that arms the tool or retypes a selection is the
+        // handler's call, and routing it through onLaneToolChanged here would run the pill's
+        // toggle as well and take a lane straight back off.
+        laneTypeButtons.onSelectionChanged = [this](int idx) {
+            if (onLaneTypeChanged)
+                onLaneTypeChanged(idx == 1 ? PhraseTarget::Lane2 : PhraseTarget::Lane1);
             selectView(EditorView::Notes);
         };
 
@@ -322,11 +339,24 @@ public:
 
         // Both kinds of type sit on the bar at once: clicking one is what picks the view, so
         // hiding the other would leave no way back to it.
+        // Elite has one roll-lane pitch per pad and no 1-vs-2 variant, so there is nothing to
+        // pick there: the columns a drag reaches are the whole answer.
+        const bool hasLaneTypes = cfg && cfg->phrasePitch
+                               && cfg->phrasePitch(PhraseTarget::Lane2, SkillLevel::EXPERT, 0) >= 0;
+        const bool showLaneTypes = laneMode && hasLaneTypes;
+
         phraseKindButtons.setVisible(true);
-        guitarForceButtons.setVisible(!drums);
-        drumDynamicButtons.setVisible(drums);
-        cymbalToggle.setVisible(showCym);
-        flamToggle.setVisible(showFlam);
+        // The lane kinds take the note-type slot while the lane tool is on, since a lane is
+        // what a drag writes then and the note types have nothing to say about it.
+        laneTypeButtons.setVisible(showLaneTypes);
+        guitarForceButtons.setVisible(!drums && !showLaneTypes);
+        drumDynamicButtons.setVisible(drums && !showLaneTypes);
+        cymbalToggle.setVisible(showCym && !showLaneTypes);
+        flamToggle.setVisible(showFlam && !showLaneTypes);
+
+        laneTypeButtons.setAccentColour(modeAccent);
+        laneTypeButtons.setSelectedIndex(
+            interactionController.laneType() == PhraseTarget::Lane2 ? 1 : 0);
 
         // Selectable whatever the view is: clicking one is how you get back to the note view,
         // so they stay live and simply show nothing selected while a phrase kind holds the turn.
@@ -474,7 +504,14 @@ public:
 
         labelGroupNote = { x, 0, noteW, labelH };
         const int noteSlotEnd = x + noteSlotW;
-        if (drums)
+        if (laneTypeButtons.isVisible())
+        {
+            // Centred in the slot the note types would have filled, so turning the lane tool on
+            // swaps what is in that slot without the row shifting around it.
+            x += (noteSlotW - side * (int)laneTypeItems) / 2;
+            place(laneTypeButtons, side * (int)laneTypeItems);
+        }
+        else if (drums)
         {
             place(drumDynamicButtons, side * (int)drumDynamicItems);
             x += itemGap;
@@ -653,6 +690,7 @@ private:
 
     SegmentedButtons guitarForceButtons;
     SegmentedButtons drumDynamicButtons;
+    SegmentedButtons laneTypeButtons;
     PillToggle       cymbalToggle   {"Cym"};
     PillToggle       flamToggle     {"Flam"};
 
@@ -671,6 +709,7 @@ private:
     static constexpr int SNAP_SQUARES = 1;
     static constexpr size_t guitarForceItems = 4;
     static constexpr size_t drumDynamicItems = 3;
+    static constexpr size_t laneTypeItems    = 2;
 
     // Room for the widest value a control can show, whatever is showing now, so it does not
     // change width as the value changes.

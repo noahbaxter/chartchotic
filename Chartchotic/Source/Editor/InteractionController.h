@@ -27,6 +27,8 @@ public:
     SubMode     subMode()         const { return writeController.subMode(); }
     EditorView  view()            const { return writeController.view(); }
     bool        laneTool()        const { return writeController.laneTool(); }
+    PhraseTarget laneType()       const { return writeController.laneType(); }
+    void setLaneType(PhraseTarget t)    { writeController.setLaneType(t); }
     PhraseMath::Kind phraseKind() const { return writeController.phraseKind(); }
     int         stepDivision()    const { return writeController.stepDivision(); }
     int         tuplet()          const { return writeController.tuplet(); }
@@ -90,6 +92,10 @@ public:
     bool selectionHasLane() const
     {
         return writeController.selectionHasLane(editController.getSelection());
+    }
+    void setLaneTypeOnSelection(PhraseTarget t)
+    {
+        writeController.setLaneTypeOnSelection(editController.getSelection(), t);
     }
 
     void applyDrumDynamicToSelection(DrumDynamic d) { editController.applyDrumDynamicToSelection(d); }

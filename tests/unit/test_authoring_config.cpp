@@ -2,6 +2,7 @@
 #include "Editor/AuthoringConfig.h"
 #include "Editor/AuthoringTypes.h"
 #include "Editor/LaneMath.h"
+#include "Editor/ModifierSlots.h"
 #include "Midi/Utils/MidiConstants.h"
 
 using EliteDrums = MidiPitchDefinitions::EliteDrums;
@@ -224,20 +225,25 @@ TEST_CASE("LaneMath - a lane is writable at every grid setting", "[authoring_con
     REQUIRE_FALSE(LaneMath::isWritableLength(4.0, 4.0 + GridMath::TICK / 4.0));
 }
 
-TEST_CASE("LaneMath - a lane is one lane until it is dragged sideways", "[authoring_config]")
+TEST_CASE("LaneMath - a marker reaches as far as its own kind", "[authoring_config]")
 {
-    // The drag says what was meant. One column is a roll on one pad; pulling across columns is
-    // the author asking for alternation (_refs/midi/drums.md:141-142).
-    REQUIRE(LaneMath::targetForDragSpan(1) == PhraseTarget::Lane1);
-    REQUIRE(LaneMath::targetForDragSpan(2) == PhraseTarget::Lane2);
-    REQUIRE(LaneMath::targetForDragSpan(5) == PhraseTarget::Lane2);
-
-    // A gesture that reached nowhere is still a single lane, not a refusal.
-    REQUIRE(LaneMath::targetForDragSpan(0) == PhraseTarget::Lane1);
-
-    // The old rule counted columns STRUCK under the span instead, which made a plain roll into
-    // a trill as soon as a neighbouring column had a note inside it, with no way to say
-    // otherwise. Reach follows the marker that was chosen, not the notes.
+    // Which kind is picked on the write bar, not worked out from the drag. Two rounds of
+    // guessing failed: counting struck columns made a plain roll a trill whenever a neighbour
+    // had a note in range, and counting sideways travel breaks on chord tremolos, which cover
+    // several columns and are still tremolos (_refs/midi/5-fret-guitar.md:105). Reach follows
+    // the kind chosen, which is all the geometry a marker has.
     REQUIRE(LaneMath::reachOf(PhraseTarget::Lane1) == 1u);
     REQUIRE(LaneMath::reachOf(PhraseTarget::Lane2) == 2u);
+}
+
+TEST_CASE("LaneMath - only the shared markers have a kind to pick", "[authoring_config]")
+{
+    // Elite has one roll-lane pitch per pad and no 1-vs-2 variant, so its write bar offers no
+    // choice and the columns a drag reaches are the whole answer.
+    REQUIRE(modifierSlotsFor(RenderType::FIVE_FRET, true).size() == 2);
+    REQUIRE(modifierSlotsFor(RenderType::FOUR_LANE_DRUMS, true).size() == 2);
+    REQUIRE(modifierSlotsFor(RenderType::ELITE_DRUMS, true).empty());
+
+    // And with the tool off the slots are the ordinary note types again.
+    REQUIRE(modifierSlotsFor(RenderType::FIVE_FRET, false).size() == 4);
 }
