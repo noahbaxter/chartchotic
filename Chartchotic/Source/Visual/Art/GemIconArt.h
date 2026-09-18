@@ -15,6 +15,7 @@
 
 #include <JuceHeader.h>
 #include <map>
+#include <tuple>
 #include "../Managers/AssetManager.h"
 #include "../Geometry/PositionConstants.h"
 
@@ -26,6 +27,16 @@ public:
     // Gem art columns the icons borrow: green on guitar, red on drums, the first hand lane.
     static constexpr uint GUITAR_COLUMN = 1;
     static constexpr uint DRUM_COLUMN = 1;
+
+    // Every icon draws from the unscaled master, never the live highway copy. The live ones are
+    // swapped out by AssetManager::rescaleForWidth as the viewport changes, which had the write
+    // bar's icons resizing themselves whenever the chart was. Generated art (runtime recolours)
+    // has no master and is used as it comes.
+    juce::Image* stable(juce::Image* live) const
+    {
+        auto* master = assets.masterFor(live);
+        return master != nullptr ? const_cast<juce::Image*>(master) : live;
+    }
 
     // Gem art sits in a canvas with room around it for the highway's perspective, so fitting
     // the whole image leaves a sliver of gem in the middle of the button. Only the visible
@@ -48,14 +59,14 @@ public:
 
     bool drawGuitarGem(juce::Graphics& g, juce::Rectangle<float> r, Gem gem) const
     {
-        return drawGem(g, r, assets.getGuitarGlyphImage(GemWrapper(gem), GUITAR_COLUMN, false),
-                       assets.getOverlayImage(gem, Part::GUITAR), PositionConstants::OVERLAY_GUITAR_TAP);
+        return drawGem(g, r, stable(assets.getGuitarGlyphImage(GemWrapper(gem), GUITAR_COLUMN, false)),
+                       stable(assets.getOverlayImage(gem, Part::GUITAR)), PositionConstants::OVERLAY_GUITAR_TAP);
     }
 
     bool drawDrumGem(juce::Graphics& g, juce::Rectangle<float> r, Gem gem) const
     {
-        return drawGem(g, r, assets.getDrumGlyphImage(GemWrapper(gem), DRUM_COLUMN, false),
-                       assets.getOverlayImage(gem, Part::DRUMS),
+        return drawGem(g, r, stable(assets.getDrumGlyphImage(GemWrapper(gem), DRUM_COLUMN, false)),
+                       stable(assets.getOverlayImage(gem, Part::DRUMS)),
                        gem == Gem::TAP_ACCENT ? PositionConstants::OVERLAY_DRUM_NOTE_ACCENT
                                               : PositionConstants::OVERLAY_DRUM_NOTE_GHOST);
     }
@@ -64,7 +75,7 @@ public:
     // smaller and behind.
     bool drawFlam(juce::Graphics& g, juce::Rectangle<float> r) const
     {
-        auto* gem = assets.getDrumGlyphImage(GemWrapper(Gem::NOTE), DRUM_COLUMN, false);
+        auto* gem = stable(assets.getDrumGlyphImage(GemWrapper(Gem::NOTE), DRUM_COLUMN, false));
         if (gem == nullptr || !gem->isValid()) return false;
 
         auto grace = r.withTrimmedRight(r.getWidth() * FLAM_OFFSET).withTrimmedBottom(r.getHeight() * FLAM_OFFSET);
@@ -82,21 +93,31 @@ public:
     // lettered because a lane has a shape a chart author already reads on the highway.
     bool drawLane(juce::Graphics& g, juce::Rectangle<float> r, juce::Colour laneColour) const
     {
-        auto* gem = assets.getDrumGlyphImage(GemWrapper(Gem::NOTE), DRUM_COLUMN, false);
+        auto* gem = stable(assets.getDrumGlyphImage(GemWrapper(Gem::NOTE), DRUM_COLUMN, false));
         if (gem == nullptr || !gem->isValid()) return false;
 
-        // Vertical, because that is how a lane runs on the highway: a band up the column with
-        // its gems stacked on it. Laid out sideways the icon read as a sustain.
-        auto band = r.withSizeKeepingCentre(r.getWidth() * LANE_BAND_HEIGHT, r.getHeight());
-        g.setColour(laneColour.withAlpha(LANE_BAND_ALPHA));
-        g.fillRoundedRectangle(band, band.getWidth() * 0.35f);
+        // The gem size leads, bounded by the height the run may take once the gaps between
+        // gems are counted, and by the icon's width so a wide flat button cannot blow it up.
+        const float span = (float)LANE_GEM_COUNT + LANE_GEM_GAP * (float)(LANE_GEM_COUNT - 1);
+        const float size = juce::jmin(r.getWidth() * LANE_GEM_MAX_WIDTH,
+                                      r.getHeight() * LANE_RUN_HEIGHT / span);
+        const float step = size * (1.0f + LANE_GEM_GAP);
 
-        const float cell = r.getHeight() / (float)LANE_GEM_COUNT;
-        const float size = juce::jmin(cell * LANE_GEM_FILL, r.getWidth() * LANE_GEM_FILL);
+        // Vertical, because that is how a lane runs on the highway: a band up the column with
+        // its gems stacked on it. Laid out sideways the icon read as a sustain. The band hugs
+        // the run rather than being sized on its own, or the gems rattle around inside a lane
+        // nearly twice their width.
+        const float bandW = size * LANE_BAND_MARGIN;
+        auto band = r.withSizeKeepingCentre(bandW, r.getHeight());
+        g.setColour(laneColour.withAlpha(LANE_BAND_ALPHA));
+        g.fillRoundedRectangle(band, bandW * 0.35f);
+
+        float top = r.getCentreY() - (step * (float)(LANE_GEM_COUNT - 1) + size) * 0.5f;
         for (int i = 0; i < LANE_GEM_COUNT; ++i)
         {
-            auto slot = juce::Rectangle<float>(r.getX(), r.getY() + cell * (float)i, r.getWidth(), cell);
-            drawImage(g, slot.withSizeKeepingCentre(size, size), gem);
+            auto slot = juce::Rectangle<float>(size, size)
+                            .withCentre({ r.getCentreX(), top + size * 0.5f + step * (float)i });
+            drawImage(g, slot, gem);
         }
         return true;
     }
@@ -105,16 +126,22 @@ private:
     static constexpr juce::uint8 VISIBLE_ALPHA = 8;
     static constexpr float FLAM_OFFSET = 0.3f;       // of the icon, how far the two gems sit apart
     static constexpr float FLAM_GRACE_ALPHA = 0.55f;
-    static constexpr int   LANE_GEM_COUNT = 4;       // gems shown sitting on the lane
-    static constexpr float LANE_GEM_FILL = 0.8f;     // of its cell, so the run does not touch
-    static constexpr float LANE_BAND_HEIGHT = 0.72f; // of the icon
+    // Three gems rather than four, packed close: at four the run filled the button top to
+    // bottom and each gem was too small to read as a gem at all.
+    static constexpr int   LANE_GEM_COUNT = 3;        // gems shown sitting on the lane
+    static constexpr float LANE_GEM_GAP = 0.2f;       // of a gem, the space between two of them
+    static constexpr float LANE_GEM_MAX_WIDTH = 0.42f;// of the icon, so a wide button stays sane
+    static constexpr float LANE_RUN_HEIGHT = 0.86f;   // of the icon, the tallest the run may get
+    static constexpr float LANE_BAND_MARGIN = 1.35f;  // of a gem, how far the band oversails it
     static constexpr float LANE_BAND_ALPHA = 0.55f;
 
-    // Scanned once per image and kept, keyed by the pixel buffer so a rescaled asset is
-    // measured afresh rather than reusing the old one's bounds.
+    // Scanned once per image and kept. The size is part of the key, not just the buffer
+    // address: rescaling frees the old pixel data and the allocator is free to hand the same
+    // address straight back, which served stale bounds for an image that had changed size.
+    // Icons draw from masters now, which do not rescale, but the key stays honest either way.
     juce::Rectangle<int> visibleBounds(const juce::Image& img) const
     {
-        const auto* key = img.getPixelData().get();
+        const auto key = std::make_tuple(img.getPixelData().get(), img.getWidth(), img.getHeight());
         auto hit = cache.find(key);
         if (hit != cache.end()) return hit->second;
 
@@ -173,5 +200,5 @@ private:
     }
 
     AssetManager& assets;
-    mutable std::map<const juce::ImagePixelData*, juce::Rectangle<int>> cache;
+    mutable std::map<std::tuple<const juce::ImagePixelData*, int, int>, juce::Rectangle<int>> cache;
 };

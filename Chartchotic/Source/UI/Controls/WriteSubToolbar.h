@@ -135,10 +135,10 @@ public:
             return gemIcons->drawFlam(g, r);
         });
         laneToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
-            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlSelected));
+            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlLaneArt));
         });
         barToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
-            bool drums = isDrumLike(interactionController.activePart());
+            bool drums = isDrumLike(interactionController.focusPart());
             return !gemIcons->drawImage(g, r, drums ? assetManager->getBarKickImage()
                                                     : assetManager->getBarOpenImage()).isEmpty();
         });
@@ -168,7 +168,7 @@ public:
         // once, so reaching for a phrase kind says "phrase" as plainly as a view control would,
         // and there is no state where the thing you clicked is not the thing you are writing.
         phraseKindButtons.onSelectionChanged = [this](int idx) {
-            auto kinds = PhraseMath::kindsFor(interactionController.activePart());
+            auto kinds = PhraseMath::kindsFor(interactionController.focusPart());
             if (onPhraseKindChanged && idx >= 0 && idx < (int)kinds.size())
                 onPhraseKindChanged(kinds[(size_t)idx]);
             if (onLaneToolChanged) onLaneToolChanged(false);
@@ -236,7 +236,7 @@ public:
 
     void refreshFromController()
     {
-        bool drums = isDrumLike(interactionController.activePart());
+        bool drums = isDrumLike(interactionController.focusPart());
         bool drawMode = interactionController.subMode() == SubMode::Draw;
         bool editMode = !drawMode;
         bool hasSel = editMode && interactionController.hasEditSelection();
@@ -292,12 +292,12 @@ public:
         laneToggle.setToggleState(interactionController.laneTool());
 
         // Cym and Flam share one pill slot; no kit has both.
-        const auto* cfg = getAuthoringConfig(interactionController.activePart());
+        const auto* cfg = getAuthoringConfig(interactionController.focusPart());
         bool showCym  = drums && cfg && cfg->hasCymbalToggle;
         bool showFlam = drums && cfg && cfg->hasFlamToggle;
 
         // The Phrase view writes phrases, so its slot picks which one rather than a note type.
-        auto kinds = PhraseMath::kindsFor(interactionController.activePart());
+        auto kinds = PhraseMath::kindsFor(interactionController.focusPart());
         juce::StringArray kindLabels;
         for (auto k : kinds) kindLabels.add(PhraseMath::phraseShortLabel(k));
         phraseKindButtons.setItems(kindLabels);
@@ -406,7 +406,7 @@ public:
         int h = getHeight();
         if (h <= 0) return;
 
-        bool drums = isDrumLike(interactionController.activePart());
+        bool drums = isDrumLike(interactionController.focusPart());
 
         labelH = SUBTOOLBAR_SHOW_LABELS ? juce::jmax(10, juce::roundToInt(h * 0.3f)) : 0;
         int controlArea = h - labelH;
@@ -421,7 +421,8 @@ public:
         // drums' three plus Cym. Switching parts swaps what is inside it and nothing else
         // on the row moves.
         const int noteSquares = juce::jmax((int)guitarForceItems, (int)drumDynamicItems + 1);
-        const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES * 2.0f
+        // BAR keeps its two squares for the bar art; LANE is a single square beside it.
+        const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES + 1.0f
                             + SNAP_SQUARES;
         const float gapSquares = SUBTOOLBAR_GROUP_GAP * 3.0f + SUBTOOLBAR_ITEM_GAP * 4.0f
                                + SUBTOOLBAR_LEFT_MARGIN;
@@ -449,7 +450,7 @@ public:
 
         const int modeW = side * MODE_SQUARES;
         const int noteSlotW = side * noteSquares + itemGap;
-        const int noteW = noteSlotW + itemGap * 2 + barW * 2;
+        const int noteW = noteSlotW + itemGap * 2 + barW + side;
         const int gridW = side * SNAP_SQUARES + itemGap * 2 + divisionW + tupletW;
         const int totalW = modeW + noteW + phraseW + gridW + groupGap * 3;
 
@@ -483,16 +484,18 @@ public:
             place(guitarForceButtons, side * (int)guitarForceItems);
         }
         x = noteSlotEnd + itemGap;
-        place(barToggle, barW);
+        // LANE is one square: its art is a single lane up one column, not a board-wide bar, so
+        // the two squares BAR needs for its bar art left it swimming in empty space.
+        place(laneToggle, side);
         x += itemGap;
-        place(laneToggle, barW);
+        place(barToggle, barW);
         x += groupGap;
 
         // Centred in a slot sized for the most kinds any instrument has, so the segments keep one
         // width everywhere and only the spare gap either side changes with the part.
         labelGroupPhrase = { x, 0, phraseW, labelH };
         const int phraseSlotEnd = x + phraseW;
-        const int phraseItems = (int)PhraseMath::kindsFor(interactionController.activePart()).size();
+        const int phraseItems = (int)PhraseMath::kindsFor(interactionController.focusPart()).size();
         x += (phraseW - phraseItems * phraseItemWidth()) / 2;
         place(phraseKindButtons, phraseItems * phraseItemWidth());
         x = phraseSlotEnd + groupGap;

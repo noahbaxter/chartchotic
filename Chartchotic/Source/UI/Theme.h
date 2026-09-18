@@ -39,6 +39,11 @@ public:
     static constexpr juce::uint32 orange = 0xFFE8853A;
     static constexpr juce::uint32 purple = 0xFF9B59B6;
 
+    // The lane band in the LANE pill's art. Deliberately NOT controlSelected: the pill fills
+    // with that colour when it is on, so a band painted the same vanished into it exactly when
+    // the tool was active. Declared down here because it borrows from the accent palette above.
+    static constexpr juce::uint32 controlLaneArt = green;
+
     //==========================================================================
     // Overlay parent — returns the AudioProcessorEditor so overlays inherit
     // the host DPI scale transform. Falls back to getTopLevelComponent() for
