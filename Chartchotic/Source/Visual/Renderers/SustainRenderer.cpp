@@ -206,14 +206,11 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
 
     const juce::Colour colour = starPower ? PHRASE_STAR_POWER_COLOUR
                               : solo      ? PHRASE_SOLO_COLOUR
-                              : bre       ? laneColour.interpolatedWith(juce::Colours::white,
-                                                                        PHRASE_BRE_WHITEN)
                                           : laneColour;
     // In the phrase view a phrase is what you came to look at, so it draws stronger. In the note
     // views it is context sitting over the gems, and stays faint enough to read them through.
     const float base = starPower  ? PHRASE_STAR_POWER_OPACITY
                      : solo       ? PHRASE_SOLO_OPACITY
-                     : bre        ? PHRASE_BRE_OPACITY
                      : activation ? PHRASE_ACTIVATION_OPACITY
                                   : LANE_OPACITY;
     const float opacity = !phraseViewActive ? base
@@ -414,19 +411,88 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
 
         juce::Path path = quad(endPos, startPos, 0.0f, 1.0f);
 
-        if (!PositionMath::bemaniMode && endPos > fadeStart)
+        auto paint = [&](const juce::Path& p, juce::Colour c, float alpha)
         {
-            float fadeFrom = std::max(fadeStart, startPos);
-            float yFrom = PositionMath::getFretboardEdge(rt, fadeFrom, width, height, HIGHWAY_POS_START, posEnd).centerY;
-            float yTo   = PositionMath::getFretboardEdge(rt, farFadeEnd, width, height, HIGHWAY_POS_START, posEnd).centerY;
-            g.setGradientFill(juce::ColourGradient(colour.withAlpha(calculateOpacity(fadeFrom) * opacity), 0.0f, yFrom,
-                                                   colour.withAlpha(0.0f), 0.0f, yTo, false));
-        }
-        else
+            if (!PositionMath::bemaniMode && endPos > fadeStart)
+            {
+                float fadeFrom = std::max(fadeStart, startPos);
+                float yFrom = PositionMath::getFretboardEdge(rt, fadeFrom, width, height, HIGHWAY_POS_START, posEnd).centerY;
+                float yTo   = PositionMath::getFretboardEdge(rt, farFadeEnd, width, height, HIGHWAY_POS_START, posEnd).centerY;
+                g.setGradientFill(juce::ColourGradient(c.withAlpha(calculateOpacity(fadeFrom) * alpha), 0.0f, yFrom,
+                                                       c.withAlpha(0.0f), 0.0f, yTo, false));
+            }
+            else
+            {
+                g.setColour(c.withAlpha(alpha));
+            }
+            g.fillPath(p);
+        };
+
+        if (fill)
         {
-            g.setColour(colour.withAlpha(opacity));
+            // Gutters. The lanes are not evenly spaced to begin with -- neighbours sit further
+            // apart than an outer lane sits from the highway edge -- so each side is brought in by
+            // whatever its own gap is short of the target, half of it per lane where two fills
+            // share a gap. Insetting every side the same amount would only widen the wider gap.
+            float gutL = 0.0f, gutR = 0.0f;
+            if (laneCoords != nullptr && laneCount > 0)
+            {
+                auto edgeOf = [&](uint i) {
+                    return getColumnEdge(startPos, laneCoords[i], 1.0f, PositionConstants::FRETBOARD_SCALE,
+                                         PositionMath::bemaniMode ? (int)i - 1 : -1);
+                };
+                const auto hands = PhraseMath::handColumns(activePart);
+                const uint idx = resolveLaneIndex(column);
+                const uint firstIdx = resolveLaneIndex(hands.first);
+                const uint lastIdx = resolveLaneIndex(hands.second);
+                auto board = getColumnEdge(startPos, fbCoords, 1.0f);
+                auto me = edgeOf(idx);
+                const float laneW = me.rightX - me.leftX;
+
+                if (laneW > 0.0f)
+                {
+                    const float target = laneW * PHRASE_FILL_GUTTER_FRACTION;
+                    // A gap shared with the next fill is closed from both sides, so each lane owes
+                    // half of it; the gap at the highway edge is this lane's alone.
+                    const bool sharedL = idx > firstIdx, sharedR = idx < lastIdx;
+                    const float haveL = sharedL ? me.leftX - edgeOf(idx - 1).rightX
+                                                : me.leftX - board.leftX;
+                    const float haveR = sharedR ? edgeOf(idx + 1).leftX - me.rightX
+                                                : board.rightX - me.rightX;
+                    gutL = std::max(0.0f, (target - haveL) * (sharedL ? 0.5f : 1.0f)) / laneW;
+                    gutR = std::max(0.0f, (target - haveR) * (sharedR ? 0.5f : 1.0f)) / laneW;
+                }
+            }
+
+            // What the border costs in pixels at a depth, turned into the depth that buys it, so
+            // the two ends come in as far as the sides do.
+            auto depthInset = [&](float pos) {
+                auto [l, r] = spanAt(pos);
+                const float px = std::abs(r - l) * PHRASE_FILL_BORDER_FRACTION;
+                auto midY = [&](float p) { auto [a, b] = spanAt(p); return lineY(p, (a + b) * 0.5f); };
+                const float dy = std::abs(midY(pos + PHRASE_FILL_DEPTH_PROBE) - midY(pos));
+                return dy > 0.0f ? px * PHRASE_FILL_DEPTH_PROBE / dy : 0.0f;
+            };
+            const float innerFar  = endPos   - depthInset(endPos);
+            const float innerNear = startPos + depthInset(startPos);
+
+            if (innerFar > innerNear)
+            {
+                juce::Path outer = quad(endPos, startPos, gutL, 1.0f - gutR);
+                juce::Path inner = quad(innerFar, innerNear, gutL + PHRASE_FILL_BORDER_FRACTION,
+                                        1.0f - gutR - PHRASE_FILL_BORDER_FRACTION);
+                // Border as a ring rather than a slab under the interior: two translucent layers
+                // stacked would tint the interior back toward the border colour.
+                juce::Path border = outer;
+                border.addPath(inner);
+                border.setUsingNonZeroWinding(false);
+                paint(border, colour, opacity);
+                paint(inner, colour.darker(PHRASE_FILL_INNER_DARKEN), PHRASE_FILL_INNER_OPACITY);
+                return;
+            }
         }
-        g.fillPath(path);
+
+        paint(path, colour, opacity);
     });
 }
 

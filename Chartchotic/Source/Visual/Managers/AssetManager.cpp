@@ -96,6 +96,13 @@ void AssetManager::initAssets()
         barKickImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content);
         barKick2xImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content);
         barOpenImage   = GemArt::bakeBar(GemArt::barRampOpen(),   canvas, content);
+        // An open HOPO keeps the open note's purple and takes the rim instead of being replaced
+        // by the white SP bar, which read as a star power note that was not there.
+        auto hopoRamp = GemArt::barRampOpen();
+        for (auto& stop : hopoRamp)
+            stop.second = stop.second.brighter(GemArt::kBarOutlineBrighten);
+        hopoBarOpenImage = GemArt::bakeBar(hopoRamp, canvas, content, 1.0f, 0.0f,
+                                           GemArt::kBarOutlineAlpha);
 
         // Elite's full-width bars: same arc and centreline, thinner tube.
         const float eliteTh = GemArt::kEliteBarThickness;
@@ -103,13 +110,31 @@ void AssetManager::initAssets()
         barKickEliteImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content, eliteTh);
         barKick2xEliteImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content, eliteTh);
 
-        // Accent kicks: double thickness with a bright centre line. Placeholder treatment
-        // for elite kick dynamics until there is real art. Ghosts reuse the normal bake at
-        // reduced opacity, so they need no variant here.
-        const float accentTh = GemArt::kAccentBarThickness;
-        barKickAccentImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content, accentTh, 0.85f);
-        barKick2xAccentImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content, accentTh, 0.85f);
-        barWhiteAccentImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content, accentTh, 0.85f);
+        // Elite kick dynamics: the same bar at the same size as a normal kick, rimmed the way an
+        // open HOPO is. An accent takes a light rim on a lifted tube, a ghost a near-black rim on
+        // a darkened one. Nothing changes size, so the three read as one note played three ways.
+        auto shaded = [](GemArt::BarRamp ramp, float amount, bool up) {
+            for (auto& stop : ramp)
+                stop.second = up ? stop.second.brighter(amount) : stop.second.darker(amount);
+            return ramp;
+        };
+        const float lift = GemArt::kBarOutlineBrighten, sink = GemArt::kBarGhostDarken;
+        const float rim = GemArt::kBarOutlineAlpha, ghostRim = GemArt::kBarGhostOutlineAlpha;
+        const auto ghostCol = GemArt::kBarGhostOutlineColour;
+
+        barKickAccentImage   = GemArt::bakeBar(shaded(GemArt::barRampKick(), lift, true),
+                                               canvas, content, eliteTh, 0.0f, rim);
+        barKick2xAccentImage = GemArt::bakeBar(shaded(GemArt::barRampKick2x(), lift, true),
+                                               canvas, content, eliteTh, 0.0f, rim);
+        // Star power flattens every colour to white, so a white rim would say nothing there:
+        // the SP accent keeps the centre line as its cue.
+        barWhiteAccentImage  = GemArt::bakeBar(GemArt::barRampWhite(), canvas, content, eliteTh,
+                                               GemArt::kAccentCentreLineAlpha);
+
+        barKickGhostImage   = GemArt::bakeBar(shaded(GemArt::barRampKick(), sink, false),
+                                              canvas, content, eliteTh, 0.0f, ghostRim, ghostCol);
+        barKick2xGhostImage = GemArt::bakeBar(shaded(GemArt::barRampKick2x(), sink, false),
+                                              canvas, content, eliteTh, 0.0f, ghostRim, ghostCol);
     }
     // Elite Stomp/Splash pedal bar: procedurally baked FLAT (like the kick bars). The highway
     // curve is applied at render time (over the bar's off-centre span) so it matches the tilted
@@ -265,9 +290,11 @@ void AssetManager::initAssets()
         // Bars — full board width, so they keep a full-width master
         {&barKickImage, barKickImage, FULL}, {&barKick2xImage, barKick2xImage, FULL},
         {&barOpenImage, barOpenImage, FULL}, {&barWhiteImage, barWhiteImage, FULL},
+        {&hopoBarOpenImage, hopoBarOpenImage, FULL},
         {&barKickEliteImage, barKickEliteImage, FULL}, {&barKick2xEliteImage, barKick2xEliteImage, FULL},
         {&barWhiteEliteImage, barWhiteEliteImage, FULL},
         {&barKickAccentImage, barKickAccentImage, FULL}, {&barKick2xAccentImage, barKick2xAccentImage, FULL},
+        {&barKickGhostImage, barKickGhostImage, FULL}, {&barKick2xGhostImage, barKick2xGhostImage, FULL},
         {&barWhiteAccentImage, barWhiteAccentImage, FULL},
         {&barStompImage, barStompImage, FULL}, {&barSplashImage, barSplashImage, FULL},
         // Overlays
@@ -522,9 +549,9 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
                     {
                     case HiHatState::Closed:      return getCymHiHatClosedImage();
                     case HiHatState::Indifferent: return getCymYellowImage();
-                    case HiHatState::Open:
-                    case HiHatState::None:
-                    default:                      return getCymHiHatOpenImage();
+                    default:                      return isOpenHiHat(gemWrapper.hihat)
+                                                         ? getCymHiHatOpenImage()
+                                                         : getCymHiHatClosedImage();
                     }
                 case T::Blue:   return getCymBlueImage();
                 case T::Green:  return getCymGreenImage();
@@ -548,14 +575,20 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
             default:        return ghost ? getHopoWhiteImage()  : getNoteWhiteImage();
             }
         }
-        // Kick / 2x Kick. Elite kicks carry dynamics (spec), so an accent swaps to the
-        // thicker centre-lined bake; a ghost keeps this art and is dimmed at draw time.
+        // Kick / 2x Kick. Elite kicks carry dynamics (spec), so each dynamic has its own bake:
+        // an accent is thicker with a light rim, a ghost is darkened with a near-black one.
+        // Star power flattens both to the white bar, which is the point of star power.
         const bool accent = gemWrapper.gem == Gem::TAP_ACCENT || gemWrapper.gem == Gem::CYM_ACCENT;
+        const bool ghost  = gemWrapper.gem == Gem::HOPO_GHOST || gemWrapper.gem == Gem::CYM_GHOST;
+        if (shouldBeWhite)
+            return accent ? getBarWhiteAccentImage() : getBarWhiteEliteImage();
         if (gemColumn == ELITE_KICK_2X_COLUMN)
-            return shouldBeWhite ? (accent ? getBarWhiteAccentImage() : getBarWhiteEliteImage())
-                                 : (accent ? getBarKick2xAccentImage() : getBarKick2xEliteImage());
-        return shouldBeWhite ? (accent ? getBarWhiteAccentImage() : getBarWhiteEliteImage())
-                             : (accent ? getBarKickAccentImage() : getBarKickEliteImage());
+            return accent ? getBarKick2xAccentImage()
+                 : ghost  ? getBarKick2xGhostImage()
+                          : getBarKick2xEliteImage();
+        return accent ? getBarKickAccentImage()
+             : ghost  ? getBarKickGhostImage()
+                      : getBarKickEliteImage();
     }
 
     if (shouldBeWhite)

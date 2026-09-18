@@ -45,10 +45,11 @@ constexpr float PHRASE_STAR_POWER_OPACITY = 0.3f;
 // where it merely strengthens the coloured ones. It takes its own value there instead.
 constexpr float PHRASE_STAR_POWER_VIEW_OPACITY = 0.4f;
 
-// Phrase view: a solo covers the whole board too, in the blue the games light it. Kept dark so
-// it reads as a solo rather than as the blue lane.
-inline const juce::Colour PHRASE_SOLO_COLOUR { 0xFF1E3F78 };
-constexpr float PHRASE_SOLO_OPACITY = 0.22f;
+// Phrase view: a solo covers the whole board too, in the blue the games light it. Bright enough
+// to survive a dense section: at the old dark 0x1E3F78 over 0.22 the wash all but vanished under
+// a double kick run, where the bars and gems leave little board showing.
+inline const juce::Colour PHRASE_SOLO_COLOUR { 0xFF2F6BC8 };
+constexpr float PHRASE_SOLO_OPACITY = 0.34f;
 
 // Bar mode: how far the lanes that are not bar notes fade back.
 constexpr float BAR_MODE_DIM = 0.3f;
@@ -59,11 +60,21 @@ constexpr float BAR_MODE_DIM = 0.3f;
 // capped short of opaque so the gems under it stay findable.
 constexpr float PHRASE_VIEW_OPACITY_BOOST = 2.5f;
 
-// A BRE covers the same columns as a fill and would otherwise be indistinguishable from one.
-// It keeps the lane colours, pulled toward white and drawn harder, so it reads as the one
-// song-wide freestyle moment rather than another activation phrase.
-constexpr float PHRASE_BRE_WHITEN = 0.45f;
-constexpr float PHRASE_BRE_OPACITY = 0.5f;
+// A BRE covers the same columns as a fill, so the two are told apart by shape rather than colour:
+// the BRE is its lanes filled flat, the fill is that same colour as a border around a darkened
+// interior. Border thickness is a fraction of the lane's own width so it narrows with the lane
+// instead of swallowing the far end.
+constexpr float PHRASE_FILL_BORDER_FRACTION = 0.13f;
+// The gap a fill leaves on every side, as a fraction of lane width: the same between two fills as
+// between an outer fill and the highway edge.
+constexpr float PHRASE_FILL_GUTTER_FRACTION = 0.11f;
+constexpr float PHRASE_FILL_INNER_DARKEN = 0.85f;
+// The interior draws harder than the border it sits in: left at the border's alpha the board
+// reads straight through it and the lane looks tinted rather than hollow.
+constexpr float PHRASE_FILL_INNER_OPACITY = 0.92f;
+// Depth step the border's pixel thickness is measured against, to inset the two ends by as much
+// as the sides.
+constexpr float PHRASE_FILL_DEPTH_PROBE = 0.002f;
 
 // Whether each phrase kind is drawn at all. Here rather than with the other control defaults so
 // the renderers can default their own members from the same constant the saved state is seeded

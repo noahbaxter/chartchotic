@@ -35,21 +35,49 @@ namespace GemArt
     // its 9 lanes shrink the gems while a full-width bar keeps 4-lane proportions.
     constexpr float kEliteBarThickness = 0.5f;
 
-    // Elite kick dynamics, as a placeholder treatment until there is real art. An accent
-    // bakes at double thickness with a bright line down its centreline; a ghost reuses the
-    // normal bake and is drawn at kBarGhostOpacity. Both keep the arc and the centreline, so
-    // a dynamic kick sits exactly where a normal one would.
-    constexpr float kAccentBarThickness = kEliteBarThickness * 2.0f;
-    constexpr float kBarGhostOpacity    = 0.45f;
+    // Elite kick dynamics are the same bar at the same size, told apart the way an open note is
+    // told from an open HOPO: a ghost dark-rimmed on a darkened tube, a normal bare, an accent
+    // light-rimmed and lifted. Sizing them apart made the set read as three different notes
+    // rather than one note played three ways.
 
     // `centreLineAlpha` > 0 draws that bright line, as a fraction of the tube height.
     constexpr float kAccentLineHeight = 0.16f;
+    // How hard that line reads where it is still the accent's only cue (the star power bake).
+    constexpr float kAccentCentreLineAlpha = 0.85f;
+
+    // A HOPO bar is the same tube with a bright rim, not a bar in a different colour: an open
+    // HOPO has to still read as an open note. The rim is a fraction of the tube's height, so it
+    // thins with a thin bake instead of eating the tube.
+    constexpr float kBarOutlineWidth = 0.24f;
+    // Short of opaque, so the tube's own colour still comes through the rim and it reads as the
+    // same bar lit at the edge rather than a white line laid over one.
+    constexpr float kBarOutlineAlpha = 0.7f;
+    // The rimmed bar also lifts a little overall, so it separates from the plain one at a glance
+    // without turning into a different colour.
+    constexpr float kBarOutlineBrighten = 0.12f;
+
+    // A ghost rims the other way: a near-black edge on a tube pulled down, so it reads quieter
+    // than a plain kick where the accent reads louder than one.
+    // Dark against the tube but clearly lighter than the board. At the board's own colour the rim
+    // read as a hole rather than an edge: the bar measured full height and looked a third of it,
+    // because the eye only counts the coloured core.
+    inline const juce::Colour kBarGhostOutlineColour { 0xff4a4a54 };
+    constexpr float kBarGhostOutlineAlpha = 0.8f;
+    // Enough to read quieter than a plain kick, not enough to lose it against the board. The rim
+    // is a fraction of tube height, so on the thin ghost bake it already takes a good share of
+    // the bar; darkening what is left as hard as a hand gem made the whole gem disappear.
+    constexpr float kBarGhostDarken = 0.22f;
+    // Alpha at or above which a baked pixel counts as part of the bar when the rim is traced.
+    // Below it is antialiasing, which would otherwise read as its own ragged edge.
+    constexpr int kBarOutlineSolidAlpha = 128;
 
     juce::Image bakeBar(const BarRamp& ramp,
                         juce::Rectangle<int> canvas,
                         juce::Rectangle<int> contentBounds,
                         float thickness = 1.0f,
-                        float centreLineAlpha = 0.0f);
+                        float centreLineAlpha = 0.0f,
+                        float outlineAlpha = 0.0f,
+                        juce::Colour outlineColour = juce::Colours::white);
 
     inline juce::Rectangle<int> barCanvas()        { return { 0, 0, 2432, 152 }; }
     inline juce::Rectangle<int> barContentBounds() { return { 86, 0, 2260, 152 }; }
