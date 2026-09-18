@@ -107,8 +107,11 @@ public:
     // `bands` is how many lanes the marker covers: one for a roll on a single pad, two for
     // alternation between a pair. Drawn as what it is rather than labelled 1 and 2, since the
     // two markers are called different things on different instruments.
+    // `showCount` is for kits whose lanes come in that 1-vs-2 pair. Elite lanes are one marker
+    // per pad in any combination, so there is no count to state and the digit would be a number
+    // the chart cannot contradict.
     bool drawLane(juce::Graphics& g, juce::Rectangle<float> r, juce::Colour laneColour,
-                  int bands = 1) const
+                  int bands = 1, bool showCount = true) const
     {
         // Vertical, because that is how a lane runs on the highway. Laid out sideways it read
         // as a sustain. Just the bands: gems sitting on them were too small to read as gems at
@@ -117,8 +120,9 @@ public:
         bands = juce::jmax(1, bands);
 
         // The count is spelled out beside the bands as well as drawn, because one thin band and
-        // two thin bands are not far apart at button size.
-        const float digitW   = r.getWidth() * LANE_DIGIT_WIDTH;
+        // two thin bands are not far apart at button size. Without it the bands take the whole
+        // icon rather than sitting off-centre in the space the digit used to reserve.
+        const float digitW   = showCount ? r.getWidth() * LANE_DIGIT_WIDTH : 0.0f;
         const auto  bandArea = r.withWidth(r.getWidth() - digitW);
 
         // One thickness whatever the count, so a two-lane icon is literally two of the one-lane
@@ -136,12 +140,15 @@ public:
             g.fillRoundedRectangle(band, bandW * 0.5f);
         }
 
-        g.setFont(juce::Font(juce::FontOptions()
-                                 .withHeight(r.getHeight() * LANE_DIGIT_HEIGHT)
-                                 .withStyle("Bold")));
-        g.drawText(juce::String(bands),
-                   r.withWidth(r.getWidth()).withTrimmedLeft(r.getWidth() - digitW),
-                   juce::Justification::centred, false);
+        if (showCount)
+        {
+            g.setFont(juce::Font(juce::FontOptions()
+                                     .withHeight(r.getHeight() * LANE_DIGIT_HEIGHT)
+                                     .withStyle("Bold")));
+            g.drawText(juce::String(bands),
+                       r.withWidth(r.getWidth()).withTrimmedLeft(r.getWidth() - digitW),
+                       juce::Justification::centred, false);
+        }
         return true;
     }
 
