@@ -136,6 +136,9 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
     if (cmd == WriteCommand::ToggleLaneTool)
     {
         if (view() != EditorView::Notes) return false;
+        // With a selection up, R applies a lane to it rather than arming the tool, matching what
+        // the LANE pill does and what the note-type keys already do to a selection.
+        if (isEditActive() && hasEditSelection()) { applyLaneToSelection(); return true; }
         setLaneTool(!laneTool());
         return true;
     }

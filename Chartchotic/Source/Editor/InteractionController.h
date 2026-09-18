@@ -81,6 +81,17 @@ public:
     void setCymbalMode(bool c)        { writeController.setCymbalMode(c);  editController.setCymbalMode(c); }
     void setFlamMode(bool f)          { writeController.setFlamMode(f);    editController.setFlamMode(f); }
 
+    // A lane over the selection, alongside the note-type appliers. The selection lives on the
+    // edit controller and the lane write on the write controller, so it is joined up here.
+    void applyLaneToSelection()
+    {
+        writeController.applyLaneToSelection(editController.getSelection());
+    }
+    bool selectionHasLane() const
+    {
+        return writeController.selectionHasLane(editController.getSelection());
+    }
+
     void applyDrumDynamicToSelection(DrumDynamic d) { editController.applyDrumDynamicToSelection(d); }
     void applyGuitarForceToSelection(GuitarForce f) { editController.applyGuitarForceToSelection(f); }
     void applyCymbalModeToSelection(bool c)         { editController.applyCymbalModeToSelection(c); }

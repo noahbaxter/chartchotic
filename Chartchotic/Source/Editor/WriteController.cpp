@@ -799,7 +799,98 @@ void WriteController::handleCommitLane()
     clearLaneDrag();
 
     if (trackIdx < 0) return;
+    commitLane(trackIdx, merged, spread);
+}
 
+// What a selection asks a lane to cover: its own extent as the range, and the columns it spans
+// standing in for a drag pulled sideways.
+std::optional<WriteController::LaneSelection>
+WriteController::laneSelectionRange(const std::vector<SelectedNote>& notes) const
+{
+    const auto* cfg = authoring();
+    if (cfg == nullptr) return std::nullopt;
+
+    LaneSelection sel;
+    bool any = false;
+
+    for (const auto& n : notes)
+    {
+        if (n.sustainOnly || n.lane < 0) continue;
+        // Kicks carry no lane on the shared markers, so selecting them asks for nothing there.
+        if (!cfg->lanesPerColumn && n.pitch >= 0
+            && cfg->isKickPitch((uint)n.pitch, currentActiveSkill)) continue;
+
+        if (!any)
+        {
+            sel.lo = sel.hi = n.startQN;
+            sel.spread = { n.lane, n.lane };
+            any = true;
+            continue;
+        }
+        sel.lo = std::min(sel.lo, n.startQN);
+        sel.hi = std::max(sel.hi, n.startQN);
+        sel.spread.lo = std::min(sel.spread.lo, n.lane);
+        sel.spread.hi = std::max(sel.spread.hi, n.lane);
+    }
+
+    return any ? std::optional<LaneSelection>(sel) : std::nullopt;
+}
+
+// The lanes already covering a selection end to end, which is what makes LANE read as on for it.
+std::vector<PhraseMath::PhraseSpan>
+WriteController::lanesCovering(const LaneSelection& sel) const
+{
+    std::vector<PhraseMath::PhraseSpan> covering;
+    for (const auto& s : laneSpansOnPart(sel.spread))
+        if (PhraseMath::contains(s, sel.lo, sel.hi)) covering.push_back(s);
+    return covering;
+}
+
+bool WriteController::selectionHasLane(const std::vector<SelectedNote>& notes) const
+{
+    const auto sel = laneSelectionRange(notes);
+    return sel.has_value() && !lanesCovering(*sel).empty();
+}
+
+// A lane over a set of selected notes, applied the way a note type is, and a toggle the same
+// way: a selection already under a lane loses it. Adding goes through the same resolve and
+// merge a drag does, so a selection cannot write a lane a drag could not have drawn.
+void WriteController::applyLaneToSelection(const std::vector<SelectedNote>& notes)
+{
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    const auto sel = laneSelectionRange(notes);
+    if (!sel.has_value())
+    {
+        if (onPhraseRefused) onPhraseRefused("Those notes cannot carry a lane");
+        return;
+    }
+
+    const auto covering = lanesCovering(*sel);
+    if (!covering.empty())
+    {
+        beginBatch("Chartchotic: Remove lane");
+        for (const auto& span : covering)
+            for (int pitch : laneCandidatePitches(sel->spread))
+            {
+                auto note = findNote(trackIdx, span.startQN, pitch);
+                if (note.noteIndex >= 0 && GridMath::same(note.startQN, span.startQN))
+                    eraseMarkerNote(trackIdx, span.startQN, pitch, -1);
+            }
+        endBatch();
+
+        if (onStateChanged) onStateChanged();
+        if (onChartWritten) onChartWritten();
+        return;
+    }
+
+    commitLane(trackIdx, resolveLaneWrite(sel->lo, sel->hi, sel->spread), sel->spread);
+}
+
+void WriteController::commitLane(int trackIdx, std::optional<PhraseMath::PhraseSpan> merged,
+                                 LaneSpread spread)
+{
     // A lane is a marker over a run of notes, so with no run under the drag there is nothing to
     // write. Said out loud rather than silently dropped: a lane that just fails to appear reads
     // as a broken tool.

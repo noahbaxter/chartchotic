@@ -289,7 +289,11 @@ public:
         barToggle.setToggleState(interactionController.barMode());
         barToggle.setButtonText(drums ? "KICK" : "OPEN");
 
-        laneToggle.setToggleState(interactionController.laneTool());
+        // Over a selection LANE describes the notes, not the tool: lit when they already sit
+        // under a lane, so clicking it again is visibly the way to take it off.
+        const bool laneOverSelection = editMode && hasSel;
+        laneToggle.setToggleState(laneOverSelection ? interactionController.selectionHasLane()
+                                                    : interactionController.laneTool());
 
         // Cym and Flam share one pill slot; no kit has both.
         const auto* cfg = getAuthoringConfig(interactionController.focusPart());
