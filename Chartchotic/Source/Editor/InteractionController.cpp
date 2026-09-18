@@ -62,6 +62,11 @@ void InteractionController::setView(EditorView v)
     // A selection made in one view means nothing in the next.
     editController.clearSelection();
     writeController.setView(v);
+
+    // Star power, solo, fill and BRE are written across the whole board, so the kick/open filter
+    // has nothing left to narrow. It is another exclusive mode and steps aside for them, the way
+    // picking a note type stands the lane tool down.
+    if (v == EditorView::StarPower || v == EditorView::Phrase) setBarMode(false);
 }
 
 void InteractionController::onPointerMove(const AuthoringPoint& p, const AuthoringContext& ctx)
