@@ -49,8 +49,10 @@ public:
     // is the range and the columns they span decide one lane or two. A toggle: a selection
     // already under a lane loses it.
     void applyLaneToSelection(const std::vector<SelectedNote>& notes);
-    // Whether that selection already sits under a lane, so the LANE control can show it lit.
+    // Whether that selection already sits under a lane, so the lane controls can show it lit.
     bool selectionHasLane(const std::vector<SelectedNote>& notes) const;
+    // And which kind it is, so the right one of the two lights.
+    std::optional<PhraseTarget> selectionLaneKind(const std::vector<SelectedNote>& notes) const;
     // Picks the kind and writes it over the selection, retyping any lane already there. Never
     // removes one: that is the LANE toggle's job.
     void setLaneTypeOnSelection(const std::vector<SelectedNote>& notes, PhraseTarget target);

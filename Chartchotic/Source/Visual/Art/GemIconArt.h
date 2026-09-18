@@ -91,16 +91,43 @@ public:
 
     // A lane: the band, with the run of gems it covers sitting on top of it. Drawn rather than
     // lettered because a lane has a shape a chart author already reads on the highway.
-    bool drawLane(juce::Graphics& g, juce::Rectangle<float> r, juce::Colour laneColour) const
+    // `bands` is how many lanes the marker covers: one for a roll on a single pad, two for
+    // alternation between a pair. Drawn as what it is rather than labelled 1 and 2, since the
+    // two markers are called different things on different instruments.
+    bool drawLane(juce::Graphics& g, juce::Rectangle<float> r, juce::Colour laneColour,
+                  int bands = 1) const
     {
         // Vertical, because that is how a lane runs on the highway. Laid out sideways it read
-        // as a sustain. Just the band: the gems that used to sit on it were too small to read
-        // as gems at button size, and the coloured run is what the eye picks out on the board
-        // anyway. No asset involved, so there is nothing here that can fail to draw.
-        const float bandW = r.getWidth() * LANE_BAND_WIDTH;
-        auto band = r.withSizeKeepingCentre(bandW, r.getHeight() * LANE_BAND_HEIGHT);
+        // as a sustain. Just the bands: gems sitting on them were too small to read as gems at
+        // button size, and the coloured run is what the eye picks out on the board anyway. No
+        // asset involved, so there is nothing here that can fail to draw.
+        bands = juce::jmax(1, bands);
+
+        // The count is spelled out beside the bands as well as drawn, because one thin band and
+        // two thin bands are not far apart at button size.
+        const float digitW   = r.getWidth() * LANE_DIGIT_WIDTH;
+        const auto  bandArea = r.withWidth(r.getWidth() - digitW);
+
+        const float bandW = bandArea.getWidth() * LANE_BAND_WIDTH
+                          / (1.0f + (float)(bands - 1) * (1.0f + LANE_BAND_GAP));
+        const float step  = bandW * (1.0f + LANE_BAND_GAP);
+        const float runW  = step * (float)(bands - 1) + bandW;
+
+        float left = bandArea.getCentreX() - runW * 0.5f;
         g.setColour(laneColour);
-        g.fillRoundedRectangle(band, bandW * 0.35f);
+        for (int i = 0; i < bands; ++i)
+        {
+            auto band = juce::Rectangle<float>(bandW, r.getHeight() * LANE_BAND_HEIGHT)
+                            .withCentre({ left + bandW * 0.5f + step * (float)i, r.getCentreY() });
+            g.fillRoundedRectangle(band, bandW * 0.5f);
+        }
+
+        g.setFont(juce::Font(juce::FontOptions()
+                                 .withHeight(r.getHeight() * LANE_DIGIT_HEIGHT)
+                                 .withStyle("Bold")));
+        g.drawText(juce::String(bands),
+                   r.withWidth(r.getWidth()).withTrimmedLeft(r.getWidth() - digitW),
+                   juce::Justification::centred, false);
         return true;
     }
 
@@ -108,8 +135,13 @@ private:
     static constexpr juce::uint8 VISIBLE_ALPHA = 8;
     static constexpr float FLAM_OFFSET = 0.3f;       // of the icon, how far the two gems sit apart
     static constexpr float FLAM_GRACE_ALPHA = 0.55f;
-    static constexpr float LANE_BAND_WIDTH  = 0.42f;  // of the icon
+    static constexpr float LANE_BAND_WIDTH  = 0.34f;  // of the band area, the whole run of bands
     static constexpr float LANE_BAND_HEIGHT = 0.92f;  // of the icon, so it clears the edges
+    // Of a band, the space between two of them. The run keeps one width whatever the count, so
+    // a two-lane icon reads as a pair side by side rather than as one wider lane.
+    static constexpr float LANE_BAND_GAP    = 0.5f;
+    static constexpr float LANE_DIGIT_WIDTH  = 0.38f; // of the icon, reserved beside the bands
+    static constexpr float LANE_DIGIT_HEIGHT = 0.5f;  // of the icon
 
     // Scanned once per image and kept. The size is part of the key, not just the buffer
     // address: rescaling frees the old pixel data and the allocator is free to hand the same

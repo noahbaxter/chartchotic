@@ -93,6 +93,10 @@ public:
     {
         return writeController.selectionHasLane(editController.getSelection());
     }
+    std::optional<PhraseTarget> selectionLaneKind() const
+    {
+        return writeController.selectionLaneKind(editController.getSelection());
+    }
     void setLaneTypeOnSelection(PhraseTarget t)
     {
         writeController.setLaneTypeOnSelection(editController.getSelection(), t);
