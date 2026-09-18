@@ -93,16 +93,16 @@ public:
         // Arrows
         g.setFont(juce::Font(Theme::arrowFontSize));
 
-        auto leftArrow = valueRect.withWidth(Theme::arrowZone);
-        auto rightArrow = valueRect.withLeft(valueRect.getRight() - Theme::arrowZone);
+        auto leftArrow = valueRect.withWidth(arrowZoneWidth());
+        auto rightArrow = valueRect.withLeft(valueRect.getRight() - arrowZoneWidth());
         g.setColour(atMin ? juce::Colour(Theme::textDim).withAlpha(0.2f) : accent.withAlpha(hovering ? 1.0f : 0.7f));
-        g.drawText(juce::CharPointer_UTF8("\xe2\x97\x80"), leftArrow, juce::Justification::centred);
+        g.drawText(juce::CharPointer_UTF8("\xe2\x97\x80"), leftArrow, juce::Justification::centred, false);
         g.setColour(atMax ? juce::Colour(Theme::textDim).withAlpha(0.2f) : accent.withAlpha(hovering ? 1.0f : 0.7f));
-        g.drawText(juce::CharPointer_UTF8("\xe2\x96\xb6"), rightArrow, juce::Justification::centred);
+        g.drawText(juce::CharPointer_UTF8("\xe2\x96\xb6"), rightArrow, juce::Justification::centred, false);
 
         // Value text
-        auto textRect = valueRect.withLeft(valueRect.getX() + Theme::arrowZone)
-                                  .withRight(valueRect.getRight() - Theme::arrowZone);
+        auto textRect = valueRect.withLeft(valueRect.getX() + arrowZoneWidth())
+                                  .withRight(valueRect.getRight() - arrowZoneWidth());
         g.setColour(valueClickOpensFolder ? accent.withAlpha(0.7f)
                                           : juce::Colour(Theme::textWhite));
         g.setFont(Theme::controlFont);
@@ -128,11 +128,11 @@ public:
         int pillLeft = labelOnRight ? 0 : nameW;
         int pillRight = labelOnRight ? (getWidth() - nameW) : getWidth();
 
-        if (e.x >= pillLeft && e.x < pillLeft + Theme::arrowZone)
+        if (e.x >= pillLeft && e.x < pillLeft + arrowZoneWidth())
         {
             if (onStep) onStep(-1);
         }
-        else if (e.x > pillRight - Theme::arrowZone && e.x <= pillRight)
+        else if (e.x > pillRight - arrowZoneWidth() && e.x <= pillRight)
         {
             if (onStep) onStep(1);
         }
@@ -152,7 +152,7 @@ public:
         int pillRight = labelOnRight ? (getWidth() - nameW) : getWidth();
 
         // Only trigger on the value area (between arrows)
-        if (e.x < pillLeft + Theme::arrowZone || e.x > pillRight - Theme::arrowZone)
+        if (e.x < pillLeft + arrowZoneWidth() || e.x > pillRight - arrowZoneWidth())
             return;
 
         showEditor();
@@ -196,6 +196,11 @@ public:
         hideTooltip();
     }
 
+    // Arrow hit zones default to the theme's size. A stepper sized off its own row can set
+    // them itself, or they eat the value between them when that row is small.
+    void setArrowZone(float px) { arrowZoneOverride = px; repaint(); }
+    float arrowZoneWidth() const { return arrowZoneOverride > 0.0f ? arrowZoneOverride : Theme::arrowZone; }
+
     void setLabelRatio(float ratio) { labelRatio = ratio; }
     void setLabelOnRight(bool right) { labelOnRight = right; }
     void setTooltip(const juce::String& text) { tooltip = text; }
@@ -206,6 +211,7 @@ private:
     juce::String unit;
     juce::String tooltip;
     float labelRatio = 0.42f;
+    float arrowZoneOverride = 0.0f;
     bool labelOnRight = false;
     bool folderIconVisible = false;
     bool folderHoverZone = false;

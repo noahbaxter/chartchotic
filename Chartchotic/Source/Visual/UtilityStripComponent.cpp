@@ -276,13 +276,9 @@ void UtilityStripComponent::resolveMeasureNumbers(const View& v) const
         claimNumberRow({ tabTop - m.labelMinGap, tabTop + m.playheadTabH + m.labelMinGap });
     }
 
-    if (!filterOn(2)) return;
-
     // The bar under the cursor, on the same guards drawHover draws its line by: where that
     // line is suppressed there is no cursor number to place either.
-    if (hoverY >= 0
-        && !(dragActive && dragCommand == StripCommand::UpdateMove)
-        && !(hoverSection >= 0 && hoverSection == stickyIndex(v)))
+    if (hoverY >= 0 && !(hoverSection >= 0 && hoverSection == stickyIndex(v)))
     {
         double barQN = snappedBarQN(hoverY, v);
         float y = (float)yForQN(barQN, v);
@@ -309,7 +305,7 @@ void UtilityStripComponent::resolveMeasureNumbers(const View& v) const
         {
             if (framePlates[i].isEmpty()) continue;
 
-            double qn = list[i].position.toDouble() + movePreviewQN(i);
+            double qn = list[i].position.toDouble();
             if (qn < v.startQN || qn > v.endQN) continue;
 
             float y = (float)yForQN(qn, v);
@@ -464,11 +460,6 @@ void UtilityStripComponent::drawHover(juce::Graphics& g, const View& v) const
 {
     if (hoverY < 0) return;
 
-    // Mid-move the section being dragged is already drawn at the bar it would land on, with
-    // its own line and number. Adding the cursor's own pair on top of it leaves you reading
-    // which of two markers a few pixels apart is the one you are placing.
-    if (dragActive && dragCommand == StripCommand::UpdateMove) return;
-
     // Over the frozen label, that section's own line and number stand in for this one.
     // Two numbers a few pixels apart, one for the bar under the cursor and one for the
     // section it would jump to, reads as a glitch rather than as two facts.
@@ -534,7 +525,7 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
 
         // Only the heavy lines get a number, and only faintly. Numbering every chunk was the
         // obnoxious version; numbering none of them left the ruler with nothing to read off.
-        if (major && filterOn(2)) claimNumber(y, qn, NumberWeight::Grid);
+        if (major) claimNumber(y, qn, NumberWeight::Grid);
     }
 }
 
@@ -599,7 +590,7 @@ juce::Rectangle<int> UtilityStripComponent::sectionHeaderBounds(size_t index, co
     if (sections == nullptr || index >= sections->getSections().size()) return {};
     const auto& list = sections->getSections();
     const auto& s = list[index];
-    float y = (float)yForQN(s.position.toDouble() + movePreviewQN(index), v);
+    float y = (float)yForQN(s.position.toDouble(), v);
 
     // Capped at the strip's edge, so a long name is trimmed rather than running off it. The
     // plate is the hit test too, so what you can click stays what you can see.
@@ -735,15 +726,6 @@ int UtilityStripComponent::sectionHeaderAt(juce::Point<int> p) const
     return -1;
 }
 
-int UtilityStripComponent::sectionNameAt(juce::Point<int> p) const
-{
-    auto plates = labelPlates(visibleRange());
-
-    for (size_t i = 0; i < plates.size(); ++i)
-        if (!plates[i].isEmpty() && plates[i].contains(p)) return (int)i;
-    return -1;
-}
-
 // Where each section's name plate goes, empty for the ones that do not get one. Zoomed
 // out far enough, sections are a few pixels apart and every plate lands on the one below
 // it: a column of half-covered names is less readable than no names at all. So a plate is
@@ -802,11 +784,10 @@ std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View&
 }
 
 // The section the playhead is inside, for the banner over the highway. Empty in the gap
-// between two charts, and empty when sections are filtered off: the strip's own filter is
-// what says whether sections are being shown at all.
+// between two charts.
 juce::String UtilityStripComponent::currentSectionName() const
 {
-    if (sections == nullptr || !filterOn(0)) return {};
+    if (sections == nullptr) return {};
 
     auto v = visibleRange();
     double now = playheadPPQ.toDouble();
@@ -878,8 +859,7 @@ int UtilityStripComponent::songNameAt(juce::Point<int> p) const
 }
 
 // Laid down before anything else, so every line, band and note is drawn onto it. Clipped to
-// the track rather than the whole component: the mode and layer rows above are chrome, and a
-// chart reaching up into them would read as one of them being lit.
+// the track rather than the whole component, so a chart never reaches into the footer.
 void UtilityStripComponent::drawChartGround(juce::Graphics& g, const View& v) const
 {
     if (songs == nullptr) return;
@@ -915,7 +895,7 @@ void UtilityStripComponent::drawSongChunks(juce::Graphics& g, const View& v) con
         auto r = bounds[i].reduced(1, 0);
         bool isCurrent = current != nullptr && &list[i] == current;
 
-        g.setColour((int)i == hoverSongChunk ? UtilityColours::sectionGrabHover
+        g.setColour((int)i == hoverSongChunk ? UtilityColours::songChunkHover
                   : isCurrent                ? UtilityColours::sectionBandCurrent
                                              : UtilityColours::sectionBand);
         g.fillRect(r);
@@ -1008,10 +988,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 
     for (size_t i = 0; i < list.size(); ++i)
     {
-        // Where it is drawn, which during a move drag is not where it is stored. Everything
-        // below works in preview space so the line, the name and the bar number travel as
-        // one object under the cursor.
-        double qn = list[i].position.toDouble() + movePreviewQN(i);
+        double qn = list[i].position.toDouble();
         double endQN = sectionEndQN(i, v);
         if (endQN < v.startQN || qn > v.endQN) continue;
 
@@ -1024,33 +1001,12 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         // in resolveMeasureNumbers and drawn with the rest of them.
         bool labelled = !plates[i].isEmpty();
 
-        bool selected = isSelected((int)i);
-        bool underCursor = GridMath::same(qn, hoverQN);
-
-        // Editing on draws the grab target instead of implying it: this is the exact
-        // rectangle sectionHeaderAt hit-tests, so the thing you can drag is the thing you
-        // can see. The line stays thin on top of it, because the band says what you can
-        // grab and the line still has to say where the section actually starts.
-        if (sectionEditing())
-        {
-            auto row = sectionRowBounds(i, v);
-            if (!row.isEmpty())
-            {
-                g.setColour(selected      ? UtilityColours::sectionGrabSelected
-                            : underCursor ? UtilityColours::sectionGrabHover
-                                          : UtilityColours::sectionGrab);
-                g.fillRect(row);
-            }
-        }
+        bool underCursor = GridMath::same(qn, hoverQN) || (int)i == hoverSection;
 
         if (y >= top && y <= top + trackHeight())
         {
-            g.setColour(selected     ? UtilityColours::selectedLine
-                        : underCursor ? UtilityColours::hoverLine
-                                      : UtilityColours::sectionLine);
-
-            g.fillRect(0.0f, y, w, m.sectionLineH
-                                   + (selected ? m.sectionLineSelectedExtra : 0.0f));
+            g.setColour(underCursor ? UtilityColours::hoverLine : UtilityColours::sectionLine);
+            g.fillRect(0.0f, y, w, m.sectionLineH);
         }
 
         if (!labelled) continue;
@@ -1060,20 +1016,9 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
         // drawn rather than where its line would have put it.
         auto plate = plates[i];
 
-        // The name lighting up IS the rename affordance: hovering it fills behind the text,
-        // so the thing you click is the thing that changes.
-        bool nameHot = ((int)i == hoverName && renameIndex < 0);
-
-        g.setColour(nameHot ? UtilityColours::namePlateHover
-                            : UtilityColours::background.withAlpha(0.82f));
+        g.setColour(UtilityColours::background.withAlpha(0.82f));
         g.fillRect(plate);
-        if (selected)
-        {
-            g.setColour(UtilityColours::selectedLine);
-            g.drawRect(plate, 1);
-        }
-        g.setColour(nameHot || underCursor ? UtilityColours::uiText
-                                          : UtilityColours::sectionText);
+        g.setColour(underCursor ? UtilityColours::uiText : UtilityColours::sectionText);
         g.drawText(list[i].name, plate.getX() + 3, plate.getY(), plate.getWidth() - 6,
                    plate.getHeight(), juce::Justification::centredLeft, true);
 
@@ -1092,84 +1037,168 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     }
 }
 
-// The mode row. Coloured apart from the layer toggles below it on purpose: one says what the
-// strip draws, the other what the mouse does to it, and confusing the two costs you a chart.
-void UtilityStripComponent::drawModes(juce::Graphics& g) const
+//==============================================================================
+// Phrase columns
+
+std::vector<StripPhraseMath::Kind> UtilityStripComponent::phraseColumns() const
 {
-    g.setColour(UtilityColours::background);
-    g.fillRect(0, 0, getWidth(), m.modeRowH);
-
-    g.setFont(m.filter);
-
-    for (int i = 0; i < (int)std::size(MODES); ++i)
-    {
-        auto seg = modeButtonBounds(i).reduced(m.filterGap, m.filterGap);
-        bool on = editMode == MODES[i].mode;
-
-        g.setColour(on ? UtilityColours::modeActiveFill : UtilityColours::panelFill);
-        g.fillRect(seg);
-        g.setColour(on ? UtilityColours::modeActiveLine : UtilityColours::chunkLine);
-        g.drawRect(seg, 1);
-
-        g.setColour(on ? UtilityColours::modeActiveText : UtilityColours::label);
-        g.drawFittedText(juce::String("edit ") + MODES[i].label, seg.reduced(3, 0),
-                         juce::Justification::centred, 1, 0.7f);
-    }
-
-    g.setColour(UtilityColours::border);
-    g.fillRect(0, m.modeRowH - 1, getWidth(), 1);
+    using Kind = StripPhraseMath::Kind;
+    if (editorView == EditorView::StarPower) return { Kind::StarPower };
+    if (editorView == EditorView::Phrase)    return { Kind::Solo, Kind::FillBre };
+    return {};
 }
 
-// A segmented row of toggles, each one lit when its layer is on, so what the strip is
-// showing is readable without opening anything.
-void UtilityStripComponent::drawFilters(juce::Graphics& g) const
+// Equal columns across the whole width, last one taking the rounding.
+juce::Rectangle<int> UtilityStripComponent::phraseColumnBounds(int column, int count) const
 {
-    g.setColour(UtilityColours::panelFill);
-    g.fillRect(0, m.modeRowH, getWidth(), m.filterRowH);
+    int w = getWidth() / std::max(1, count);
+    bool last = column == count - 1;
+    return { column * w, trackTop(), last ? getWidth() - column * w : w, trackHeight() };
+}
 
-    g.setFont(m.filter);
+// Read off the first pitch of the kind, which for a fill is 120: the one pitch every part
+// writes, elite included.
+std::vector<StripPhraseMath::PhraseSpan>
+UtilityStripComponent::phraseSpans(StripPhraseMath::Kind kind) const
+{
+    if (phraseNotes == nullptr) return {};
+    auto kindPitches = StripPhraseMath::pitches(kind, phrasePart);
+    if (kindPitches.empty()) return {};
+    return StripPhraseMath::rangesOf(*phraseNotes, kindPitches.front());
+}
 
-    for (int i = 0; i < (int)std::size(filters); ++i)
+std::optional<double> UtilityStripComponent::codaQN() const
+{
+    if (sections == nullptr || !sections->hasCoda()) return std::nullopt;
+    return sections->getCodaPPQ().toDouble();
+}
+
+juce::Colour UtilityStripComponent::phraseColour(StripPhraseMath::Kind kind,
+                                                 double startQN) const
+{
+    switch (kind)
     {
-        auto seg = filterButtonBounds(i).reduced(m.filterGap, m.filterGap);
-        bool on = filters[i].on;
-
-        // Follow has three states rather than two: off, on and driving the view, and on but
-        // taken out of gear by a scroll. The third needs its own colour, or a view that has
-        // quietly stopped tracking looks exactly like one that is tracking.
-        bool held = on && i == FILTER_FOLLOW && !followEngaged;
-
-        g.setColour(held ? UtilityColours::followHeldFill
-                         : on ? UtilityColours::sectionBandCurrent
-                              : UtilityColours::background);
-        g.fillRect(seg);
-        g.setColour(held ? UtilityColours::followHeldLine
-                         : on ? UtilityColours::sectionLine
-                              : UtilityColours::chunkLine);
-        g.drawRect(seg, 1);
-
-        // Fitted rather than plain: at four across a 200px strip "measures" is wider than
-        // its segment, and a shrunk word reads where a clipped one does not.
-        g.setColour(held ? UtilityColours::followHeldText
-                         : on ? UtilityColours::uiText
-                              : UtilityColours::label);
-        g.drawFittedText(filters[i].label, seg.reduced(3, 0),
-                         juce::Justification::centred, 1, 0.7f);
+        case StripPhraseMath::Kind::StarPower: return UtilityColours::phraseStarPower;
+        case StripPhraseMath::Kind::Solo:      return UtilityColours::phraseSolo;
+        case StripPhraseMath::Kind::FillBre:
+            if (StripPhraseMath::isBre(startQN, codaQN())) return UtilityColours::phraseBre;
+            return isDrumLike(phrasePart) ? UtilityColours::phraseFill
+                                          : UtilityColours::phraseInert;
     }
+    return UtilityColours::phraseInert;
+}
 
-    // Where the track starts, not how tall the filter block is, so anything added above the
-    // filters moves this line with it rather than leaving it stranded.
-    g.setColour(UtilityColours::border);
-    g.fillRect(0, trackTop() - 1, getWidth(), 1);
+void UtilityStripComponent::drawPhrases(juce::Graphics& g, const View& v) const
+{
+    const auto columns = phraseColumns();
+    const int count = (int)columns.size();
+    const int top = trackTop();
+    const int bottom = top + trackHeight();
+
+    juce::Graphics::ScopedSaveState clip(g);
+    g.reduceClipRegion(0, top, getWidth(), bottom - top);
+
+    for (int column = 0; column < count; ++column)
+    {
+        auto kind = columns[(size_t)column];
+        auto col = phraseColumnBounds(column, count);
+        int x = col.getX() + m.labelInsetX;
+        int w = col.getWidth() - m.labelInsetX * 2;
+
+        if (column > 0)
+        {
+            g.setColour(UtilityColours::phraseColumnLine);
+            g.fillRect(col.getX(), top, 1, bottom - top);
+        }
+
+        for (const auto& s : phraseSpans(kind))
+        {
+            float yEnd = (float)yForQN(s.endQN, v);
+            float yStart = (float)yForQN(s.startQN, v);
+            if (yStart < (float)top || yEnd > (float)bottom) continue;
+
+            g.setColour(phraseColour(kind, s.startQN));
+            g.fillRect((float)x, yEnd, (float)w, yStart - yEnd);
+        }
+
+        // Named at the foot of the column. A part with no fills only ever has BREs there.
+        juce::String name = kind == StripPhraseMath::Kind::StarPower ? "SP"
+                          : kind == StripPhraseMath::Kind::Solo      ? "solo"
+                          : isDrumLike(phrasePart)                   ? "fill/BRE"
+                                                                     : "BRE";
+        g.setColour(UtilityColours::label);
+        g.setFont(m.columnLabel);
+        g.drawFittedText(name, x, bottom - m.measureRowH - m.labelLineGap, w, m.measureRowH,
+                         juce::Justification::centred, 1, 0.7f);
+
+        // The coda is what makes a fill a BRE, so it is drawn across the column it decides.
+        auto coda = codaQN();
+        if (kind == StripPhraseMath::Kind::FillBre && coda.has_value())
+        {
+            float y = (float)yForQN(*coda, v);
+            if (y >= (float)top && y <= (float)bottom)
+            {
+                g.setColour(UtilityColours::codaLine);
+                g.fillRect((float)col.getX(), y, (float)col.getWidth(), m.sectionLineH);
+                g.setFont(m.measure);
+                g.drawText("coda", col.getX(), (int)y - m.measureDrop,
+                           col.getWidth() - m.labelInsetX, m.measureRowH,
+                           juce::Justification::centredRight, false);
+            }
+        }
+    }
+}
+
+// Three states rather than two: off, on and driving the view, and on but taken out of gear by
+// a scroll. The third needs its own colour, or a view that has quietly stopped tracking looks
+// exactly like one that is tracking, which is also why it ignores the idle fade.
+void UtilityStripComponent::drawFollowButton(juce::Graphics& g, float alpha) const
+{
+    auto r = followButtonBounds();
+    bool on = followOn();
+    bool held = on && !followEngaged;
+    if (held) alpha = 1.0f;
+
+    g.setColour((held ? UtilityColours::followHeldFill
+                      : on ? UtilityColours::sectionBandCurrent
+                           : UtilityColours::panelFill).withMultipliedAlpha(alpha));
+    g.fillRect(r);
+    g.setColour((held ? UtilityColours::followHeldLine
+                      : on ? UtilityColours::sectionLine
+                           : UtilityColours::chunkLineBig).withMultipliedAlpha(alpha));
+    g.drawRect(r, 1);
+
+    // The DAW follow glyph: an arrowhead with a dashed trail running out ahead of it.
+    auto glyph = r.toFloat().reduced(r.getWidth() * FOLLOW_GLYPH_INSET);
+    const float midY = glyph.getCentreY();
+    const float stroke = std::max(1.0f, m.scale * 1.5f);
+    const float headX = glyph.getX() + glyph.getWidth() * 0.45f;
+    const float headH = glyph.getHeight() * 0.5f;
+
+    g.setColour((held ? UtilityColours::followHeldText
+                      : on ? UtilityColours::uiText
+                           : UtilityColours::label).withMultipliedAlpha(alpha));
+    g.fillRect(glyph.getX(), midY - stroke * 0.5f, headX - glyph.getX(), stroke);
+
+    juce::Path head;
+    head.addTriangle(headX, midY - headH, headX, midY + headH, headX + headH, midY);
+    g.fillPath(head);
+
+    const float dashStart = headX + headH + stroke;
+    const float dashW = (glyph.getRight() - dashStart) / 3.0f;
+    for (int d = 0; d < 2; ++d)
+        g.fillRect(dashStart + dashW * 2.0f * (float)d, midY - stroke * 0.5f, dashW, stroke);
 }
 
 // Alpha is folded into each colour rather than drawn through a transparency layer, which
-// would allocate an image every frame for two buttons.
+// would allocate an image every frame for three buttons.
 void UtilityStripComponent::drawZoomOverlay(juce::Graphics& g) const
 {
     const float alpha = zoomHovered ? 1.0f : ZOOM_IDLE_ALPHA;
     bool canOut = viewSpanQN < projectEndQN() - GridMath::TICK;
     bool canIn  = viewSpanQN > minSpanQN() + GridMath::TICK;
+
+    drawFollowButton(g, alpha);
 
     g.setFont(m.footerButton);
     for (auto [r, text, enabled] : { std::tuple{ minusBounds(), "-", canOut },
@@ -1245,7 +1274,7 @@ void UtilityStripComponent::rebuildMetrics()
     auto pt = [this](float ref) { return Theme::getUIFont(ref * m.scale); };
 
     m.sectionLabel = pt(SECTION_LABEL_PT).boldened();
-    m.filter       = pt(FILTER_PT);
+    m.columnLabel  = pt(COLUMN_LABEL_PT);
     m.measure      = pt(MEASURE_PT);
     m.measureBold  = m.measure.boldened();
     m.footerButton = pt(FOOTER_BUTTON_PT);
@@ -1258,9 +1287,7 @@ void UtilityStripComponent::rebuildMetrics()
     m.labelInsetX  = px(LABEL_INSET_X);
     m.labelTextPad = px(LABEL_TEXT_PAD);
 
-    m.filterRowH = px(FILTER_ROW_H);
-    m.modeRowH   = px(MODE_ROW_H);
-    m.filterGap  = px(FILTER_GAP);
+    m.segmentGap = px(SEGMENT_GAP);
 
     m.buttonW   = px(BUTTON_W);
     m.zoomInset = px(ZOOM_INSET);
@@ -1274,10 +1301,9 @@ void UtilityStripComponent::rebuildMetrics()
     m.measureRowH    = px(MEASURE_ROW_H);
     m.playheadTabH   = px(PLAYHEAD_TAB_H);
 
-    m.sectionLineH             = SECTION_LINE_H * m.scale;
-    m.sectionLineSelectedExtra = SECTION_LINE_SELECTED_EXTRA * m.scale;
-    m.stickyHoverLineGap       = STICKY_HOVER_LINE_GAP * m.scale;
-    m.stickyHoverLineH         = STICKY_HOVER_LINE_H * m.scale;
+    m.sectionLineH       = SECTION_LINE_H * m.scale;
+    m.stickyHoverLineGap = STICKY_HOVER_LINE_GAP * m.scale;
+    m.stickyHoverLineH   = STICKY_HOVER_LINE_H * m.scale;
 
     plateWidthCache.clear();
 }
@@ -1320,13 +1346,16 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     }
     else
     {
-        if (filterOn(0)) drawSectionBands(g, v);
-        if (filterOn(1)) drawNotes(g, v);
-        if (filterOn(0)) drawSections(g, v);
+        drawSectionBands(g, v);
+        // The phrase views swap the note map for their columns. Tempo has nothing of its own
+        // to draw yet, so it keeps the notes as a reference like Notes and Sections do.
+        if (showsPhrases()) drawPhrases(g, v);
+        else                drawNotes(g, v);
+        drawSections(g, v);
         drawClipEdges(g, v);
     }
 
-    drawMarquee(g);
+    drawTimeSelection(g);
     drawHover(g, v);
 
     // One pass over the whole arbitrated set, above every line that owns one of them, so a
@@ -1367,8 +1396,6 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     }
 
     drawZoomOverlay(g);
-    drawModes(g);
-    drawFilters(g);
     drawSongInfo(g);
 
     g.setColour(UtilityColours::border);
@@ -1578,91 +1605,18 @@ double UtilityStripComponent::snapStep(int direction) const
     return best;
 }
 
-std::vector<UtilityStripComponent::SectionEdit> UtilityStripComponent::currentEdits() const
-{
-    std::vector<SectionEdit> out;
-    if (sections == nullptr) return out;
-    for (const auto& s : sections->getSections())
-        out.push_back({ s.position.toDouble(), s.name });
-    return out;
-}
-
-void UtilityStripComponent::commitSections(std::vector<SectionEdit> edits)
-{
-    // Held by position rather than by index, because sorting renumbers everything after a
-    // move. Without this a drag deselects the section you just dragged, so moving one and
-    // then deleting it takes two separate clicks on the same object.
-    std::vector<double> wasSelected;
-    for (int i : selection)
-        if (i >= 0 && i < (int)edits.size()) wasSelected.push_back(edits[(size_t)i].qn);
-
-    std::sort(edits.begin(), edits.end(),
-              [](const SectionEdit& a, const SectionEdit& b) { return a.qn < b.qn; });
-
-    if (onSectionsEdited) onSectionsEdited(edits);
-
-    selection.clear();
-    for (double qn : wasSelected)
-        for (int i = 0; i < (int)edits.size(); ++i)
-            if (GridMath::same(edits[(size_t)i].qn, qn)) { selection.push_back(i); break; }
-
-    repaint();
-}
-
-bool UtilityStripComponent::deleteSelection()
-{
-    if (selection.empty() || sections == nullptr) return false;
-
-    auto edits = currentEdits();
-
-    // Highest index first, so each erase leaves the lower ones where they were.
-    auto doomed = selection;
-    std::sort(doomed.begin(), doomed.end(), std::greater<int>());
-
-    for (int i : doomed)
-        if (i >= 0 && i < (int)edits.size()) edits.erase(edits.begin() + i);
-
-    selection.clear();
-    commitSections(std::move(edits));
-    return true;
-}
-
-void UtilityStripComponent::beginRename(int index)
-{
-    if (sections == nullptr || index < 0
-        || index >= (int)sections->getSections().size()) return;
-
-    renameIndex = index;
-    renameTarget = RenameTarget::Section;
-    auto v = visibleRange();
-    auto plate = sectionHeaderBounds((size_t)index, v);
-
-    renameEditor = std::make_unique<juce::TextEditor>();
-    // The same face and size as the label it sits on top of, so the name does not jump as
-    // it goes from drawn to editable.
-    renameEditor->setFont(m.sectionLabel);
-    renameEditor->setText(sections->getSections()[(size_t)index].name, false);
-    renameEditor->selectAll();
-    renameEditor->setBounds(plate.withWidth(std::max(90, getWidth() - plate.getX() - 6)));
-    renameEditor->onReturnKey = [this] { commitRename(); };
-    renameEditor->onEscapeKey = [this] { renameEditor.reset(); renameIndex = -1; };
-    renameEditor->onFocusLost = [this] { commitRename(); };
-
-    addAndMakeVisible(*renameEditor);
-    renameEditor->grabKeyboardFocus();
-}
-
 void UtilityStripComponent::beginSongRename(int index)
 {
     const auto* song = songs != nullptr ? songs->at(index) : nullptr;
     if (song == nullptr) return;
 
     renameIndex = index;
-    renameTarget = RenameTarget::Song;
 
     auto r = songChunkBounds(visibleRange())[(size_t)index];
 
     renameEditor = std::make_unique<juce::TextEditor>();
+    // The same face and size as the label it sits on top of, so the name does not jump as
+    // it goes from drawn to editable.
     renameEditor->setFont(m.sectionLabel);
     renameEditor->setText(song->name, false);
     renameEditor->selectAll();
@@ -1682,32 +1636,16 @@ void UtilityStripComponent::commitRename()
 
     auto name = renameEditor->getText().trim();
     int index = renameIndex;
-    auto target = renameTarget;
     renameEditor.reset();
     renameIndex = -1;
 
-    if (target == RenameTarget::Song)
-    {
-        // Clearing a song's name is meaningful, unlike a section's: an item with no name
-        // falls back to its ordinal rather than disappearing.
-        const auto* song = songs != nullptr ? songs->at(index) : nullptr;
-        if (song != nullptr && name != song->name && onSongRenamed)
-            onSongRenamed(song->startQN, name);
-        else
-            repaint();
-        return;
-    }
-
-    // An empty name would write "[section ]", which reads back as no section at all.
-    if (name.isEmpty()) { repaint(); return; }
-
-    auto edits = currentEdits();
-    if (index < (int)edits.size() && edits[(size_t)index].name != name)
-    {
-        edits[(size_t)index].name = name;
-        commitSections(std::move(edits));
-    }
-    else repaint();
+    // Clearing a song's name is meaningful: an item with no name falls back to its ordinal
+    // rather than disappearing.
+    const auto* song = songs != nullptr ? songs->at(index) : nullptr;
+    if (song != nullptr && name != song->name && onSongRenamed)
+        onSongRenamed(song->startQN, name);
+    else
+        repaint();
 }
 
 void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e)
@@ -1726,146 +1664,6 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
             if (onSeekTo && object >= 0)
                 onSeekTo(clampSeek(sections->getSections()[(size_t)object].position.toDouble()));
             break;
-
-        case StripCommand::SelectAt:
-            selection.clear();
-            if (object >= 0) selection.push_back(object);
-            dragActive = true;
-            dragAnchorY = p.y;
-
-            // Where the grabbed section actually sits, which is what a move is measured from.
-            // Measuring from the cursor instead only ever shifts by a whole number of grid
-            // steps, so a section already off the grid stays off it however far you drag.
-            dragAnchorQN = object >= 0 && sections != nullptr
-                         ? sections->getSections()[(size_t)object].position.toDouble()
-                         : snappedBarQN(p.y, v);
-
-            dragCommand = StripCommand::UpdateMove;
-            repaint();
-            break;
-
-        case StripCommand::AddToSelection:
-            if (object >= 0 && !isSelected(object)) selection.push_back(object);
-            repaint();
-            break;
-
-        case StripCommand::BeginMarquee:
-            selection.clear();
-            dragActive = true;
-            dragAnchorY = dragCurrentY = p.y;
-            dragCommand = StripCommand::UpdateMarquee;
-            repaint();
-            break;
-
-        case StripCommand::UpdateMarquee:
-        {
-            dragCurrentY = p.y;
-            double a = qnForY(std::min(dragAnchorY, dragCurrentY), v);
-            double b = qnForY(std::max(dragAnchorY, dragCurrentY), v);
-            selection.clear();
-            if (sections != nullptr)
-            {
-                const auto& list = sections->getSections();
-                for (int i = 0; i < (int)list.size(); ++i)
-                {
-                    double qn = list[(size_t)i].position.toDouble();
-                    if (qn >= std::min(a, b) && qn <= std::max(a, b)) selection.push_back(i);
-                }
-            }
-            repaint();
-            break;
-        }
-
-        case StripCommand::UpdateMove:
-        {
-            dragCurrentY = p.y;
-            dragMoveDeltaQN = snappedBarQN(p.y, v) - dragAnchorQN;
-            repaint();
-            break;
-        }
-
-        case StripCommand::CommitMove:
-        {
-            if (!GridMath::same(dragMoveDeltaQN, 0.0) && !selection.empty())
-            {
-                auto edits = currentEdits();
-                for (int i : selection)
-                    if (i >= 0 && i < (int)edits.size())
-                        edits[(size_t)i].qn = std::max(0.0, edits[(size_t)i].qn + dragMoveDeltaQN);
-                commitSections(std::move(edits));
-            }
-            dragMoveDeltaQN = 0.0;
-            break;
-        }
-
-        case StripCommand::ToggleAt:
-        {
-            auto edits = currentEdits();
-            if (object >= 0)
-            {
-                // Cleared first, or the commit tries to re-select by a position that is
-                // about to belong to a different section.
-                selection.clear();
-                edits.erase(edits.begin() + object);
-                commitSections(std::move(edits));
-            }
-            else
-            {
-                double qn = snappedBarQN(p.y, v);
-                // Nothing to create if a section already starts on this bar.
-                for (const auto& ed : edits)
-                    if (GridMath::same(ed.qn, qn)) return;
-
-                edits.push_back({ qn, "section" });
-                std::sort(edits.begin(), edits.end(),
-                          [](const SectionEdit& a, const SectionEdit& b) { return a.qn < b.qn; });
-                if (onSectionsEdited) onSectionsEdited(edits);
-
-                // Rename opens straight away: a chart full of "section" is the failure mode
-                // the first attempt at this shipped with.
-                for (int i = 0; i < (int)edits.size(); ++i)
-                    if (GridMath::same(edits[(size_t)i].qn, qn)) { beginRename(i); break; }
-            }
-            break;
-        }
-
-        case StripCommand::DeleteAt:
-            if (object >= 0)
-            {
-                auto edits = currentEdits();
-                selection.clear();
-                edits.erase(edits.begin() + object);
-                commitSections(std::move(edits));
-            }
-            break;
-
-        case StripCommand::BeginDeleteSpan:
-            dragActive = true;
-            dragAnchorY = dragCurrentY = p.y;
-            dragCommand = StripCommand::UpdateDeleteSpan;
-            repaint();
-            break;
-
-        case StripCommand::UpdateDeleteSpan:
-            dragCurrentY = p.y;
-            repaint();
-            break;
-
-        case StripCommand::CommitDeleteSpan:
-        {
-            double a = qnForY(std::min(dragAnchorY, dragCurrentY), v);
-            double b = qnForY(std::max(dragAnchorY, dragCurrentY), v);
-            auto edits = currentEdits();
-            auto removed = std::remove_if(edits.begin(), edits.end(),
-                [&](const SectionEdit& ed)
-                { return ed.qn >= std::min(a, b) && ed.qn <= std::max(a, b); });
-            if (removed != edits.end())
-            {
-                edits.erase(removed, edits.end());
-                commitSections(std::move(edits));
-            }
-            break;
-        }
 
         case StripCommand::BeginTimeSelection:
             dragActive = true;
@@ -1888,10 +1686,6 @@ void UtilityStripComponent::dispatch(StripCommand cmd, const juce::MouseEvent& e
             break;
         }
 
-        case StripCommand::Rename:
-            if (object >= 0) beginRename(object);
-            break;
-
         default: break;
     }
 }
@@ -1904,38 +1698,28 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
 
     if (renameEditor != nullptr) commitRename();
 
-    // Clicking the mode you are already in leaves it, so the same button arms and disarms
-    // rather than needing somewhere else to click to get back to plain navigation.
-    for (int i = 0; i < (int)std::size(MODES); ++i)
-        if (modeButtonBounds(i).contains(p))
+    if (followButtonBounds().contains(p))
+    {
+        // Yellow means follow is on but a scroll took it out of gear. Clicking there obviously
+        // means start following again, so it re-engages rather than switching follow off and
+        // making you click twice to get back to where you were.
+        if (followSetting && !followEngaged)
         {
-            setEditMode(editMode == MODES[i].mode ? EditMode::None : MODES[i].mode);
-            return;
-        }
-
-    for (int i = 0; i < (int)std::size(filters); ++i)
-        if (filterButtonBounds(i).contains(p))
-        {
-            // Yellow means follow is on but a scroll took it out of gear. Clicking there
-            // obviously means start following again, so it re-engages rather than switching
-            // follow off and making you click twice to get back to where you were.
-            if (i == FILTER_FOLLOW && filters[i].on && !followEngaged)
-            {
-                followEngaged = true;
-                repaint();
-                return;
-            }
-
-            filters[i].on = !filters[i].on;
-            if (onLayerToggled) onLayerToggled(filters[i].key, filters[i].on);
-
-            // Switching follow back on puts it in gear too, so it never reads on while
-            // doing nothing.
-            if (i == FILTER_FOLLOW && filters[i].on) followEngaged = true;
-
+            followEngaged = true;
             repaint();
             return;
         }
+
+        followSetting = !followSetting;
+        if (onFollowChanged) onFollowChanged(followSetting);
+
+        // Switching follow back on puts it in gear too, so it never reads on while doing
+        // nothing.
+        if (followSetting) followEngaged = true;
+
+        repaint();
+        return;
+    }
 
     if (minusBounds().contains(p)) { zoomOut(); return; }
     if (plusBounds().contains(p))  { zoomIn();  return; }
@@ -1961,17 +1745,7 @@ void UtilityStripComponent::mouseDown(const juce::MouseEvent& e)
         }
     }
 
-    // Clicking the name renames it. The rest of the section's row belongs to the mapping,
-    // which is what makes the name a distinct target rather than a mode.
-    int name = sectionNameAt(p);
-    if (name >= 0 && !e.mods.isRightButtonDown())
-    {
-        beginRename(name);
-        return;
-    }
-
-    dispatch(mapper.resolve(stripMode(), EventType::Down, buttonOf(e),
-                            modsOf(e), sectionHeaderAt(p) >= 0), e);
+    dispatch(mapper.resolve(EventType::Down, buttonOf(e), modsOf(e), sectionHeaderAt(p) >= 0), e);
 }
 
 void UtilityStripComponent::mouseDrag(const juce::MouseEvent& e)
@@ -1988,9 +1762,6 @@ void UtilityStripComponent::mouseUp(const juce::MouseEvent& e)
     StripCommand commit = StripCommand::None;
     switch (dragCommand)
     {
-        case StripCommand::UpdateMove:          commit = StripCommand::CommitMove; break;
-        case StripCommand::UpdateMarquee:       commit = StripCommand::CommitMarquee; break;
-        case StripCommand::UpdateDeleteSpan:    commit = StripCommand::CommitDeleteSpan; break;
         case StripCommand::UpdateTimeSelection: commit = StripCommand::CommitTimeSelection; break;
         default: break;
     }
@@ -2020,8 +1791,6 @@ void UtilityStripComponent::mouseDoubleClick(const juce::MouseEvent& e)
             return;
         }
     }
-    dispatch(mapper.resolve(stripMode(), EventType::DoubleClick, buttonOf(e),
-                            modsOf(e), sectionHeaderAt(e.getPosition()) >= 0), e);
 }
 
 void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
@@ -2045,19 +1814,16 @@ void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
 
     int y = !onZoom && inTrackArea(e.getPosition()) ? e.getPosition().y : -1;
     int section = y >= 0 ? sectionHeaderAt(e.getPosition()) : -1;
-    int name = y >= 0 ? sectionNameAt(e.getPosition()) : -1;
     int chunk = y >= 0 ? songChunkAt(e.getPosition()) : -1;
     int songName = y >= 0 ? songNameAt(e.getPosition()) : -1;
 
-    if (y == hoverY && section == hoverSection && name == hoverName
-        && chunk == hoverSongChunk) return;
+    if (y == hoverY && section == hoverSection && chunk == hoverSongChunk) return;
 
     hoverY = y;
     hoverSection = section;
-    hoverName = name;
     hoverSongChunk = chunk;
-    setMouseCursor(name >= 0 || songName >= 0 ? juce::MouseCursor::IBeamCursor
-                                              : juce::MouseCursor::NormalCursor);
+    setMouseCursor(songName >= 0 ? juce::MouseCursor::IBeamCursor
+                                 : juce::MouseCursor::NormalCursor);
     repaint();
 }
 
@@ -2065,10 +1831,9 @@ void UtilityStripComponent::mouseMove(const juce::MouseEvent& e)
 // back on the next real mouseMove.
 void UtilityStripComponent::clearHover()
 {
-    if (hoverY < 0 && hoverSection < 0 && hoverName < 0 && hoverSongChunk < 0) return;
+    if (hoverY < 0 && hoverSection < 0 && hoverSongChunk < 0) return;
     hoverY = -1;
     hoverSection = -1;
-    hoverName = -1;
     hoverSongChunk = -1;
     setMouseCursor(juce::MouseCursor::NormalCursor);
     repaint();
@@ -2082,23 +1847,13 @@ void UtilityStripComponent::mouseExit(const juce::MouseEvent&)
     repaint();
 }
 
-// Marquee, delete span and time selection are all a band between two drag points; only the
-// colour says which. Drawn over everything so it reads as a transient overlay.
-void UtilityStripComponent::drawMarquee(juce::Graphics& g) const
+// A band between the two drag points, drawn over everything so it reads as a transient overlay.
+void UtilityStripComponent::drawTimeSelection(juce::Graphics& g) const
 {
-    if (!dragActive) return;
-
-    juce::Colour fill;
-    switch (dragCommand)
-    {
-        case StripCommand::UpdateMarquee:       fill = UtilityColours::marqueeFill; break;
-        case StripCommand::UpdateDeleteSpan:    fill = UtilityColours::deleteFill;  break;
-        case StripCommand::UpdateTimeSelection: fill = UtilityColours::loopFill;    break;
-        default: return;
-    }
+    if (!dragActive || dragCommand != StripCommand::UpdateTimeSelection) return;
 
     float y0 = (float)std::min(dragAnchorY, dragCurrentY);
     float y1 = (float)std::max(dragAnchorY, dragCurrentY);
-    g.setColour(fill);
+    g.setColour(UtilityColours::loopFill);
     g.fillRect(0.0f, y0, (float)getWidth(), y1 - y0);
 }

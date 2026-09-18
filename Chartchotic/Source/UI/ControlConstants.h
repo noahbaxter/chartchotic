@@ -100,18 +100,15 @@ constexpr int   TOOLBAR_MAX_HEIGHT     = 100;    // cap (px)
 constexpr bool  SUBTOOLBAR_SHOW_LABELS = true;   // tiny group headers above controls
 constexpr float SUBTOOLBAR_HEIGHT_RATIO = SUBTOOLBAR_SHOW_LABELS ? 1.1f : 0.85f;
 
-// Sub-toolbar control scaling
-constexpr float SUBTOOLBAR_WIDTH_SCALE  = 0.85f; // shrink/grow all control widths
+// Sub-toolbar control scaling. Buttons are squares; widths below are in squares.
 constexpr float SUBTOOLBAR_HEIGHT_SCALE = 0.80f; // shrink/grow control height (rest becomes padding)
 constexpr float SUBTOOLBAR_PAD_TOP      = 0.0f;  // extra space above controls (fraction of control area)
 constexpr float SUBTOOLBAR_PAD_BOTTOM   = 0.1f; // extra space below controls (fraction of control area)
-constexpr float SUBTOOLBAR_MODE_W    = 5.0f;
-constexpr float SUBTOOLBAR_BAR_W     = 2.5f;
-constexpr float SUBTOOLBAR_SNAP_W    = 1.5f;
-constexpr float SUBTOOLBAR_STEP_W    = 3.0f;
-constexpr float SUBTOOLBAR_MOD_W     = 10.0f;
-constexpr float SUBTOOLBAR_CYM_W     = 1.5f;
-constexpr float SUBTOOLBAR_COL_GAP   = 2.0f;
+constexpr float SUBTOOLBAR_FIT_FRACTION = 0.96f; // widest share of the row the controls may take
+constexpr float SUBTOOLBAR_VIEW_SQUARES = 3.5f;
+constexpr float SUBTOOLBAR_BAR_SQUARES  = 2.0f;
+constexpr float SUBTOOLBAR_GROUP_GAP    = 0.6f;
+constexpr float SUBTOOLBAR_ITEM_GAP     = 0.15f;
 
 // Footer
 constexpr float FOOTER_RATIO       = 0.055f;

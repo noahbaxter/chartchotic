@@ -211,6 +211,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Art/ProceduralTrackArt.cpp
         Chartchotic/Source/Visual/Art/BarGemArt.cpp
         Chartchotic/Source/Visual/Art/BarGemArt.h
+        Chartchotic/Source/Visual/Art/GemIconArt.h
         Chartchotic/Source/Visual/Art/TrackRenderer.h
         Chartchotic/Source/Visual/HighwayComponent.cpp
         Chartchotic/Source/Visual/HighwayComponent.h
@@ -243,6 +244,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Managers/GridlineGenerator.h
         # UI - Controls
         Chartchotic/Source/UI/Controls/CheckboxToggle.h
+        Chartchotic/Source/UI/Controls/DropdownButton.h
         Chartchotic/Source/UI/Controls/PanelSectionHeader.h
         Chartchotic/Source/UI/Controls/PillToggle.h
         Chartchotic/Source/UI/Controls/PopupMenuButton.h

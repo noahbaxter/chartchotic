@@ -754,3 +754,122 @@ TEST_CASE("TrackResolver - a lone 120 off elite is not a fill",
                                          PPQ(16.0), PPQ(16.0));
     REQUIRE(shared.modifiers.fill.empty());
 }
+
+// ============================================================================
+// Phrase window: what the SP and Phrase editor views draw.
+
+namespace
+{
+    constexpr uint DRUM_RED = 97;
+    constexpr uint DRUM_GREEN = 100;
+
+    void addFill(NoteStateMapArray& notes, double onQN, double offQN)
+    {
+        for (uint pitch = 120; pitch <= 124; ++pitch)
+            addNote(notes, pitch, onQN, offQN);
+    }
+
+    TrackResolver::Config drumsConfig()
+    {
+        TrackResolver::Config cfg;
+        cfg.part = Part::DRUMS;
+        return cfg;
+    }
+
+    int countPhrases(const PartWindow& pw, SustainType type)
+    {
+        int n = 0;
+        for (const auto& p : pw.phraseWindow)
+            if (p.sustainType == type) ++n;
+        return n;
+    }
+
+    bool activationAt(const PartWindow& pw, double qn)
+    {
+        const auto* frame = expertFrameAt(pw, qn);
+        if (frame == nullptr) return false;
+        for (const auto& gem : *frame)
+            if (gem.activation) return true;
+        return false;
+    }
+}
+
+TEST_CASE("TrackResolver - a star power phrase is one band, not one per column",
+          "[track_resolver][phrases]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, 116, 2.0, 6.0);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+    REQUIRE(countPhrases(pw, SustainType::STAR_POWER) == 1);
+    REQUIRE(pw.phraseWindow[0].startPPQ == PPQ(2.0));
+    REQUIRE(pw.phraseWindow[0].endPPQ == PPQ(6.0));
+}
+
+TEST_CASE("TrackResolver - a fill lays a lane on every hand column and none on the kick",
+          "[track_resolver][phrases]")
+{
+    NoteStateMapArray notes;
+    addFill(notes, 2.0, 6.0);
+
+    SECTION("four-lane drums")
+    {
+        auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+        auto pw = TrackResolver::resolve(shared, drumsConfig());
+        REQUIRE(countPhrases(pw, SustainType::BRE) == 4);
+        for (const auto& p : pw.phraseWindow)
+            REQUIRE(p.gemColumn != (uint)DRUM_KICK_COLUMN);
+    }
+
+    SECTION("five-fret guitar")
+    {
+        auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+        auto pw = TrackResolver::resolve(shared, TrackResolver::Config{});
+        REQUIRE(countPhrases(pw, SustainType::BRE) == 5);
+    }
+}
+
+TEST_CASE("TrackResolver - a drum fill's last note is its activation note",
+          "[track_resolver][phrases]")
+{
+    NoteStateMapArray notes;
+    addFill(notes, 2.0, 6.0);
+    addNote(notes, DRUM_RED, 3.0, 3.1);
+    addNote(notes, DRUM_GREEN, 6.0, 6.1);   // on the marker's note-off, which still counts
+    addNote(notes, DRUM_RED, 7.0, 7.1);     // after the fill
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+    REQUIRE(activationAt(pw, 6.0));
+    REQUIRE_FALSE(activationAt(pw, 3.0));
+    REQUIRE_FALSE(activationAt(pw, 7.0));
+}
+
+TEST_CASE("TrackResolver - no activation note when the fill runs past the window",
+          "[track_resolver][phrases]")
+{
+    NoteStateMapArray notes;
+    addFill(notes, 2.0, 20.0);
+    addNote(notes, DRUM_RED, 10.0, 10.1);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+    REQUIRE_FALSE(activationAt(pw, 10.0));
+}
+
+TEST_CASE("TrackResolver - a guitar BRE has no activation note",
+          "[track_resolver][phrases]")
+{
+    NoteStateMapArray notes;
+    addFill(notes, 2.0, 6.0);
+    addNote(notes, (uint)MidiPitchDefinitions::Guitar::EXPERT_GREEN, 5.0, 5.1);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    auto pw = TrackResolver::resolve(shared, TrackResolver::Config{});
+
+    REQUIRE_FALSE(activationAt(pw, 5.0));
+}

@@ -54,9 +54,19 @@ public:
                                  : juce::Colour(Theme::textDim));
         }
 
+        bool drewArt = false;
+        if (iconDrawer)
+        {
+            juce::Graphics::ScopedSaveState save(g);
+            if (disabled) g.setOpacity(DISABLED_ART_ALPHA);
+            drewArt = iconDrawer(g, bounds.reduced(bounds.getHeight() * ART_INSET));
+        }
+
+        if (drewArt) return;
+
         if (icon)
         {
-            auto iconBounds = getLocalBounds().toFloat().reduced(getHeight() * 0.22f);
+            auto iconBounds = getLocalBounds().toFloat().reduced(getHeight() * SVG_ICON_INSET);
             juce::Colour tint = disabled ? juce::Colour(Theme::textDim).withAlpha(0.25f)
                                : on      ? juce::Colour(Theme::textWhite)
                                : isMouseOver() ? juce::Colour(Theme::textWhite)
@@ -73,6 +83,11 @@ public:
     }
 
     void setIcon(std::unique_ptr<juce::Drawable> d) { icon = std::move(d); repaint(); }
+
+    // Full-colour art in place of the label, for things the chart itself has a picture of.
+    // Answers false when there is nothing to draw yet, and the label is drawn instead.
+    using ArtDrawer = std::function<bool(juce::Graphics&, juce::Rectangle<float>)>;
+    void setArt(ArtDrawer d) { iconDrawer = std::move(d); repaint(); }
 
     void setDisabled(bool shouldBeDisabled)
     {
@@ -106,8 +121,13 @@ public:
     void mouseExit(const juce::MouseEvent&) override { repaint(); }
 
 private:
+    static constexpr float ART_INSET = 0.05f;          // of the height, each side
+    static constexpr float SVG_ICON_INSET = 0.19f;     // line icons need a margin to breathe
+    static constexpr float DISABLED_ART_ALPHA = 0.3f;
+
     juce::String label;
     std::unique_ptr<juce::Drawable> icon;
+    ArtDrawer iconDrawer;
     bool on = true;
     bool disabled = false;
     juce::Colour accent { Theme::coral };

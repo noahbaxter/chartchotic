@@ -405,6 +405,15 @@ protected:
         return noteEditor.createNote(trackIdx, qn, pitch);
     }
 
+    // Phrases carry no gem and no lane, so they skip both the marker write and the patch.
+    bool createPhraseNote(int trackIdx, double qn, double duration, int pitch)
+    {
+        auto existing = findNote(trackIdx, qn, pitch);
+        if (existing.noteIndex >= 0 && GridMath::same(existing.startQN, qn))
+            noteEditor.eraseNoteAt(trackIdx, qn, pitch, currentActivePart, -1, currentActiveSkill);
+        return noteEditor.createNote(trackIdx, qn, pitch, 100, duration);
+    }
+
     // No lane of its own, so the gem-erase path would blank the note the marker types.
     bool eraseMarkerNote(int trackIdx, double qn, int pitch, int lane)
     {

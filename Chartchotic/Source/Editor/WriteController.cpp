@@ -9,9 +9,20 @@ namespace
     const juce::Identifier kWriteStepDivision { "writeStepDivision" };
     const juce::Identifier kWriteTuplet       { "writeTuplet" };
     const juce::Identifier kWriteSnap         { "writeSnap" };
+    const juce::Identifier kEditorView        { "editorView" };
 
     static const juce::String kSubModeDraw { "draw" };
     static const juce::String kSubModeEdit { "edit" };
+
+    // Spelled out rather than saved as the enum's index, so reordering the views cannot
+    // silently reopen a project on a different one.
+    const struct { EditorView view; const char* name; } kViewNames[] = {
+        { EditorView::Notes,     "notes" },
+        { EditorView::StarPower, "sp" },
+        { EditorView::Phrase,    "phrase" },
+        { EditorView::Sections,  "sections" },
+        { EditorView::Tempo,     "tempo" },
+    };
 
     SubMode parseSubMode(const juce::String& s, SubMode fallback)
     {
@@ -23,6 +34,20 @@ namespace
     const juce::String& subModeToString(SubMode m)
     {
         return (m == SubMode::Edit) ? kSubModeEdit : kSubModeDraw;
+    }
+
+    EditorView parseView(const juce::String& s, EditorView fallback)
+    {
+        for (const auto& v : kViewNames)
+            if (s == v.name) return v.view;
+        return fallback;
+    }
+
+    juce::String viewToString(EditorView view)
+    {
+        for (const auto& v : kViewNames)
+            if (view == v.view) return v.name;
+        return kViewNames[0].name;
     }
 }
 
@@ -38,6 +63,9 @@ void WriteController::loadPersistedState()
 {
     if (state.hasProperty(kWriteSubMode))
         currentSubMode = parseSubMode(state.getProperty(kWriteSubMode).toString(), currentSubMode);
+
+    if (state.hasProperty(kEditorView))
+        currentView = parseView(state.getProperty(kEditorView).toString(), currentView);
 
     if (state.hasProperty(kWriteStepDivision))
         currentStepDivision = juce::jlimit(1, 64, (int)state.getProperty(kWriteStepDivision));
@@ -58,6 +86,7 @@ void WriteController::loadPersistedState()
 bool WriteController::canWrite(const AuthoringPoint& p) const
 {
     return writeModeActive()
+        && currentView == EditorView::Notes
         && !isPlaying()
         && currentSubMode == SubMode::Draw
         && p.onHighway
@@ -84,6 +113,7 @@ void WriteController::recomputeGhost()
 
     if (!lastPointValid)                                  return;
     if (!writeModeActive())                               return;
+    if (currentView != EditorView::Notes)                 return;
     if (isPlaying())                                      return;
     if (!lastPoint.onHighway || lastPoint.laneIndex < 0)  return;
 
@@ -205,6 +235,28 @@ void WriteController::setSubMode(SubMode mode)
     if (currentSubMode == mode) return;
     currentSubMode = mode;
     state.setProperty(kWriteSubMode, subModeToString(mode), nullptr);
+    stateDidChange();
+}
+
+void WriteController::setView(EditorView v)
+{
+    if (currentView == v) return;
+    currentView = v;
+    state.setProperty(kEditorView, viewToString(v), nullptr);
+    stateDidChange();
+}
+
+void WriteController::setLaneTool(bool on)
+{
+    if (laneToolFlag == on) return;
+    laneToolFlag = on;
+    stateDidChange();
+}
+
+void WriteController::setPhraseTarget(PhraseTarget t)
+{
+    if (currentPhraseTarget == t) return;
+    currentPhraseTarget = t;
     stateDidChange();
 }
 
@@ -390,6 +442,12 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 {
     double clickQN = snapQN(p.rawProjectQN);
 
+    if (laneToolFlag)
+    {
+        handleBeginPhrase(p, trackIdx, clickQN);
+        return;
+    }
+
     if (!stamp.empty())
     {
         beginBatch("Chartchotic: Stamp notes");
@@ -447,6 +505,20 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
     sustainPendingClickQN = clickQN;
 }
 
+// A phrase is a bare range: no gem to place on the way down, and no markers to write.
+// Nothing is written until the drag commits, since a zero-length phrase is not a thing.
+void WriteController::handleBeginPhrase(const AuthoringPoint& p, int trackIdx, double clickQN)
+{
+    const auto* cfg = authoring();
+    if (cfg == nullptr || cfg->phrasePitch == nullptr) return;
+
+    int phrasePitch = cfg->phrasePitch(currentPhraseTarget, currentActiveSkill, p.laneIndex);
+    if (phrasePitch < 0) return;
+
+    beginBatch("Chartchotic: Phrase");
+    enterSustainDrag(trackIdx, clickQN, p.laneIndex, {{phrasePitch}, false});
+}
+
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
 {
     double dragQN  = snapQN(p.rawProjectQN);
@@ -485,7 +557,14 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
 
     if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
     {
-        if (!stamp.empty())
+        if (laneToolFlag)
+        {
+            // Created rather than chain-extended: a phrase has no gem under it to extend.
+            for (int pitch : sustainDragTarget.pitches)
+                createPhraseNote(sustainDragTrackIdx, sustainDragStartQN,
+                                 endQN - sustainDragStartQN, pitch);
+        }
+        else if (!stamp.empty())
         {
             bool drums = isDrums();
             for (const auto& sn : stamp)
@@ -783,6 +862,7 @@ bool WriteController::onKeyPress(const juce::KeyPress& key)
     {
         case WriteCommand::ToggleWriteMode: setWriteModeActive(!writeModeActive()); return true;
         case WriteCommand::ToggleSubMode:   setSubMode(subMode() == SubMode::Draw ? SubMode::Edit : SubMode::Draw); return true;
+        case WriteCommand::ToggleLaneTool:  setLaneTool(!laneTool());                         return true;
         case WriteCommand::ToggleSnap:      setSnapEnabled(!snapEnabled());                   return true;
         case WriteCommand::StepDown:        setStepDivision(std::max(1, stepDivision() / 2)); return true;
         case WriteCommand::StepUp:          setStepDivision(stepDivision() * 2);              return true;
