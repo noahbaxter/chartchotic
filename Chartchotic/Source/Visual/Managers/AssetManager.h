@@ -25,6 +25,12 @@ public:
     // Call on window resize. Skips work if width hasn't changed.
     void rescaleForWidth(int viewportWidth);
 
+    // The unscaled original behind a live asset, or null for one that is generated rather than
+    // loaded. Anything drawn OUTSIDE the highway wants this: rescaleForWidth swaps the live
+    // images out from under their pointers as the viewport changes, so a control drawn from a
+    // live one changes size whenever the chart is resized, which is not the control's business.
+    const juce::Image* masterFor(const juce::Image* live) const;
+
     // Image picker methods
     juce::Image* getGuitarGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
     juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive, bool elite = false);

@@ -365,6 +365,14 @@ void AssetManager::rescaleForWidth(int viewportWidth)
     lastScaledWidth = viewportWidth;
 }
 
+const juce::Image* AssetManager::masterFor(const juce::Image* live) const
+{
+    if (live == nullptr) return nullptr;
+    for (const auto& asset : scalableAssets)
+        if (asset.target == live) return &asset.fullRes;
+    return nullptr;
+}
+
 // Tint the smoke master by an arbitrary lane colour, memoized per colour. Node-based
 // map => returned pointers stay valid as new colours are added within a frame.
 juce::Image* AssetManager::flareTinted(juce::Colour colour)

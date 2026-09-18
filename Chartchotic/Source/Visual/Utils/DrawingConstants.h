@@ -31,7 +31,9 @@
 
 // Gem and note opacity
 constexpr float SUSTAIN_OPACITY = 0.7f;      // Sustain note opacity
-constexpr float LANE_OPACITY = 0.4f;         // Lane sustain opacity
+// A lane has to stay readable under a wall of gems and kick bars, which is exactly the passage
+// most likely to carry one. Sustains can afford to be quieter: they sit under a single note.
+constexpr float LANE_OPACITY = 0.6f;         // Lane sustain opacity
 
 // SP view: each star power phrase as one white lane across the highway, faint enough that the
 // gems it covers still read through it.
@@ -227,12 +229,16 @@ enum class DrawOrder
     BACKGROUND,
     TRACK,
     GRID,
-    LANE,
     TRACK_SIDEBARS,
     TRACK_LANE_LINES,
     TRACK_STRIKELINE,
     SUSTAIN,
     BAR,
+    // Above the bars, below the gems. Down with the track art it was buried by every kick bar
+    // that crossed it, which during a blast beat is most of them, so the lane read as a few
+    // scraps of colour between notes. Gems still draw on top, so what you are playing is never
+    // obscured by the marker telling you how to play it.
+    LANE,
     NOTE,
     TRACK_CONNECTORS,
     OVERLAY,
