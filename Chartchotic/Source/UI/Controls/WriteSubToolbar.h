@@ -109,6 +109,9 @@ public:
         if (am == nullptr) return;
         assetManager = am;
         gemIcons = std::make_unique<GemIconArt>(*am);
+        // One colour across the row. The gems' own greens and blues are about where a note sits
+        // on the board, which says nothing about what the button does.
+        gemIcons->tint = juce::Colour(Theme::controlLaneArt);
 
         using G = Gem;
         auto guitar = [this](G gem) {

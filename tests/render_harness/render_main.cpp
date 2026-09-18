@@ -347,6 +347,7 @@ int main(int argc, char** argv)
     {
         constexpr int cell = 48, pad = 2;
         GemIconArt icons(assets);
+        icons.tint = juce::Colour(Theme::controlLaneArt);   // as the write bar sets it
         using Draw = std::function<bool(juce::Graphics&, juce::Rectangle<float>)>;
         // bg is the button's fill, so an icon can be checked against the colour it will really
         // sit on: the LANE pill fills with the selection colour the moment the tool is on.
