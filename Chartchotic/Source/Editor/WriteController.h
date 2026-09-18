@@ -41,6 +41,12 @@ public:
     void setSubMode(SubMode mode);
     void setView(EditorView v);
     void setLaneTool(bool on);
+    // A lane over the selected notes, the way a note type applies to a selection. Their extent
+    // is the range and the columns they span decide one lane or two. A toggle: a selection
+    // already under a lane loses it.
+    void applyLaneToSelection(const std::vector<SelectedNote>& notes);
+    // Whether that selection already sits under a lane, so the LANE control can show it lit.
+    bool selectionHasLane(const std::vector<SelectedNote>& notes) const;
     void setPhraseKind(PhraseMath::Kind k);
 
     // What a phrase gesture could not do, for the footer to say. Cleared when read.
@@ -137,6 +143,16 @@ private:
     };
     LaneSpread laneDragSpread() const { return { laneDragColumnLo, laneDragColumnHi }; }
     static LaneSpread oneColumn(int column) { return { column, column }; }
+
+    // Writes a resolved lane, or says why it could not. Shared by the drag and by applying one
+    // to a selection, so the two cannot drift apart.
+    void commitLane(int trackIdx, std::optional<PhraseMath::PhraseSpan> merged, LaneSpread spread);
+
+    // What a selection asks a lane to cover: its extent, and the columns it reaches across.
+    struct LaneSelection { double lo = 0.0; double hi = 0.0; LaneSpread spread; };
+    std::optional<LaneSelection> laneSelectionRange(const std::vector<SelectedNote>& notes) const;
+    // Lanes already covering that selection end to end, which is what LANE lights up for.
+    std::vector<PhraseMath::PhraseSpan> lanesCovering(const LaneSelection& sel) const;
 
     // A note a lane can snap to or capture: the dragged columns on elite, the whole board minus
     // kicks on the shared markers.

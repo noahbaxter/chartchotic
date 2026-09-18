@@ -121,6 +121,16 @@ void ToolbarComponent::initTopBar()
     };
 
     writeSubToolbar.onLaneToolChanged = [this](bool on) {
+        // With a selection up, LANE applies to it rather than arming a tool, the same way the
+        // note types do. Arming the draw tool there would drop the selection to do nothing.
+        if (on && interactionController.subMode() == SubMode::Edit
+               && interactionController.hasEditSelection())
+        {
+            interactionController.applyLaneToSelection();
+            if (interactionController.onStateChanged) interactionController.onStateChanged();
+            return;
+        }
+
         interactionController.setLaneTool(on);
         if (onLaneToolActive) onLaneToolActive(on);
         if (interactionController.onStateChanged) interactionController.onStateChanged();
