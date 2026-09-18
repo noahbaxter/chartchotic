@@ -48,6 +48,9 @@ public:
     bool        hasStamp()        const { return writeController.hasStamp(); }
     bool        hasEditSelection() const { return !editController.getSelection().empty(); }
 
+    // Leaves the tool and the view exactly as they were: coming back into write mode should put
+    // you back where you left off. What write mode gates is only what the highway SHOWS, which
+    // it does itself.
     void setWriteModeActive(bool v) { writeController.setWriteModeActive(v); }
     void setSubMode(SubMode m)      { writeController.setSubMode(m); }
     void setView(EditorView v);
