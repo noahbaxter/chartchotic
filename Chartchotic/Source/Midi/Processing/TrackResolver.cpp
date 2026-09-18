@@ -533,8 +533,16 @@ void TrackResolver::resolveLanes(PartWindow& result,
                 {
                     uint col = isGuitar ? InstrumentMapper::getGuitarColumn(sus.pitch, dc.skill)
                                         : InstrumentMapper::getDrumColumn(sus.pitch, dc.skill, cfg.kick2x);
-                    if (col < LANE_COUNT)
-                        noteEvents.push_back({sus.startPPQ, col});
+                    if (col >= LANE_COUNT) continue;
+
+                    // "Roll lanes are ... applied dynamically to a lane based on the notes that
+                    // are present, excluding kicks" (_refs/midi/drums.md:139). Without this a
+                    // kick landing inside a snare roll could be the first note found and take
+                    // the lane, drawing it as a bar across the whole board. Elite never comes
+                    // through here: its lanes carry their column in the pitch, kick included.
+                    if (!isGuitar && isDrumKick(col, cfg.part)) continue;
+
+                    noteEvents.push_back({sus.startPPQ, col});
                 }
             }
             std::sort(noteEvents.begin(), noteEvents.end());
