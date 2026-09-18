@@ -261,6 +261,7 @@ int main(int argc, char** argv)
     juce::String dumpStomp;   // if set: save the baked Stomp bar asset alone and exit
     juce::String dumpKick;    // if set: save the baked kick bars (fat + elite thin) and exit
     juce::String dumpIcons;   // if set: save the write bar's gem icons as one sheet and exit
+    juce::String dumpGlyphs;  // if set: save every highway glyph per instrument as one sheet
     int iconCell = 48;        // --icon-cell: pixels per icon in that sheet
     bool bemani = false;      // --bemani: flat (Bemani) mode instead of perspective
     // Editor view overlays, as HighwayComponent appends them in write mode.
@@ -273,6 +274,7 @@ int main(int argc, char** argv)
         if      (a == "--dump-stomp" && i + 1 < argc) dumpStomp = argv[++i];
         else if (a == "--dump-kick"  && i + 1 < argc) dumpKick = argv[++i];
         else if (a == "--dump-icons" && i + 1 < argc) dumpIcons = argv[++i];
+        else if (a == "--dump-glyphs" && i + 1 < argc) dumpGlyphs = argv[++i];
         else if (a == "--icon-cell" && i + 1 < argc) iconCell = juce::String(argv[++i]).getIntValue();
         else if (a == "--part"   && i + 1 < argc) partName = argv[++i];
         else if (a == "--width"  && i + 1 < argc) W = juce::String(argv[++i]).getIntValue();
@@ -340,6 +342,216 @@ int main(int argc, char** argv)
         juce::FileOutputStream os(f);
         juce::PNGImageFormat png;
         png.writeImageToStream(sheet, os);
+        return 0;
+    }
+
+    // Every highway glyph the asset manager can hand out, one row per instrument.
+    if (dumpGlyphs.isNotEmpty())
+    {
+        struct Row { const char* name; uint lastCol; bool drums; bool elite; };
+        const std::vector<Row> rows = {
+            { "guitar / GHL", 5, false, false },
+            { "drums 4+5",    5, true,  false },
+            { "elite drums",  8, true,  true  },
+        };
+        // Quiet to loud, so a column reads as the progression it is. Each gem then repeats under
+        // star power (white art) and as an activation gem (its own art recut more vividly), which
+        // are the two states that change what a gem looks like without changing what it is.
+        enum class Variant { Plain, StarPower, Activation };
+        struct GemRow { juce::String label; Gem gem; Variant variant; };
+        const std::vector<std::pair<const char*, Gem>> gems = {
+            { "hopo/ghost", Gem::HOPO_GHOST }, { "note", Gem::NOTE }, { "tap/accent", Gem::TAP_ACCENT },
+            { "cym ghost", Gem::CYM_GHOST }, { "cym", Gem::CYM }, { "cym accent", Gem::CYM_ACCENT },
+        };
+        std::vector<GemRow> gemRows;
+        for (auto v : { Variant::Plain, Variant::StarPower, Variant::Activation })
+            for (const auto& gm : gems)
+                gemRows.push_back({ juce::String(gm.first) + (v == Variant::StarPower ? " SP"
+                                                            : v == Variant::Activation ? " act" : ""),
+                                    gm.second, v });
+
+        const int cell = iconCell > 0 ? iconCell : 96;
+        const int labelW = 140, headerH = 22, pad = 6;
+        // Column 0 is the kick/open bar: full-board art, so in a square cell it collapses to a
+        // hairline. Give it the room to read next to the notes it shares a row with.
+        const int barCells = 4;
+        // Kick and 2x kick are board-wide bars. Which column carries 2x is per part, and on
+        // elite col 6 is a hand lane, so this has to ask the row rather than match a number.
+        auto isBarCell = [&](const Row& r, uint c) {
+            return c == 0 || (r.drums && c == (uint)(r.elite ? ELITE_KICK_2X_COLUMN
+                                                             : DRUM_KICK_2X_COLUMN));
+        };
+        auto colW = [&](const Row& r, uint c) { return isBarCell(r, c) ? cell * barCells : cell; };
+
+        // One cell per thing worth seeing: every column, then the hi-hat's pedal states, which
+        // are their own art on the elite hi-hat lane and invisible in a plain column sweep.
+        struct Cell { juce::String label; uint col; HiHatState hihat; };
+        auto cellsFor = [&](const Row& r) {
+            std::vector<Cell> cells;
+            for (uint c = 0; c <= r.lastCol; ++c)
+                cells.push_back({ juce::String((int)c), c, HiHatState::None });
+            // 2x kick is its own art on its own column, and on elite that column is virtual
+            // (col 6 is a real hand lane there), so a plain 0..lastCol sweep never reaches it.
+            if (r.drums)
+                cells.push_back({ "2x kick",
+                                  (uint)(r.elite ? ELITE_KICK_2X_COLUMN : DRUM_KICK_2X_COLUMN),
+                                  HiHatState::None });
+            if (r.elite)
+            {
+                const uint hh = (uint)ELITE_HIHAT_COLUMN;
+                cells.push_back({ "hh open", hh, HiHatState::Open });
+                cells.push_back({ "hh closed", hh, HiHatState::Closed });
+                cells.push_back({ "hh indiff", hh, HiHatState::Indifferent });
+            }
+            return cells;
+        };
+
+        // The colour an activation gem is recut in, same as NoteRenderer::activationRecut.
+        auto actTint = [&](const Row& r, uint c) {
+            const juce::Colour lane = assets.getLaneColour(
+                c, r.drums ? (r.elite ? Part::ELITE_DRUMS : Part::DRUMS) : Part::GUITAR, false);
+            return lane.withMultipliedSaturation(PHRASE_ACTIVATION_VIVID_SATURATION)
+                       .brighter(PHRASE_ACTIVATION_VIVID_BRIGHTEN);
+        };
+
+        // Which gems can actually land on a column. A sheet that draws every gem everywhere
+        // invents notes the format has no way to write -- cymbals on a fret, a hopo on a cymbal
+        // lane -- and then the blanks say nothing about what is really missing.
+        auto legal = [&](const Row& r, uint c, Gem gem) {
+            const bool cymGem = gem == Gem::CYM || gem == Gem::CYM_GHOST || gem == Gem::CYM_ACCENT;
+            if (!r.drums) return !cymGem;                       // frets and opens, never cymbals
+            if (r.elite)
+            {
+                if (c < 1 || c > 8) return !cymGem;             // kick bars carry dynamics
+                return PositionConstants::ELITE_LANE_STYLES[c].cymbal == cymGem;
+            }
+            if (isDrumKick(c, Part::DRUMS)) return gem == Gem::NOTE;   // no dynamics, no cymbal
+            return cymGem ? authorsCymbal(c, Part::DRUMS, true) : true;
+        };
+
+        // Only the gem kinds this instrument can produce get a row.
+        auto gemsFor = [&](const Row& r) {
+            std::vector<GemRow> out;
+            for (const auto& gm : gemRows)
+                for (const auto& cl : cellsFor(r))
+                    if (legal(r, cl.col, gm.gem)) { out.push_back(gm); break; }
+            return out;
+        };
+
+        // A page per instrument. One tall sheet was unusable as a drawing template -- the point
+        // of this is to hand an artist the set they have to cover, one instrument at a time.
+        const juce::File base(dumpGlyphs);
+        for (const auto& r : rows)
+        {
+            int w = pad;
+            for (const auto& c : cellsFor(r)) w += colW(r, c.col) + pad;
+            const int pageH = headerH + cell * (int)gemsFor(r).size() + pad * 2 + 18;
+
+            juce::Image sheet(juce::Image::ARGB, labelW + w, pageH, true);
+            juce::Graphics g(sheet);
+            g.fillAll(juce::Colour(0xff101014));
+            g.setFont(13.0f);
+
+            int y = headerH;
+            g.setColour(juce::Colours::white);
+            g.drawText(r.name, 4, y, labelW - 8, 18, juce::Justification::topLeft);
+            const auto rowGems = gemsFor(r);
+            g.setColour(juce::Colours::grey);
+            for (int gi = 0; gi < (int)rowGems.size(); ++gi)
+                g.drawText(rowGems[(size_t)gi].label, 4, y + 20 + gi * cell, labelW - 8, 14,
+                           juce::Justification::topLeft);
+
+            int x = labelW;
+            for (const auto& cl : cellsFor(r))
+            {
+                const uint c = cl.col;
+                g.setColour(juce::Colours::grey);
+                g.drawText(cl.label, x, y, colW(r, c), 16, juce::Justification::centred);
+                for (int gi = 0; gi < (int)rowGems.size(); ++gi)
+                {
+                    const Gem gem = rowGems[(size_t)gi].gem;
+                    const Variant var = rowGems[(size_t)gi].variant;
+                    if (!legal(r, c, gem)) continue;
+                    const bool sp = var == Variant::StarPower;
+                    GemWrapper w(gem, sp);
+                    w.hihat = cl.hihat;
+                    auto* img = r.drums ? assets.getDrumGlyphImage(w, c, sp, r.elite)
+                                        : assets.getGuitarGlyphImage(w, c, sp);
+                    if (img == nullptr || !img->isValid()) continue;
+
+                    // Activation recuts the gem's own art more vividly rather than washing a
+                    // tint over it, the same call NoteRenderer makes.
+                    if (var == Variant::Activation)
+                    {
+                        img = assets.getTintedGlyph(img, actTint(r, c), PHRASE_ACTIVATION_VIVID_NEUTRAL_PULL);
+                        if (img == nullptr || !img->isValid()) continue;
+                    }
+                    const juce::Rectangle<float> box((float)x, (float)(y + 18 + gi * cell),
+                                                     (float)colW(r, c), (float)(cell - 4));
+                    // Where the glyph actually lands inside its cell, so the overlay can be
+                    // hung off the same rect the renderer hangs it off.
+                    const float ar = (float)img->getWidth() / (float)img->getHeight();
+                    float dw = box.getWidth(), dh = dw / ar;
+                    if (dh > box.getHeight()) { dh = box.getHeight(); dw = dh * ar; }
+                    const juce::Rectangle<float> drawn(box.getCentreX() - dw * 0.5f,
+                                                       box.getCentreY() - dh * 0.5f, dw, dh);
+                    g.drawImage(*img, drawn);
+
+                    // Ghost brackets and accent chevrons are their own image composited over the
+                    // gem, sized and nudged by OverlayAdjust. Mirrors NoteRenderer's mapping --
+                    // without it a note and an accent look identical on a sheet like this.
+                    // Not on the bar columns: the renderer sizes a bar's overlay off the full
+                    // board width, which this sheet has no equivalent of, so drawing one here
+                    // says more about the cell than about the art.
+                    if (isBarCell(r, c)) continue;
+                    auto* ovl = assets.getOverlayImage(gem, r.drums ? Part::DRUMS : Part::GUITAR);
+                    if (ovl == nullptr || !ovl->isValid()) continue;
+                    // The ring and chevron take the activation recut with the gem under them.
+                    if (var == Variant::Activation)
+                    {
+                        ovl = assets.getTintedGlyph(ovl, actTint(r, c), PHRASE_ACTIVATION_VIVID_NEUTRAL_PULL);
+                        if (ovl == nullptr || !ovl->isValid()) continue;
+                    }
+                    using namespace PositionConstants;
+                    // The hi-hat's art is taller than an ordinary cymbal's, so its overlays have
+                    // their own offsets. Mirrors NoteRenderer::isEliteHiHatGlyph exactly --
+                    // picking the plain cymbal offsets here is what threw the hi-hat overlays off.
+                    const bool hiHat = r.elite && c >= 1 && c <= 8
+                                    && ELITE_LANE_STYLES[c].cymbal
+                                    && ELITE_LANE_STYLES[c].tint == DrumLaneTint::Yellow
+                                    && cl.hihat != HiHatState::Indifferent;
+                    const bool hhOpen = hiHat && cl.hihat == HiHatState::Open;
+                    const OverlayAdjust& adj =
+                        !r.drums               ? OVERLAY_DEFAULTS[OVERLAY_GUITAR_TAP]
+                      : gem == Gem::HOPO_GHOST ? OVERLAY_DEFAULTS[OVERLAY_DRUM_NOTE_GHOST]
+                      : gem == Gem::TAP_ACCENT ? OVERLAY_DEFAULTS[OVERLAY_DRUM_NOTE_ACCENT]
+                      : gem == Gem::CYM_GHOST  ? OVERLAY_DEFAULTS[hiHat ? (hhOpen ? OVERLAY_DRUM_HIHAT_OPEN_GHOST
+                                                                                  : OVERLAY_DRUM_HIHAT_GHOST)
+                                                                        : OVERLAY_DRUM_CYM_GHOST]
+                      : gem == Gem::CYM_ACCENT ? OVERLAY_DEFAULTS[hiHat ? (hhOpen ? OVERLAY_DRUM_HIHAT_OPEN_ACCENT
+                                                                                  : OVERLAY_DRUM_HIHAT_ACCENT)
+                                                                        : OVERLAY_DRUM_CYM_ACCENT]
+                                               : OVERLAY_DEFAULTS[OVERLAY_DRUM_NOTE_ACCENT];
+                    const float ow = drawn.getWidth()  * adj.scaleX * adj.scale;
+                    const float oh = drawn.getHeight() * adj.scaleY * adj.scale;
+                    g.drawImage(*ovl, juce::Rectangle<float>(
+                        drawn.getCentreX() - ow * 0.5f + adj.offsetX * ow,
+                        drawn.getCentreY() - oh * 0.5f + adj.offsetY * oh, ow, oh));
+                }
+                x += colW(r, c) + pad;
+            }
+
+            juce::String slug(r.name);
+            slug = slug.retainCharacters("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ")
+                       .trim().replaceCharacter(' ', '-').toLowerCase();
+            juce::File f = base.getParentDirectory()
+                               .getChildFile(base.getFileNameWithoutExtension() + "_" + slug + ".png");
+            f.deleteFile();
+            juce::FileOutputStream os(f);
+            juce::PNGImageFormat png;
+            png.writeImageToStream(sheet, os);
+            std::cout << "Wrote " << f.getFullPathName() << "\n";
+        }
         return 0;
     }
 
