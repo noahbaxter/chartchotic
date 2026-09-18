@@ -359,7 +359,9 @@ juce::Image bakeBar(const BarRamp& ramp,
                     juce::Rectangle<int> canvas,
                     juce::Rectangle<int> contentBounds,
                     float thickness,
-                    float centreLineAlpha)
+                    float centreLineAlpha,
+                    float outlineAlpha,
+                    juce::Colour outlineColour)
 {
     juce::Image img(juce::Image::ARGB, canvas.getWidth(), canvas.getHeight(), true);
 
@@ -390,6 +392,57 @@ juce::Image bakeBar(const BarRamp& ramp,
                 bd.setPixelColour(px, py, cov >= 1.0f ? col : col.withAlpha(cov));
             }
         }
+    }
+
+    // --- Outline: the tube's own silhouette lit up, so a HOPO bar is the note's colour with a
+    // bright edge rather than a bar in a different colour. Traced off the alpha rather than from
+    // the geometry -- erode the solid mask, keep what the erosion dropped -- so it follows the
+    // arc for free. Drawn here, while the tube is alone in the image: the caps then paint over
+    // its ends, which is what stops the rim at the purple without an inset to tune. ---
+    if (outlineAlpha > 0.0f)
+    {
+        const int W = canvas.getWidth(), H = canvas.getHeight();
+        const float sy = contentBounds.getHeight() / kSrcH;
+        const int r = juce::jmax(1, juce::roundToInt(kTubeH * sy * thickness * kBarOutlineWidth));
+
+        juce::Image::BitmapData bd(img, juce::Image::BitmapData::readWrite);
+        std::vector<uint8_t> solid((size_t) W * H), eroded((size_t) W * H);
+
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+                solid[(size_t) y * W + x] =
+                    bd.getPixelColour(x, y).getAlpha() >= kBarOutlineSolidAlpha ? 1 : 0;
+
+        // Separable erosion: a square window is the two 1D passes, and at this canvas size the
+        // circular one is not worth the pass it would cost.
+        auto erodeLine = [](const std::vector<uint8_t>& src, std::vector<uint8_t>& dst,
+                            int len, int count, int stride, int step, int radius)
+        {
+            for (int i = 0; i < count; ++i)
+                for (int j = 0; j < len; ++j)
+                {
+                    uint8_t m = 1;
+                    for (int d = -radius; d <= radius && m; ++d)
+                    {
+                        const int k = j + d;
+                        m = (k < 0 || k >= len) ? 0 : src[(size_t) i * stride + (size_t) k * step];
+                    }
+                    dst[(size_t) i * stride + (size_t) j * step] = m;
+                }
+        };
+
+        std::vector<uint8_t> pass((size_t) W * H);
+        erodeLine(solid, pass, W, H, W, 1, r);
+        erodeLine(pass, eroded, H, W, 1, W, r);
+
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+            {
+                const size_t i = (size_t) y * W + x;
+                if (!solid[i] || eroded[i]) continue;
+                bd.setPixelColour(x, y, bd.getPixelColour(x, y)
+                                            .interpolatedWith(outlineColour, outlineAlpha));
+            }
     }
 
     // --- Shadow sliver on the tube along each cap's inner edge, then the

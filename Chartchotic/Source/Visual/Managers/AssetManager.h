@@ -54,6 +54,8 @@ public:
     juce::Image* getBarWhiteEliteImage()  { return &barWhiteEliteImage; }
     juce::Image* getBarKickAccentImage()   { return &barKickAccentImage; }
     juce::Image* getBarKick2xAccentImage() { return &barKick2xAccentImage; }
+    juce::Image* getBarKickGhostImage()    { return &barKickGhostImage; }
+    juce::Image* getBarKick2xGhostImage()  { return &barKick2xGhostImage; }
     juce::Image* getBarWhiteAccentImage()  { return &barWhiteAccentImage; }
     // Elite hi-hat pedal bars, drawn on cols 10 / 11.
     juce::Image* getBarStompImage() { return &barStompImage; }
@@ -71,7 +73,7 @@ public:
     juce::Image* getCymHiHatOpenImage() { return &cymHiHatOpenImage; }
 
     // HOPO notes
-    juce::Image* getHopoBarOpenImage() { return &barWhiteImage; }   // TODO: create unique asset
+    juce::Image* getHopoBarOpenImage() { return &hopoBarOpenImage; }
     juce::Image* getHopoBarWhiteImage() { return &barWhiteImage; }  // TODO: create unique asset
     juce::Image* getHopoBlueImage() { return &hopoBlueImage; }
     juce::Image* getHopoGreenImage() { return &hopoGreenImage; }
@@ -178,12 +180,15 @@ private:
     juce::Image barKickImage;
     juce::Image barKick2xImage;
     juce::Image barOpenImage;
+    juce::Image hopoBarOpenImage;
     juce::Image barWhiteImage;
     juce::Image barKickEliteImage;      // Elite variants: thinner tube, same arc/centreline
     juce::Image barKick2xEliteImage;
     juce::Image barWhiteEliteImage;
-    juce::Image barKickAccentImage;     // Elite accent kicks: double thickness + centre line
+    juce::Image barKickAccentImage;     // Elite accent kicks: double thickness + light rim
     juce::Image barKick2xAccentImage;
+    juce::Image barKickGhostImage;      // Elite ghost kicks: darkened tube + near-black rim
+    juce::Image barKick2xGhostImage;
     juce::Image barWhiteAccentImage;
     juce::Image barStompImage;           // Elite hi-hat pedal bar, solid yellow (col 10)
     juce::Image barSplashImage;          // Elite hi-hat pedal bar, white body + gold keyline (col 11)
