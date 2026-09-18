@@ -309,6 +309,15 @@ void InteractionController::setBarMode(bool v)
 {
     if (barModeFlag == v) return;
     barModeFlag = v;
+    // Arming bar mode is picking a tool, so it takes the turn the way picking a note type or a
+    // phrase kind does. Bar mode only narrows a click down to the kick/open lane, and a phrase is
+    // written across the whole board, so the pair has nothing to do together -- setView already
+    // stands bar mode down on the way into a phrase view, and this is the same rule coming back.
+    if (v)
+    {
+        setLaneTool(false);
+        setView(EditorView::Notes);
+    }
     writeController.stateDidChange();
     if (onStateChanged) onStateChanged();
 }
