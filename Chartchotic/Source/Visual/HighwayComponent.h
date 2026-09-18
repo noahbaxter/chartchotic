@@ -180,9 +180,12 @@ private:
         // takes star power is worth as much as it is while authoring, and the lane alone does not
         // say it: the grown gem is what picks that note out of the fill it sits in.
         sceneRenderer.setShowActivation(showActivationOn);
-        // Lane mode dims the gems for the same reason a phrase view does: the lane is what you
-        // are working on, and it is drawn behind notes that would otherwise sit on top of it.
-        sceneRenderer.setPhraseDim(phraseViewActive() || laneToolShown() ? PHRASE_VIEW_GEM_DIM : 1.0f);
+        // Lane mode dims the gems because the lane is what you are working on and it is drawn
+        // behind notes that would otherwise sit on top of it. The Phrase view is not the same
+        // case: a fill or BRE drawn at phrase-view strength already reads, and dimming the notes
+        // over it only made the phrase look like it had come in front of them.
+        sceneRenderer.setPhraseDim(shownView() == EditorView::StarPower || laneToolShown()
+                                   ? PHRASE_VIEW_GEM_DIM : 1.0f);
         sceneRenderer.setPhraseViewActive(shownView() == EditorView::Phrase);
     }
 
