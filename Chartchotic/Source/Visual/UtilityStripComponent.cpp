@@ -1150,14 +1150,16 @@ void UtilityStripComponent::drawPhrases(juce::Graphics& g, const View& v) const
             g.drawFittedText(name, (int)colX, (int)bottom - m.measureRowH - m.labelLineGap,
                              (int)kindW, m.measureRowH, juce::Justification::centred, 1, 0.5f);
 
-            // The coda is what makes those markers a BRE, so it is drawn across the BRE column.
+            // The coda is what makes those markers a BRE, and it says so for the whole song, not
+            // for one column: everything from here on reads as a BRE rather than a fill. Drawn
+            // the width of the strip like a section line, in the BRE's own orange.
             if (kind == PhraseMath::Kind::Bre && coda.has_value())
             {
                 float y = (float)yForQN(*coda, v);
                 if (y >= top && y <= bottom)
                 {
                     g.setColour(UtilityColours::codaLine);
-                    g.fillRect(colX, y, kindW, m.sectionLineH);
+                    g.fillRect(0.0f, y, (float)getWidth(), m.sectionLineH);
                 }
             }
         }
