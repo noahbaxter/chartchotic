@@ -36,4 +36,21 @@ namespace GridMath
     // Written so that exactly one of same/after/before holds for any pair.
     inline bool after (double a, double b) { return a - b >= TICK; }
     inline bool before(double a, double b) { return b - a >= TICK; }
+
+    // A span that measures up to a minimum length, with that same tick of slop.
+    //
+    // Needed because MIDI_MIN_SUSTAIN_LENGTH is exactly 1/3 of a quarter note, which is exactly
+    // the spacing of a triplet. Subtracting two large QNs cannot land on 1/3 exactly, so a bare
+    // `span >= minimum` was a coin flip on the last bit: every range drawn from one triplet note
+    // to the next was liable to be refused as too short, while straight subdivisions (exact
+    // binary fractions) always passed.
+    inline bool atLeast(double span, double minimum) { return !before(span, minimum); }
+
+    // Inside [lo, hi], treating a position within a tick of either edge as inside. A note landing
+    // exactly on a range's edge belongs to it, and at triplet positions a bare <= decides that
+    // on floating-point noise.
+    inline bool within(double qn, double lo, double hi)
+    {
+        return !before(qn, lo) && !after(qn, hi);
+    }
 }

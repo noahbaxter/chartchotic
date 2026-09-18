@@ -199,7 +199,7 @@ public:
     // two ends anyone actually wants to reach in one keystroke.
     void toggleZoom()
     {
-        if (viewSpanQN >= projectEndQN() - GridMath::TICK) fitChart();
+        if (GridMath::atLeast(viewSpanQN, projectEndQN())) fitChart();
         else                                               fitProject();
     }
 
@@ -433,7 +433,8 @@ private:
         // matter of course, and a strict compare answers "gap" for a position that is drawn
         // sitting right on the block.
         for (const auto& song : songs->getSongs())
-            if (qn >= song.startQN - GridMath::TICK && qn < song.endQN) return &song;
+            // Half open: a song ends exactly where the next one starts, so the end is not inside.
+            if (!GridMath::before(qn, song.startQN) && qn < song.endQN) return &song;
 
         return nullptr;
     }
