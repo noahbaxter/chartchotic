@@ -39,6 +39,18 @@ private:
         std::vector<int> pitches;
     };
 
+    // Phrases of one kind are a set of ranges, so one drawn over another is the same phrase
+    // extended rather than a conflict. Writes the union of the requested range and everything
+    // it touches, in their place. `replacing` names a span to drop from the merge first, so a
+    // resize can shrink instead of re-absorbing the phrase it is shrinking.
+    juce::String assertSpan(PhraseMath::Kind kind, double startQN, double endQN,
+                            std::optional<double> replacing);
+
+    // Existing phrases of this kind on this part, as the merge sees them.
+    std::vector<PhraseMath::PhraseSpan> existingSpans(PhraseMath::Kind kind) const;
+    void eraseSpans(int track, PhraseMath::Kind kind,
+                    const std::vector<PhraseMath::PhraseSpan>& spans);
+
     int writerTrack() const;
     int sessionTrack() const;
     void invalidatePart();

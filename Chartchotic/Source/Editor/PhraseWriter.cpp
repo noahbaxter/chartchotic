@@ -136,25 +136,70 @@ void PhraseWriter::eraseBre()
 
 //==============================================================================
 
-juce::String PhraseWriter::create(Kind kind, double startQN, double endQN)
+std::vector<PhraseSpan> PhraseWriter::existingSpans(Kind kind) const
 {
-    if (kind == Kind::Bre) return writeBre(startQN, endQN);
+    int idx = sessionTrack();
+    auto kindPitches = pitches(kind, part);
+    if (idx < 0 || kindPitches.empty()) return {};
 
+    auto spans = rangesOf(session.getNotes(idx), kindPitches.front());
+
+    // Fill and BRE are both written on 120, so a fill must not merge with the song's BRE.
+    if (kind == Kind::Fill)
+    {
+        const auto coda = codaQN();
+        spans.erase(std::remove_if(spans.begin(), spans.end(),
+                                   [coda](const PhraseSpan& s) { return isBre(s.startQN, coda); }),
+                    spans.end());
+    }
+    return spans;
+}
+
+void PhraseWriter::eraseSpans(int track, Kind kind, const std::vector<PhraseSpan>& spans)
+{
+    // Found again before every delete: a batch write goes to the take the last lookup landed on.
+    for (const auto& span : spans)
+        for (int pitch : pitches(kind, part))
+        {
+            auto note = writer.findNote(track, span.startQN, pitch);
+            if (note.noteIndex >= 0 && GridMath::same(note.startQN, span.startQN))
+                writer.batchDeleteNote(track, note.noteIndex, span.startQN);
+        }
+}
+
+juce::String PhraseWriter::assertSpan(Kind kind, double startQN, double endQN,
+                                      std::optional<double> replacing)
+{
     int track = writerTrack();
     if (track < 0 || !writer.isAvailable()) return "No track for this part to write to";
 
-    if (pitches(kind, part).empty())
+    auto kindPitches = pitches(kind, part);
+    if (kindPitches.empty())
         return "This part has no " + juce::String(phraseLabel(kind, part)) + " phrase";
+
+    auto existing = existingSpans(kind);
+    if (replacing.has_value())
+        existing.erase(std::remove_if(existing.begin(), existing.end(),
+                                      [&replacing](const PhraseSpan& s) {
+                                          return GridMath::same(s.startQN, *replacing); }),
+                       existing.end());
+
+    const auto merged = mergeSpan({ startQN, endQN }, existing);
+    auto absorbed = spansWithin(merged, existing);
+    if (replacing.has_value()) absorbed.push_back({ *replacing, *replacing });
 
     writer.beginBatch(kind == Kind::Fill ? "Chartchotic: Add fill"
                     : kind == Kind::Solo ? "Chartchotic: Add solo"
                                          : "Chartchotic: Add star power");
 
+    eraseSpans(track, kind, absorbed);
+
     // A refused insert used to be indistinguishable from a successful one, which made a write
     // that never landed look like a rendering bug.
     bool wrote = true;
-    for (int pitch : pitches(kind, part))
-        wrote &= writer.batchInsertNote(track, startQN, endQN, PHRASE_CHANNEL, pitch, PHRASE_VELOCITY);
+    for (int pitch : kindPitches)
+        wrote &= writer.batchInsertNote(track, merged.startQN, merged.endQN,
+                                        PHRASE_CHANNEL, pitch, PHRASE_VELOCITY);
 
     writer.endBatch();
     invalidatePart();
@@ -163,26 +208,18 @@ juce::String PhraseWriter::create(Kind kind, double startQN, double endQN)
     return {};
 }
 
+juce::String PhraseWriter::create(Kind kind, double startQN, double endQN)
+{
+    if (kind == Kind::Bre) return writeBre(startQN, endQN);
+    return assertSpan(kind, startQN, endQN, std::nullopt);
+}
+
 juce::String PhraseWriter::resize(Kind kind, double startQN, double endQN)
 {
     if (kind == Kind::Bre) return writeBre(startQN, endQN);
-
-    int track = writerTrack();
-    if (track < 0 || !writer.isAvailable()) return "No track for this part to write to";
-
-    writer.beginBatch("Chartchotic: Resize phrase");
-
-    // Found again before every move: a batch write goes to the take the last lookup landed on.
-    for (int pitch : pitches(kind, part))
-    {
-        auto note = writer.findNote(track, startQN, pitch);
-        if (note.noteIndex >= 0 && GridMath::same(note.startQN, startQN))
-            writer.batchMoveNote(track, note.noteIndex, note.startQN, endQN, pitch);
-    }
-
-    writer.endBatch();
-    invalidatePart();
-    return {};
+    // The phrase being resized leaves the merge first, or dragging its end shorter would just
+    // re-absorb the span it is shrinking from and never move.
+    return assertSpan(kind, startQN, endQN, startQN);
 }
 
 void PhraseWriter::erase(Kind kind, double startQN)
