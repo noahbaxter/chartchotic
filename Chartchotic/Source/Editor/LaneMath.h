@@ -56,18 +56,16 @@ namespace LaneMath
         return GridMath::after(endQN, startQN);
     }
 
-    // One lane unless the drag was pulled sideways across columns, which is the author asking
-    // for alternation between pads (_refs/midi/drums.md:141-142). Horizontal travel is the
-    // expansion axis, the way dragging a marquee or a cursor selection widens it.
+    // Which of the two shared markers to write is PICKED, not derived. Two rounds of guessing
+    // both failed on real charts: counting the columns struck under the span made a plain roll
+    // a trill whenever a neighbouring column had a note in range, and counting how far the drag
+    // travelled sideways breaks on the case the spec calls out directly, since "tremolo lanes
+    // can be used on chords" (_refs/midi/5-fret-guitar.md:105) and a chord tremolo covers
+    // several columns while still being a tremolo. Nothing about the geometry distinguishes
+    // them; only the author knows whether the run alternates. So the write bar asks.
     //
-    // Reading it off the notes underneath instead looked clever and was wrong in practice: a
-    // plain roll that happened to have a note from a neighbouring column inside its span turned
-    // itself into a trill, with nothing the author could do about it short of moving the notes.
-    // The drag says what was meant; the notes only say where it lands.
-    inline PhraseTarget targetForDragSpan(int columnsCovered)
-    {
-        return columnsCovered >= 2 ? PhraseTarget::Lane2 : PhraseTarget::Lane1;
-    }
+    // Elite needs no such pick: it has one pitch per pad and no 1-vs-2 variant at all, so the
+    // columns a drag reaches are the whole answer there.
 
     // How many columns a marker of this kind reaches across once written, which is what the
     // preview draws and what TrackResolver reads back.

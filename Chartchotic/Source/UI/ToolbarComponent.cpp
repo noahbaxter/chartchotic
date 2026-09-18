@@ -136,6 +136,23 @@ void ToolbarComponent::initTopBar()
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
+    writeSubToolbar.onLaneTypeChanged = [this](PhraseTarget t) {
+        // Over a selection, picking a kind retypes it, the way picking a note type does. It
+        // never toggles: the pill turns a lane on and off, these say what kind it is.
+        if (interactionController.subMode() == SubMode::Edit
+            && interactionController.hasEditSelection())
+        {
+            interactionController.setLaneTypeOnSelection(t);
+            if (interactionController.onStateChanged) interactionController.onStateChanged();
+            return;
+        }
+
+        interactionController.setLaneType(t);
+        interactionController.setLaneTool(true);
+        if (onLaneToolActive) onLaneToolActive(true);
+        if (interactionController.onStateChanged) interactionController.onStateChanged();
+    };
+
     writeSubToolbar.onStepDivisionChanged = [this](int division) {
         interactionController.setStepDivision(division);
         if (interactionController.onStateChanged) interactionController.onStateChanged();

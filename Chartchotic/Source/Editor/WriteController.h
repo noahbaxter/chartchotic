@@ -14,6 +14,10 @@ public:
     EditorView   view()            const { return currentView; }
     bool         laneTool()        const { return laneToolFlag; }
     PhraseMath::Kind phraseKind()  const { return currentPhraseKind; }
+    // Which of the two shared lane markers a write uses. Picked rather than derived; see
+    // LaneMath.h for why guessing it does not work. Inert on elite, which has no variant.
+    PhraseTarget laneType()        const { return currentLaneType; }
+    void setLaneType(PhraseTarget t);
 
     // Everything worth preserving about a copied note. velocity carries drum
     // dynamics, markerMask carries note type (cymbal/tom, HOPO/strum/tap) as
@@ -47,6 +51,9 @@ public:
     void applyLaneToSelection(const std::vector<SelectedNote>& notes);
     // Whether that selection already sits under a lane, so the LANE control can show it lit.
     bool selectionHasLane(const std::vector<SelectedNote>& notes) const;
+    // Picks the kind and writes it over the selection, retyping any lane already there. Never
+    // removes one: that is the LANE toggle's job.
+    void setLaneTypeOnSelection(const std::vector<SelectedNote>& notes, PhraseTarget target);
     void setPhraseKind(PhraseMath::Kind k);
 
     // What a phrase gesture could not do, for the footer to say. Cleared when read.
@@ -108,6 +115,7 @@ private:
     void handlePhraseUp();
     void clearPhraseDrag();
     void recomputePhrasePreview();
+    PhraseTarget currentLaneType     = PhraseTarget::Lane1;
     bool         writeModeActiveFlag = false;
 
     //==========================================================================

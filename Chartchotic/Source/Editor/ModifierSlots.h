@@ -25,6 +25,7 @@ enum class ModifierGroup
     Cymbal,    // bool
     Flam,      // bool
     Force,     // GuitarForce: None / Hopo / Strum / Tap
+    LaneType,  // PhraseTarget: Lane1 / Lane2
 };
 
 struct ModifierSlot
@@ -43,10 +44,20 @@ struct ModifierSlot
 // leftover keys stay inert rather than doing something surprising.
 inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type, bool laneTool)
 {
-    // The lane tool has nothing to pick. Which lane pitch a drag writes follows from the
-    // drag itself: the column on elite, the columns struck underneath everywhere else. See
-    // LaneMath.h. Offering a 1-lane/2-lane slot here let the toolbar contradict the notes.
-    if (laneTool) return {};
+    // The lane tool picks a kind instead of a note type, on instruments that have two. Elite
+    // has one roll-lane pitch per pad and no variant, so it gets no slots and its columns come
+    // from the drag. See LaneMath.h for why this is picked rather than derived.
+    if (laneTool)
+    {
+        const auto* cfg = getAuthoringConfig(type);
+        if (cfg == nullptr || cfg->phrasePitch == nullptr) return {};
+        if (cfg->phrasePitch(PhraseTarget::Lane2, SkillLevel::EXPERT, 0) < 0) return {};
+
+        return {
+            { ModifierGroup::LaneType, (int)PhraseTarget::Lane1, "one lane" },
+            { ModifierGroup::LaneType, (int)PhraseTarget::Lane2, "two lanes" },
+        };
+    }
 
     switch (type)
     {

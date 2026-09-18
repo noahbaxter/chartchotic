@@ -322,6 +322,13 @@ void WriteController::setLaneTool(bool on)
     stateDidChange();
 }
 
+void WriteController::setLaneType(PhraseTarget t)
+{
+    if (currentLaneType == t) return;
+    currentLaneType = t;
+    stateDidChange();
+}
+
 void WriteController::setStepDivision(int division)
 {
     int clamped = juce::jlimit(1, 64, division);
@@ -621,9 +628,9 @@ std::vector<int> WriteController::laneDrawColumns(double startQN, double endQN,
 
     auto columns = laneColumnsUnder(startQN, endQN, spread);
 
-    // A marker only reaches as far as the drag asked for: a 1-lane roll draws on the first
-    // column struck even where three are struck under it.
-    const size_t reach = LaneMath::reachOf(LaneMath::targetForDragSpan(spread.count()));
+    // A marker only reaches as far as the kind that was picked: a 1-lane roll draws on the
+    // first column struck even where three are struck under it.
+    const size_t reach = LaneMath::reachOf(currentLaneType);
     if (columns.size() > reach) columns.resize(reach);
 
     // Nothing underneath draws nothing: the marker has nowhere to land, and a preview in the
@@ -650,10 +657,9 @@ std::vector<int> WriteController::laneWritePitches(double startQN, double endQN,
         return pitches;
     }
 
-    // Shared: one lane until the drag was pulled sideways. The marker has no column of its own,
-    // so the spread says only how many columns it should reach once the game places it.
-    auto target = LaneMath::targetForDragSpan(spread.count());
-    int pitch = cfg->phrasePitch(target, currentActiveSkill, 0);
+    // Shared: whichever marker the bar has picked. Nothing about the drag can tell a tremolo
+    // from a trill, so nothing about the drag decides it.
+    int pitch = cfg->phrasePitch(currentLaneType, currentActiveSkill, 0);
     return pitch >= 0 ? std::vector<int>{ pitch } : std::vector<int>{};
 }
 
@@ -895,6 +901,52 @@ bool WriteController::selectionHasLane(const std::vector<SelectedNote>& notes) c
 {
     const auto sel = laneSelectionRange(notes);
     return sel.has_value() && allSelectedUnderLane(notes, lanesInRange(*sel));
+}
+
+// Picking a kind always writes it and never takes one off: the type buttons say what a lane is,
+// the way the note-type buttons say what a note is, while the LANE pill is what turns one on and
+// off. A lane already in range is retyped in place rather than left on the old marker.
+void WriteController::setLaneTypeOnSelection(const std::vector<SelectedNote>& notes,
+                                             PhraseTarget target)
+{
+    setLaneType(target);
+
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    const auto sel = laneSelectionRange(notes);
+    if (!sel.has_value())
+    {
+        if (onPhraseRefused) onPhraseRefused("Those notes cannot carry a lane");
+        return;
+    }
+
+    const auto present = lanesInRange(*sel);
+    if (present.empty())
+    {
+        commitLane(trackIdx, resolveLaneWrite(sel->lo, sel->hi, sel->spread), sel->spread);
+        return;
+    }
+
+    // Everything the selection and the existing lanes cover between them, rewritten on the kind
+    // just picked.
+    double lo = sel->lo, hi = sel->hi;
+    for (const auto& l : present)
+    {
+        lo = std::min(lo, l.span.startQN);
+        hi = std::max(hi, l.span.endQN);
+    }
+
+    auto pitches = laneWritePitches(lo, hi, sel->spread);
+    if (pitches.empty()) return;
+
+    beginBatch("Chartchotic: Set lane type");
+    for (const auto& l : present) eraseLanePlacement(trackIdx, l);
+    for (int pitch : pitches) createPhraseNote(trackIdx, lo, hi - lo, pitch);
+    endBatch();
+
+    if (onStateChanged) onStateChanged();
+    if (onChartWritten) onChartWritten();
 }
 
 // A lane over a set of selected notes, applied the way a note type is, in three states. With
