@@ -1,7 +1,10 @@
 #include "WriteController.h"
+#include "LaneMath.h"
 #include "../Midi/Utils/MidiConstants.h"
 #include "../Midi/Utils/GridMath.h"
+#include <algorithm>
 #include <limits>
+#include <map>
 
 namespace
 {
@@ -108,10 +111,12 @@ void WriteController::stateDidChange()
 void WriteController::recomputePhraseHover()
 {
     overlayState.phraseHover = {};
+    if (!laneDragActive) overlayState.laneHighlights.clear();
 
-    // The lane tool writes through the phrase path, so it previews through it too: hovering with
+    // The lane tool hovers through the phrase path too, rather than the gem path: hovering with
     // it on showed the gem a click would place, which is not what a click places.
-    if (!(phraseViewActive() || laneToolFlag) || phraseDragActive) return;
+    if (!(phraseViewActive() || laneToolFlag))            return;
+    if (phraseDragActive || laneDragActive)               return;
     if (!lastPointValid || !writeModeActive())            return;
     if (isPlaying() || !lastPoint.onHighway)              return;
 
@@ -120,8 +125,29 @@ void WriteController::recomputePhraseHover()
 
     const auto kind = kindForView();
     const double step = stepSpacingQN(currentStepDivision, currentTuplet);
-    overlayState.phraseHover = { true, qn, qn + step,
-                                 laneToolFlag ? OverlayState::PREVIEW_KIND_LANE : (int)kind };
+
+    // The lane tool hovers the exact lane a click would write, resolved the same way the drag
+    // is: a hover is just a gesture whose ends are both the cursor. So what is on screen is
+    // always placeable, and a block at the cursor never advertises a lane that cannot be made.
+    if (laneToolFlag)
+    {
+        // One column: a hover has not been pulled anywhere, so it offers the single lane that
+        // is the default, and dragging sideways is what widens it from there.
+        const auto spread = oneColumn(lastPoint.laneIndex);
+        if (auto hover = resolveLaneWrite(lastPoint.rawProjectQN, lastPoint.rawProjectQN, spread))
+        {
+            overlayState.phraseHover = {
+                true, hover->startQN, hover->endQN, OverlayState::PREVIEW_KIND_LANE,
+                laneDrawColumns(hover->startQN, hover->endQN, spread) };
+
+            for (const auto& n : laneNotesIn(hover->startQN, hover->endQN, spread))
+                overlayState.laneHighlights.push_back({ n.column, n.qn });
+        }
+    }
+    else
+    {
+        overlayState.phraseHover = { true, qn, qn + step, (int)kind, {} };
+    }
 
     // Borrows the ghost cursor's label, the way the alternating-kick hint does, with no lane so
     // no gem is drawn with it.
@@ -296,13 +322,6 @@ void WriteController::setLaneTool(bool on)
     stateDidChange();
 }
 
-void WriteController::setPhraseTarget(PhraseTarget t)
-{
-    if (currentPhraseTarget == t) return;
-    currentPhraseTarget = t;
-    stateDidChange();
-}
-
 void WriteController::setStepDivision(int division)
 {
     int clamped = juce::jlimit(1, 64, division);
@@ -471,13 +490,8 @@ void WriteController::handlePhraseDrag(const AuthoringPoint& p)
 {
     if (!phraseDragActive) return;
 
-    // Phrases of one kind may not overlap, so the end stops at the next one along.
-    std::vector<PhraseMath::PhraseSpan> others;
-    for (const auto& s : phrasesOnPart())
-        if (!(phraseDragResizing && GridMath::same(s.startQN, phraseDragStartQN)))
-            others.push_back(s);
-
-    phraseDragEndQN = PhraseMath::clampEnd(phraseDragStartQN, snapQN(p.rawProjectQN), others);
+    // Not held short of the neighbours any more: a drag run into one merges with it on release.
+    phraseDragEndQN = snapQN(p.rawProjectQN);
     recomputePhrasePreview();
 }
 
@@ -492,7 +506,7 @@ void WriteController::handlePhraseUp()
     clearPhraseDrag();
 
     if (writer == nullptr || instrumentSession == nullptr) return;
-    if (endQN - startQN < double(MIDI_MIN_SUSTAIN_LENGTH)) return;
+    if (!GridMath::atLeast(endQN - startQN, double(MIDI_MIN_SUSTAIN_LENGTH))) return;
 
     PhraseWriter phraseWriter(*writer, *instrumentSession, activePart());
     if (resizing)
@@ -533,6 +547,381 @@ void WriteController::recomputePhrasePreview()
 }
 
 //==============================================================================
+// Lanes (roll / trill markers, the lane tool inside the Notes view)
+//
+// LaneMath.h holds the rules these follow and the spec lines they come from. The short of
+// it: elite carries a lane's column in its pitch, everyone else shares one pair of pitches
+// whose columns the game reads off the notes underneath.
+
+std::vector<WriteController::LaneNote> WriteController::laneCandidateNotes(LaneSpread spread) const
+{
+    const auto* cfg = authoring();
+    if (cfg == nullptr || instrumentSession == nullptr) return {};
+
+    int idx = resolveSessionTrackIdx();
+    if (idx < 0) return {};
+
+    // Pitch -> column for this instrument and skill, so the session's own notes can be read
+    // without a second copy of the per-instrument mapping.
+    std::map<int, int> columnOf;
+    for (int lane = 0; lane <= maxLane(); ++lane)
+    {
+        // Elite's lanes belong to the columns the drag reached, kicks included: it has a kick
+        // roll lane of its own. The shared markers take the whole board but leave kicks out,
+        // because the game leaves them out when working out where a marker lands.
+        if (cfg->lanesPerColumn && !spread.covers(lane)) continue;
+        int pitch = resolvePitch(lane);
+        if (pitch < 0) continue;
+        if (!cfg->lanesPerColumn && cfg->isKickPitch((uint)pitch, currentActiveSkill)) continue;
+        columnOf.emplace(pitch, lane);
+    }
+
+    std::vector<LaneNote> notes;
+    for (const auto& n : instrumentSession->getNotes(idx))
+    {
+        auto it = columnOf.find((int)n.pitch);
+        if (it != columnOf.end()) notes.push_back({ n.startPPQ.toDouble(), it->second });
+    }
+    std::sort(notes.begin(), notes.end(),
+              [](const LaneNote& a, const LaneNote& b) { return a.qn < b.qn; });
+    return notes;
+}
+
+std::vector<int> WriteController::laneColumnsUnder(double startQN, double endQN,
+                                                   LaneSpread spread) const
+{
+    // First-struck order, because a 1- or 2-lane marker reaches the first one or two columns
+    // played under it, not the lowest-numbered ones. TrackResolver::resolveLanes reads them
+    // back the same way.
+    std::vector<int> columns;
+    for (const auto& n : laneCandidateNotes(spread))
+    {
+        if (!GridMath::within(n.qn, startQN, endQN)) continue;
+        if (std::find(columns.begin(), columns.end(), n.column) == columns.end())
+            columns.push_back(n.column);
+    }
+    return columns;
+}
+
+std::vector<int> WriteController::laneDrawColumns(double startQN, double endQN,
+                                                  LaneSpread spread) const
+{
+    const auto* cfg = authoring();
+    if (cfg == nullptr || !spread.valid()) return {};
+
+    // Elite's lanes carry their own columns, so a drag pulled sideways draws one per column it
+    // reached. Each still needs notes of its own to be a roll over.
+    if (cfg->lanesPerColumn)
+    {
+        std::vector<int> columns;
+        for (int c = spread.lo; c <= spread.hi; ++c)
+            if (!laneNotesIn(startQN, endQN, oneColumn(c)).empty()) columns.push_back(c);
+        return columns;
+    }
+
+    auto columns = laneColumnsUnder(startQN, endQN, spread);
+
+    // A marker only reaches as far as the drag asked for: a 1-lane roll draws on the first
+    // column struck even where three are struck under it.
+    const size_t reach = LaneMath::reachOf(LaneMath::targetForDragSpan(spread.count()));
+    if (columns.size() > reach) columns.resize(reach);
+
+    // Nothing underneath draws nothing: the marker has nowhere to land, and a preview in the
+    // dragged column would advertise a lane that cannot be written there.
+    return columns;
+}
+
+std::vector<int> WriteController::laneWritePitches(double startQN, double endQN,
+                                                   LaneSpread spread) const
+{
+    const auto* cfg = authoring();
+    if (cfg == nullptr || cfg->phrasePitch == nullptr || !spread.valid()) return {};
+
+    // Elite: one roll-lane pitch per column the drag reached, which is how it carries the
+    // arbitrary combinations of lanes its spec allows. Only columns with notes under them.
+    if (cfg->lanesPerColumn)
+    {
+        std::vector<int> pitches;
+        for (int c : laneDrawColumns(startQN, endQN, spread))
+        {
+            int pitch = cfg->phrasePitch(PhraseTarget::Lane1, currentActiveSkill, c);
+            if (pitch >= 0) pitches.push_back(pitch);
+        }
+        return pitches;
+    }
+
+    // Shared: one lane until the drag was pulled sideways. The marker has no column of its own,
+    // so the spread says only how many columns it should reach once the game places it.
+    auto target = LaneMath::targetForDragSpan(spread.count());
+    int pitch = cfg->phrasePitch(target, currentActiveSkill, 0);
+    return pitch >= 0 ? std::vector<int>{ pitch } : std::vector<int>{};
+}
+
+// The note nearest a point in time, in either direction. Snapping only forwards had a cursor
+// sitting just past a note jump to the next one along however far away that was.
+std::optional<WriteController::LaneNote> WriteController::nearestLaneNote(double rawQN,
+                                                                         LaneSpread spread) const
+{
+    std::optional<LaneNote> best;
+    double bestDistance = 0.0;
+    for (const auto& n : laneCandidateNotes(spread))
+    {
+        const double distance = std::abs(n.qn - rawQN);
+        if (!best.has_value() || distance < bestDistance) { best = n; bestDistance = distance; }
+    }
+    return best;
+}
+
+// A lane needs two notes to have any length. Given one, reach to its neighbour so a click
+// always has something to place: forwards by preference, since a lane usually opens on the note
+// under the cursor and runs on from it, and backwards at the end of a track where there is
+// nothing ahead to reach.
+std::optional<PhraseMath::PhraseSpan> WriteController::laneAround(double qn,
+                                                                  LaneSpread spread) const
+{
+    const auto notes = laneCandidateNotes(spread);
+
+    for (const auto& n : notes)
+        if (GridMath::after(n.qn, qn)) return PhraseMath::PhraseSpan{ qn, n.qn };
+
+    for (auto it = notes.rbegin(); it != notes.rend(); ++it)
+        if (GridMath::before(it->qn, qn)) return PhraseMath::PhraseSpan{ it->qn, qn };
+
+    return std::nullopt;
+}
+
+// The notes a lane over this range captures, for the highlight that shows what it will apply to.
+std::vector<WriteController::LaneNote> WriteController::laneNotesIn(double startQN, double endQN,
+                                                                   LaneSpread spread) const
+{
+    std::vector<LaneNote> hit;
+    for (const auto& n : laneCandidateNotes(spread))
+        if (GridMath::within(n.qn, startQN, endQN)) hit.push_back(n);
+    return hit;
+}
+
+// The lane a gesture would commit: each end snapped to the note nearest it, then merged with
+// every lane it runs into. Hover, drag preview and commit all come through here, a hover being
+// nothing more than a gesture whose two ends are the same point. So what is drawn is always
+// exactly what lands, and anything visible can be placed with a click.
+std::optional<PhraseMath::PhraseSpan> WriteController::resolveLaneWrite(double rawStartQN,
+                                                                       double rawEndQN,
+                                                                       LaneSpread spread) const
+{
+    const auto first = nearestLaneNote(std::min(rawStartQN, rawEndQN), spread);
+    const auto last  = nearestLaneNote(std::max(rawStartQN, rawEndQN), spread);
+    if (!first.has_value() || !last.has_value()) return std::nullopt;
+
+    PhraseMath::PhraseSpan span { std::min(first->qn, last->qn), std::max(first->qn, last->qn) };
+
+    // A click, or a drag whose ends both snapped to the same note. Reaching to the neighbour is
+    // what makes a click place the lane it was showing rather than nothing at all.
+    if (!GridMath::after(span.endQN, span.startQN))
+    {
+        const auto grown = laneAround(span.startQN, spread);
+        if (!grown.has_value()) return std::nullopt;
+        span = *grown;
+    }
+
+    const auto merged = PhraseMath::mergeSpan(span, laneSpansOnPart(spread));
+    if (!LaneMath::isWritableLength(merged.startQN, merged.endQN)) return std::nullopt;
+    return merged;
+}
+
+std::vector<int> WriteController::laneCandidatePitches(LaneSpread spread) const
+{
+    const auto* cfg = authoring();
+    if (cfg == nullptr || cfg->phrasePitch == nullptr) return {};
+
+    // On elite a lane belongs to a column, so only the columns reached are candidates. On the
+    // shared markers there is no column to narrow by, so both pitches are.
+    if (cfg->lanesPerColumn)
+    {
+        std::vector<int> pitches;
+        if (!spread.valid()) return pitches;
+        for (int c = spread.lo; c <= spread.hi; ++c)
+        {
+            int pitch = cfg->phrasePitch(PhraseTarget::Lane1, currentActiveSkill, c);
+            if (pitch >= 0) pitches.push_back(pitch);
+        }
+        return pitches;
+    }
+
+    std::vector<int> pitches;
+    for (auto target : { PhraseTarget::Lane1, PhraseTarget::Lane2 })
+    {
+        int pitch = cfg->phrasePitch(target, currentActiveSkill, 0);
+        if (pitch >= 0) pitches.push_back(pitch);
+    }
+    return pitches;
+}
+
+// Drawn free of the grid and reconciled on release, so the range you see while dragging is the
+// one the cursor is describing rather than the one the last grid line allows. Nothing is
+// written on the way down: a lane is a range, and a zero-length one is not a thing.
+void WriteController::handleBeginLane(const AuthoringPoint& p, int trackIdx)
+{
+    laneDragActive     = true;
+    laneDragTrackIdx   = trackIdx;
+    laneDragColumnLo   = p.laneIndex;
+    laneDragColumnHi   = p.laneIndex;
+    laneDragRawStartQN = p.rawProjectQN;
+    laneDragRawEndQN   = p.rawProjectQN;
+    recomputeLanePreview();
+}
+
+void WriteController::handleUpdateLane(const AuthoringPoint& p)
+{
+    if (!laneDragActive) return;
+    laneDragRawEndQN = p.rawProjectQN;
+
+    // Widest sideways reach of the whole drag, not wherever the cursor sits now: pulling out to
+    // a second column and drifting back should not quietly drop the lane you just asked for.
+    if (p.laneIndex >= 0)
+    {
+        if (laneDragColumnLo < 0) { laneDragColumnLo = laneDragColumnHi = p.laneIndex; }
+        laneDragColumnLo = std::min(laneDragColumnLo, p.laneIndex);
+        laneDragColumnHi = std::max(laneDragColumnHi, p.laneIndex);
+    }
+
+    recomputeLanePreview();
+}
+
+void WriteController::handleCommitLane()
+{
+    if (!laneDragActive) return;
+
+    // The same resolve the preview drew from, so what lands is the shape that was on screen.
+    const auto spread  = laneDragSpread();
+    const auto merged  = resolveLaneWrite(laneDragRawStartQN, laneDragRawEndQN, spread);
+    const int trackIdx = laneDragTrackIdx;
+
+    clearLaneDrag();
+
+    if (trackIdx < 0) return;
+
+    // A lane is a marker over a run of notes, so with no run under the drag there is nothing to
+    // write. Said out loud rather than silently dropped: a lane that just fails to appear reads
+    // as a broken tool.
+    if (!merged.has_value())
+    {
+        if (onPhraseRefused) onPhraseRefused("A lane needs notes to sit on");
+        return;
+    }
+
+    // Lanes merge with the ones they run into, so a drag that extends an existing lane is the
+    // whole union, which resolveLaneWrite already folded in. The absorbed spans go before the
+    // merged one is written in their place. On the shared markers both pitches count as the
+    // same lane: they are variants of it, and leaving a tremolo stacked under a trill is never
+    // what redrawing over one meant.
+    const auto absorbed = PhraseMath::spansWithin(*merged, laneSpansOnPart(spread));
+
+    // One lane unless the drag was pulled sideways, which is what asks for a trill on the shared
+    // markers and for a lane per pad on elite.
+    auto pitches = laneWritePitches(merged->startQN, merged->endQN, spread);
+    if (pitches.empty()) return;
+
+    beginBatch("Chartchotic: Lane");
+
+    for (const auto& span : absorbed)
+        for (int pitch : laneCandidatePitches(spread))
+        {
+            auto note = findNote(trackIdx, span.startQN, pitch);
+            if (note.noteIndex >= 0 && GridMath::same(note.startQN, span.startQN))
+                eraseMarkerNote(trackIdx, span.startQN, pitch, -1);
+        }
+
+    for (int pitch : pitches)
+        createPhraseNote(trackIdx, merged->startQN, merged->endQN - merged->startQN, pitch);
+    endBatch();
+
+    if (onStateChanged) onStateChanged();
+    if (onChartWritten) onChartWritten();
+}
+
+void WriteController::clearLaneDrag()
+{
+    laneDragActive   = false;
+    laneDragTrackIdx = -1;
+    laneDragColumnLo = -1;
+    laneDragColumnHi = -1;
+    overlayState.phrasePreview = {};
+    recomputePhraseHover();
+    if (onStateChanged) onStateChanged();
+}
+
+void WriteController::recomputeLanePreview()
+{
+    // Snapped as the drag moves rather than only on release. Edges land on note starts, so a
+    // raw range would draw a shape that is never what gets written; this way the only thing
+    // ever on screen is a lane that could really land, merge with its neighbours and all. A
+    // drag that covers no run of notes draws nothing, which is exactly what it would write.
+    const auto spread = laneDragSpread();
+    const auto lane = laneDragActive ? resolveLaneWrite(laneDragRawStartQN, laneDragRawEndQN,
+                                                        spread)
+                                     : std::nullopt;
+
+    overlayState.phrasePreview = {
+        lane.has_value(),
+        lane ? lane->startQN : 0.0,
+        lane ? lane->endQN : 0.0,
+        OverlayState::PREVIEW_KIND_LANE,
+        lane ? laneDrawColumns(lane->startQN, lane->endQN, spread) : std::vector<int>{} };
+
+    overlayState.laneHighlights.clear();
+    if (lane)
+        for (const auto& n : laneNotesIn(lane->startQN, lane->endQN, spread))
+            overlayState.laneHighlights.push_back({ n.column, n.qn });
+
+    // Suppresses itself while the drag owns the range, so the two never draw at once.
+    recomputePhraseHover();
+    if (onStateChanged) onStateChanged();
+}
+
+// Every lane already on the part that a new one in this column could merge with.
+std::vector<PhraseMath::PhraseSpan> WriteController::laneSpansOnPart(LaneSpread spread) const
+{
+    if (instrumentSession == nullptr) return {};
+    int idx = resolveSessionTrackIdx();
+    if (idx < 0) return {};
+
+    std::vector<PhraseMath::PhraseSpan> spans;
+    for (int pitch : laneCandidatePitches(spread))
+        for (const auto& s : PhraseMath::rangesOf(instrumentSession->getNotes(idx), pitch))
+            spans.push_back(s);
+
+    std::sort(spans.begin(), spans.end(),
+              [](const PhraseMath::PhraseSpan& a, const PhraseMath::PhraseSpan& b) {
+                  return a.startQN < b.startQN; });
+    return spans;
+}
+
+void WriteController::eraseLaneAt(const AuthoringPoint& p, int trackIdx)
+{
+    if (instrumentSession == nullptr) return;
+    int idx = resolveSessionTrackIdx();
+    if (idx < 0) return;
+
+    const auto& notes = instrumentSession->getNotes(idx);
+    bool erased = false;
+
+    for (int pitch : laneCandidatePitches(oneColumn(p.laneIndex)))
+    {
+        auto spans = PhraseMath::rangesOf(notes, pitch);
+        int hit = PhraseMath::phraseAt(spans, p.rawProjectQN);
+        if (hit < 0) continue;
+
+        if (!erased) { beginBatch("Chartchotic: Erase lane"); erased = true; }
+        eraseMarkerNote(trackIdx, spans[(size_t)hit].startQN, pitch, -1);
+    }
+
+    if (!erased) return;
+    endBatch();
+    if (onStateChanged) onStateChanged();
+    if (onChartWritten) onChartWritten();
+}
+
+//==============================================================================
 
 void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
@@ -549,11 +938,21 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
     int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
 
+    auto cmd = commandMapper.resolve(currentSubMode, EventType::Down, ctx);
+
+    // The lane tool writes a range on the track rather than a note in a lane, so it takes the
+    // gesture before anything resolves a pitch to place. Right removes the lane under the
+    // cursor; a right drag does nothing further, since there is no sweep to make.
+    if (laneToolFlag)
+    {
+        if      (cmd == WriteCommand::BeginSustain) handleBeginLane(p, trackIdx);
+        else if (cmd == WriteCommand::BeginErase)   eraseLaneAt(p, trackIdx);
+        return;
+    }
+
     bool drums = isDrums();
     int  pitch = resolveActivePitch(p.laneIndex);
     if (pitch < 0) return;
-
-    auto cmd = commandMapper.resolve(currentSubMode, EventType::Down, ctx);
 
     switch (cmd)
     {
@@ -571,6 +970,7 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
 
     sustainPendingClick = false;
     if (phraseDragActive)    { handlePhraseDrag(p);     return; }
+    if (laneDragActive)      { handleUpdateLane(p);     return; }
     if (sustainDragActive)   { handleUpdateSustain(p);  return; }
     if (paintDragActive)     { handleContinuePaint(p);  return; }
     if (eraseDragActive)     { handleContinueErase(p);  return; }
@@ -580,6 +980,7 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
     if (phraseDragActive) { handlePhraseUp(); return; }
+    if (laneDragActive)   { handleCommitLane(); return; }
 
     if (sustainPendingClick)
     {
@@ -657,12 +1058,6 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 {
     double clickQN = snapQN(p.rawProjectQN);
 
-    if (laneToolFlag)
-    {
-        handleBeginPhrase(p, trackIdx, clickQN);
-        return;
-    }
-
     if (!stamp.empty())
     {
         beginBatch("Chartchotic: Stamp notes");
@@ -720,25 +1115,11 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
     sustainPendingClickQN = clickQN;
 }
 
-// A phrase is a bare range: no gem to place on the way down, and no markers to write.
-// Nothing is written until the drag commits, since a zero-length phrase is not a thing.
-void WriteController::handleBeginPhrase(const AuthoringPoint& p, int trackIdx, double clickQN)
-{
-    const auto* cfg = authoring();
-    if (cfg == nullptr || cfg->phrasePitch == nullptr) return;
-
-    int phrasePitch = cfg->phrasePitch(currentPhraseTarget, currentActiveSkill, p.laneIndex);
-    if (phrasePitch < 0) return;
-
-    beginBatch("Chartchotic: Phrase");
-    enterSustainDrag(trackIdx, clickQN, p.laneIndex, {{phrasePitch}, false});
-}
-
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
 {
     double dragQN  = snapQN(p.rawProjectQN);
 
-    if (dragQN - sustainDragStartQN < double(MIDI_MIN_SUSTAIN_LENGTH))
+    if (!GridMath::atLeast(dragQN - sustainDragStartQN, double(MIDI_MIN_SUSTAIN_LENGTH)))
     {
         overlayState.drawPreviewVisible = false;
         overlayState.drawPreviewNotes.clear();
@@ -770,16 +1151,9 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
 {
     double endQN = snapQN(p.rawProjectQN);
 
-    if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
+    if (GridMath::atLeast(endQN - sustainDragStartQN, double(MIDI_MIN_SUSTAIN_LENGTH)))
     {
-        if (laneToolFlag)
-        {
-            // Created rather than chain-extended: a phrase has no gem under it to extend.
-            for (int pitch : sustainDragTarget.pitches)
-                createPhraseNote(sustainDragTrackIdx, sustainDragStartQN,
-                                 endQN - sustainDragStartQN, pitch);
-        }
-        else if (!stamp.empty())
+        if (!stamp.empty())
         {
             bool drums = isDrums();
             for (const auto& sn : stamp)

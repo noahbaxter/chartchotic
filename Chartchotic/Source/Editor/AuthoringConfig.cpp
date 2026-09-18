@@ -84,7 +84,7 @@ namespace
     //==========================================================================
 
     const AuthoringConfig guitarFiveFret = {
-        5, 5, -1, false, false,
+        5, 5, -1, false, false, false,
         &guitarLaneToPitch,
         &sharedPhrasePitch,
         &guitarNoKick,
@@ -92,7 +92,7 @@ namespace
     };
 
     const AuthoringConfig drumsFourLane = {
-        4, DRUM_KICK_2X_COLUMN, DRUM_KICK_2X_COLUMN, true, false,
+        4, DRUM_KICK_2X_COLUMN, DRUM_KICK_2X_COLUMN, true, false, false,
         &drumLaneToPitch,
         &sharedPhrasePitch,
         &drumIsKickPitch,
@@ -100,7 +100,7 @@ namespace
     };
 
     const AuthoringConfig eliteDrums = {
-        8, ELITE_KICK_2X_COLUMN, ELITE_KICK_2X_COLUMN, false, true,
+        8, ELITE_KICK_2X_COLUMN, ELITE_KICK_2X_COLUMN, false, true, true,
         &eliteLaneToPitch,
         &elitePhrasePitch,
         &InstrumentMapper::isEliteDrumKick,

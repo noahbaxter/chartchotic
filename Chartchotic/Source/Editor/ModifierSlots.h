@@ -25,7 +25,6 @@ enum class ModifierGroup
     Cymbal,    // bool
     Flam,      // bool
     Force,     // GuitarForce: None / Hopo / Strum / Tap
-    Phrase,    // PhraseTarget: Lane1 / Lane2
 };
 
 struct ModifierSlot
@@ -42,29 +41,12 @@ struct ModifierSlot
 //
 // An instrument with fewer than five slots returns a shorter list, and the
 // leftover keys stay inert rather than doing something surprising.
-// The phrase layer's slots come from the instrument's phrase table rather than a switch, so
-// an instrument without a given phrase simply has no slot for it.
-inline std::vector<ModifierSlot> phraseSlotsFor(RenderType type)
-{
-    const auto* cfg = getAuthoringConfig(type);
-    if (cfg == nullptr || cfg->phrasePitch == nullptr) return {};
-
-    // Lane pitch is probed on lane 0, which every authorable instrument has.
-    const struct { PhraseTarget target; const char* label; } candidates[] = {
-        { PhraseTarget::Lane1, "lane" },
-        { PhraseTarget::Lane2, "trill" },
-    };
-
-    std::vector<ModifierSlot> slots;
-    for (const auto& c : candidates)
-        if (cfg->phrasePitch(c.target, SkillLevel::EXPERT, 0) >= 0)
-            slots.push_back({ ModifierGroup::Phrase, (int)c.target, c.label });
-    return slots;
-}
-
 inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type, bool laneTool)
 {
-    if (laneTool) return phraseSlotsFor(type);
+    // The lane tool has nothing to pick. Which lane pitch a drag writes follows from the
+    // drag itself: the column on elite, the columns struck underneath everywhere else. See
+    // LaneMath.h. Offering a 1-lane/2-lane slot here let the toolbar contradict the notes.
+    if (laneTool) return {};
 
     switch (type)
     {
