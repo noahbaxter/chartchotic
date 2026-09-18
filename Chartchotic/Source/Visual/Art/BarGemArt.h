@@ -17,6 +17,7 @@
 
 #include <JuceHeader.h>
 #include "../Utils/LaneColours.h"
+#include "../Geometry/PositionConstants.h"
 
 namespace GemArt
 {
@@ -81,5 +82,31 @@ namespace GemArt
     // is the bar height in content px; `colour` is the flat fill (grey + per-subdivision alpha);
     // `arch` bows the ends down (centre rises) by that many px. Canvas is kGridlineWidth wide.
     constexpr int kGridlineWidth = 2496;
+    constexpr float kGridlineMargin = 89.0f;    // canvas px either side of the bar, matching the old PNGs
+    constexpr float kGridlineTopPad = 12.0f;    // headroom above the centre so the bar never clips row 0
+    constexpr float kGridlineBottomPad = 12.0f;
+    constexpr float kGridlineMeasureThickness = 57.0f;
+    constexpr float kGridlineHalfBeatThickness = 33.0f;
     juce::Image bakeGridline(float thickness, juce::Colour colour, float arch);
+
+    // Full-board parabola amplitude (peak-to-edge) in bake px: width * |curvature|, matching
+    // getCurvedImage's arcHeight = srcW * curv over the fretboard span.
+    inline float gridlineArch()
+    {
+        return (float) kGridlineWidth * std::abs(PositionConstants::NOTE_CURVATURE_DRUMS);
+    }
+
+    inline int gridlineCanvasHeight(float thickness, float arch)
+    {
+        return (int) std::ceil(kGridlineTopPad + thickness + std::abs(arch) + kGridlineBottomPad);
+    }
+
+    // The bar's centreline in canvas px at canvas x. Anything that has to meet a gridline
+    // exactly, like a phrase fill, traces this rather than guessing at the bow.
+    inline float gridlineCentreY(float canvasX, float thickness, float arch)
+    {
+        const float half = ((float) kGridlineWidth - 2.0f * kGridlineMargin) * 0.5f;
+        const float t = (canvasX - (float) kGridlineWidth * 0.5f) / half;
+        return kGridlineTopPad + thickness * 0.5f + arch * t * t;
+    }
 }

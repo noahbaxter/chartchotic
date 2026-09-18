@@ -1040,31 +1040,24 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 //==============================================================================
 // Phrase columns
 
-std::vector<StripPhraseMath::Kind> UtilityStripComponent::phraseColumns() const
+std::vector<PhraseMath::Kind> UtilityStripComponent::phraseColumns() const
 {
-    using Kind = StripPhraseMath::Kind;
+    using Kind = PhraseMath::Kind;
     if (editorView == EditorView::StarPower) return { Kind::StarPower };
-    if (editorView == EditorView::Phrase)    return { Kind::Solo, Kind::FillBre };
+    if (editorView == EditorView::Phrase)    return { Kind::StarPower, Kind::Solo, Kind::Fill,
+                                                      Kind::Bre };
     return {};
-}
-
-// Equal columns across the whole width, last one taking the rounding.
-juce::Rectangle<int> UtilityStripComponent::phraseColumnBounds(int column, int count) const
-{
-    int w = getWidth() / std::max(1, count);
-    bool last = column == count - 1;
-    return { column * w, trackTop(), last ? getWidth() - column * w : w, trackHeight() };
 }
 
 // Read off the first pitch of the kind, which for a fill is 120: the one pitch every part
 // writes, elite included.
-std::vector<StripPhraseMath::PhraseSpan>
-UtilityStripComponent::phraseSpans(StripPhraseMath::Kind kind) const
+std::vector<PhraseMath::PhraseSpan>
+UtilityStripComponent::phraseSpans(PhraseMath::Kind kind, const NoteSource& source) const
 {
-    if (phraseNotes == nullptr) return {};
-    auto kindPitches = StripPhraseMath::pitches(kind, phrasePart);
+    if (source.notes == nullptr) return {};
+    auto kindPitches = PhraseMath::pitches(kind, source.part);
     if (kindPitches.empty()) return {};
-    return StripPhraseMath::rangesOf(*phraseNotes, kindPitches.front());
+    return PhraseMath::rangesOf(*source.notes, kindPitches.front());
 }
 
 std::optional<double> UtilityStripComponent::codaQN() const
@@ -1073,77 +1066,99 @@ std::optional<double> UtilityStripComponent::codaQN() const
     return sections->getCodaPPQ().toDouble();
 }
 
-juce::Colour UtilityStripComponent::phraseColour(StripPhraseMath::Kind kind,
-                                                 double startQN) const
+juce::Colour UtilityStripComponent::phraseColour(PhraseMath::Kind kind,
+                                                 double startQN, Part part) const
 {
     switch (kind)
     {
-        case StripPhraseMath::Kind::StarPower: return UtilityColours::phraseStarPower;
-        case StripPhraseMath::Kind::Solo:      return UtilityColours::phraseSolo;
-        case StripPhraseMath::Kind::FillBre:
-            if (StripPhraseMath::isBre(startQN, codaQN())) return UtilityColours::phraseBre;
-            return isDrumLike(phrasePart) ? UtilityColours::phraseFill
-                                          : UtilityColours::phraseInert;
+        case PhraseMath::Kind::StarPower: return UtilityColours::phraseStarPower;
+        case PhraseMath::Kind::Solo:      return UtilityColours::phraseSolo;
+
+        // Both read off 120, so each has to ignore the spans that belong to the other.
+        case PhraseMath::Kind::Fill:
+            if (PhraseMath::isBre(startQN, codaQN())) return UtilityColours::phraseInert;
+            return isDrumLike(part) ? UtilityColours::phraseFill : UtilityColours::phraseInert;
+
+        case PhraseMath::Kind::Bre:
+            return PhraseMath::isBre(startQN, codaQN()) ? UtilityColours::phraseBre
+                                                        : UtilityColours::phraseInert;
     }
     return UtilityColours::phraseInert;
 }
 
+// One column per visible highway, laid out exactly like the note map, with a sub-column per
+// phrase kind inside each.
 void UtilityStripComponent::drawPhrases(juce::Graphics& g, const View& v) const
 {
-    const auto columns = phraseColumns();
-    const int count = (int)columns.size();
-    const int top = trackTop();
-    const int bottom = top + trackHeight();
+    if (noteSources.empty()) return;
+
+    const auto kinds = phraseColumns();
+    const int kindCount = (int)kinds.size();
+    if (kindCount == 0) return;
+
+    const float top = (float)trackTop();
+    const float bottom = top + (float)trackHeight();
+    const float inset = PHRASE_COLUMN_INSET;
+    const float sourceW = ((float)getWidth() - inset * 2.0f) / (float)noteSources.size();
+    const float kindW = sourceW / (float)kindCount;
+    // Room either side of a bar, so neighbouring columns read as separate.
+    const float barPad = std::min((float)m.labelInsetX, kindW * 0.2f);
+    const auto coda = codaQN();
 
     juce::Graphics::ScopedSaveState clip(g);
-    g.reduceClipRegion(0, top, getWidth(), bottom - top);
+    g.reduceClipRegion(0, (int)top, getWidth(), (int)(bottom - top));
 
-    for (int column = 0; column < count; ++column)
+    for (size_t s = 0; s < noteSources.size(); ++s)
     {
-        auto kind = columns[(size_t)column];
-        auto col = phraseColumnBounds(column, count);
-        int x = col.getX() + m.labelInsetX;
-        int w = col.getWidth() - m.labelInsetX * 2;
+        const auto& src = noteSources[s];
+        const float x0 = inset + (float)s * sourceW;
 
-        if (column > 0)
+        if (s > 0)
         {
-            g.setColour(UtilityColours::phraseColumnLine);
-            g.fillRect(col.getX(), top, 1, bottom - top);
+            g.setColour(UtilityColours::chunkLine);
+            g.fillRect(x0, top, 1.0f, bottom - top);
         }
 
-        for (const auto& s : phraseSpans(kind))
+        for (int k = 0; k < kindCount; ++k)
         {
-            float yEnd = (float)yForQN(s.endQN, v);
-            float yStart = (float)yForQN(s.startQN, v);
-            if (yStart < (float)top || yEnd > (float)bottom) continue;
+            const auto kind = kinds[(size_t)k];
+            const float colX = x0 + (float)k * kindW;
 
-            g.setColour(phraseColour(kind, s.startQN));
-            g.fillRect((float)x, yEnd, (float)w, yStart - yEnd);
-        }
-
-        // Named at the foot of the column. A part with no fills only ever has BREs there.
-        juce::String name = kind == StripPhraseMath::Kind::StarPower ? "SP"
-                          : kind == StripPhraseMath::Kind::Solo      ? "solo"
-                          : isDrumLike(phrasePart)                   ? "fill/BRE"
-                                                                     : "BRE";
-        g.setColour(UtilityColours::label);
-        g.setFont(m.columnLabel);
-        g.drawFittedText(name, x, bottom - m.measureRowH - m.labelLineGap, w, m.measureRowH,
-                         juce::Justification::centred, 1, 0.7f);
-
-        // The coda is what makes a fill a BRE, so it is drawn across the column it decides.
-        auto coda = codaQN();
-        if (kind == StripPhraseMath::Kind::FillBre && coda.has_value())
-        {
-            float y = (float)yForQN(*coda, v);
-            if (y >= (float)top && y <= (float)bottom)
+            if (k > 0)
             {
-                g.setColour(UtilityColours::codaLine);
-                g.fillRect((float)col.getX(), y, (float)col.getWidth(), m.sectionLineH);
-                g.setFont(m.measure);
-                g.drawText("coda", col.getX(), (int)y - m.measureDrop,
-                           col.getWidth() - m.labelInsetX, m.measureRowH,
-                           juce::Justification::centredRight, false);
+                g.setColour(UtilityColours::phraseColumnLine);
+                g.fillRect(colX, top, 1.0f, bottom - top);
+            }
+
+            for (const auto& span : phraseSpans(kind, src))
+            {
+                float yEnd = (float)yForQN(span.endQN, v);
+                float yStart = (float)yForQN(span.startQN, v);
+                if (yStart < top || yEnd > bottom) continue;
+
+                g.setColour(phraseColour(kind, span.startQN, src.part));
+                g.fillRect(colX + barPad, yEnd, kindW - barPad * 2.0f, yStart - yEnd);
+            }
+
+            // Named at the foot of the column.
+            juce::String name = kind == PhraseMath::Kind::StarPower ? "SP"
+                              : kind == PhraseMath::Kind::Solo      ? "solo"
+                              : kind == PhraseMath::Kind::Fill      ? "fill"
+                                                                    : "BRE";
+            g.setColour(UtilityColours::label);
+            g.setFont(m.columnLabel);
+            g.drawFittedText(name, (int)colX, (int)bottom - m.measureRowH - m.labelLineGap,
+                             (int)kindW, m.measureRowH, juce::Justification::centred, 1, 0.5f);
+
+            // The coda is what makes those markers a BRE, so it is drawn across the BRE column.
+            if (kind == PhraseMath::Kind::Bre && coda.has_value())
+            {
+                float y = (float)yForQN(*coda, v);
+                if (y >= top && y <= bottom)
+                {
+                    g.setColour(UtilityColours::codaLine);
+                    g.fillRect(colX, y, kindW, m.sectionLineH);
+                }
             }
         }
     }

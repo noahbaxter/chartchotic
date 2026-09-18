@@ -39,7 +39,9 @@ namespace
     EditorView parseView(const juce::String& s, EditorView fallback)
     {
         for (const auto& v : kViewNames)
-            if (s == v.name) return v.view;
+            if (s == v.name)
+                // A project saved on the old SP-only view reopens on Phrase, which covers it.
+                return v.view == EditorView::StarPower ? EditorView::Phrase : v.view;
         return fallback;
     }
 
@@ -101,6 +103,31 @@ void WriteController::stateDidChange()
     if (onStateChanged) onStateChanged();
 }
 
+// One grid step at the snapped cursor, so hovering shows the block a click would place. Skipped
+// while a drag owns the range, which draws its own preview.
+void WriteController::recomputePhraseHover()
+{
+    overlayState.phraseHover = {};
+
+    if (!phraseViewActive() || phraseDragActive)          return;
+    if (!lastPointValid || !writeModeActive())            return;
+    if (isPlaying() || !lastPoint.onHighway)              return;
+
+    double qn = snapQN(lastPoint.rawProjectQN);
+    if (qn < 0.0) qn = 0.0;
+
+    const auto kind = kindForView();
+    const double step = stepSpacingQN(currentStepDivision, currentTuplet);
+    overlayState.phraseHover = { true, qn, qn + step, (int)kind };
+
+    // Borrows the ghost cursor's label, the way the alternating-kick hint does, with no lane so
+    // no gem is drawn with it.
+    overlayState.ghostVisible   = true;
+    overlayState.ghostQN        = qn;
+    overlayState.ghostLane      = -1;
+    overlayState.ghostModeLabel = PhraseMath::phraseLabel(kind, activePart());
+}
+
 void WriteController::recomputeGhost()
 {
     overlayState.ghostVisible    = false;
@@ -110,6 +137,9 @@ void WriteController::recomputeGhost()
     overlayState.ghostGem        = GemWrapper();
     overlayState.ghostModeLabel  = {};
     overlayState.stampGhosts.clear();
+
+    // After the clear, since the phrase hover sets the label fields it shares with the ghost.
+    recomputePhraseHover();
 
     if (!lastPointValid)                                  return;
     if (!writeModeActive())                               return;
@@ -246,6 +276,13 @@ void WriteController::setView(EditorView v)
     stateDidChange();
 }
 
+void WriteController::setPhraseKind(PhraseMath::Kind k)
+{
+    if (currentPhraseKind == k) return;
+    currentPhraseKind = k;
+    stateDidChange();
+}
+
 void WriteController::setLaneTool(bool on)
 {
     if (laneToolFlag == on) return;
@@ -329,9 +366,177 @@ void WriteController::onPointerMove(const AuthoringPoint& p,
     recomputeGhost();
 }
 
+//==============================================================================
+// Phrases (SP and Phrase views)
+
+bool WriteController::phraseViewActive() const
+{
+    return currentView == EditorView::StarPower || currentView == EditorView::Phrase;
+}
+
+// Whichever kind the picker has armed. The SP view predates the picker and forces its own.
+PhraseMath::Kind WriteController::kindForView() const
+{
+    return currentView == EditorView::StarPower ? PhraseMath::Kind::StarPower : currentPhraseKind;
+}
+
+std::optional<double> WriteController::codaQN() const
+{
+    if (instrumentSession == nullptr) return std::nullopt;
+    const auto& sections = instrumentSession->getSongSections();
+    if (!sections.hasCoda()) return std::nullopt;
+    return sections.getCodaPPQ().toDouble();
+}
+
+std::vector<PhraseMath::PhraseSpan> WriteController::phrasesOfKind(PhraseMath::Kind kind) const
+{
+    if (instrumentSession == nullptr) return {};
+    int idx = resolveSessionTrackIdx();
+    if (idx < 0) return {};
+
+    auto kindPitches = PhraseMath::pitches(kind, activePart());
+    if (kindPitches.empty()) return {};
+
+    auto spans = PhraseMath::rangesOf(instrumentSession->getNotes(idx), kindPitches.front());
+
+    // Fill and BRE are both written on 120, so each has to drop the other's spans or a click on
+    // a drum fill reads as a hit on the BRE and starts resizing it instead of writing one.
+    if (kind == PhraseMath::Kind::Fill || kind == PhraseMath::Kind::Bre)
+    {
+        const bool wantBre = kind == PhraseMath::Kind::Bre;
+        const auto coda = codaQN();
+        spans.erase(std::remove_if(spans.begin(), spans.end(),
+                                   [wantBre, coda](const PhraseMath::PhraseSpan& s) {
+                                       return PhraseMath::isBre(s.startQN, coda) != wantBre;
+                                   }),
+                    spans.end());
+    }
+
+    return spans;
+}
+
+std::vector<PhraseMath::PhraseSpan> WriteController::phrasesOnPart() const
+{
+    return phrasesOfKind(kindForView());
+}
+
+void WriteController::handlePhraseDown(const AuthoringPoint& p, const AuthoringContext& ctx)
+{
+    auto* writer = midiWriter();
+    if (writer == nullptr || instrumentSession == nullptr) return;
+
+    const double clickQN = snapQN(p.rawProjectQN);
+    const auto spans = phrasesOnPart();
+    const int hit = PhraseMath::phraseAt(spans, p.rawProjectQN);
+
+    PhraseWriter phraseWriter(*writer, *instrumentSession, activePart());
+
+    // Right on a phrase removes it; right anywhere else does nothing, so a stray right click
+    // in empty time cannot wipe the phrase you were aiming at.
+    if (ctx.rightButton)
+    {
+        if (hit >= 0)
+        {
+            phraseWriter.erase(kindForView(), spans[(size_t)hit].startQN);
+            if (onChartWritten) onChartWritten();
+        }
+        return;
+    }
+
+    phraseDragActive = true;
+
+    if (hit >= 0)
+    {
+        // On a phrase, the drag moves its end, the way a sustain's tail moves.
+        phraseDragResizing = true;
+        phraseDragStartQN = spans[(size_t)hit].startQN;
+        phraseDragEndQN = spans[(size_t)hit].endQN;
+    }
+    else
+    {
+        phraseDragResizing = false;
+        phraseDragStartQN = clickQN;
+        phraseDragEndQN = clickQN;
+    }
+    recomputePhrasePreview();
+}
+
+void WriteController::handlePhraseDrag(const AuthoringPoint& p)
+{
+    if (!phraseDragActive) return;
+
+    // Phrases of one kind may not overlap, so the end stops at the next one along.
+    std::vector<PhraseMath::PhraseSpan> others;
+    for (const auto& s : phrasesOnPart())
+        if (!(phraseDragResizing && GridMath::same(s.startQN, phraseDragStartQN)))
+            others.push_back(s);
+
+    phraseDragEndQN = PhraseMath::clampEnd(phraseDragStartQN, snapQN(p.rawProjectQN), others);
+    recomputePhrasePreview();
+}
+
+void WriteController::handlePhraseUp()
+{
+    if (!phraseDragActive) return;
+
+    auto* writer = midiWriter();
+    const double startQN = phraseDragStartQN;
+    const double endQN = phraseDragEndQN;
+    const bool resizing = phraseDragResizing;
+    clearPhraseDrag();
+
+    if (writer == nullptr || instrumentSession == nullptr) return;
+    if (endQN - startQN < double(MIDI_MIN_SUSTAIN_LENGTH)) return;
+
+    PhraseWriter phraseWriter(*writer, *instrumentSession, activePart());
+    if (resizing)
+    {
+        auto resized = phraseWriter.resize(kindForView(), startQN, endQN);
+        if (resized.isNotEmpty() && onPhraseRefused) onPhraseRefused(resized);
+        if (onStateChanged) onStateChanged();
+        if (onChartWritten) onChartWritten();
+        return;
+    }
+
+    // Either a refusal or a note that a BRE elsewhere in the song was replaced; both belong in
+    // the footer, since both are things that happened without being asked for.
+    auto outcome = phraseWriter.create(kindForView(), startQN, endQN);
+    if (outcome.isNotEmpty() && onPhraseRefused) onPhraseRefused(outcome);
+
+    if (onStateChanged) onStateChanged();
+    if (onChartWritten) onChartWritten();
+}
+
+void WriteController::clearPhraseDrag()
+{
+    phraseDragActive = false;
+    phraseDragResizing = false;
+    overlayState.phrasePreview = {};
+    recomputePhraseHover();
+    if (onStateChanged) onStateChanged();
+}
+
+void WriteController::recomputePhrasePreview()
+{
+    overlayState.phrasePreview = { phraseDragActive, phraseDragStartQN, phraseDragEndQN,
+                                   (int)kindForView() };
+    // Suppresses itself while the drag owns the range, so the two never draw at once.
+    recomputePhraseHover();
+    if (onStateChanged) onStateChanged();
+}
+
+//==============================================================================
+
 void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     JUCE_ASSERT_MESSAGE_THREAD;
+
+    if (phraseViewActive())
+    {
+        if (writeModeActive() && !isPlaying() && p.onHighway) handlePhraseDown(p, ctx);
+        return;
+    }
+
     if (!canWrite(p)) return;
 
     int trackIdx = resolveTrackIdx();
@@ -358,6 +563,7 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
     JUCE_ASSERT_MESSAGE_THREAD;
 
     sustainPendingClick = false;
+    if (phraseDragActive)    { handlePhraseDrag(p);     return; }
     if (sustainDragActive)   { handleUpdateSustain(p);  return; }
     if (paintDragActive)     { handleContinuePaint(p);  return; }
     if (eraseDragActive)     { handleContinueErase(p);  return; }
@@ -366,6 +572,8 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
 void WriteController::onPointerUp(const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
+    if (phraseDragActive) { handlePhraseUp(); return; }
+
     if (sustainPendingClick)
     {
         sustainPendingClick = false;

@@ -53,7 +53,10 @@ namespace Render
                             rect.getHeight() / (float)img->getHeight())
                             .translated(rect.getX(), rect.getY());
                         g.reduceClipRegion(*img, transform);
-                        g.setColour(tint);
+                        // setColour replaces the current colour, alpha and all, discarding the
+                        // setOpacity above, so the sprite's opacity has to be folded in by hand
+                        // or the tint ignores every fade the image itself honours.
+                        g.setColour(tint.withMultipliedAlpha(opacity));
                         g.fillAll();
                     }
                 }
@@ -68,7 +71,7 @@ namespace Render
                             .translated(rect.getX(), rect.getY());
                         juce::Graphics::ScopedSaveState save(g);
                         g.reduceClipRegion(*img, transform);
-                        g.setColour(tint);
+                        g.setColour(tint.withMultipliedAlpha(opacity));
                         g.fillAll();
                     }
                 }

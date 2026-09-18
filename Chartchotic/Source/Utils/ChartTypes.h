@@ -187,7 +187,11 @@ enum class SustainType
     SUSTAIN,
     LANE,
     SOLO,
-    BRE,        // one hand column of a fill or big rock ending
+    // Fill and BRE are the same markers told apart by [coda], but they are different things to
+    // look at and to author, so they are different types by the time they reach a renderer.
+    BRE,        // one hand column of a big rock ending: song-global, on every part at once
+    FILL,       // one hand column of a drum fill: the star power activation phrase
+    ACTIVATION, // the lane pointing at the note a fill activates on, drawn as its two edges
     HIHAT,      // elite hi-hat ringing zone
     STAR_POWER  // a star power phrase, drawn once across the whole highway
 };

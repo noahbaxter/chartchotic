@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,14 @@ public:
         their starts and would otherwise swallow the rename.
     */
     virtual bool setSongName(double, const std::string&) { return false; }
+
+    /**
+        Moves the song's single [coda] to `qn`, or removes it when `qn` is empty. Every
+        existing [coda] on every EVENTS item is cleared first, so there is never more than
+        one. Inside a batch it joins the batch's undo point instead of making its own, since
+        a coda placed by writing a BRE is part of that one edit.
+    */
+    virtual bool setCoda(std::optional<double>) { return false; }
 
     /**
         Adds a text event at the start of a track's first item unless an

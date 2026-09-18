@@ -13,6 +13,7 @@
 #include "../Geometry/RenderTypeConfig.h"
 #include "../Art/BarGemArt.h"
 #include "../../Editor/AuthoringTypes.h"
+#include "../PhraseMath.h"
 
 using namespace PositionConstants;
 
@@ -48,25 +49,28 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
         return;
     }
 
+    // Phrases from the editor views. Only the caller decides whether they are shown, so the
+    // lane and sustain toggles do not hide them.
+    if (sustain.sustainType == SustainType::STAR_POWER || sustain.sustainType == SustainType::SOLO
+        || sustain.sustainType == SustainType::BRE || sustain.sustainType == SustainType::FILL
+        || sustain.sustainType == SustainType::ACTIVATION)
+    {
+        drawPhrase(sustain, windowStartTime, windowEndTime);
+        return;
+    }
+
     double windowTimeSpan = windowEndTime - windowStartTime;
 
-    // Phrases from the editor views take the lane shape. Only the caller decides whether they
-    // are shown, so the lane and sustain toggles do not hide them.
-    bool starPowerBand = sustain.sustainType == SustainType::STAR_POWER;
-    bool phrase = starPowerBand || sustain.sustainType == SustainType::BRE;
-    bool isLane = (sustain.sustainType == SustainType::LANE) || phrase;
+    bool isLane = (sustain.sustainType == SustainType::LANE);
 
     // The 108 roll lane sits on a virtual pedal column, which has no lane coords of its own, so
-    // it borrows the hi-hat's and spans the pedal zone like the bars it covers. A star power
-    // band borrows the kick/open column, which already spans the whole highway.
+    // it borrows the hi-hat's and spans the pedal zone like the bars it covers.
     bool pedalLane = isLane && getRenderType(activePart) == RenderType::ELITE_DRUMS
                             && isElitePedalColumn(sustain.gemColumn);
-    uint drawColumn = pedalLane     ? (uint)ELITE_HIHAT_COLUMN
-                    : starPowerBand ? (uint)DRUM_KICK_COLUMN
-                                    : sustain.gemColumn;
+    uint drawColumn = pedalLane ? (uint)ELITE_HIHAT_COLUMN : sustain.gemColumn;
 
     // Gate by render toggle
-    if (!phrase && isLane && !showLanes) return;
+    if (isLane && !showLanes) return;
     if (!isLane && !showSustains) return;
 
     bool hitAnimationsOn = state.getProperty("hitIndicators");
@@ -137,13 +141,10 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = starPowerBand ? PHRASE_STAR_POWER_COLOUR
-                : assetManager.getLaneColour(drawColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart,
-                                             shouldBeWhite && !phrase);
+    auto colour = assetManager.getLaneColour(drawColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
 
     for (const auto& ts : tintedSustains)
     {
-        if (phrase) break;
         if (ts.lane != (int)sustain.gemColumn) continue;
         bool match = ts.matchStart
             ? std::abs(sustain.startTime - ts.startTime) < kTimeEpsilon
@@ -162,16 +163,6 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
             else                sustainWidth = LANE_WIDTH;
             sustainDrawOrder = DrawOrder::LANE;
             break;
-        case SustainType::STAR_POWER:
-            opacity = PHRASE_STAR_POWER_OPACITY;
-            sustainWidth = LANE_OPEN_WIDTH;
-            sustainDrawOrder = DrawOrder::LANE;
-            break;
-        case SustainType::BRE:
-            opacity = LANE_OPACITY;
-            sustainWidth = LANE_WIDTH;
-            sustainDrawOrder = DrawOrder::LANE;
-            break;
         case SustainType::SUSTAIN:
         default:
             opacity = SUSTAIN_OPACITY;
@@ -181,8 +172,261 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     }
 
     (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][drawColumn].push_back([=](juce::Graphics& g) {
-        this->drawSustainBody(g, drawColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane,
-                              starPowerBand);
+        this->drawSustainBody(g, drawColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
+    });
+}
+
+void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double windowStartTime, double windowEndTime)
+{
+    const double windowTimeSpan = windowEndTime - windowStartTime;
+    // Same offset gridlines take, so a phrase on a gridline's tick lands on that gridline.
+    float startPos = (float)((phrase.startTime - windowStartTime) / windowTimeSpan) + phrasePosOffset;
+    float endPos   = (float)((phrase.endTime   - windowStartTime) / windowTimeSpan) + phrasePosOffset;
+    startPos = std::max((float)HIGHWAY_POS_START, startPos);
+    endPos   = std::min(farFadeEnd, endPos);
+    if (endPos <= startPos) return;
+
+    // Star power and solo light the whole board; a fill or BRE is one lane per hand column.
+    const bool starPower = phrase.sustainType == SustainType::STAR_POWER;
+    const bool solo = phrase.sustainType == SustainType::SOLO;
+    const bool bre = phrase.sustainType == SustainType::BRE;
+    const bool fill = phrase.sustainType == SustainType::FILL;
+    const bool activation = phrase.sustainType == SustainType::ACTIVATION;
+    const bool band = starPower || solo;
+    const uint column = phrase.gemColumn;
+
+    // The colour spread across the lanes is what these toggles hide. The activation band is not
+    // decoration, it says where star power can be taken, so it survives both being off.
+    if (fill && !showFills) return;
+    if (bre && !showBre)    return;
+    if (activation && !showActivationLane) return;
+
+    const juce::Colour laneColour =
+        assetManager.getLaneColour(column, isGuitarLike(activePart) ? Part::GUITAR : activePart, false);
+
+    const juce::Colour colour = starPower ? PHRASE_STAR_POWER_COLOUR
+                              : solo      ? PHRASE_SOLO_COLOUR
+                              : bre       ? laneColour.interpolatedWith(juce::Colours::white,
+                                                                        PHRASE_BRE_WHITEN)
+                                          : laneColour;
+    // In the phrase view a phrase is what you came to look at, so it draws stronger. In the note
+    // views it is context sitting over the gems, and stays faint enough to read them through.
+    const float base = starPower  ? PHRASE_STAR_POWER_OPACITY
+                     : solo       ? PHRASE_SOLO_OPACITY
+                     : bre        ? PHRASE_BRE_OPACITY
+                     : activation ? PHRASE_ACTIVATION_OPACITY
+                                  : LANE_OPACITY;
+    const float opacity = !phraseViewActive ? base
+                        : starPower         ? PHRASE_STAR_POWER_VIEW_OPACITY
+                                            : std::min(1.0f, base * PHRASE_VIEW_OPACITY_BOOST);
+    const float gridZ = phraseGridZ;
+
+    (*currentDrawCallMap)[(int)DrawOrder::LANE][band ? 0 : column].push_back([=](juce::Graphics& g) {
+        const auto* config = currentConfig;
+        const auto& fbCoords = *config->fretboardCoords;
+        const RenderType rt = getRenderType(activePart);
+
+        // Left and right of what the phrase covers at a depth: the board, or one hand column.
+        auto spanAt = [&](float pos) {
+            if (band)
+            {
+                auto e = getColumnEdge(pos, fbCoords, 1.0f);
+                return std::pair{ e.leftX, e.rightX };
+            }
+            uint laneIdx = resolveLaneIndex(column);
+            auto e = getColumnEdge(pos, laneCoords[laneIdx], 1.0f, PositionConstants::FRETBOARD_SCALE,
+                                   PositionMath::bemaniMode ? (int)laneIdx - 1 : -1);
+            return std::pair{ e.leftX, e.rightX };
+        };
+
+        // The measure gridline's centreline at a depth, reproduced from how GridlineRenderer
+        // sizes the baked marker: GRIDLINE_WIDTH_SCALE wide, its height off the strikeline
+        // aspect, scaled by depth, nudged by the grid z offset.
+        auto strike = getColumnEdge(0.0f, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
+        const float strikeW = strike.rightX - strike.leftX;
+        const auto persp = config->getPerspectiveParams();
+        const float strikeH = (persp.barNoteHeightRatio > 0.0f ? strikeW / persp.barNoteHeightRatio : strikeW)
+                            / config->boardWidthScale;
+        const float arch = GemArt::gridlineArch();
+        const float thickness = GemArt::kGridlineMeasureThickness;
+        const float canvasH = (float)GemArt::gridlineCanvasHeight(thickness, arch);
+
+        auto lineY = [&](float pos, float x) {
+            if (PositionMath::bemaniMode)
+                return PositionMath::getFretboardEdge(rt, pos, width, height, HIGHWAY_POS_START, posEnd).centerY
+                     + bemaniConfig.gridlineZ;
+
+            auto gl = getColumnEdge(pos, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
+            const float w = gl.rightX - gl.leftX;
+            const float wr = strikeW > 0.0f ? w / strikeW : 1.0f;
+            const float h = strikeH * wr;
+            const float top = gl.centerY + gridZ * wr - h * 0.5f;
+            const float canvasX = w > 0.0f ? (x - gl.leftX) * (float)GemArt::kGridlineWidth / w : 0.0f;
+            return top + GemArt::gridlineCentreY(canvasX, thickness, arch) * h / canvasH;
+        };
+
+        constexpr int samples = 24;
+
+        // A quad of the phrase between two depths and two fractions across its width, curved to
+        // follow the gridlines at both ends. The whole width from end to end for most phrases;
+        // the activation band builds a run of narrow ones to fade across its rails.
+        auto quad = [&](float pFar, float pNear, float f0, float f1) {
+            auto [fl, fr] = spanAt(pFar);
+            auto [nl, nr] = spanAt(pNear);
+            juce::Path path;
+            for (int i = 0; i <= samples; ++i)
+            {
+                float f = f0 + (f1 - f0) * (float)i / (float)samples;
+                float x = fl + (fr - fl) * f;
+                if (i == 0) path.startNewSubPath(x, lineY(pFar, x));
+                else        path.lineTo(x, lineY(pFar, x));
+            }
+            for (int i = 0; i <= samples; ++i)
+            {
+                float f = f1 - (f1 - f0) * (float)i / (float)samples;
+                float x = nl + (nr - nl) * f;
+                path.lineTo(x, lineY(pNear, x));
+            }
+            path.closeSubPath();
+            return path;
+        };
+
+        const float fadeStart = farFadeEnd - farFadeLen;
+
+        // The activation band fades two ways at once: along its length, nothing at the far end and
+        // full where it meets the gem, and across each rail, full at the lane's outer edge and
+        // nothing toward the middle. A fill takes one gradient, so the crossing fade comes from
+        // banding each rail into strips and scaling the length gradient's alpha per strip.
+        if (activation)
+        {
+            const bool barLane = isBarNote(column, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
+            const float hole = (barLane ? PHRASE_ACTIVATION_HOLE_FRACTION_BAR
+                                        : PHRASE_ACTIVATION_HOLE_FRACTION) * 0.5f;
+
+            // Whichever way the band is cut, one of its two fades gets a real gradient and the
+            // other is stepped per strip. A lane's rails are narrow, so cutting them lengthwise
+            // keeps the strips thin and the length fade smooth; a kick's lane is the whole board,
+            // where those same strips are wide enough to read one by one, so it cuts across depth
+            // instead and takes its gradient across the width.
+            auto rail = [&](float fOuter, float fInner) {
+                if (barLane)
+                {
+                    constexpr int bands = PHRASE_ACTIVATION_DEPTH_BANDS;
+                    for (int i = 0; i < bands; ++i)
+                    {
+                        const float u0 = (float)i / (float)bands;
+                        const float u1 = (float)(i + 1) / (float)bands;
+                        const float pNear = startPos + (endPos - startPos) * u0;
+                        const float pFar = startPos + (endPos - startPos)
+                                         * std::min(1.0f, u1 + PHRASE_ACTIVATION_EDGE_OVERLAP / (float)bands);
+
+                        // Length fade, stepped: sampled at the band's midpoint.
+                        const float mid = (u0 + u1) * 0.5f;
+                        const float a = opacity * mid;
+
+                        if (PositionMath::bemaniMode)
+                        {
+                            g.setColour(colour.withAlpha(a));
+                        }
+                        else
+                        {
+                            // Crossing fade as a real gradient across the rail at this depth.
+                            const float pMid = startPos + (endPos - startPos) * mid;
+                            auto [ml, mr] = spanAt(pMid);
+                            juce::ColourGradient grad(colour.withAlpha(a), ml + (mr - ml) * fOuter, 0.0f,
+                                                      colour.withAlpha(0.0f), ml + (mr - ml) * fInner, 0.0f,
+                                                      false);
+                            // Stops bend the ramp: a plain gradient is linear, the curve is not.
+                            for (int s = 1; s < PHRASE_ACTIVATION_EDGE_CURVE_STOPS; ++s)
+                            {
+                                const float t = (float)s / (float)PHRASE_ACTIVATION_EDGE_CURVE_STOPS;
+                                grad.addColour(t, colour.withAlpha(a * std::pow(1.0f - t,
+                                                                   PHRASE_ACTIVATION_EDGE_FADE_CURVE)));
+                            }
+                            g.setGradientFill(grad);
+                        }
+                        g.fillPath(quad(pFar, pNear, fOuter, fInner));
+                    }
+                    return;
+                }
+
+                // Strip count follows the rail's width in pixels, so a wider lane gets more strips
+                // rather than wider ones.
+                auto [wl, wr] = spanAt(endPos);
+                const float railPx = std::abs(wr - wl) * std::abs(fInner - fOuter);
+                const int strips = juce::jlimit(PHRASE_ACTIVATION_EDGE_STRIPS_MIN,
+                                                PHRASE_ACTIVATION_EDGE_STRIPS_MAX,
+                                                (int)(railPx / PHRASE_ACTIVATION_EDGE_STRIP_PX));
+
+                const auto bounds = quad(endPos, startPos, 0.0f, 1.0f).getBounds();
+                for (int i = 0; i < strips; ++i)
+                {
+                    const float t0 = (float)i / (float)strips;
+                    const float t1 = (float)(i + 1) / (float)strips;
+                    const float fa = fOuter + (fInner - fOuter) * t0;
+                    const float fb = fOuter + (fInner - fOuter)
+                                   * std::min(1.0f, t1 + PHRASE_ACTIVATION_EDGE_OVERLAP / (float)strips);
+
+                    // Crossing fade, stepped per strip; the length fade stays a real gradient.
+                    const float edge = std::pow(1.0f - (t0 + t1) * 0.5f, PHRASE_ACTIVATION_EDGE_FADE_CURVE);
+                    const float a = opacity * edge;
+
+                    if (PositionMath::bemaniMode)
+                        g.setColour(colour.withAlpha(a));
+                    else
+                        g.setGradientFill(juce::ColourGradient(colour.withAlpha(a), 0.0f, bounds.getY(),
+                                                               colour.withAlpha(0.0f), 0.0f, bounds.getBottom(),
+                                                               false));
+                    g.fillPath(quad(endPos, startPos, fa, fb));
+                }
+            };
+
+            rail(0.0f, 0.5f - hole);
+            rail(1.0f, 0.5f + hole);
+
+            // A cap across the top end, where the band meets the note. Without it the rails just
+            // run off the end as two separate strips; the cap closes them into one lane that stops
+            // at the gem. Full width and no crossing fade, so it reads as the band's terminus.
+            auto [cl, cr] = spanAt(endPos);
+            // Thickness off the lane's width, so a kick -- whose lane is the whole board -- needs
+            // its own far smaller fraction. The same number there is a slab deep enough to bury
+            // the bars behind it and hide where they start.
+            const float capH = (cr - cl) * (barLane ? PHRASE_ACTIVATION_CAP_THICKNESS_BAR
+                                                    : PHRASE_ACTIVATION_CAP_THICKNESS);
+            juce::Path cap;
+            for (int i = 0; i <= samples; ++i)
+            {
+                const float x = cl + (cr - cl) * (float)i / (float)samples;
+                if (i == 0) cap.startNewSubPath(x, lineY(endPos, x));
+                else        cap.lineTo(x, lineY(endPos, x));
+            }
+            for (int i = samples; i >= 0; --i)
+            {
+                const float x = cl + (cr - cl) * (float)i / (float)samples;
+                cap.lineTo(x, lineY(endPos, x) + capH);
+            }
+            cap.closeSubPath();
+
+            g.setColour(colour.withAlpha(opacity));
+            g.fillPath(cap);
+            return;
+        }
+
+        juce::Path path = quad(endPos, startPos, 0.0f, 1.0f);
+
+        if (!PositionMath::bemaniMode && endPos > fadeStart)
+        {
+            float fadeFrom = std::max(fadeStart, startPos);
+            float yFrom = PositionMath::getFretboardEdge(rt, fadeFrom, width, height, HIGHWAY_POS_START, posEnd).centerY;
+            float yTo   = PositionMath::getFretboardEdge(rt, farFadeEnd, width, height, HIGHWAY_POS_START, posEnd).centerY;
+            g.setGradientFill(juce::ColourGradient(colour.withAlpha(calculateOpacity(fadeFrom) * opacity), 0.0f, yFrom,
+                                                   colour.withAlpha(0.0f), 0.0f, yTo, false));
+        }
+        else
+        {
+            g.setColour(colour.withAlpha(opacity));
+        }
+        g.fillPath(path);
     });
 }
 
@@ -221,10 +465,7 @@ void SustainRenderer::drawHiHatSustain(const TimeBasedSustainEvent& sustain, dou
         });
 }
 
-// `acrossBoard` spans the whole fretboard instead of one column. The kick column cannot stand in
-// for that in perspective: its lane coords are not the board's, which is why kick gems measure
-// off the fretboard edge instead.
-void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane, bool acrossBoard)
+void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
     bool isDrums = isDrumLike(activePart);
     const auto* config = currentConfig;
@@ -245,10 +486,20 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
         laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
 
     int laneIdx = PositionMath::bemaniMode ? bemaniIdx : -1;
-    auto startLane = acrossBoard ? getColumnEdge(startPosition, *config->fretboardCoords, 1.0f)
-                                 : getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
-    auto endLane   = acrossBoard ? getColumnEdge(endPosition, *config->fretboardCoords, 1.0f)
-                                 : getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
+    auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
+    auto endLane = getColumnEdge(endPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
+
+    // Gems sit on a curvature arc; a sustain running off one has to sit on the same arc or it
+    // meets its gem at only one depth. Taken per end, because the lift scales with depth: a single
+    // offset for the whole body would line the start up and leave the far end out by the
+    // difference. Kicks and open bars are drawn flat, so they take no lift.
+    if (!PositionMath::bemaniMode && !isBar)
+    {
+        const float arc = noteArcOffsetStrike(gemColumn, isDrums ? noteCurvatureDrums
+                                                                : noteCurvatureGuitar);
+        startLane.centerY += arc * depthWidthRatio(startPosition);
+        endLane.centerY   += arc * depthWidthRatio(endPosition);
+    }
 
     // Bemani mode: simple shapes, no perspective geometry
     if (PositionMath::bemaniMode)

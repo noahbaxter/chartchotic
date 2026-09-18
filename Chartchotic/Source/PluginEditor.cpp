@@ -108,6 +108,17 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
             return i == effectiveFocusSlot() ? interactionController.getOverlayState() : blank;
         });
 
+        // The one thing that deliberately escapes that gate. A BRE lands on every part at once,
+        // so both its drag and its hover show on every highway, not just the focused one.
+        hw.setGlobalPhraseGetter([this]() -> HighwayComponent::GlobalPhrase {
+            const auto& ov = interactionController.getOverlayState();
+            auto ifBre = [](const OverlayState::PhrasePreview& p) {
+                return p.visible && (PhraseMath::Kind)p.kind == PhraseMath::Kind::Bre
+                     ? p : OverlayState::PhrasePreview{};
+            };
+            return { ifBre(ov.phrasePreview), ifBre(ov.phraseHover) };
+        });
+
         // Format a project QN as "M.B" for the ghost cursor position label.
         hw.setFormatPositionQN([this](double projectQN) -> juce::String {
             const juce::ScopedLock lock(audioProcessor.getTempoLock());
@@ -438,13 +449,6 @@ void ChartchoticAudioProcessorEditor::onFrame()
             }
         }
 
-        // Phrases belong to one part, and the strip shows the one the mouse is working in.
-        int focus = effectiveFocusSlot();
-        if (focus < (int)sources.size())
-            utilityStrip.setPhraseSource(sources[(size_t)focus].notes, sources[(size_t)focus].part);
-        else
-            utilityStrip.setPhraseSource(nullptr, Part::GUITAR);
-
         utilityStrip.setNoteSources(std::move(sources));
 
         // The view is a write-mode overlay, so with write mode off the strip reads as Notes.
@@ -656,6 +660,9 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onBarsChanged = [this](bool on) { state.setProperty("showBars", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBars(on); }); };
     toolbar.onSustainsChanged = [this](bool on) { state.setProperty("showSustains", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowSustains(on); }); };
     toolbar.onLanesChanged = [this](bool on) { state.setProperty("showLanes", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowLanes(on); }); };
+    toolbar.onFillsChanged = [this](bool on) { state.setProperty("showFills", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowFills(on); }); };
+    toolbar.onBreChanged = [this](bool on) { state.setProperty("showBre", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBre(on); }); };
+    toolbar.onActivationChanged = [this](bool on) { state.setProperty("showActivation", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowActivationLane(on); }); };
     toolbar.onGridlinesChanged = [this](bool on) { state.setProperty("showGridlines", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowGridlines(on); }); };
 
     toolbar.onHitIndicatorsChanged = [this](bool on) { state.setProperty("hitIndicators", on, nullptr); propagateToSlots("hitIndicators", on); };
@@ -797,11 +804,26 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     // changes (W/Q toggles, [/]/S/T grid changes). When the sub-toolbar's
     // visibility flips, the toolbar reports a new height — trigger our own
     // resized() so the highway reclaims/yields the row's space.
+    // A refused phrase says why in the footer, where the rest of the write-mode help goes.
+    interactionController.setPhraseRefusedHandler([this](const juce::String& reason) {
+        footer.setHelpText({ dim(reason) });
+    });
+
+    interactionController.setChartWrittenHandler([this]() {
+        audioProcessor.invalidateReaperCache();
+    });
+
     interactionController.onStateChanged = [this]() {
         writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
         bool wm = interactionController.writeModeActive();
         auto view = interactionController.view();
-        forAllHighways([wm, view](auto& hw) { hw.setWriteMode(wm); hw.setEditorView(view); });
+        bool bar = interactionController.barMode();
+
+        forAllHighways([wm, view, bar](auto& hw) {
+            hw.setWriteMode(wm);
+            hw.setEditorView(view);
+            hw.setBarMode(bar);
+        });
 
         if (toolbar.refreshFromWriteController())
             resized();
@@ -1273,6 +1295,9 @@ void ChartchoticAudioProcessorEditor::loadState()
         bool bars = !state.hasProperty("showBars") || (bool)state["showBars"];
         bool sustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
         bool lanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
+        bool fills = !state.hasProperty("showFills") || (bool)state["showFills"];
+        bool bre = !state.hasProperty("showBre") || (bool)state["showBre"];
+        bool activation = !state.hasProperty("showActivation") || (bool)state["showActivation"];
         bool gridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
         bool track = !state.hasProperty("showTrack") || (bool)state["showTrack"];
         bool laneSeps = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
@@ -1284,6 +1309,10 @@ void ChartchoticAudioProcessorEditor::loadState()
             hw.getSceneRenderer().showBars = bars;
             hw.getSceneRenderer().showSustains = sustains;
             hw.getSceneRenderer().showLanes = lanes;
+            hw.getSceneRenderer().showFills = fills;
+            hw.getSceneRenderer().showBre = bre;
+            // Through the setter: it also drives whether the activation gem grows.
+            hw.setShowActivationLane(activation);
             hw.getSceneRenderer().showGridlines = gridlines;
             hw.getSceneRenderer().showTrack = track;
             hw.getSceneRenderer().showLaneSeparators = laneSeps;
