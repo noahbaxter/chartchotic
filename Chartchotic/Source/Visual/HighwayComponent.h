@@ -163,10 +163,12 @@ private:
     GlobalPhraseGetter globalPhraseGetter;
     EditorView editorView = EditorView::Notes;
     EditorView shownView() const { return writeModeOn ? editorView : EditorView::Notes; }
-    // The lane tool is a write-mode overlay like the view is, so it stops showing with the mode
-    // that owns it. Without this, leaving write mode while it was on left the board faded out
-    // for a tool that could no longer do anything.
+    // The lane tool and bar mode are write-mode overlays like the view is, so they stop showing
+    // with the mode that owns them. Without this, leaving write mode while one was on left the
+    // board faded out for a tool that could no longer do anything. The flags themselves are
+    // kept, so coming back into write mode puts you back on the tool you were using.
     bool laneToolShown() const { return writeModeOn && laneToolOn; }
+    bool barModeShown()  const { return writeModeOn && barModeOn; }
     bool phraseViewActive() const
     {
         auto v = shownView();

@@ -606,7 +606,7 @@ void HighwayComponent::paint(juce::Graphics& g)
 
     // Not from the overlay: that is gated to the focused highway, so the dim followed the cursor
     // around instead of showing bar mode on every highway at once.
-    sceneRenderer.setBarModeDim(barModeOn ? BAR_MODE_DIM : 1.0f);
+    sceneRenderer.setBarModeDim(barModeShown() ? BAR_MODE_DIM : 1.0f);
 
     // The Sections view puts the song's sections on the highway as named gates, drawn the same
     // way disco flips are. Nothing else draws markers yet: the tempo ones in the frame data
