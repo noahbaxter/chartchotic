@@ -109,6 +109,24 @@ const OverlayAdjust& NoteRenderer::getOverlayAdjustForGem(Gem gem, bool isDrums,
     }
 }
 
+// The activation gem swaps in a more vivid cut of its own art. Not a tint sprite over the top:
+// the gem is already its lane's colour, so a flat wash of that colour barely moves it, and the
+// pixels that would move most -- the neutral highlights -- are the ones recolorGem deliberately
+// leaves alone. Recolouring the source reaches them, and goes through the same cache and curve
+// bake as every other glyph. The ghost ring and accent chevron take it too: left untouched, a
+// vivid gem wore a stock grey chevron and the note read as half-recoloured.
+juce::Image* NoteRenderer::activationRecut(juce::Image* image, uint gemColumn) const
+{
+    if (image == nullptr) return image;
+    const juce::Colour lane = assetManager.getLaneColour(
+        gemColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, false);
+    return assetManager.getTintedGlyph(
+        image,
+        lane.withMultipliedSaturation(PHRASE_ACTIVATION_VIVID_SATURATION)
+            .brighter(PHRASE_ACTIVATION_VIVID_BRIGHTEN),
+        PHRASE_ACTIVATION_VIVID_NEUTRAL_PULL);
+}
+
 bool NoteRenderer::isEliteHiHatGlyph(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive) const
 {
     if (activePart != Part::ELITE_DRUMS || gemColumn < 1 || gemColumn > 8) return false;
@@ -349,16 +367,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // and the pixels that would move most -- the neutral highlights -- are the ones recolorGem
     // deliberately leaves alone. Recolouring the source reaches them, and goes through the same
     // cache and curve bake as every other glyph.
-    if (showActivation && gemWrapper.activation && glyphImage != nullptr)
-    {
-        const juce::Colour lane = assetManager.getLaneColour(
-            gemColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, false);
-        glyphImage = assetManager.getTintedGlyph(
-            glyphImage,
-            lane.withMultipliedSaturation(PHRASE_ACTIVATION_VIVID_SATURATION)
-                .brighter(PHRASE_ACTIVATION_VIVID_BRIGHTEN),
-            PHRASE_ACTIVATION_VIVID_NEUTRAL_PULL);
-    }
+    if (showActivation && gemWrapper.activation)
+        glyphImage = activationRecut(glyphImage, gemColumn);
 
     // Elite hi-hat pedal bars (Stomp / Splash) render like a bar (draw order, height, bar
     // scales) but are NOT full width: the geometry block below spans ~3 lanes centered on
@@ -385,10 +395,6 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // so does a note the lane being drawn will capture.
     if (phraseDim < 1.0f && !gemWrapper.activation && !isHighlighted(gemColumn, frameTime))
         opacity *= phraseDim;
-    // Ghost kicks read as a fainter bar. Placeholder for elite kick dynamics until there is
-    // real art; the accent half is a separate thicker bake, so only the ghost needs this.
-    if (barNote && gemWrapper.gem == Gem::HOPO_GHOST)
-        opacity *= GemArt::kBarGhostOpacity;
 
     if (PositionMath::bemaniMode)
     {
@@ -548,7 +554,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         // at GRID like the gridline -> the side rails / lane lines / strikeline render OVER it
         // and clip its ends, instead of it floating on top of the rails.
         s.drawOrder = pedalBar ? (int)DrawOrder::GRID
-                               : (barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE);
+                     : (barNote && !barModeActive()) ? (int)DrawOrder::BAR
+                                                     : (int)DrawOrder::NOTE;
         s.drawColumn = (int)gemColumn;
         s.opacity   = opacity;
         s.clipHalf  = barClipHalf;
@@ -558,6 +565,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // --- Append overlay sprite if present ---
     juce::Image* overlayImage = assetManager.getOverlayImage(
         gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
+    // A drum bar carries its dynamic in its own bake now, and the overlay is sized off the
+    // column, which for a bar is the whole board: the chevron stretched the width of the
+    // highway. The rim says accent on its own.
+    if (barNote && isDrums) overlayImage = nullptr;
+    if (showActivation && gemWrapper.activation)
+        overlayImage = activationRecut(overlayImage, gemColumn);
     const OverlayAdjust* overlayAdjPtr = nullptr;
     int ovlIdx = -1;
     // Single-overlay flams: the left copy draws no overlay, and the right one draws it centred
@@ -570,7 +583,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     {
         bool hiHat = isEliteHiHatGlyph(gemWrapper, gemColumn, starPowerActive);
         const auto& overlayAdj = getOverlayAdjustForGem(gemWrapper.gem, isDrums, hiHat,
-                                     hiHat && gemWrapper.hihat == HiHatState::Open);
+                                     hiHat && isOpenHiHat(gemWrapper.hihat));
         overlayAdjPtr = &overlayAdj;
 
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
@@ -740,7 +753,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         s.offsetY = 0.0f;
         s.width = glyphRect.getWidth() * wScale;
         s.height = glyphRect.getHeight() * hScale;
-        s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
+        s.drawOrder = (barNote && !barModeActive()) ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
         s.drawColumn = (int)gemColumn;
         s.opacity = opacity;
         s.clipHalf = bemaniClipHalf;
@@ -749,6 +762,12 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
 
     juce::Image* overlayImage = assetManager.getOverlayImage(
         gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
+    // A drum bar carries its dynamic in its own bake now, and the overlay is sized off the
+    // column, which for a bar is the whole board: the chevron stretched the width of the
+    // highway. The rim says accent on its own.
+    if (barNote && isDrums) overlayImage = nullptr;
+    if (showActivation && gemWrapper.activation)
+        overlayImage = activationRecut(overlayImage, gemColumn);
     const OverlayAdjust* overlayAdjPtr = nullptr;
     int ovlIdx = -1;
     if (overlayImage != nullptr)
@@ -756,7 +775,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         bool starPowerActive = state.getProperty("starPower");
         bool hiHat = isEliteHiHatGlyph(gemWrapper, gemColumn, starPowerActive);
         const auto& overlayAdj = getOverlayAdjustForGem(gemWrapper.gem, isDrums, hiHat,
-                                     hiHat && gemWrapper.hihat == HiHatState::Open);
+                                     hiHat && isOpenHiHat(gemWrapper.hihat));
         overlayAdjPtr = &overlayAdj;
 
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
