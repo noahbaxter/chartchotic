@@ -67,22 +67,17 @@ public:
     {
         if (v) writeController.setSubMode(SubMode::Draw);
         writeController.setLaneTool(v);
-        dropCymbalUnlessPlainNotes();
     }
 
-    // A cymbal is a property of a drum pad hit, so it only means anything while plain notes are
-    // what a click writes. A kick bar, a lane and every phrase are written as something else, and
-    // leaving the flag set through them would have it come back on a note the user never set it
-    // for. Enforced here rather than at each caller so the keyboard and the bar cannot disagree.
-    void dropCymbalUnlessPlainNotes()
-    {
-        if (!cymbalMode()) return;
-        if (barMode() || laneTool() || view() != EditorView::Notes) setCymbalMode(false);
-    }
     void setActivePart(Part p)        { writeController.setActivePart(p); editController.setActivePart(p); }
     void setActiveSkill(SkillLevel s) { writeController.setActiveSkill(s); editController.setActiveSkill(s); }
     void setDrumDynamic(DrumDynamic d){ writeController.setDrumDynamic(d); editController.setDrumDynamic(d); }
     void setGuitarForce(GuitarForce f){ writeController.setGuitarForce(f); editController.setGuitarForce(f); }
+    // Kept through bar mode, the lane tool and the phrase views rather than cleared by them.
+    // Switching away and back used to lose it, so a setting you had chosen had to be chosen
+    // again every time. Nothing needs it cleared to stay safe: authorsCymbal and
+    // currentMarkerMask both gate on the lane, so a remembered flag can never land on a kick or
+    // a snare, and the write bar greys the pill wherever it does not apply.
     void setCymbalMode(bool c)        { writeController.setCymbalMode(c);  editController.setCymbalMode(c); }
     void setFlamMode(bool f)          { writeController.setFlamMode(f);    editController.setFlamMode(f); }
 
