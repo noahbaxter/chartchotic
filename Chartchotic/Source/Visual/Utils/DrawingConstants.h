@@ -45,10 +45,11 @@ constexpr float PHRASE_STAR_POWER_OPACITY = 0.3f;
 // where it merely strengthens the coloured ones. It takes its own value there instead.
 constexpr float PHRASE_STAR_POWER_VIEW_OPACITY = 0.4f;
 
-// Phrase view: a solo covers the whole board too, in the blue the games light it. Kept dark so
-// it reads as a solo rather than as the blue lane.
-inline const juce::Colour PHRASE_SOLO_COLOUR { 0xFF1E3F78 };
-constexpr float PHRASE_SOLO_OPACITY = 0.22f;
+// Phrase view: a solo covers the whole board too, in the blue the games light it. Bright enough
+// to survive a dense section: at the old dark 0x1E3F78 over 0.22 the wash all but vanished under
+// a double kick run, where the bars and gems leave little board showing.
+inline const juce::Colour PHRASE_SOLO_COLOUR { 0xFF2F6BC8 };
+constexpr float PHRASE_SOLO_OPACITY = 0.34f;
 
 // Bar mode: how far the lanes that are not bar notes fade back.
 constexpr float BAR_MODE_DIM = 0.3f;
