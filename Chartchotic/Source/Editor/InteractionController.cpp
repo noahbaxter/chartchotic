@@ -62,7 +62,6 @@ void InteractionController::setView(EditorView v)
     // A selection made in one view means nothing in the next.
     editController.clearSelection();
     writeController.setView(v);
-    dropCymbalUnlessPlainNotes();
 }
 
 void InteractionController::onPointerMove(const AuthoringPoint& p, const AuthoringContext& ctx)
@@ -305,7 +304,6 @@ void InteractionController::setBarMode(bool v)
 {
     if (barModeFlag == v) return;
     barModeFlag = v;
-    dropCymbalUnlessPlainNotes();
     writeController.stateDidChange();
     if (onStateChanged) onStateChanged();
 }
