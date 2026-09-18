@@ -33,6 +33,11 @@ public:
     bool        snapEnabled()     const { return writeController.snapEnabled(); }
     bool        barMode()         const { return barModeFlag; }
     Part        activePart()      const { return writeController.activePart(); }
+    // The part the write bar describes and a click writes to. Tracks the FOCUSED highway, while
+    // activePart follows the cursor across highways so a hover ghosts on the one being pointed
+    // at. The two differ only between a move onto another highway and the click that claims it.
+    Part        focusPart()       const { return focusedPart; }
+    void        setFocusPart(Part p)    { focusedPart = p; }
     SkillLevel  activeSkill()     const { return writeController.activeSkill(); }
     DrumDynamic drumDynamic()     const { return writeController.drumDynamic(); }
     GuitarForce guitarForce()     const { return writeController.guitarForce(); }
@@ -51,7 +56,14 @@ public:
     void setSnapEnabled(bool v)     { writeController.setSnapEnabled(v); }
     void clearEditSelection()       { editController.clearSelection(); }
     void setBarMode(bool v);
-    void setLaneTool(bool v)        { writeController.setLaneTool(v); dropCymbalUnlessPlainNotes(); }
+    // Lanes are drawn, never selected, and edit mode has nothing to do with them: leaving the
+    // sub-mode on Edit would swallow every click with no sign why.
+    void setLaneTool(bool v)
+    {
+        if (v) writeController.setSubMode(SubMode::Draw);
+        writeController.setLaneTool(v);
+        dropCymbalUnlessPlainNotes();
+    }
 
     // A cymbal is a property of a drum pad hit, so it only means anything while plain notes are
     // what a click writes. A kick bar, a lane and every phrase are written as something else, and
@@ -100,11 +112,16 @@ private:
         auto v = writeController.view();
         return v == EditorView::Notes || v == EditorView::StarPower || v == EditorView::Phrase;
     }
-    // Gems only exist to edit in Notes; the phrase views author ranges instead.
-    bool gemsAuthored() const { return writeController.view() == EditorView::Notes; }
+    // Gems only exist to edit in Notes; the phrase views author ranges instead. The lane tool
+    // lives inside Notes but authors ranges too, so gems are not its to select or erase.
+    bool gemsAuthored() const
+    {
+        return writeController.view() == EditorView::Notes && !writeController.laneTool();
+    }
     void applyModifierSlot(const ModifierSlot& slot);
 
     juce::ValueTree& state;
+    Part focusedPart = Part::GUITAR;
     bool barModeFlag = false;
     OptimisticPatchBuffer patchBuffer;
     WriteController writeController;

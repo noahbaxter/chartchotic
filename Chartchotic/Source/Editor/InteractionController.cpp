@@ -121,10 +121,22 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
         && cmd >= WriteCommand::ModifierSlot1 && cmd <= WriteCommand::ModifierSlot5)
     {
         int index = (int)cmd - (int)WriteCommand::ModifierSlot1;
-        auto kinds = PhraseMath::kindsFor(activePart());
+        // The focused part, not the hovered one: the keyboard acts on what the bar shows and
+        // what a click would write to, never on whichever highway the cursor happens to be over.
+        auto kinds = PhraseMath::kindsFor(focusPart());
         if (index >= (int)kinds.size()) return false;
 
         writeController.setPhraseKind(kinds[(size_t)index]);
+        return true;
+    }
+
+    // Ahead of the gem gate below, which the lane tool itself fails: R has to switch the tool
+    // back off. Routed here rather than through the write controller so it drops the cymbal
+    // flag, and so it stays inert in the phrase views, which have no lanes to draw.
+    if (cmd == WriteCommand::ToggleLaneTool)
+    {
+        if (view() != EditorView::Notes) return false;
+        setLaneTool(!laneTool());
         return true;
     }
 
@@ -159,7 +171,7 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
     if (cmd >= WriteCommand::ModifierSlot1 && cmd <= WriteCommand::ModifierSlot5)
     {
         int index = (int)cmd - (int)WriteCommand::ModifierSlot1;
-        auto slots = modifierSlotsFor(getRenderType(activePart()), writeController.laneTool());
+        auto slots = modifierSlotsFor(getRenderType(focusPart()), writeController.laneTool());
         if (index >= (int)slots.size())
             return false;
 
@@ -252,9 +264,6 @@ void InteractionController::applyModifierSlot(const ModifierSlot& slot)
             if (isEditActive()) applyFlamModeToSelection(next);
             break;
         }
-        case ModifierGroup::Phrase:
-            writeController.setPhraseTarget((PhraseTarget)slot.value);
-            break;
         case ModifierGroup::Force:
         {
             auto target = (GuitarForce)slot.value;
