@@ -93,32 +93,14 @@ public:
     // lettered because a lane has a shape a chart author already reads on the highway.
     bool drawLane(juce::Graphics& g, juce::Rectangle<float> r, juce::Colour laneColour) const
     {
-        auto* gem = stable(assets.getDrumGlyphImage(GemWrapper(Gem::NOTE), DRUM_COLUMN, false));
-        if (gem == nullptr || !gem->isValid()) return false;
-
-        // The gem size leads, bounded by the height the run may take once the gaps between
-        // gems are counted, and by the icon's width so a wide flat button cannot blow it up.
-        const float span = (float)LANE_GEM_COUNT + LANE_GEM_GAP * (float)(LANE_GEM_COUNT - 1);
-        const float size = juce::jmin(r.getWidth() * LANE_GEM_MAX_WIDTH,
-                                      r.getHeight() * LANE_RUN_HEIGHT / span);
-        const float step = size * (1.0f + LANE_GEM_GAP);
-
-        // Vertical, because that is how a lane runs on the highway: a band up the column with
-        // its gems stacked on it. Laid out sideways the icon read as a sustain. The band hugs
-        // the run rather than being sized on its own, or the gems rattle around inside a lane
-        // nearly twice their width.
-        const float bandW = size * LANE_BAND_MARGIN;
-        auto band = r.withSizeKeepingCentre(bandW, r.getHeight());
-        g.setColour(laneColour.withAlpha(LANE_BAND_ALPHA));
+        // Vertical, because that is how a lane runs on the highway. Laid out sideways it read
+        // as a sustain. Just the band: the gems that used to sit on it were too small to read
+        // as gems at button size, and the coloured run is what the eye picks out on the board
+        // anyway. No asset involved, so there is nothing here that can fail to draw.
+        const float bandW = r.getWidth() * LANE_BAND_WIDTH;
+        auto band = r.withSizeKeepingCentre(bandW, r.getHeight() * LANE_BAND_HEIGHT);
+        g.setColour(laneColour);
         g.fillRoundedRectangle(band, bandW * 0.35f);
-
-        float top = r.getCentreY() - (step * (float)(LANE_GEM_COUNT - 1) + size) * 0.5f;
-        for (int i = 0; i < LANE_GEM_COUNT; ++i)
-        {
-            auto slot = juce::Rectangle<float>(size, size)
-                            .withCentre({ r.getCentreX(), top + size * 0.5f + step * (float)i });
-            drawImage(g, slot, gem);
-        }
         return true;
     }
 
@@ -126,14 +108,8 @@ private:
     static constexpr juce::uint8 VISIBLE_ALPHA = 8;
     static constexpr float FLAM_OFFSET = 0.3f;       // of the icon, how far the two gems sit apart
     static constexpr float FLAM_GRACE_ALPHA = 0.55f;
-    // Three gems rather than four, packed close: at four the run filled the button top to
-    // bottom and each gem was too small to read as a gem at all.
-    static constexpr int   LANE_GEM_COUNT = 3;        // gems shown sitting on the lane
-    static constexpr float LANE_GEM_GAP = 0.2f;       // of a gem, the space between two of them
-    static constexpr float LANE_GEM_MAX_WIDTH = 0.42f;// of the icon, so a wide button stays sane
-    static constexpr float LANE_RUN_HEIGHT = 0.86f;   // of the icon, the tallest the run may get
-    static constexpr float LANE_BAND_MARGIN = 1.35f;  // of a gem, how far the band oversails it
-    static constexpr float LANE_BAND_ALPHA = 0.55f;
+    static constexpr float LANE_BAND_WIDTH  = 0.42f;  // of the icon
+    static constexpr float LANE_BAND_HEIGHT = 0.92f;  // of the icon, so it clears the edges
 
     // Scanned once per image and kept. The size is part of the key, not just the buffer
     // address: rescaling frees the old pixel data and the allocator is free to hand the same

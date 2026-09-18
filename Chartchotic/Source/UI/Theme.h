@@ -41,8 +41,9 @@ public:
 
     // The lane band in the LANE pill's art. Deliberately NOT controlSelected: the pill fills
     // with that colour when it is on, so a band painted the same vanished into it exactly when
-    // the tool was active. Declared down here because it borrows from the accent palette above.
-    static constexpr juce::uint32 controlLaneArt = green;
+    // the tool was active. Yellow reads against both that fill and the dark ground.
+    // Declared down here because it borrows from the accent palette above.
+    static constexpr juce::uint32 controlLaneArt = yellow;
 
     //==========================================================================
     // Overlay parent — returns the AudioProcessorEditor so overlays inherit
