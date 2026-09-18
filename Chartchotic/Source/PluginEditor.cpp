@@ -847,11 +847,16 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         bool wm = interactionController.writeModeActive();
         auto view = interactionController.view();
         bool bar = interactionController.barMode();
+        // Pushed here with the rest of the write state, not only from the toolbar's own button:
+        // the keyboard and the mode switch turn the tool off too, and a highway left holding a
+        // stale flag keeps dimming the whole board for a tool that is no longer on.
+        bool lane = interactionController.laneTool();
 
-        forAllHighways([wm, view, bar](auto& hw) {
+        forAllHighways([wm, view, bar, lane](auto& hw) {
             hw.setWriteMode(wm);
             hw.setEditorView(view);
             hw.setBarMode(bar);
+            hw.setLaneToolActive(lane);
         });
 
         if (toolbar.refreshFromWriteController())
