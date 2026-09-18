@@ -152,9 +152,11 @@ private:
     static constexpr float LANE_BAND_GAP    = 0.5f;
     static constexpr float LANE_DIGIT_WIDTH  = 0.38f; // of the icon, reserved beside the bands
     static constexpr float LANE_DIGIT_HEIGHT = 0.5f;  // of the icon
-    // How far the tint reaches into a gem's neutral framing and highlights. Short of 1 so the
-    // art keeps its shading and still reads as a gem rather than a flat silhouette.
-    static constexpr float ICON_TINT_NEUTRAL_PULL = 0.75f;
+    // Zero, so an icon recolours exactly the way an ordinary gem on the board does: the chrome
+    // frame and highlights are neutral by design and stay neutral, and only the coloured body
+    // takes the new hue. Pulling the neutrals along dragged the frame into the colour too, which
+    // flattened each gem into a silhouette and lost the thing that makes it read as a gem.
+    static constexpr float ICON_TINT_NEUTRAL_PULL = 0.0f;
 
     // Scanned once per image and kept. The size is part of the key, not just the buffer
     // address: rescaling frees the old pixel data and the allocator is free to hand the same
