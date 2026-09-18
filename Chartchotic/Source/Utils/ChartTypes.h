@@ -136,6 +136,14 @@ enum class HiHatState
     Indifferent,
 };
 
+// Open being the default means an unset state has to read as Open everywhere: the art picked
+// for it and the overlay offsets hung off that art. When only one of the two counted None as
+// open, an unset hi-hat drew the tall open cymbal with the closed one's overlay offsets.
+inline bool isOpenHiHat(HiHatState state)
+{
+    return state == HiHatState::Open || state == HiHatState::None;
+}
+
 struct GemWrapper
 {
     Gem gem;

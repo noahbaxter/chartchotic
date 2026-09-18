@@ -463,8 +463,12 @@ public:
 
     static int resolveKickPitch(SkillLevel skill, int lane, bool kick2xEnabled)
     {
+        // 95 is "Expert+ Kick": one pitch, no per-difficulty variants, and the read side only
+        // surfaces it on Expert. Written from Hard it becomes Expert-only data that never draws
+        // back on the difficulty that wrote it, so refuse instead.
         if (is2xKickLane(lane))
-            return kick2xEnabled ? (int)MidiPitchDefinitions::Drums::EXPERT_KICK_2X : -1;
+            return (kick2xEnabled && skill == SkillLevel::EXPERT)
+                 ? (int)MidiPitchDefinitions::Drums::EXPERT_KICK_2X : -1;
         if (lane == DRUM_KICK_COLUMN)
             return columnToDrumPitch(skill, DRUM_KICK_COLUMN, false);
         return -1;

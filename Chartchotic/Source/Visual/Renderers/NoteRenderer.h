@@ -35,6 +35,10 @@ public:
     bool showGems = true;
     bool showBars = true;
     float barModeDim = 1.0f;
+    // Nothing else dims the hand gems, so the dim doubles as the bar-mode flag. In bar mode the
+    // bars are what you are editing, so they draw above the lanes and phrases instead of under
+    // them -- a fill covers the whole column, and a kick buried in one cannot be aimed at.
+    bool barModeActive() const { return barModeDim < 1.0f; }
     // Phrase view: grow each fill's activation gem so the note that triggers star power stands out.
     bool showActivation = false;
     // SP and Phrase views: how far the gems fade back under the phrases drawn over them.
@@ -164,6 +168,7 @@ private:
                        bool kickFlam);
 
     const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums, bool hiHat, bool hiHatOpen) const;
+    juce::Image* activationRecut(juce::Image* image, uint gemColumn) const;
 
     // True when this gem renders the elite Hi-Hat gem art (col 2, not star-power, not Indifferent)
     // -- mirrors getDrumGlyphImage's hi-hat branch so the overlay adjust matches the drawn glyph.
