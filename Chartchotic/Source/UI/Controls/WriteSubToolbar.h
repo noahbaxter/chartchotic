@@ -149,11 +149,6 @@ public:
         laneTwoToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
             return gemIcons->drawLane(g, r, juce::Colour(Theme::controlLaneArt), 2);
         });
-        barToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
-            bool drums = isDrumLike(interactionController.focusPart());
-            return !gemIcons->drawImage(g, r, drums ? assetManager->getBarKickImage()
-                                                    : assetManager->getBarOpenImage()).isEmpty();
-        });
     }
 
     std::function<void(EditorView)> onViewChanged;
@@ -306,8 +301,10 @@ public:
         tupletDropdown.setAlpha(snapOn ? 1.0f : 0.35f);
         tupletDropdown.setInterceptsMouseClicks(snapOn, snapOn);
 
+        // One word whatever the instrument. The bar art it used to carry was a board-wide
+        // rectangle that said nothing at button size, and which note it means is what the hover
+        // help is for.
         barToggle.setToggleState(interactionController.barMode());
-        barToggle.setButtonText(drums ? "KICK" : "OPEN");
 
         // Cym and Flam share one pill slot; no kit has both.
         const auto* cfg = getAuthoringConfig(interactionController.focusPart());
@@ -461,11 +458,10 @@ public:
         // drums' three plus Cym. Switching parts swaps what is inside it and nothing else
         // on the row moves.
         const int noteSquares = juce::jmax((int)guitarForceItems, (int)drumDynamicItems + 1);
-        // BAR keeps its two squares for the bar art; the lane buttons are a square each beside
-        // it. Budgeted for both even on elite, which shows one, so the row does not shift width
-        // as the part changes.
-        const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES + 2.0f
-                            + SNAP_SQUARES;
+        // A square each for BAR and the two lane buttons, all three being plain pills now.
+        // Budgeted for both lanes even on elite, which shows one, so the row does not shift
+        // width as the part changes.
+        const float squares = MODE_SQUARES + (float)noteSquares + 3.0f + SNAP_SQUARES;
         const float gapSquares = SUBTOOLBAR_GROUP_GAP * 3.0f + SUBTOOLBAR_ITEM_GAP * 4.0f
                                + SUBTOOLBAR_LEFT_MARGIN;
 
@@ -488,11 +484,10 @@ public:
 
         const int groupGap = juce::roundToInt(side * SUBTOOLBAR_GROUP_GAP);
         const int itemGap  = juce::jmax(2, juce::roundToInt(side * SUBTOOLBAR_ITEM_GAP));
-        const int barW  = juce::roundToInt(side * SUBTOOLBAR_BAR_SQUARES);
 
         const int modeW = side * MODE_SQUARES;
         const int noteSlotW = side * noteSquares + itemGap;
-        const int noteW = noteSlotW + itemGap * 3 + barW + side * 2;
+        const int noteW = noteSlotW + itemGap * 3 + side * 3;
         const int gridW = side * SNAP_SQUARES + itemGap * 2 + divisionW + tupletW;
         const int totalW = modeW + noteW + phraseW + gridW + groupGap * 3;
 
@@ -511,6 +506,11 @@ public:
         x += groupGap;
 
         labelGroupNote = { x, 0, noteW, labelH };
+        // Ahead of the note types, because it decides WHICH notes a click can reach before any
+        // question of what kind they are.
+        place(barToggle, side);
+        x += itemGap;
+
         const int noteSlotEnd = x + noteSlotW;
         if (drums)
         {
@@ -526,16 +526,13 @@ public:
             place(guitarForceButtons, side * (int)guitarForceItems);
         }
         x = noteSlotEnd + itemGap;
-        // A square each: their art is a lane up a column, not a board-wide bar, so the two
-        // squares BAR needs left them swimming in empty space.
+        // A square each: their art is one lane up a column, not a board-wide bar.
         place(laneOneToggle, side);
         if (laneTwoToggle.isVisible())
         {
             x += itemGap;
             place(laneTwoToggle, side);
         }
-        x += itemGap;
-        place(barToggle, barW);
         x += groupGap;
 
         // Centred in a slot sized for the most kinds any instrument has, so the segments keep one
