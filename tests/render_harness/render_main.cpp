@@ -261,6 +261,7 @@ int main(int argc, char** argv)
     juce::String dumpStomp;   // if set: save the baked Stomp bar asset alone and exit
     juce::String dumpKick;    // if set: save the baked kick bars (fat + elite thin) and exit
     juce::String dumpIcons;   // if set: save the write bar's gem icons as one sheet and exit
+    int iconCell = 48;        // --icon-cell: pixels per icon in that sheet
     bool bemani = false;      // --bemani: flat (Bemani) mode instead of perspective
     // Editor view overlays, as HighwayComponent appends them in write mode.
     bool spView = false;      // --sp-view: star power bands
@@ -272,6 +273,7 @@ int main(int argc, char** argv)
         if      (a == "--dump-stomp" && i + 1 < argc) dumpStomp = argv[++i];
         else if (a == "--dump-kick"  && i + 1 < argc) dumpKick = argv[++i];
         else if (a == "--dump-icons" && i + 1 < argc) dumpIcons = argv[++i];
+        else if (a == "--icon-cell" && i + 1 < argc) iconCell = juce::String(argv[++i]).getIntValue();
         else if (a == "--part"   && i + 1 < argc) partName = argv[++i];
         else if (a == "--width"  && i + 1 < argc) W = juce::String(argv[++i]).getIntValue();
         else if (a == "--aspect" && i + 1 < argc) aspect = juce::String(argv[++i]).getDoubleValue();
@@ -345,7 +347,8 @@ int main(int argc, char** argv)
     // how the gems fill their buttons can be checked without the plugin.
     if (dumpIcons.isNotEmpty())
     {
-        constexpr int cell = 48, pad = 2;
+        // 48 is the size a button actually gets; --icon-cell blows that up to check the art.
+        const int cell = iconCell, pad = 2;
         GemIconArt icons(assets);
         icons.tint = juce::Colour(Theme::controlLaneArt);   // as the write bar sets it
         using Draw = std::function<bool(juce::Graphics&, juce::Rectangle<float>)>;
