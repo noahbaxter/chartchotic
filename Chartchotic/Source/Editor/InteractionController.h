@@ -27,6 +27,7 @@ public:
     SubMode     subMode()         const { return writeController.subMode(); }
     EditorView  view()            const { return writeController.view(); }
     bool        laneTool()        const { return writeController.laneTool(); }
+    PhraseMath::Kind phraseKind() const { return writeController.phraseKind(); }
     int         stepDivision()    const { return writeController.stepDivision(); }
     int         tuplet()          const { return writeController.tuplet(); }
     bool        snapEnabled()     const { return writeController.snapEnabled(); }
@@ -43,6 +44,7 @@ public:
     void setWriteModeActive(bool v) { writeController.setWriteModeActive(v); }
     void setSubMode(SubMode m)      { writeController.setSubMode(m); }
     void setView(EditorView v);
+    void setPhraseKind(PhraseMath::Kind k) { writeController.setPhraseKind(k); }
     void setStepDivision(int d)     { writeController.setStepDivision(d); }
     void setTuplet(int t)           { writeController.setTuplet(t); }
     void cycleTuplet()              { writeController.cycleTuplet(); }
@@ -66,10 +68,29 @@ public:
 
     std::function<void()> onStateChanged;
 
+    // Why a phrase gesture wrote nothing, for the editor to show. A setter rather than a
+    // reference to the write controller's own: that member is declared after this one.
+    void setPhraseRefusedHandler(std::function<void(const juce::String&)> f)
+    {
+        writeController.onPhraseRefused = std::move(f);
+    }
+
+    // Called after a phrase write lands, so the highway can re-read the MIDI it parses itself.
+    void setChartWrittenHandler(std::function<void()> f)
+    {
+        writeController.onChartWritten = std::move(f);
+    }
+
 private:
     bool isEditActive() const;
-    // Only the Notes view writes from the highway until the other views get their authoring.
-    bool highwayAuthors() const { return writeController.view() == EditorView::Notes; }
+    // Views that write from the highway. Sections and Tempo do not yet.
+    bool highwayAuthors() const
+    {
+        auto v = writeController.view();
+        return v == EditorView::Notes || v == EditorView::StarPower || v == EditorView::Phrase;
+    }
+    // Gems only exist to edit in Notes; the phrase views author ranges instead.
+    bool gemsAuthored() const { return writeController.view() == EditorView::Notes; }
     void applyModifierSlot(const ModifierSlot& slot);
 
     juce::ValueTree& state;

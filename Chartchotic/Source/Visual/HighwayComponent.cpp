@@ -23,6 +23,9 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
 {
     // Sync activePart from state
     setActivePart(getPartFromState(state));
+    // The view flags default on here but off in the renderer, and nothing reconciled them until
+    // something happened to toggle a view. Push them down once at birth so they start in step.
+    applyEditorView();
 #ifdef DEBUG
     debugColour = juce::Colour::fromHSV(
         juce::Random::getSystemRandom().nextFloat(), 0.4f, 0.4f, 1.0f);
@@ -60,6 +63,9 @@ void HighwayComponent::commitPendingPart()
     trackRenderer.activePart = pendingPart;
     rebuildTrack();
 }
+
+// Stands in for "no markers this view", so paint can hand the renderer a reference either way.
+static const TimeBasedEventMarkers kNoMarkers;
 
 void HighwayComponent::paint(juce::Graphics& g)
 {
@@ -321,15 +327,79 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Inject sustain drag preview into a local copy of the sustain window.
     auto sustainWindow = frameData.sustainWindow;
 
-    // The phrase views draw their phrases as lanes on the highway, one kind per view.
+    // The phrase views draw their own phrases on the highway: star power in SP, solo and
+    // fill/BRE in Phrase.
     {
         const auto view = shownView();
-        const SustainType shown = view == EditorView::StarPower ? SustainType::STAR_POWER
-                                : view == EditorView::Phrase    ? SustainType::BRE
-                                                                : SustainType::SUSTAIN;
-        if (shown != SustainType::SUSTAIN)
-            for (const auto& p : frameData.phraseWindow)
-                if (p.sustainType == shown) sustainWindow.push_back(p);
+        auto shownHere = [view](SustainType t) {
+            const bool phrase = t == SustainType::SOLO || t == SustainType::BRE
+                             || t == SustainType::FILL;
+            // The activation lane says where star power can be taken, which a player wants to
+            // see while watching, not only while authoring. Its own toggle hides it; no view
+            // does. Everything else below is about what this view is for.
+            if (t == SustainType::ACTIVATION)  return true;
+            // Notes shows solo, fill and BRE as read-only context. Star power is left to the
+            // gems, which already draw themselves as SP inside a phrase.
+            if (view == EditorView::Notes)     return phrase;
+            if (view == EditorView::StarPower) return t == SustainType::STAR_POWER;
+            // Phrase authors them all, so it shows them all.
+            if (view == EditorView::Phrase)    return phrase || t == SustainType::STAR_POWER;
+            return false;
+        };
+        auto typeForKind = [](int kind) {
+            switch ((PhraseMath::Kind)kind)
+            {
+                case PhraseMath::Kind::StarPower: return SustainType::STAR_POWER;
+                case PhraseMath::Kind::Solo:      return SustainType::SOLO;
+                case PhraseMath::Kind::Bre:       return SustainType::BRE;
+                default:                          return SustainType::FILL;
+            }
+        };
+
+        // Fills and BREs are per column in every view: in the phrase view those columns are
+        // packed into their own lane rather than spread across the board.
+        auto emitPhrase = [this, &sustainWindow](SustainType type, double startQN, double endQN) {
+            const double startSec = projectQNToSeconds(startQN);
+            const double endSec   = projectQNToSeconds(endQN);
+
+            if (type != SustainType::BRE && type != SustainType::FILL)
+            {
+                sustainWindow.push_back({ startSec, endSec, 0u, type, GemWrapper() });
+                return;
+            }
+
+            auto [firstColumn, lastColumn] = PhraseMath::handColumns(activePart);
+            for (uint c = firstColumn; c <= lastColumn; ++c)
+                sustainWindow.push_back({ startSec, endSec, c, type, GemWrapper() });
+        };
+
+        // Committed phrases always come from the frame data, which the session fills in per
+        // part. Never from the overlay: that is gated to the focused highway, so sourcing them
+        // there made phrases jump as the cursor moved between highways.
+        for (const auto& p : frameData.phraseWindow)
+            if (shownHere(p.sustainType)) sustainWindow.push_back(p);
+
+        const OverlayState* ov = (overlayStateGetter && projectQNToSeconds)
+                               ? &overlayStateGetter() : nullptr;
+
+        // A global BRE preview is pushed to every highway, so it wins over the focus-gated
+        // overlay: on the focused highway the two are the same thing, and elsewhere the overlay
+        // is blank.
+        if (projectQNToSeconds)
+        {
+            const GlobalPhrase global = globalPhraseGetter ? globalPhraseGetter() : GlobalPhrase{};
+
+            const auto drag  = global.drag.visible  ? global.drag
+                             : ov != nullptr        ? ov->phrasePreview
+                                                    : OverlayState::PhrasePreview{};
+            const auto hover = global.hover.visible ? global.hover
+                             : ov != nullptr        ? ov->phraseHover
+                                                    : OverlayState::PhrasePreview{};
+
+            // The phrase being dragged, then the hover block, drawn as what they would write.
+            if (drag.visible)  emitPhrase(typeForKind(drag.kind), drag.startQN, drag.endQN);
+            if (hover.visible) emitPhrase(typeForKind(hover.kind), hover.startQN, hover.endQN);
+        }
     }
 
     if (overlayStateGetter && projectQNToSeconds)
@@ -514,12 +584,20 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
-    bool barModeActive = overlayStateGetter && overlayStateGetter().barMode;
-    sceneRenderer.setBarModeDim(barModeActive ? 0.3f : 1.0f);
+    // Not from the overlay: that is gated to the focused highway, so the dim followed the cursor
+    // around instead of showing bar mode on every highway at once.
+    sceneRenderer.setBarModeDim(barModeOn ? BAR_MODE_DIM : 1.0f);
+
+    // The Sections view puts the song's sections on the highway as named gates, drawn the same
+    // way disco flips are. Nothing else draws markers yet: the tempo ones in the frame data
+    // wait for the Tempo view, or every view would carry BPM labels.
+    const TimeBasedEventMarkers& eventMarkers = shownView() == EditorView::Sections
+                                              ? frameData.sectionMarkers
+                                              : kNoMarkers;
 
     sceneRenderer.paint(g, w, h,
                         trackWindow, sustainWindow, frameData.gridlines,
-                        frameData.flipRegions, frameData.eventMarkers,
+                        frameData.flipRegions, eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
 #ifdef DEBUG

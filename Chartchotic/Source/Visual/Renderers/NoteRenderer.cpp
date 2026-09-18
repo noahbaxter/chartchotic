@@ -344,6 +344,22 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive, elite);
     }
 
+    // The activation gem swaps in a more vivid cut of its own art. Not a tint sprite over the
+    // top: the gem is already its lane's colour, so a flat wash of that colour barely moves it,
+    // and the pixels that would move most -- the neutral highlights -- are the ones recolorGem
+    // deliberately leaves alone. Recolouring the source reaches them, and goes through the same
+    // cache and curve bake as every other glyph.
+    if (showActivation && gemWrapper.activation && glyphImage != nullptr)
+    {
+        const juce::Colour lane = assetManager.getLaneColour(
+            gemColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, false);
+        glyphImage = assetManager.getTintedGlyph(
+            glyphImage,
+            lane.withMultipliedSaturation(PHRASE_ACTIVATION_VIVID_SATURATION)
+                .brighter(PHRASE_ACTIVATION_VIVID_BRIGHTEN),
+            PHRASE_ACTIVATION_VIVID_NEUTRAL_PULL);
+    }
+
     // Elite hi-hat pedal bars (Stomp / Splash) render like a bar (draw order, height, bar
     // scales) but are NOT full width: the geometry block below spans ~3 lanes centered on
     // the hi-hat lane instead of the whole fretboard.
@@ -364,6 +380,9 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
     float opacity = (opacityOverride >= 0.0f) ? opacityOverride : calculateOpacity(position);
     if (!barNote && barModeDim < 1.0f) opacity *= barModeDim;
+    // Phrase views: gems fade back so the band or lane over them reads, but stay visible
+    // enough to see which notes a phrase covers. The activation gem keeps full strength.
+    if (phraseDim < 1.0f && !gemWrapper.activation) opacity *= phraseDim;
     // Ghost kicks read as a fainter bar. Placeholder for elite kick dynamics until there is
     // real art; the accent half is a separate thicker bake, so only the ghost needs this.
     if (barNote && gemWrapper.gem == Gem::HOPO_GHOST)
@@ -457,7 +476,6 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         float spScale = gemTypeScales.spGem;
         if (std::abs(spScale - 1.0f) > 0.001f) spMul = spScale;
     }
-    if (showActivation && gemWrapper.activation) spMul *= PHRASE_ACTIVATION_SCALE;
 
     const auto& baseScale = barNote ? barScale : gemScale;
     float wScale = baseScale.width  * typeScale * spMul * userScale;
@@ -698,7 +716,6 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         float spScale = gemTypeScales.spGem;
         if (std::abs(spScale - 1.0f) > 0.001f) spMul = spScale;
     }
-    if (showActivation && gemWrapper.activation) spMul *= PHRASE_ACTIVATION_SCALE;
 
     float baseW = barNote ? bemaniConfig.barW : bemaniConfig.gemW;
     float baseH = barNote ? bemaniConfig.barH : bemaniConfig.gemH;

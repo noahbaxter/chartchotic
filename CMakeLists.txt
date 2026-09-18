@@ -118,6 +118,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/InteractionController.h
         Chartchotic/Source/Editor/NoteEditor.cpp
         Chartchotic/Source/Editor/NoteEditor.h
+        Chartchotic/Source/Editor/PhraseWriter.cpp
+        Chartchotic/Source/Editor/PhraseWriter.h
         Chartchotic/Source/Host/ReaperVST3.h
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp
@@ -216,6 +218,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/HighwayComponent.cpp
         Chartchotic/Source/Visual/HighwayComponent.h
         Chartchotic/Source/Visual/HighwaySlot.h
+        Chartchotic/Source/Visual/PhraseMath.h
         Chartchotic/Source/Visual/UtilityStripComponent.cpp
         Chartchotic/Source/Visual/UtilityStripComponent.h
         Chartchotic/Source/Visual/TrackImageCache.h

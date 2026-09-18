@@ -5,6 +5,7 @@
 #include "../UI/ControlConstants.h"
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
 #include "../Visual/Geometry/PositionMath.h"
+#include "../Visual/PhraseMath.h"
 
 // Apply latency offset to raw cursor position.
 // In REAPER mode, uses the tempo map for accurate time-to-PPQ conversion
@@ -36,6 +37,86 @@ static PPQ applyLatencyOffset(PPQ cursorPPQ, const FrameContext& ctx)
     return cursorPPQ;
 }
 
+// The song's sections as named gates on the highway, for the Sections view. Song-scoped, so
+// they come off the EVENTS track's own parse rather than any one part's window.
+template <typename PPQToTime>
+static TimeBasedEventMarkers buildSectionMarkers(const FrameContext& ctx, PPQ cursorPPQ,
+                                                 PPQToTime ppqToTime)
+{
+    TimeBasedEventMarkers markers;
+    auto* session = ctx.processor.getInstrumentSession();
+    if (session == nullptr) return markers;
+
+    const double cursorTime = ppqToTime(cursorPPQ.toDouble());
+    for (const auto& section : session->getSongSections().getSections())
+        markers.push_back({ ppqToTime(section.position.toDouble()) - cursorTime, section.name });
+
+    return markers;
+}
+
+// The part's phrases plus the active difficulty's fill activation bands, which live apart
+// because the note a fill activates on differs per difficulty.
+static SustainWindow allPhrases(const PartWindow& partWindow, const DifficultyWindow& diffWindow)
+{
+    SustainWindow out = partWindow.phraseWindow;
+    out.insert(out.end(), diffWindow.phraseWindow.begin(), diffWindow.phraseWindow.end());
+    return out;
+}
+
+// Phrases for one part, read off that part's own track in the session. Returned inactive when
+// there is no session, which leaves the interpreter's own parse alone.
+static MidiInterpreter::PhraseOverride sessionPhrases(const FrameContext& ctx, Part part)
+{
+    MidiInterpreter::PhraseOverride out;
+
+    auto* session = ctx.processor.getInstrumentSession();
+    if (session == nullptr) return out;
+
+    const auto& tracks = session->getTracks();
+    int idx = -1;
+    for (int i = 0; i < (int)tracks.size(); ++i)
+        if (tracks[i].part == part) idx = i;
+    if (idx < 0) return out;
+
+    const auto& notes = session->getNotes(idx);
+    auto ranges = [&notes](int pitch) {
+        std::vector<ModifierRange> out;
+        for (const auto& s : PhraseMath::rangesOf(notes, pitch))
+            out.push_back({ PPQ(s.startQN), PPQ(s.endQN) });
+        return out;
+    };
+
+    // A part with no phrase of this kind reports no pitches at all, and 6-fret has no BRE, so
+    // the list has to be checked rather than indexed.
+    auto rangesOfKind = [&ranges, part](PhraseMath::Kind kind) {
+        auto pitches = PhraseMath::pitches(kind, part);
+        return pitches.empty() ? std::vector<ModifierRange>{} : ranges(pitches.front());
+    };
+
+    using Kind = PhraseMath::Kind;
+    out.active = true;
+    out.starPower = rangesOfKind(Kind::StarPower);
+    out.solo      = rangesOfKind(Kind::Solo);
+
+    std::optional<double> coda;
+    if (session->getSongSections().hasCoda())
+        coda = session->getSongSections().getCodaPPQ().toDouble();
+
+    // Only drums can have a fill, so only drums need the coda to tell a fill from a BRE.
+    // Everywhere else 120-124 has no other meaning and is a BRE on sight. Making every part wait
+    // for the coda meant one missing text event hid the phrase completely, even though the strip
+    // could show it the whole time.
+    const bool couldBeFill = PhraseMath::hasKind(Kind::Fill, part);
+
+    for (const auto& r : rangesOfKind(Kind::Bre))
+    {
+        const bool bre = !couldBeFill || PhraseMath::isBre(r.start.toDouble(), coda);
+        (bre ? out.bre : out.fill).push_back(r);
+    }
+
+    return out;
+}
+
 void FrameDataBuilder::buildReaper(HighwayFrameData& out,
                                    const FrameContext& ctx,
                                    MidiInterpreter& interpreter)
@@ -63,6 +144,7 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     }
 
     // Resolve all 4 difficulties in one lock — extract the active one
+    interpreter.setPhraseOverride(sessionPhrases(ctx, interpreter.instrumentPart));
     PartWindow partWindow = interpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     SkillLevel activeSkill = (SkillLevel)((int)interpreter.getState().getProperty("skillLevel"));
     auto& diffWindow = partWindow.forSkill(activeSkill);
@@ -79,9 +161,10 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-    out.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
+    out.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
     out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
+    out.sectionMarkers = buildSectionMarkers(ctx, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
     out.windowEndTime = ctx.displayWindowTimeSeconds;
     out.isPlaying = ctx.processor.isPlaying;
@@ -132,6 +215,8 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
         tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     TimeBasedEventMarkers sharedMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
         tempoTimeSigMap, cursorPPQ, ppqToTime);
+    // Sections belong to the song, so every highway in the grid shows the same gates.
+    TimeBasedEventMarkers sharedSections = buildSectionMarkers(ctx, cursorPPQ, ppqToTime);
 
     bool isPlaying = ctx.processor.isPlaying;
 
@@ -182,6 +267,16 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
                                             cfg.bemaniMode, isElite);
         }
 
+        // This path resolves without going through MidiInterpreter, so it has to apply the
+        // session's phrases itself. Before resolve, so star power reaches the gems too.
+        if (auto phrases = sessionPhrases(ctx, cfg.part); phrases.active)
+        {
+            shared.modifiers.starPower = phrases.starPower;
+            shared.modifiers.solo      = phrases.solo;
+            shared.modifiers.fill      = phrases.fill;
+            shared.modifiers.bre       = phrases.bre;
+        }
+
         PartWindow partWindow = TrackResolver::resolve(shared, cfg);
 
         for (int idx : slotIndices)
@@ -195,9 +290,10 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
             HighwayFrameData frameData;
             frameData.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
             frameData.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-            frameData.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
+            frameData.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
             frameData.gridlines = sharedGridlines;
             frameData.eventMarkers = sharedMarkers;
+            frameData.sectionMarkers = sharedSections;
             frameData.windowStartTime = 0.0;
             frameData.windowEndTime = ctx.displayWindowTimeSeconds;
             frameData.isPlaying = isPlaying;
@@ -267,6 +363,7 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
 
     PPQ extendedStart = trackWindowStartPPQ - ctx.displaySizeInPPQ;
 
+    interpreter.setPhraseOverride(sessionPhrases(ctx, interpreter.instrumentPart));
     PartWindow partWindow = interpreter.resolveAllDifficulties(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
     SkillLevel activeSkill = (SkillLevel)((int)interpreter.getState().getProperty("skillLevel"));
     auto& diffWindow = partWindow.forSkill(activeSkill);
@@ -284,7 +381,7 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-    out.phraseWindow = TimeConverter::convertSustainWindow(partWindow.phraseWindow, cursorPPQ, ppqToTime);
+    out.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
     out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
