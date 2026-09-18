@@ -163,6 +163,12 @@ private:
     GlobalPhraseGetter globalPhraseGetter;
     EditorView editorView = EditorView::Notes;
     EditorView shownView() const { return writeModeOn ? editorView : EditorView::Notes; }
+    // The lane tool and bar mode are write-mode overlays like the view is, so they stop showing
+    // with the mode that owns them. Without this, leaving write mode while one was on left the
+    // board faded out for a tool that could no longer do anything. The flags themselves are
+    // kept, so coming back into write mode puts you back on the tool you were using.
+    bool laneToolShown() const { return writeModeOn && laneToolOn; }
+    bool barModeShown()  const { return writeModeOn && barModeOn; }
     bool phraseViewActive() const
     {
         auto v = shownView();
@@ -176,7 +182,7 @@ private:
         sceneRenderer.setShowActivation(showActivationOn);
         // Lane mode dims the gems for the same reason a phrase view does: the lane is what you
         // are working on, and it is drawn behind notes that would otherwise sit on top of it.
-        sceneRenderer.setPhraseDim(phraseViewActive() || laneToolOn ? PHRASE_VIEW_GEM_DIM : 1.0f);
+        sceneRenderer.setPhraseDim(phraseViewActive() || laneToolShown() ? PHRASE_VIEW_GEM_DIM : 1.0f);
         sceneRenderer.setPhraseViewActive(shownView() == EditorView::Phrase);
     }
 

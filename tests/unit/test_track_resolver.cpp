@@ -946,3 +946,51 @@ TEST_CASE("TrackResolver - a guitar BRE has no activation note",
 
     REQUIRE_FALSE(activationAt(pw, 5.0));
 }
+
+// ============================================================================
+// Roll lanes: which column a shared marker lands on.
+
+namespace
+{
+    std::vector<uint> laneColumns(const PartWindow& pw)
+    {
+        std::vector<uint> cols;
+        for (const auto& s : pw.forSkill(SkillLevel::EXPERT).sustainWindow)
+            if (s.sustainType == SustainType::LANE) cols.push_back(s.gemColumn);
+        return cols;
+    }
+}
+
+TEST_CASE("TrackResolver - a roll lane never lands on a kick", "[track_resolver][drums]")
+{
+    // "Roll lanes are ... applied dynamically to a lane based on the notes that are present,
+    // excluding kicks" (_refs/midi/drums.md:139). A kick landing first inside the marker used
+    // to take the lane, which drew it as a bar across the whole board.
+    NoteStateMapArray notes;
+    addNote(notes, DRUM_KICK, 1.0, 1.1);    // first note in the range, and a kick
+    addNote(notes, DRUM_RED,  1.5, 1.6);
+    addNote(notes, DRUM_RED,  2.0, 2.1);
+    addNote(notes, (uint)MidiPitchDefinitions::Drums::LANE_1, 0.5, 3.0);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+    const auto cols = laneColumns(pw);
+    REQUIRE(cols.size() == 1);
+    REQUIRE(cols[0] != (uint)DRUM_KICK_COLUMN);
+}
+
+TEST_CASE("TrackResolver - a kick-only roll lane lands nowhere", "[track_resolver][drums]")
+{
+    // With nothing but kicks under it there is no column left for the marker to go to, which
+    // is the format's position: a kick cannot carry one on a 4-lane kit.
+    NoteStateMapArray notes;
+    addNote(notes, DRUM_KICK, 1.0, 1.1);
+    addNote(notes, DRUM_KICK, 1.5, 1.6);
+    addNote(notes, (uint)MidiPitchDefinitions::Drums::LANE_1, 0.5, 3.0);
+
+    auto shared = TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0));
+    auto pw = TrackResolver::resolve(shared, drumsConfig());
+
+    REQUIRE(laneColumns(pw).empty());
+}
