@@ -90,6 +90,9 @@ public:
     std::function<void(int drumTypeId)> onDrumTypeChanged;
     std::function<void(bool enabled)> onAutoHopoChanged;
     std::function<void(int thresholdIndex)> onHopoThresholdChanged;
+    // Lane mode dims the gems on every highway, so the editor hears about it the same way the
+    // render toggles do rather than each highway polling the controller.
+    std::function<void(bool)> onLaneToolActive;
     std::function<void(bool)> onGemsChanged;
     std::function<void(bool)> onBarsChanged;
     std::function<void(bool)> onSustainsChanged;

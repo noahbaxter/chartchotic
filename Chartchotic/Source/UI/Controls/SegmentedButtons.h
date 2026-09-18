@@ -6,7 +6,7 @@
 // A horizontal group of connected buttons where exactly one is selected.
 // Selected button gets coral fill, others are dark with subtle borders.
 // Looks like a single rounded-rect bar with internal dividers.
-class SegmentedButtons : public juce::Component
+class SegmentedButtons : public juce::Component, public juce::SettableTooltipClient
 {
 public:
     SegmentedButtons() {}

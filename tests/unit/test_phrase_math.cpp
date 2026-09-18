@@ -108,21 +108,65 @@ TEST_CASE("PhraseMath - a position inside a phrase finds it, its end does not", 
 }
 
 //==============================================================================
-// clampEnd
+// mergeSpan / spansWithin
 
-TEST_CASE("PhraseMath - an end is held short of the next phrase", "[stripphrase]")
+TEST_CASE("PhraseMath - a phrase drawn clear of the others is left alone", "[stripphrase]")
 {
-    std::vector<PhraseSpan> others = { { 16.0, 20.0 } };
+    std::vector<PhraseSpan> existing = { { 16.0, 20.0 } };
 
-    REQUIRE(clampEnd(4.0, 12.0, others) == Catch::Approx(12.0));
-    REQUIRE(clampEnd(4.0, 24.0, others) == Catch::Approx(16.0));
+    auto merged = mergeSpan({ 4.0, 12.0 }, existing);
+    REQUIRE(merged.startQN == Catch::Approx(4.0));
+    REQUIRE(merged.endQN == Catch::Approx(12.0));
+    REQUIRE(spansWithin(merged, existing).empty());
 }
 
-TEST_CASE("PhraseMath - a phrase behind the start does not clamp the end", "[stripphrase]")
+TEST_CASE("PhraseMath - a phrase drawn over another extends it", "[stripphrase]")
 {
-    std::vector<PhraseSpan> others = { { 0.0, 2.0 } };
+    std::vector<PhraseSpan> existing = { { 16.0, 20.0 } };
 
-    REQUIRE(clampEnd(4.0, 12.0, others) == Catch::Approx(12.0));
+    // Running into one from the left takes its end.
+    auto merged = mergeSpan({ 4.0, 18.0 }, existing);
+    REQUIRE(merged.startQN == Catch::Approx(4.0));
+    REQUIRE(merged.endQN == Catch::Approx(20.0));
+    REQUIRE(spansWithin(merged, existing).size() == 1);
+
+    // And from the right it takes its start.
+    auto fromRight = mergeSpan({ 18.0, 24.0 }, existing);
+    REQUIRE(fromRight.startQN == Catch::Approx(16.0));
+    REQUIRE(fromRight.endQN == Catch::Approx(24.0));
+}
+
+TEST_CASE("PhraseMath - abutting phrases are one phrase", "[stripphrase]")
+{
+    // Starting exactly where the last one ended extends it rather than stacking a second.
+    std::vector<PhraseSpan> existing = { { 4.0, 8.0 } };
+
+    auto merged = mergeSpan({ 8.0, 12.0 }, existing);
+    REQUIRE(merged.startQN == Catch::Approx(4.0));
+    REQUIRE(merged.endQN == Catch::Approx(12.0));
+}
+
+TEST_CASE("PhraseMath - a merge reaches through to the far side", "[stripphrase]")
+{
+    // Swallowing the first span widens the range into the second, which a single pass misses.
+    std::vector<PhraseSpan> existing = { { 4.0, 8.0 }, { 10.0, 14.0 }, { 20.0, 24.0 } };
+
+    auto merged = mergeSpan({ 7.0, 11.0 }, existing);
+    REQUIRE(merged.startQN == Catch::Approx(4.0));
+    REQUIRE(merged.endQN == Catch::Approx(14.0));
+
+    // The third is clear of the union and survives.
+    REQUIRE(spansWithin(merged, existing).size() == 2);
+}
+
+TEST_CASE("PhraseMath - a span swallowed whole is still erased", "[stripphrase]")
+{
+    std::vector<PhraseSpan> existing = { { 8.0, 10.0 } };
+
+    auto merged = mergeSpan({ 4.0, 16.0 }, existing);
+    REQUIRE(merged.startQN == Catch::Approx(4.0));
+    REQUIRE(merged.endQN == Catch::Approx(16.0));
+    REQUIRE(spansWithin(merged, existing).size() == 1);
 }
 
 //==============================================================================

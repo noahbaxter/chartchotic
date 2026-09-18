@@ -416,7 +416,7 @@ double UtilityStripComponent::chunkLineAtOrBefore(double qn, const View& v) cons
     // Below a bar the answer is inside the bar `qn` falls in, so there is nothing to walk:
     // beats are counted from that bar's own start, which keeps them right across a meter
     // change instead of drifting from the origin.
-    if (step < barLen - GridMath::TICK)
+    if (GridMath::before(step, barLen))
     {
         double barStart = barLineAtOrBefore(qn);
         double past = std::floor((qn - barStart) / step + 1.0e-9);
@@ -495,7 +495,7 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
         int barsIn = measure - groupAnchorMeasure(qn);
 
         double barLen = std::max(0.25, barLengthQN(tempoMap, qn));
-        bool subBar = step < barLen - GridMath::TICK;
+        bool subBar = GridMath::before(step, barLen);
         int chunk = std::max(1, (int)std::lround(step / barLen));
 
         // Subdivisions go down first and dimmer, so the bar they belong to still reads as the
@@ -503,7 +503,7 @@ void UtilityStripComponent::drawChunkLines(juce::Graphics& g, const View& v) con
         if (subBar)
         {
             g.setColour(UtilityColours::subBarLine);
-            for (double sub = qn + step; sub < qn + barLen - GridMath::TICK; sub += step)
+            for (double sub = qn + step; GridMath::before(sub, qn + barLen); sub += step)
             {
                 float sy = (float)yForQN(sub, v);
                 if (sy < top || sy > bottom) continue;
@@ -1210,8 +1210,8 @@ void UtilityStripComponent::drawFollowButton(juce::Graphics& g, float alpha) con
 void UtilityStripComponent::drawZoomOverlay(juce::Graphics& g) const
 {
     const float alpha = zoomHovered ? 1.0f : ZOOM_IDLE_ALPHA;
-    bool canOut = viewSpanQN < projectEndQN() - GridMath::TICK;
-    bool canIn  = viewSpanQN > minSpanQN() + GridMath::TICK;
+    bool canOut = GridMath::before(viewSpanQN, projectEndQN());
+    bool canIn  = GridMath::after(viewSpanQN, minSpanQN());
 
     drawFollowButton(g, alpha);
 
@@ -1557,7 +1557,7 @@ const SongList::Song* UtilityStripComponent::chartContaining(double qn) const
     if (songs == nullptr) return nullptr;
 
     for (const auto& song : songs->getSongs())
-        if (qn >= song.startQN - GridMath::TICK && qn <= song.endQN + GridMath::TICK)
+        if (GridMath::within(qn, song.startQN, song.endQN))
             return &song;
 
     return nullptr;

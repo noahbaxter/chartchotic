@@ -190,11 +190,19 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Move preview ghosts are rendered separately at destination positions.
     sceneRenderer.getSelectedGems().clear();
     sceneRenderer.getEraseTargets().clear();
+    sceneRenderer.getHighlightedGems().clear();
     sceneRenderer.getTintedSustains().clear();
     sceneRenderer.movePreviewGhosts.clear();
     if (overlayStateGetter && projectQNToSeconds)
     {
         const auto& ov = overlayStateGetter();
+
+        // Lane tool: the notes the lane being drawn will capture keep full strength through
+        // the phrase dim, which is what shows where its edges are going to snap to.
+        for (const auto& lh : ov.laneHighlights)
+            sceneRenderer.getHighlightedGems().push_back(
+                { lh.lane, projectQNToSeconds(lh.qn) });
+
         double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
         if (std::abs(windowSpan) > 1e-9)
         {
@@ -347,6 +355,7 @@ void HighwayComponent::paint(juce::Graphics& g)
             return false;
         };
         auto typeForKind = [](int kind) {
+            if (kind == OverlayState::PREVIEW_KIND_LANE) return SustainType::LANE;
             switch ((PhraseMath::Kind)kind)
             {
                 case PhraseMath::Kind::StarPower: return SustainType::STAR_POWER;
@@ -358,9 +367,19 @@ void HighwayComponent::paint(juce::Graphics& g)
 
         // Fills and BREs are per column in every view: in the phrase view those columns are
         // packed into their own lane rather than spread across the board.
-        auto emitPhrase = [this, &sustainWindow](SustainType type, double startQN, double endQN) {
+        auto emitPhrase = [this, &sustainWindow](SustainType type, double startQN, double endQN,
+                                                 const std::vector<int>& columns) {
             const double startSec = projectQNToSeconds(startQN);
             const double endSec   = projectQNToSeconds(endQN);
+
+            // A lane is drawn on the columns it lands on, which the write controller derives.
+            if (type == SustainType::LANE)
+            {
+                for (int c : columns)
+                    if (c >= 0 && (uint)c < LANE_COUNT)
+                        sustainWindow.push_back({ startSec, endSec, (uint)c, type, GemWrapper() });
+                return;
+            }
 
             if (type != SustainType::BRE && type != SustainType::FILL)
             {
@@ -397,8 +416,8 @@ void HighwayComponent::paint(juce::Graphics& g)
                                                     : OverlayState::PhrasePreview{};
 
             // The phrase being dragged, then the hover block, drawn as what they would write.
-            if (drag.visible)  emitPhrase(typeForKind(drag.kind), drag.startQN, drag.endQN);
-            if (hover.visible) emitPhrase(typeForKind(hover.kind), hover.startQN, hover.endQN);
+            if (drag.visible)  emitPhrase(typeForKind(drag.kind), drag.startQN, drag.endQN, drag.columns);
+            if (hover.visible) emitPhrase(typeForKind(hover.kind), hover.startQN, hover.endQN, hover.columns);
         }
     }
 
@@ -422,7 +441,7 @@ void HighwayComponent::paint(juce::Graphics& g)
         {
             for (const auto& sg : ov.stampGhosts)
             {
-                if (sg.duration < double(MIDI_MIN_SUSTAIN_LENGTH)) continue;
+                if (!GridMath::atLeast(sg.duration, double(MIDI_MIN_SUSTAIN_LENGTH))) continue;
                 double startSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset);
                 double endSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset + sg.duration);
                 sustainWindow.push_back({
@@ -450,7 +469,8 @@ void HighwayComponent::paint(juce::Graphics& g)
             }
             for (const auto& pn : ov.movePreviewNotes)
             {
-                if (pn.endQN - pn.startQN < double(MIDI_MIN_SUSTAIN_LENGTH)) continue;
+                if (!GridMath::atLeast(pn.endQN - pn.startQN, double(MIDI_MIN_SUSTAIN_LENGTH)))
+                    continue;
                 double pnStartSec = projectQNToSeconds(pn.startQN);
                 double pnEndSec = projectQNToSeconds(pn.endQN);
                 for (const auto& s : sustainWindow)

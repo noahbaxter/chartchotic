@@ -70,3 +70,47 @@ TEST_CASE("PPQ - a tolerance finer than a tick survives a comparison", "[gridmat
     REQUIRE_FALSE(pos > now + 1e-4);
     REQUIRE(pos > now - 1e-4);
 }
+
+TEST_CASE("GridMath - a triplet gap measures up to the minimum length", "[gridmath]")
+{
+    // MIDI_MIN_SUSTAIN_LENGTH is PPQ(4.0/12.0): exactly a third of a quarter note, which is
+    // exactly the gap between two triplet notes. A third has no exact binary form, so
+    // subtracting two triplet positions lands either side of it depending where in the song
+    // they are. Roughly half of all triplet pairs measure a hair SHORT, and a bare `>=` refused
+    // every one of those: on a triplet grid, notes simply could not be targeted.
+    const double minimum = 4.0 / 12.0;
+
+    // Real positions that come up short, built the way a note's QN is: whole ticks over the
+    // resolution, exactly what PPQ's conversion to double does. The shortfall is far finer than
+    // the tick that is supposed to be the smallest difference meaning anything.
+    const double tripletTicks = PPQ::PPQ_RESOLUTION / 3.0;
+    for (double startTicks : { 960.0, 1600.0, 2240.0, 3200.0, 3840.0, 4480.0 })
+    {
+        const double startQN = startTicks / PPQ::PPQ_RESOLUTION;
+        const double endQN   = (startTicks + tripletTicks) / PPQ::PPQ_RESOLUTION;
+        const double span    = endQN - startQN;
+
+        REQUIRE(GridMath::atLeast(span, minimum));
+        // The guard this replaced, shown failing on the same values.
+        REQUIRE_FALSE(span >= minimum);
+    }
+
+    // Still rejects anything actually shorter: a tick of slop, not a free pass.
+    REQUIRE_FALSE(GridMath::atLeast(minimum - 2.0 * GridMath::TICK, minimum));
+    REQUIRE(GridMath::atLeast(minimum * 2.0, minimum));
+}
+
+TEST_CASE("GridMath - a note on a range edge is inside it", "[gridmath]")
+{
+    // Same story for the edges: a lane runs from one note's start to another's, so both of
+    // those notes have to read as inside it however the subtraction rounded.
+    const double lo = 2240.0 / PPQ::PPQ_RESOLUTION;
+    const double hi = 4480.0 / PPQ::PPQ_RESOLUTION;
+
+    REQUIRE(GridMath::within(lo, lo, hi));
+    REQUIRE(GridMath::within(hi, lo, hi));
+    REQUIRE(GridMath::within(3.0, lo, hi));
+
+    REQUIRE_FALSE(GridMath::within(lo - 2.0 * GridMath::TICK, lo, hi));
+    REQUIRE_FALSE(GridMath::within(hi + 2.0 * GridMath::TICK, lo, hi));
+}

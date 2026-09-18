@@ -103,6 +103,16 @@ public:
     struct SelectedGem { int lane; double time; };
     std::vector<SelectedGem> selectedGems;
     std::vector<SelectedGem> eraseTargets;
+    // Lane tool: notes the lane being drawn will capture. They keep full strength through the
+    // phrase dim, so which notes are in play reads at a glance.
+    std::vector<SelectedGem> highlightedGems;
+
+    bool isHighlighted(int lane, double time) const
+    {
+        for (const auto& hg : highlightedGems)
+            if (hg.lane == lane && std::abs(hg.time - time) < 0.002) return true;
+        return false;
+    }
 
     struct NoteHitBox
     {

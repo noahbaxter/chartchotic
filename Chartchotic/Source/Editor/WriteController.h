@@ -14,7 +14,6 @@ public:
     EditorView   view()            const { return currentView; }
     bool         laneTool()        const { return laneToolFlag; }
     PhraseMath::Kind phraseKind()  const { return currentPhraseKind; }
-    PhraseTarget phraseTarget()    const { return currentPhraseTarget; }
 
     // Everything worth preserving about a copied note. velocity carries drum
     // dynamics, markerMask carries note type (cymbal/tom, HOPO/strum/tap) as
@@ -51,7 +50,6 @@ public:
     // The highway parses its own copy of the MIDI, so it has to be told to re-read or the
     // phrase does not appear until the 50ms hash poll happens to notice.
     std::function<void()> onChartWritten;
-    void setPhraseTarget(PhraseTarget t);
     void setStepDivision(int division);
     void setTuplet(int t);
     void toggleTuplet();
@@ -104,8 +102,72 @@ private:
     void handlePhraseUp();
     void clearPhraseDrag();
     void recomputePhrasePreview();
-    PhraseTarget currentPhraseTarget = PhraseTarget::Lane1;
     bool         writeModeActiveFlag = false;
+
+    //==========================================================================
+    // Lane drag. Its own state rather than the sustain drag's: a lane writes no gem, chain
+    // extends nothing, and draws free of the grid until it lands, none of which a sustain does.
+    // Raw QNs throughout, reconciled to the grid once on release.
+    bool   laneDragActive     = false;
+    int    laneDragTrackIdx   = -1;
+    double laneDragRawStartQN = 0.0;
+    double laneDragRawEndQN   = 0.0;
+    // Columns the drag has reached across, widest extent so far. A lane is one lane until it is
+    // pulled sideways: that is what asks for a trill on the shared markers, and for a lane per
+    // pad on elite, which supports arbitrary combinations of them.
+    int    laneDragColumnLo   = -1;
+    int    laneDragColumnHi   = -1;
+
+    void handleBeginLane  (const AuthoringPoint& p, int trackIdx);
+    void handleUpdateLane (const AuthoringPoint& p);
+    void handleCommitLane ();
+    void clearLaneDrag();
+    void recomputeLanePreview();
+    void eraseLaneAt(const AuthoringPoint& p, int trackIdx);
+
+    // The columns a gesture reaches across. A hover, or a drag never pulled sideways, is a
+    // single column with lo == hi.
+    struct LaneSpread
+    {
+        int lo = -1;
+        int hi = -1;
+        bool valid()  const { return lo >= 0 && hi >= lo; }
+        int  count()  const { return valid() ? hi - lo + 1 : 0; }
+        bool covers(int column) const { return column >= lo && column <= hi; }
+    };
+    LaneSpread laneDragSpread() const { return { laneDragColumnLo, laneDragColumnHi }; }
+    static LaneSpread oneColumn(int column) { return { column, column }; }
+
+    // A note a lane can snap to or capture: the dragged columns on elite, the whole board minus
+    // kicks on the shared markers.
+    struct LaneNote { double qn; int column; };
+    std::vector<LaneNote> laneCandidateNotes(LaneSpread spread) const;
+    std::vector<LaneNote> laneNotesIn(double startQN, double endQN, LaneSpread spread) const;
+    // The note nearest a point, in either direction, which is what an edge snaps to.
+    std::optional<LaneNote> nearestLaneNote(double rawQN, LaneSpread spread) const;
+    // One note reached to its neighbour, so a click has a lane to place rather than nothing.
+    std::optional<PhraseMath::PhraseSpan> laneAround(double qn, LaneSpread spread) const;
+
+    // The lane a gesture would commit, snapped and merged. Empty only where the part has no
+    // notes to sit on. Hover, preview and commit share it, so the drawn shape is the written
+    // one and anything on screen can be clicked into place.
+    std::optional<PhraseMath::PhraseSpan> resolveLaneWrite(double rawStartQN, double rawEndQN,
+                                                           LaneSpread spread) const;
+
+    // Lanes already on the part that a new one here merges with.
+    std::vector<PhraseMath::PhraseSpan> laneSpansOnPart(LaneSpread spread) const;
+
+    // Columns struck under a range, in first-struck order, which is what the game reads a
+    // shared marker's position off. Kicks excluded, as the game excludes them.
+    std::vector<int> laneColumnsUnder(double startQN, double endQN, LaneSpread spread) const;
+    // Where a lane over this range will actually be drawn: the dragged columns on elite, the
+    // columns struck underneath on the shared markers.
+    std::vector<int> laneDrawColumns(double startQN, double endQN, LaneSpread spread) const;
+    // The pitches a lane over this range should be written as: one per dragged column on elite,
+    // and the 1-lane or 2-lane marker on the shared instruments.
+    std::vector<int> laneWritePitches(double startQN, double endQN, LaneSpread spread) const;
+    // Lane pitches a click here could have landed on, for erase.
+    std::vector<int> laneCandidatePitches(LaneSpread spread) const;
 
     AuthoringPoint lastPoint;
     bool           lastPointValid = false;
@@ -160,7 +222,6 @@ private:
     void   clearSustainDrag();
 
     void handleBeginSustain  (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
-    void handleBeginPhrase   (const AuthoringPoint& p, int trackIdx, double clickQN);
     void handleUpdateSustain (const AuthoringPoint& p);
     void handleCommitSustain (const AuthoringPoint& p);
     void handleBeginPaint    (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);

@@ -1,5 +1,8 @@
 #include "test_helpers.h"
 #include "Editor/AuthoringConfig.h"
+#include "Editor/AuthoringTypes.h"
+#include "Editor/LaneMath.h"
+#include "Midi/Utils/MidiConstants.h"
 
 using EliteDrums = MidiPitchDefinitions::EliteDrums;
 using Drums = MidiPitchDefinitions::Drums;
@@ -124,4 +127,117 @@ TEST_CASE("AuthoringConfig - cymbal toggle", "[authoring_config]")
     REQUIRE(getAuthoringConfig(RenderType::FOUR_LANE_DRUMS)->hasCymbalToggle);
     REQUIRE(getAuthoringConfig(RenderType::ELITE_DRUMS)->hasCymbalToggle == false);
     REQUIRE(getAuthoringConfig(RenderType::FIVE_FRET)->hasCymbalToggle == false);
+}
+
+TEST_CASE("AuthoringConfig - roll lane pitches", "[authoring_config]")
+{
+    // These go into real charts, so they are pinned to the spec rather than to whatever the
+    // mapper happens to return. Sources: _refs/midi/drums.md:76-77,
+    // _refs/midi/5-fret-guitar.md:21-22, _refs/midi/elite-drums.md:153-163.
+
+    SECTION("guitar and 4-lane share one pair, and it ignores the column")
+    {
+        for (auto type : { RenderType::FIVE_FRET, RenderType::FOUR_LANE_DRUMS })
+        {
+            const auto* c = getAuthoringConfig(type);
+            REQUIRE(c->lanesPerColumn == false);
+            REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, 0) == 126);
+            REQUIRE(c->phrasePitch(PhraseTarget::Lane2, SkillLevel::EXPERT, 0) == 127);
+
+            // No column of its own: the game reads the columns off the notes underneath.
+            REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, 3) == 126);
+        }
+    }
+
+    SECTION("every lane pitch is difficulty-independent")
+    {
+        // Lanes are Expert-only unless their velocity says otherwise; there is no per-skill
+        // pitch anywhere, so authoring on Hard must not shift the marker.
+        const auto* c = getAuthoringConfig(RenderType::FOUR_LANE_DRUMS);
+        for (auto skill : { SkillLevel::EASY, SkillLevel::MEDIUM,
+                            SkillLevel::HARD, SkillLevel::EXPERT })
+            REQUIRE(c->phrasePitch(PhraseTarget::Lane1, skill, 0) == 126);
+    }
+
+    SECTION("elite carries the column in the pitch, one lane per pad")
+    {
+        const auto* c = getAuthoringConfig(RenderType::ELITE_DRUMS);
+        REQUIRE(c->lanesPerColumn);
+
+        REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, 0) == (int)EliteDrums::ROLL_KICK);
+        REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, 1) == (int)EliteDrums::ROLL_SNARE);
+        REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, ELITE_HIHAT_COLUMN)
+                == (int)EliteDrums::ROLL_HIHAT);
+        REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, 8) == (int)EliteDrums::ROLL_RCRASH);
+        REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, ELITE_STOMP_COLUMN)
+                == (int)EliteDrums::ROLL_STOMP);
+    }
+
+    SECTION("elite has no 1-lane/2-lane variant, and no 2x kick lane")
+    {
+        const auto* c = getAuthoringConfig(RenderType::ELITE_DRUMS);
+        REQUIRE(c->phrasePitch(PhraseTarget::Lane2, SkillLevel::EXPERT, 1) == -1);
+        // 109 is explicitly unused: there are no separate 2x kick roll lanes.
+        REQUIRE(c->phrasePitch(PhraseTarget::Lane1, SkillLevel::EXPERT, ELITE_KICK_2X_COLUMN) == -1);
+    }
+}
+
+TEST_CASE("LaneMath - a lane is writable at every grid setting", "[authoring_config]")
+{
+    // Every division the write bar offers, against every tuplet from none through 20. The bar
+    // only exposes 3, 5 and 7 today, so the rest are here so that widening that list cannot
+    // quietly reintroduce a grid a lane refuses to sit on.
+    const int divisions[] = { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64 };
+
+    int finerThanSustainMinimum = 0;
+
+    for (int tuplet = 0; tuplet <= 20; ++tuplet)
+        for (int division : divisions)
+        {
+            const double spacing = stepSpacingQN(division, tuplet);
+            REQUIRE(spacing > 0.0);
+
+            // Built through PPQ, because that is what a note's position has been through by the
+            // time a lane snaps to it. Septuplets do not divide 960 evenly and land wherever
+            // rounding puts them, which is exactly why the rule is about notes, not arithmetic.
+            const double startQN = PPQ(4.0).toDouble();
+            const double endQN   = PPQ(4.0 + spacing).toDouble();
+
+            INFO("division " << division << " tuplet " << tuplet << " spacing " << spacing);
+            REQUIRE(LaneMath::isWritableLength(startQN, endQN));
+
+            // The two positions must still be distinct once rounded to ticks, or "snap to the
+            // next note" would have nowhere to go. The tightest case here is division 64 against
+            // tuplet 19, which is 6 ticks apart, so there is real room left.
+            REQUIRE(PPQ(endQN).toScaled() > PPQ(startQN).toScaled());
+
+            if (spacing < double(MIDI_MIN_SUSTAIN_LENGTH)) ++finerThanSustainMinimum;
+        }
+
+    // The reason this rule cannot borrow the sustain minimum: most of the grid is finer than it,
+    // plain 16ths included. Pinned so that swapping the rule back fails loudly here.
+    REQUIRE(finerThanSustainMinimum > 0);
+    REQUIRE(stepSpacingQN(16, 0) < double(MIDI_MIN_SUSTAIN_LENGTH));
+
+    // Still refuses a lane that does not span two distinct positions.
+    REQUIRE_FALSE(LaneMath::isWritableLength(4.0, 4.0));
+    REQUIRE_FALSE(LaneMath::isWritableLength(4.0, 4.0 + GridMath::TICK / 4.0));
+}
+
+TEST_CASE("LaneMath - a lane is one lane until it is dragged sideways", "[authoring_config]")
+{
+    // The drag says what was meant. One column is a roll on one pad; pulling across columns is
+    // the author asking for alternation (_refs/midi/drums.md:141-142).
+    REQUIRE(LaneMath::targetForDragSpan(1) == PhraseTarget::Lane1);
+    REQUIRE(LaneMath::targetForDragSpan(2) == PhraseTarget::Lane2);
+    REQUIRE(LaneMath::targetForDragSpan(5) == PhraseTarget::Lane2);
+
+    // A gesture that reached nowhere is still a single lane, not a refusal.
+    REQUIRE(LaneMath::targetForDragSpan(0) == PhraseTarget::Lane1);
+
+    // The old rule counted columns STRUCK under the span instead, which made a plain roll into
+    // a trill as soon as a neighbouring column had a note inside it, with no way to say
+    // otherwise. Reach follows the marker that was chosen, not the notes.
+    REQUIRE(LaneMath::reachOf(PhraseTarget::Lane1) == 1u);
+    REQUIRE(LaneMath::reachOf(PhraseTarget::Lane2) == 2u);
 }

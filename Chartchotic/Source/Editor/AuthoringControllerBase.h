@@ -352,7 +352,8 @@ protected:
             {
                 bool headIn = !GridMath::before(n.startQN, rect.qnLo)
                            && !GridMath::after(n.startQN, rect.qnHi);
-                bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
+                bool hasSustain = GridMath::atLeast(n.endQN - n.startQN,
+                                                    double(MIDI_MIN_SUSTAIN_LENGTH));
                 bool bodyOverlaps = hasSustain
                                  && GridMath::after(n.endQN, rect.qnLo)
                                  && GridMath::before(n.startQN, rect.qnLo);

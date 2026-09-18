@@ -258,7 +258,7 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
         }
 
         bool sustainOnly = p.hitSustainBody
-            && (found.endQN - found.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
+            && GridMath::atLeast(found.endQN - found.startQN, double(MIDI_MIN_SUSTAIN_LENGTH));
 
         selection.clear();
         selection.push_back({ trackIdx, found.startQN, found.endQN, pitch, lane, sustainOnly });

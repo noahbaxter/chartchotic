@@ -49,11 +49,15 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         auto& hw = *slots[i].highway;
         // Claim focus before dispatching so the edit lands on the highway the
         // mouse is over. Drags do not re-claim, that would retarget the stroke.
-        hw.setOnPointerMove       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerMove(p, c); });
+        // A move only claims the HOVER, which aims the controller at this highway's lanes so the
+        // ghost lands in the right place, without touching focus. That keeps the write bar on
+        // the instrument a click will write to, instead of rewriting itself as the cursor
+        // crosses a highway of the other family.
+        hw.setOnPointerMove       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { setHoveredSlot(i); interactionController.onPointerMove(p, c); });
         hw.setOnPointerDown       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDown(p, c); });
         hw.setOnPointerDrag       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDrag(p, c); });
         hw.setOnPointerUp         ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerUp(p, c); });
-        hw.setOnPointerExit       ([this]() { interactionController.onPointerExit(); });
+        hw.setOnPointerExit       ([this, i]() { if (hoveredSlot == i) hoveredSlot = -1; interactionController.onPointerExit(); });
         hw.setOnPointerCancel     ([this]() { interactionController.onPointerCancel(); });
         hw.setOnPointerDoubleClick([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDoubleClick(p, c); });
         hw.onMouseWheel = [this](const juce::MouseEvent& e, const juce::MouseWheelDetails& w) { handleHighwayScroll(e, w); };
@@ -105,7 +109,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         // One controller feeds every slot, so gate it or the cursor mirrors.
         hw.setOverlayStateGetter([this, i]() -> const OverlayState& {
             static const OverlayState blank;
-            return i == effectiveFocusSlot() ? interactionController.getOverlayState() : blank;
+            // The slot under the cursor, not the focused one: the ghost belongs on the highway
+            // being pointed at, which is how you can line a note up on a highway before the
+            // click that claims it.
+            return i == pointerContextSlot() ? interactionController.getOverlayState() : blank;
         });
 
         // The one thing that deliberately escapes that gate. A BRE lands on every part at once,
@@ -290,8 +297,25 @@ void ChartchoticAudioProcessorEditor::focusSlot(int index)
     const auto& slot = slots[index];
     interactionController.setActivePart(slot.part);
     interactionController.setActiveSkill(slot.skillLevel);
+    interactionController.setFocusPart(slot.part);
     toolbar.refreshFromWriteController();
     repaint();
+}
+
+// Aiming the controller at this highway's lanes, so the move that follows reads against the
+// right columns. Deliberately not focusSlot: no toolbar refresh, so the bar stays on the part a
+// click would write to rather than flickering between instruments as the cursor travels.
+void ChartchoticAudioProcessorEditor::setHoveredSlot(int index)
+{
+    if (index < 0 || index >= activeSlotCount || index == hoveredSlot) return;
+    // Draw only, for the reason pointerContextSlot gives: edit mode's selection belongs to the
+    // focused highway and must not be retargeted by the cursor passing over another.
+    if (interactionController.subMode() != SubMode::Draw) return;
+
+    hoveredSlot = index;
+    const auto& slot = slots[index];
+    interactionController.setActivePart(slot.part);
+    interactionController.setActiveSkill(slot.skillLevel);
 }
 
 void ChartchoticAudioProcessorEditor::onFrame()
@@ -353,13 +377,17 @@ void ChartchoticAudioProcessorEditor::onFrame()
             slots[i].highway->setPatchBuffer(
                 i == fs ? &interactionController.getPatchBuffer() : nullptr);
 
-        const auto& focus = slots[fs];
+        // Points resolve against the highway under the cursor so its ghost is right, while the
+        // write bar keeps describing the focused slot. Re-asserted every frame because the
+        // ghost is recomputed on the frame tick too, not only when the mouse moves.
+        const auto& context = slots[pointerContextSlot()];
+        interactionController.setFocusPart(slots[fs].part);
         interactionController.onFrame(
             audioProcessor.getReaperMidiProvider().getWriter(),
             audioProcessor.getInstrumentSession(),
             &lastPlayingState,
-            focus.part,
-            focus.skillLevel,
+            context.part,
+            context.skillLevel,
             lastKnownPosition.toDouble());
     }
 
@@ -660,6 +688,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onBarsChanged = [this](bool on) { state.setProperty("showBars", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBars(on); }); };
     toolbar.onSustainsChanged = [this](bool on) { state.setProperty("showSustains", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowSustains(on); }); };
     toolbar.onLanesChanged = [this](bool on) { state.setProperty("showLanes", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowLanes(on); }); };
+    toolbar.onLaneToolActive = [this](bool on) { forEachHighway([on](auto& hw) { hw.setLaneToolActive(on); }); };
     toolbar.onFillsChanged = [this](bool on) { state.setProperty("showFills", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowFills(on); }); };
     toolbar.onBreChanged = [this](bool on) { state.setProperty("showBre", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBre(on); }); };
     toolbar.onActivationChanged = [this](bool on) { state.setProperty("showActivation", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowActivationLane(on); }); };
@@ -1119,9 +1148,16 @@ void ChartchoticAudioProcessorEditor::resized()
 
         // Determine grid layout based on aspect ratio and slot count
         //   Bemani: always a single horizontal row
-        //   wide  (aspect > 1.5): single row
-        //   tall  (aspect < 0.7): single column
-        //   square-ish:           grid (2x2 for 3-4 slots, row for 2)
+        //   wide:       single row
+        //   tall:       single column
+        //   square-ish: grid (2x2 for 3-4 slots, row for 2)
+        //
+        // A 2x2 gives each slot the container's own aspect, while a single row divides the
+        // width by the slot count: four across only stops being a set of slivers once the
+        // window is genuinely wide, so the grid holds well past the old 1.5 handover.
+        constexpr float GRID_ROW_ASPECT  = 2.4f;  // above this, 3-4 slots go to one row
+        constexpr float GRID_COL_ASPECT  = 0.7f;  // below this, they stack in one column
+        constexpr float PAIR_ROW_ASPECT  = 1.0f;  // two slots: side by side above, stacked below
         float aspect = (float)contentW / (float)std::max(1, contentH);
         int cols = 1, rows = 1;
 
@@ -1136,15 +1172,15 @@ void ChartchoticAudioProcessorEditor::resized()
         }
         else if (numSlots <= 2)
         {
-            if (aspect > 1.0f) { cols = numSlots; rows = 1; }
-            else               { cols = 1; rows = numSlots; }
+            if (aspect > PAIR_ROW_ASPECT) { cols = numSlots; rows = 1; }
+            else                          { cols = 1; rows = numSlots; }
         }
         else
         {
             // 3-4 slots
-            if (aspect > 1.5f)      { cols = numSlots; rows = 1; }
-            else if (aspect < 0.7f) { cols = 1; rows = numSlots; }
-            else                    { cols = 2; rows = (numSlots + 1) / 2; }
+            if (aspect > GRID_ROW_ASPECT)      { cols = numSlots; rows = 1; }
+            else if (aspect < GRID_COL_ASPECT) { cols = 1; rows = numSlots; }
+            else                               { cols = 2; rows = (numSlots + 1) / 2; }
         }
 
         // The banner is centred over the highways. With an even number of columns it lands in
