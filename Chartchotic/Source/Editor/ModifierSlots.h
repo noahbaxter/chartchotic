@@ -24,6 +24,7 @@ enum class ModifierGroup
     Cymbal,    // bool
     Flam,      // bool
     Force,     // GuitarForce: None / Hopo / Strum / Tap
+    Phrase,    // PhraseTarget: Lane1 / Lane2
 };
 
 struct ModifierSlot
@@ -40,8 +41,30 @@ struct ModifierSlot
 //
 // An instrument with fewer than five slots returns a shorter list, and the
 // leftover keys stay inert rather than doing something surprising.
-inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type)
+// The phrase layer's slots come from the instrument's phrase table rather than a switch, so
+// an instrument without a given phrase simply has no slot for it.
+inline std::vector<ModifierSlot> phraseSlotsFor(RenderType type)
 {
+    const auto* cfg = getAuthoringConfig(type);
+    if (cfg == nullptr || cfg->phrasePitch == nullptr) return {};
+
+    // Lane pitch is probed on lane 0, which every authorable instrument has.
+    const struct { PhraseTarget target; const char* label; } candidates[] = {
+        { PhraseTarget::Lane1, "lane" },
+        { PhraseTarget::Lane2, "trill" },
+    };
+
+    std::vector<ModifierSlot> slots;
+    for (const auto& c : candidates)
+        if (cfg->phrasePitch(c.target, SkillLevel::EXPERT, 0) >= 0)
+            slots.push_back({ ModifierGroup::Phrase, (int)c.target, c.label });
+    return slots;
+}
+
+inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type, bool laneTool)
+{
+    if (laneTool) return phraseSlotsFor(type);
+
     switch (type)
     {
         // Dynamics come from velocity on every drum type. The Cymbal slot is present only
@@ -51,9 +74,10 @@ inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type)
         case RenderType::FIVE_LANE_DRUMS:
         case RenderType::ELITE_DRUMS:
         {
+            // Soft to loud, so normal sits between the two it is the middle of.
             std::vector<ModifierSlot> slots = {
-                { ModifierGroup::Dynamic, (int)DrumDynamic::Normal, "normal" },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Ghost,  "ghost"  },
+                { ModifierGroup::Dynamic, (int)DrumDynamic::Normal, "normal" },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Accent, "accent" },
             };
             const auto* cfg = getAuthoringConfig(type);

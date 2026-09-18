@@ -58,9 +58,35 @@ namespace
 
     //==========================================================================
 
+    // The two lane markers are shared by guitar and 4/5-lane drums.
+    int sharedPhrasePitch(PhraseTarget target, SkillLevel, int)
+    {
+        using Guitar = MidiPitchDefinitions::Guitar;
+        switch (target)
+        {
+            case PhraseTarget::Lane1: return (int)Guitar::LANE_1;
+            case PhraseTarget::Lane2: return (int)Guitar::LANE_2;
+        }
+        return -1;
+    }
+
+    // Elite has one roll lane per column instead of the shared 1-lane / 2-lane pair.
+    int elitePhrasePitch(PhraseTarget target, SkillLevel, int lane)
+    {
+        switch (target)
+        {
+            case PhraseTarget::Lane1: return InstrumentMapper::eliteRollLanePitch(lane);
+            case PhraseTarget::Lane2: return -1;
+        }
+        return -1;
+    }
+
+    //==========================================================================
+
     const AuthoringConfig guitarFiveFret = {
         5, 5, -1, false, false,
         &guitarLaneToPitch,
+        &sharedPhrasePitch,
         &guitarNoKick,
         &guitarNoConflict,
     };
@@ -68,6 +94,7 @@ namespace
     const AuthoringConfig drumsFourLane = {
         4, DRUM_KICK_2X_COLUMN, DRUM_KICK_2X_COLUMN, true, false,
         &drumLaneToPitch,
+        &sharedPhrasePitch,
         &drumIsKickPitch,
         &drumConflictingKick,
     };
@@ -75,6 +102,7 @@ namespace
     const AuthoringConfig eliteDrums = {
         8, ELITE_KICK_2X_COLUMN, ELITE_KICK_2X_COLUMN, false, true,
         &eliteLaneToPitch,
+        &elitePhrasePitch,
         &InstrumentMapper::isEliteDrumKick,
         &InstrumentMapper::getConflictingEliteKick,
     };

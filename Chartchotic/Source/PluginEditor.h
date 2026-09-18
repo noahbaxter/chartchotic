@@ -85,15 +85,6 @@ public:
             }
         }
 
-        // Delete is routed by what is selected rather than by who holds focus. The strip is
-        // a surface you dip into, so taking keyboard focus on click would cost the highway
-        // its write-mode keys for the rest of the gesture.
-        if (key.getKeyCode() == juce::KeyPress::deleteKey
-            || key.getKeyCode() == juce::KeyPress::backspaceKey)
-        {
-            if (utilityStripVisible && utilityStrip.deleteSelection()) return true;
-        }
-
         if (interactionController.onKeyPress(key))
             return true;
 
@@ -305,14 +296,28 @@ private:
     }
 
     // The section the playhead is inside, spelled over the highway the way the games title
-    // it. It rides on the strip: no strip, or sections filtered off there, and it is gone.
+    // it. It rides on the strip: no strip and it is gone.
     bool sectionBannerVisible = true;
 
     void toggleSectionBanner()
     {
         sectionBannerVisible = !sectionBannerVisible;
         state.setProperty("showSectionBanner", sectionBannerVisible, nullptr);
+        resized();   // the grid may be holding room for it
         repaint();
+    }
+
+    bool sectionBannerShown() const { return sectionBannerVisible && utilityStripVisible; }
+    float sectionBannerSize() const
+    { return std::max(sectionBannerMinPt, getHeight() * sectionBannerHeightRatio); }
+
+    // Height the banner covers below the toolbar, song and section lines both. Reserved
+    // whether or not either name is set right now, so the grid does not jump as you play.
+    int sectionBannerReserve() const
+    {
+        return juce::roundToInt(sectionBannerSize()
+                                * (sectionBannerTopGap + songBannerScale * bannerLineGap
+                                   + bannerLineGap));
     }
 
     void drawSectionBanner(juce::Graphics& g);

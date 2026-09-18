@@ -79,4 +79,7 @@ struct SharedWindow {
     std::vector<RawSustainPair> sustains;
     std::vector<RawLaneMarker> lanes;
     std::array<std::vector<PedalNote>, 4> hihatPedalNotes;   // elite: Pedal Down notes, indexed by SkillLevel
+    // Where `positions` stops. A fill running past it has its last note out of view, so none
+    // of the notes that are in view is its activation note.
+    PPQ windowEnd { 0.0 };
 };

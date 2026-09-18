@@ -145,6 +145,9 @@ struct GemWrapper
     // hat state (an "Open Ghost Flam" is legal), so it rides alongside them rather than
     // doubling the Gem enum. Never set on kicks — those flam as stacked 1x + 2x.
     bool flam;
+    // The last note of a drum fill: the one that activates star power. Only the Phrase view
+    // shows it; everywhere else it draws like any other gem.
+    bool activation = false;
 
     GemWrapper() : gem(Gem::NONE), starPower(false), hihat(HiHatState::None), flam(false) {}
     GemWrapper(Gem g, bool sp = false, HiHatState hh = HiHatState::None, bool fl = false)
@@ -184,8 +187,9 @@ enum class SustainType
     SUSTAIN,
     LANE,
     SOLO,
-    BRE,
-    HIHAT       // elite hi-hat ringing zone
+    BRE,        // one hand column of a fill or big rock ending
+    HIHAT,      // elite hi-hat ringing zone
+    STAR_POWER  // a star power phrase, drawn once across the whole highway
 };
 
 struct SustainEvent

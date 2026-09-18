@@ -308,6 +308,8 @@ Unordered. Pull into Up Next when the time comes.
 **Authoring & Vocals (way out):**
 - Moonscraper-style note placement, grid snapping, note eraser
 - INI generation/export
+- **Composer layout**: alternative to the side-by-side multi-highway grid: every part lined up as one continuous highway grid, outer highways slanted so edges meet like the Rock Band band view. A layout choice, independent of editor views (overlays draw on every highway in any arrangement). Real geometry work in `PositionMath`.
+- **Copy/paste between highways**: explicit replacement for the killed Linked mode. Across instruments it needs the same guitar/drums lane-mapping rules and refusals (2x kick Expert only, no open+fret chords, tom/cymbal collapse).
 - 2D pitch-based karaoke display, lyrics with rhythm timing
 
 **DAW Integration:**

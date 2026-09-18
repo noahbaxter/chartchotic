@@ -242,6 +242,7 @@ enum class WriteCommand {
     // Key commands
     ToggleWriteMode,
     ToggleSubMode,
+    ToggleLaneTool,
     ToggleSnap,
     ToggleTuplet,
     CycleTuplet,
@@ -259,6 +260,11 @@ enum class WriteCommand {
 };
 
 enum class SubMode { Draw, Edit };
+
+// One for the whole editor, orthogonal to SubMode: Draw/Edit is how you interact, the view is
+// what every highway and the strip show and what a click writes.
+// Design: docs/superpowers/specs/2026-09-15-editor-views-design.md
+enum class EditorView { Notes, StarPower, Phrase, Sections, Tempo };
 enum class DrumDynamic { Normal, Ghost, Accent };
 enum class GuitarForce { None, Hopo, Strum, Tap };
 

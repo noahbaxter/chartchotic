@@ -33,6 +33,16 @@
 constexpr float SUSTAIN_OPACITY = 0.7f;      // Sustain note opacity
 constexpr float LANE_OPACITY = 0.4f;         // Lane sustain opacity
 
+// SP view: each star power phrase as one white lane across the highway, faint enough that the
+// gems it covers still read through it.
+// A literal, not juce::Colours::white: that is a static in another translation unit, so a
+// namespace-scope copy of it can initialise first and come out black.
+inline const juce::Colour PHRASE_STAR_POWER_COLOUR { 0xFFFFFFFF };
+constexpr float PHRASE_STAR_POWER_OPACITY = 0.3f;
+
+// Phrase view: the activation note at the end of a drum fill grows by this much.
+constexpr float PHRASE_ACTIVATION_SCALE = 1.3f;
+
 // Elite hi-hat ringing zone: solid until fadeStart, then a fainter tail. The span matches the
 // pedal bar's so a ring lines up with the bar that generated it.
 constexpr float HIHAT_SUSTAIN_LANE_SPAN = 3.0f;      // full lane widths, cols 1-3

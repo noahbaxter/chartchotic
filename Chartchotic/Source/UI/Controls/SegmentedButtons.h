@@ -17,6 +17,11 @@ public:
         repaint();
     }
 
+    // Draws an item in place of its label. Labels still name the items, and an icon that
+    // draws nothing (art not loaded yet) falls back to the label.
+    using IconDrawer = std::function<bool(juce::Graphics&, juce::Rectangle<float>)>;
+    void setItemIcons(std::vector<IconDrawer> drawers) { icons = std::move(drawers); repaint(); }
+
     void setSelectedIndex(int index, juce::NotificationType notification = juce::dontSendNotification)
     {
         if (selectedIndex == index) return;
@@ -116,8 +121,18 @@ public:
                 g.setColour(juce::Colour(Theme::textDim));
             }
 
-            g.setFont(Theme::controlFont);
-            g.drawText(items[i], segBounds.toNearestInt(), juce::Justification::centred);
+            bool drewIcon = false;
+            if (i < (int)icons.size() && icons[(size_t)i])
+            {
+                juce::Graphics::ScopedSaveState save(g);
+                drewIcon = icons[(size_t)i](g, segBounds.reduced(segBounds.getHeight() * ICON_INSET));
+            }
+
+            if (!drewIcon)
+            {
+                g.setFont(Theme::controlFont);
+                g.drawText(items[i], segBounds.toNearestInt(), juce::Justification::centred);
+            }
 
             // Divider line between segments (not after last)
             if (i < count - 1 && i != selectedIndex && i + 1 != selectedIndex)
@@ -178,7 +193,10 @@ public:
     }
 
 private:
+    static constexpr float ICON_INSET = 0.03f;   // of the height, each side
+
     juce::StringArray items;
+    std::vector<IconDrawer> icons;
     int selectedIndex = 0;
     int hoverIndex = -1;
     juce::Colour accent { Theme::coral };
