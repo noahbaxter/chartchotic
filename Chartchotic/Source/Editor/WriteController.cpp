@@ -899,8 +899,28 @@ void WriteController::eraseLanePlacement(int trackIdx, const LanePlacement& lane
 
 bool WriteController::selectionHasLane(const std::vector<SelectedNote>& notes) const
 {
+    return selectionLaneKind(notes).has_value();
+}
+
+// Which kind of lane the selection is under, if it is fully under one, so each lane button can
+// show whether it is the one that is on.
+std::optional<PhraseTarget>
+WriteController::selectionLaneKind(const std::vector<SelectedNote>& notes) const
+{
+    const auto* cfg = authoring();
     const auto sel = laneSelectionRange(notes);
-    return sel.has_value() && allSelectedUnderLane(notes, lanesInRange(*sel));
+    if (cfg == nullptr || cfg->phrasePitch == nullptr || !sel.has_value()) return std::nullopt;
+
+    const auto present = lanesInRange(*sel);
+    if (!allSelectedUnderLane(notes, present)) return std::nullopt;
+
+    // Elite has one kind, so anything covering the selection is it. Elsewhere the pitch says
+    // which of the pair was written.
+    const int twoLanePitch = cfg->phrasePitch(PhraseTarget::Lane2, currentActiveSkill, 0);
+    for (const auto& l : present)
+        if (twoLanePitch >= 0 && l.pitch == twoLanePitch) return PhraseTarget::Lane2;
+
+    return PhraseTarget::Lane1;
 }
 
 // Picking a kind always writes it and never takes one off: the type buttons say what a lane is,

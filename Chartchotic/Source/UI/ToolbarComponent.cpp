@@ -136,20 +136,28 @@ void ToolbarComponent::initTopBar()
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
-    writeSubToolbar.onLaneTypeChanged = [this](PhraseTarget t) {
-        // Over a selection, picking a kind retypes it, the way picking a note type does. It
-        // never toggles: the pill turns a lane on and off, these say what kind it is.
-        if (interactionController.subMode() == SubMode::Edit
-            && interactionController.hasEditSelection())
+    writeSubToolbar.onLaneKindClicked = [this](PhraseTarget t) {
+        const bool overSelection = interactionController.subMode() == SubMode::Edit
+                                && interactionController.hasEditSelection();
+
+        if (overSelection)
         {
-            interactionController.setLaneTypeOnSelection(t);
+            // Clicking the kind already on the notes takes it off; clicking the other retypes
+            // to it. Each button behaves as the lane it draws, rather than as a shared setting.
+            const auto onNotes = interactionController.selectionLaneKind();
+            if (onNotes.has_value() && *onNotes == t) interactionController.applyLaneToSelection();
+            else                                      interactionController.setLaneTypeOnSelection(t);
+
             if (interactionController.onStateChanged) interactionController.onStateChanged();
             return;
         }
 
+        // Clicking the armed kind puts the tool away, so each button toggles its own lane.
+        const bool alreadyArmed = interactionController.laneTool()
+                               && interactionController.laneType() == t;
         interactionController.setLaneType(t);
-        interactionController.setLaneTool(true);
-        if (onLaneToolActive) onLaneToolActive(true);
+        interactionController.setLaneTool(!alreadyArmed);
+        if (onLaneToolActive) onLaneToolActive(!alreadyArmed);
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
