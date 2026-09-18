@@ -570,16 +570,29 @@ std::vector<WriteController::LaneNote> WriteController::laneCandidateNotes(LaneS
 
     // Pitch -> column for this instrument and skill, so the session's own notes can be read
     // without a second copy of the per-instrument mapping.
+    // Bar notes are kicks on a kit and opens on guitar. Bar mode is the mode for interacting
+    // with them, so outside it a lane never snaps to one: aiming at a snare roll and catching
+    // the kick running under it is never what was meant. Inside it they are all a lane sees.
+    //
+    // Elite can genuinely carry one, having a kick roll lane of its own pitch. The shared
+    // markers cannot at any setting: the game works out where they land "excluding kicks"
+    // (_refs/midi/drums.md:139), so a kick there would be a marker pointing at nothing.
+    const Part barPart = isGuitarLike(currentActivePart) ? Part::GUITAR : currentActivePart;
+    const bool barNotesCanCarryLane = cfg->lanesPerColumn && barModeFlag;
+
     std::map<int, int> columnOf;
     for (int lane = 0; lane <= maxLane(); ++lane)
     {
-        // Elite's lanes belong to the columns the drag reached, kicks included: it has a kick
-        // roll lane of its own. The shared markers take the whole board but leave kicks out,
-        // because the game leaves them out when working out where a marker lands.
+        // Elite's lanes belong to the columns the drag reached; the shared markers have no
+        // column of their own and read the whole board.
         if (cfg->lanesPerColumn && !spread.covers(lane)) continue;
+
+        const bool bar = isBarNote((uint)lane, barPart);
+        if (bar  && !barNotesCanCarryLane) continue;
+        if (!bar && barModeFlag)           continue;
+
         int pitch = resolvePitch(lane);
         if (pitch < 0) continue;
-        if (!cfg->lanesPerColumn && cfg->isKickPitch((uint)pitch, currentActiveSkill)) continue;
         columnOf.emplace(pitch, lane);
     }
 
@@ -814,13 +827,21 @@ WriteController::laneSelectionNotes(const std::vector<SelectedNote>& notes) cons
     const auto* cfg = authoring();
     if (cfg == nullptr) return {};
 
+    // Same rule the drag snaps by: bar notes are a lane's business only in bar mode, and only
+    // on elite, which has a kick roll lane of its own pitch. Selecting a kick under a snare
+    // roll must not drag the lane down onto it.
+    const Part barPart = isGuitarLike(currentActivePart) ? Part::GUITAR : currentActivePart;
+    const bool barNotesCanCarryLane = cfg->lanesPerColumn && barModeFlag;
+
     std::vector<LaneNote> picked;
     for (const auto& n : notes)
     {
         if (n.sustainOnly || n.lane < 0) continue;
-        // Kicks carry no lane on the shared markers, so selecting them asks for nothing there.
-        if (!cfg->lanesPerColumn && n.pitch >= 0
-            && cfg->isKickPitch((uint)n.pitch, currentActiveSkill)) continue;
+
+        const bool bar = isBarNote((uint)n.lane, barPart);
+        if (bar  && !barNotesCanCarryLane) continue;
+        if (!bar && barModeFlag)           continue;
+
         picked.push_back({ n.startQN, n.lane });
     }
     return picked;
@@ -1034,7 +1055,14 @@ void WriteController::commitLane(int trackIdx, std::optional<PhraseMath::PhraseS
     // as a broken tool.
     if (!merged.has_value())
     {
-        if (onPhraseRefused) onPhraseRefused("A lane needs notes to sit on");
+        const auto* cfg = authoring();
+        // Bar mode looks only at kicks and opens, and on everything but elite those cannot carry
+        // a lane at all, so say that rather than let it read as a tool that simply stopped.
+        const bool barOnly = barModeFlag && cfg != nullptr && !cfg->lanesPerColumn;
+        if (onPhraseRefused)
+            onPhraseRefused(barOnly ? (isDrums() ? "Kicks cannot carry a lane on this kit"
+                                                 : "Open notes cannot carry a lane")
+                                    : "A lane needs notes to sit on");
         return;
     }
 
