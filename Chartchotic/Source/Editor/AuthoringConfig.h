@@ -46,6 +46,11 @@ struct AuthoringConfig
     // Whether the Flam modifier means anything. Elite only: no other kit notates flams.
     bool hasFlamToggle;
 
+    // Whether a roll lane carries its own column. Elite has one lane pitch per pad; everyone
+    // else shares one pair of pitches whose columns the game infers from the notes under the
+    // marker. See LaneMath.h for what each shape means for authoring.
+    bool lanesPerColumn;
+
     // Lane the user clicked -> pitch to write. Handles this instrument's kicks itself, so
     // callers never need a kick special case. Returns -1 for an unauthorable lane.
     int (*laneToPitch)(SkillLevel skill, int lane, bool kick2xEnabled);

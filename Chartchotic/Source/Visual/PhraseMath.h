@@ -166,15 +166,41 @@ namespace PhraseMath
         return -1;
     }
 
-    // Phrases in one column may not overlap, so an end dragged past the next phrase stops at
-    // its start rather than running into it.
-    inline double clampEnd(double startQN, double wantEndQN, const std::vector<PhraseSpan>& others)
+    // Whether two spans are the same phrase: overlapping, or touching end to start. Abutting
+    // counts, so a drag begun exactly where the last phrase ended extends it.
+    inline bool touches(const PhraseSpan& a, const PhraseSpan& b)
     {
-        double end = wantEndQN;
-        for (const auto& o : others)
-            if (GridMath::after(o.startQN, startQN))
-                end = std::min(end, o.startQN);
-        return end;
+        return !GridMath::before(a.endQN, b.startQN) && !GridMath::after(a.startQN, b.endQN);
+    }
+
+    // Phrases of one kind are a set of ranges, so one drawn over another is not a conflict: it
+    // is the same phrase, extended. Returns the union of `range` with everything it touches,
+    // which is what gets written in their place.
+    inline PhraseSpan mergeSpan(PhraseSpan range, const std::vector<PhraseSpan>& existing)
+    {
+        // Repeated until stable, because swallowing one span can widen the range into the next.
+        for (bool grew = true; grew; )
+        {
+            grew = false;
+            for (const auto& o : existing)
+            {
+                if (!touches(range, o)) continue;
+                if (GridMath::before(o.startQN, range.startQN)) { range.startQN = o.startQN; grew = true; }
+                if (GridMath::after(o.endQN, range.endQN))      { range.endQN   = o.endQN;   grew = true; }
+            }
+        }
+        return range;
+    }
+
+    // The spans a merged range absorbed, which have to be erased before it is written. Pass the
+    // range mergeSpan returned: everything touching that is inside it.
+    inline std::vector<PhraseSpan> spansWithin(const PhraseSpan& range,
+                                               const std::vector<PhraseSpan>& existing)
+    {
+        std::vector<PhraseSpan> hit;
+        for (const auto& o : existing)
+            if (touches(range, o)) hit.push_back(o);
+        return hit;
     }
 
     // A 120 phrase reads as a BRE when the coda covers it. Only reading needs this now: writing a

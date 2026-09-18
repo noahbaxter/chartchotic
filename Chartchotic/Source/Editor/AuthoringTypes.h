@@ -128,18 +128,34 @@ struct OverlayState
 
     // Phrase drag preview, in the SP and Phrase views: a range with no lane, drawn as the
     // phrase it would write.
+    // A lane is written through the phrase path but is not a phrase kind, so it rides here as a
+    // value no Kind takes. Without it a lane preview drew in whichever phrase colour was last
+    // selected, which is how a lane ended up previewing as a solo.
+    static constexpr int PREVIEW_KIND_LANE = -1;
+
     struct PhrasePreview
     {
         bool   visible = false;
         double startQN = 0.0;
         double endQN = 0.0;
-        int    kind = 0;      // PhraseMath::Kind, as an int so AuthoringTypes stays free of it
+        int    kind = 0;      // PhraseMath::Kind, or PREVIEW_KIND_LANE
+        // Lanes only. A lane is drawn per column, and which columns it lands on is derived
+        // rather than picked, so the preview has to be told. Every other kind spans the
+        // whole board or fans out over the hand columns on its own.
+        std::vector<int> columns;
     };
     PhrasePreview phrasePreview;
 
     // Hover preview: one grid step at the snapped cursor, so a phrase view shows what a click
     // would start the way the note views show a ghost gem.
     PhrasePreview phraseHover;
+
+    // Lane tool: notes a lane would capture, drawn at full strength through the phrase dim. A
+    // lane snaps its edges to note starts rather than to the grid, so this is how the edges
+    // are shown: on hover the one note an edge would land on, during a drag every note the
+    // lane is going to cover.
+    struct LaneHighlight { int lane; double qn; };
+    std::vector<LaneHighlight> laneHighlights;
 
     // Erase sweep preview
     bool                     eraseSweepVisible = false;

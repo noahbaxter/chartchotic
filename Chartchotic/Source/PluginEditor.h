@@ -203,6 +203,22 @@ private:
     int effectiveFocusSlot() const
     { return juce::jlimit(0, juce::jmax(0, activeSlotCount - 1), focusedSlot); }
 
+    // The slot the cursor is over, which is where the ghost is drawn and which lanes a hover is
+    // read against. Separate from focus so moving across highways previews on each without the
+    // write bar rewriting itself under the cursor: focus, and the bar with it, follows a click.
+    // Only ever set from a pointer MOVE, which JUCE does not send while a button is down, so a
+    // drag wandering over a neighbour cannot retarget the stroke halfway through.
+    int hoveredSlot = -1;
+    void setHoveredSlot(int index);
+    // Which slot the controller is currently resolving points against. Only the draw ghost
+    // follows the cursor: an edit-mode selection is held against one part's tracks, so pointing
+    // the controller at a neighbouring highway mid-selection would aim it at the wrong notes.
+    int pointerContextSlot() const
+    {
+        if (interactionController.subMode() != SubMode::Draw) return effectiveFocusSlot();
+        return hoveredSlot >= 0 && hoveredSlot < activeSlotCount ? hoveredSlot : effectiveFocusSlot();
+    }
+
     // Shared track image cache (guitar + drums baked once at full resolution)
     TrackImageCache trackImageCache;
     std::unique_ptr<TrackRenderer> cacheRenderer;
@@ -249,6 +265,9 @@ private:
 
     // UI Components
     ToolbarComponent toolbar;
+    // Nothing in the app displayed a tooltip before this: the controls stored them and no window
+    // existed to show them. Owned by the editor so every control under it is covered.
+    juce::TooltipWindow tooltipWindow { this, TOOLTIP_DELAY_MS };
 
     // Floating mode chip — owned by the editor so it sits over the highway
     // (top-left, just below the toolbar). Click toggles write mode; key

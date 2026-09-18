@@ -6,7 +6,6 @@
 #include "PillToggle.h"
 #include "SegmentedButtons.h"
 #include "DropdownButton.h"
-#include "ValueStepper.h"
 #include "WriteModeIcon.h"
 #include "../../Editor/InteractionController.h"
 #include "../../Visual/Art/GemIconArt.h"
@@ -16,10 +15,6 @@ class WriteSubToolbar : public juce::Component
 public:
     explicit WriteSubToolbar(InteractionController& ic) : interactionController(ic)
     {
-        juce::StringArray viewLabels;
-        for (const auto& v : VIEWS) viewLabels.add(v.label);
-        viewButtons.setItems(viewLabels);
-        addAndMakeVisible(viewButtons);
 
         modeButtons.setItems({"Draw", "Edit"});
         cursorIcon = juce::Drawable::createFromImageData(
@@ -43,16 +38,23 @@ public:
         barToggle.setToggleState(false, juce::dontSendNotification);
         addAndMakeVisible(barToggle);
 
+        laneToggle.setToggleState(false, juce::dontSendNotification);
+        addAndMakeVisible(laneToggle);
+
         snapToggle.setToggleState(ic.snapEnabled(), juce::dontSendNotification);
         snapToggle.setIcon(juce::Drawable::createFromImageData(
             BinaryData::icon_snap_magnet_svg, BinaryData::icon_snap_magnet_svgSize));
         addAndMakeVisible(snapToggle);
 
-        divisionStepper.setLabelRatio(0.0f);
-        addAndMakeVisible(divisionStepper);
+        juce::StringArray divisionLabels;
+        for (int d : STEP_DIVISIONS) divisionLabels.add("1/" + juce::String(d));
+        divisionDropdown.setItems(divisionLabels);
+        addAndMakeVisible(divisionDropdown);
 
-        tupletStepper.setLabelRatio(0.0f);
-        addAndMakeVisible(tupletStepper);
+        juce::StringArray tupletLabels;
+        for (int t : TUPLETS) tupletLabels.add(t == 0 ? "Off" : juce::String(t));
+        tupletDropdown.setItems(tupletLabels);
+        addAndMakeVisible(tupletDropdown);
 
         guitarForceButtons.setItems({"Auto", "HOPO", "Strum", "Tap"});
         addChildComponent(guitarForceButtons);
@@ -67,26 +69,27 @@ public:
         flamToggle.setToggleState(false, juce::dontSendNotification);
         addChildComponent(flamToggle);
 
-        viewButtons.setCornerRadius(3.0f);
-        addChildComponent(phraseKindButtons);
+        addAndMakeVisible(phraseKindButtons);
 
         for (auto* seg : { &modeButtons, &guitarForceButtons, &drumDynamicButtons,
                            &phraseKindButtons })
             seg->setCornerRadius(3.0f);
-        for (auto* pill : { &snapToggle, &barToggle, &cymbalToggle, &flamToggle })
+        for (auto* pill : { &snapToggle, &barToggle, &laneToggle, &cymbalToggle, &flamToggle })
             pill->setCornerRadius(3.0f);
-        divisionStepper.setCornerRadius(3.0f);
-        tupletStepper.setCornerRadius(3.0f);
+        divisionDropdown.setCornerRadius(3.0f);
+        tupletDropdown.setCornerRadius(3.0f);
+        divisionDropdown.setArrowVisible(false);
+        tupletDropdown.setArrowVisible(false);
 
-        addHoverZone(viewButtons,        {},         "what every highway and the strip show, and what a click writes");
         addHoverZone(modeButtons,        {"Q"},      "draw places notes, edit selects & modifies");
         addHoverZone(phraseKindButtons,  {"A", "S", "D", "F"}, "which phrase a drag writes");
         // Modifier hints run in the same order as the segments they sit under,
         // matching the home-row slots in ModifierSlots.h.
         barHelpZone = addHoverZone(barToggle, {"B"}, "only interact with open notes");
+        addHoverZone(laneToggle, {"R"}, "drag writes a roll lane instead of notes");
         addHoverZone(snapToggle,         {"E"},                    "lock note placement to grid");
-        addHoverZone(divisionStepper,    {"[", "]", "⌥scroll"},    "grid spacing (1/4, 1/8, 1/16...)");
-        addHoverZone(tupletStepper,      {"T", "⇧T"},              "tuplet on/off, shift cycles 3/5/7");
+        addHoverZone(divisionDropdown,   {"[", "]", "⌥scroll"},    "grid spacing (1/4, 1/8, 1/16...)");
+        addHoverZone(tupletDropdown,     {"T", "⇧T"},              "tuplet on/off, shift cycles 3/5/7");
         addHoverZone(guitarForceButtons, {"A", "S", "D", "F"},     "force HOPO, strum, or tap (overrides auto)");
         addHoverZone(drumDynamicButtons, {"A", "S", "D"},          "ghost (soft) or accent (loud) hit");
         addHoverZone(cymbalToggle,       {"F"},                    "cymbal placement (PRO drums)");
@@ -131,6 +134,9 @@ public:
         flamToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
             return gemIcons->drawFlam(g, r);
         });
+        laneToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
+            return gemIcons->drawLane(g, r, juce::Colour(Theme::controlSelected));
+        });
         barToggle.setArt([this](juce::Graphics& g, juce::Rectangle<float> r) {
             bool drums = isDrumLike(interactionController.activePart());
             return !gemIcons->drawImage(g, r, drums ? assetManager->getBarKickImage()
@@ -142,8 +148,11 @@ public:
     std::function<void(PhraseMath::Kind)> onPhraseKindChanged;
     std::function<void(SubMode)> onSubModeChanged;
     std::function<void(bool)> onSnapChanged;
-    std::function<void(int delta)> onStepDivisionStep;
-    std::function<void(int delta)> onTupletStep;
+    // The chosen value, not a delta: the dropdown already knows which one was picked, so the
+    // handler no longer has to find the current value in a table before it can move off it.
+    std::function<void(bool)> onLaneToolChanged;
+    std::function<void(int division)> onStepDivisionChanged;
+    std::function<void(int tuplet)> onTupletChanged;
     std::function<void(bool)> onBarModeChanged;
     std::function<void(GuitarForce)> onGuitarForceChanged;
     std::function<void(DrumDynamic)> onDrumDynamicChanged;
@@ -155,15 +164,15 @@ public:
 
     void wireCallbacks()
     {
-        viewButtons.onSelectionChanged = [this](int idx) {
-            if (onViewChanged && idx >= 0 && idx < (int)std::size(VIEWS))
-                onViewChanged(VIEWS[idx].view);
-        };
-
+        // Picking what to write is what chooses the view. Both sets of types sit on the bar at
+        // once, so reaching for a phrase kind says "phrase" as plainly as a view control would,
+        // and there is no state where the thing you clicked is not the thing you are writing.
         phraseKindButtons.onSelectionChanged = [this](int idx) {
             auto kinds = PhraseMath::kindsFor(interactionController.activePart());
             if (onPhraseKindChanged && idx >= 0 && idx < (int)kinds.size())
                 onPhraseKindChanged(kinds[(size_t)idx]);
+            if (onLaneToolChanged) onLaneToolChanged(false);
+            selectView(EditorView::Phrase);
         };
 
         modeButtons.onSelectionChanged = [this](int idx) {
@@ -175,26 +184,39 @@ public:
             if (onSnapChanged) onSnapChanged(snapToggle.getToggleState());
         };
 
-        divisionStepper.onStep = [this](int delta) {
-            if (onStepDivisionStep) onStepDivisionStep(delta);
+        divisionDropdown.onSelectionChanged = [this](int idx) {
+            if (onStepDivisionChanged && idx >= 0 && idx < (int)std::size(STEP_DIVISIONS))
+                onStepDivisionChanged(STEP_DIVISIONS[idx]);
         };
 
-        tupletStepper.onStep = [this](int delta) {
-            if (onTupletStep) onTupletStep(delta);
+        tupletDropdown.onSelectionChanged = [this](int idx) {
+            if (onTupletChanged && idx >= 0 && idx < (int)std::size(TUPLETS))
+                onTupletChanged(TUPLETS[idx]);
         };
 
         barToggle.onClick = [this]() {
             if (onBarModeChanged) onBarModeChanged(barToggle.getToggleState());
         };
 
+        // Picks lanes rather than toggling them: it is one of the exclusive choices, so it stays
+        // on until a note type or phrase kind takes the turn, the same as those do to each other.
+        laneToggle.onClick = [this]() {
+            if (onLaneToolChanged) onLaneToolChanged(true);
+            selectView(EditorView::Notes);
+        };
+
         guitarForceButtons.onSelectionChanged = [this](int idx) {
             static const GuitarForce forces[] = { GuitarForce::None, GuitarForce::Hopo,
                                                    GuitarForce::Strum, GuitarForce::Tap };
             if (onGuitarForceChanged) onGuitarForceChanged(forces[idx]);
+            if (onLaneToolChanged) onLaneToolChanged(false);
+            selectView(EditorView::Notes);
         };
 
         drumDynamicButtons.onSelectionChanged = [this](int idx) {
             if (onDrumDynamicChanged) onDrumDynamicChanged(DYNAMIC_ORDER[idx]);
+            if (onLaneToolChanged) onLaneToolChanged(false);
+            selectView(EditorView::Notes);
         };
 
         cymbalToggle.onClick = [this]() {
@@ -220,17 +242,16 @@ public:
         bool hasSel = editMode && interactionController.hasEditSelection();
         bool notesView = interactionController.view() == EditorView::Notes;
         const bool phraseView = interactionController.view() == EditorView::Phrase;
-        juce::Colour modeAccent = drawMode ? juce::Colour(Theme::purple) : juce::Colour(Theme::blue);
+        // Lanes are written on the note highway, so the view alone cannot say whether a note type
+        // or the lane tool holds the turn.
+        const bool laneMode = interactionController.laneTool();
+        const bool noteTypeActive = notesView && !laneMode;
+        // One neutral for both sub-modes. Draw and Edit are told apart by which segment is lit,
+        // not by the bar changing colour under you.
+        juce::Colour modeAccent = juce::Colour(Theme::controlSelected);
 
-        viewButtons.setAccentColour(modeAccent);
-        for (int i = 0; i < (int)std::size(VIEWS); ++i)
-            if (VIEWS[i].view == interactionController.view())
-                viewButtons.setSelectedIndex(i);
-
-        // Open/kick filtering only means anything while gems are what a click writes, and a
-        // phrase view has no use for it at all, so it goes away rather than sitting there greyed.
-        barToggle.setDisabled(!notesView);
-        barToggle.setVisible(!phraseView);
+        // Open/kick filtering only means anything while gems are what a click writes, so it greys
+        // in a phrase view rather than vanishing: the bar keeps one shape whatever is selected.
 
         if (barHelpZone)
             barHelpZone->setDescription({"B"}, drums ? "only interact with kick notes"
@@ -238,9 +259,10 @@ public:
 
         modeButtons.setAccentColour(modeAccent);
         snapToggle.setAccentColour(modeAccent);
-        divisionStepper.setAccentColour(modeAccent);
-        tupletStepper.setAccentColour(modeAccent);
+        divisionDropdown.setAccentColour(modeAccent);
+        tupletDropdown.setAccentColour(modeAccent);
         barToggle.setAccentColour(modeAccent);
+        laneToggle.setAccentColour(modeAccent);
         guitarForceButtons.setAccentColour(modeAccent);
         drumDynamicButtons.setAccentColour(modeAccent);
         cymbalToggle.setAccentColour(modeAccent);
@@ -252,27 +274,27 @@ public:
         bool snapOn = interactionController.snapEnabled();
         snapToggle.setToggleState(snapOn);
 
+        // The wheel and the [ ] keys can land on a division that is not in the table, so nothing
+        // is selected rather than the nearest being shown as exact.
         int div = interactionController.stepDivision();
-        divisionStepper.setDisplayValue("1/" + juce::String(div));
-        divisionStepper.setAtMin(div <= 1);
-        divisionStepper.setAtMax(div >= 64);
-        divisionStepper.setAlpha(snapOn ? 1.0f : 0.35f);
-        divisionStepper.setInterceptsMouseClicks(snapOn, snapOn);
+        divisionDropdown.setSelectedIndex(indexOf(STEP_DIVISIONS, div));
+        divisionDropdown.setAlpha(snapOn ? 1.0f : 0.35f);
+        divisionDropdown.setInterceptsMouseClicks(snapOn, snapOn);
 
         int tuplet = interactionController.tuplet();
-        tupletStepper.setDisplayValue(tuplet == 0 ? "Off" : juce::String(tuplet));
-        tupletStepper.setAtMin(tuplet == 0);
-        tupletStepper.setAtMax(tuplet == 7);
-        tupletStepper.setAlpha(snapOn ? 1.0f : 0.35f);
-        tupletStepper.setInterceptsMouseClicks(snapOn, snapOn);
+        tupletDropdown.setSelectedIndex(indexOf(TUPLETS, tuplet));
+        tupletDropdown.setAlpha(snapOn ? 1.0f : 0.35f);
+        tupletDropdown.setInterceptsMouseClicks(snapOn, snapOn);
 
         barToggle.setToggleState(interactionController.barMode());
         barToggle.setButtonText(drums ? "KICK" : "OPEN");
 
+        laneToggle.setToggleState(interactionController.laneTool());
+
         // Cym and Flam share one pill slot; no kit has both.
         const auto* cfg = getAuthoringConfig(interactionController.activePart());
-        bool showCym  = drums && cfg && cfg->hasCymbalToggle && !phraseView;
-        bool showFlam = drums && cfg && cfg->hasFlamToggle && !phraseView;
+        bool showCym  = drums && cfg && cfg->hasCymbalToggle;
+        bool showFlam = drums && cfg && cfg->hasFlamToggle;
 
         // The Phrase view writes phrases, so its slot picks which one rather than a note type.
         auto kinds = PhraseMath::kindsFor(interactionController.activePart());
@@ -280,26 +302,44 @@ public:
         for (auto k : kinds) kindLabels.add(PhraseMath::phraseShortLabel(k));
         phraseKindButtons.setItems(kindLabels);
         phraseKindButtons.setAccentColour(modeAccent);
-        for (int i = 0; i < (int)kinds.size(); ++i)
-            if (kinds[(size_t)i] == interactionController.phraseKind())
-                phraseKindButtons.setSelectedIndex(i);
+        // Note types and phrase kinds are one exclusive choice spread over two groups: whichever
+        // is selected is what a drag writes, and the view follows it. The other group clears its
+        // selection rather than greying out, so both stay one click away.
+        if (phraseView)
+        {
+            for (int i = 0; i < (int)kinds.size(); ++i)
+                if (kinds[(size_t)i] == interactionController.phraseKind())
+                    phraseKindButtons.setSelectedIndex(i);
+        }
+        else
+        {
+            phraseKindButtons.setSelectedIndex(-1);
+        }
 
-        phraseKindButtons.setVisible(phraseView);
-        guitarForceButtons.setVisible(!drums && !phraseView);
-        drumDynamicButtons.setVisible(drums && !phraseView);
+        // Both kinds of type sit on the bar at once: clicking one is what picks the view, so
+        // hiding the other would leave no way back to it.
+        phraseKindButtons.setVisible(true);
+        guitarForceButtons.setVisible(!drums);
+        drumDynamicButtons.setVisible(drums);
         cymbalToggle.setVisible(showCym);
         flamToggle.setVisible(showFlam);
 
-        bool modifiersEnabled = notesView && (drawMode || hasSel);
+        // Selectable whatever the view is: clicking one is how you get back to the note view,
+        // so they stay live and simply show nothing selected while a phrase kind holds the turn.
+        bool modifiersEnabled = drawMode || hasSel;
 
         if (drums)
         {
             drumDynamicButtons.setAlpha(modifiersEnabled ? 1.0f : 0.35f);
             drumDynamicButtons.setInterceptsMouseClicks(modifiersEnabled, modifiersEnabled);
-            cymbalToggle.setDisabled(!modifiersEnabled);
+            // Cymbal is only drawable on a plain drum note, so it greys anywhere a click writes
+            // something else. Without this it would be settable in a mode that drops it again.
+            const bool plainNotes = noteTypeActive && !interactionController.barMode();
+            cymbalToggle.setDisabled(!modifiersEnabled || !plainNotes);
             flamToggle.setDisabled(!modifiersEnabled);
 
-            if (modifiersEnabled)
+            if (!noteTypeActive) drumDynamicButtons.setSelectedIndex(-1);
+            else if (modifiersEnabled)
             {
                 auto dyn = interactionController.drumDynamic();
                 for (int i = 0; i < (int)std::size(DYNAMIC_ORDER); ++i)
@@ -313,7 +353,8 @@ public:
             guitarForceButtons.setAlpha(modifiersEnabled ? 1.0f : 0.35f);
             guitarForceButtons.setInterceptsMouseClicks(modifiersEnabled, modifiersEnabled);
 
-            if (modifiersEnabled)
+            if (!noteTypeActive) guitarForceButtons.setSelectedIndex(-1);
+            else if (modifiersEnabled)
             {
                 auto force = interactionController.guitarForce();
                 int forceIdx = 0;
@@ -352,10 +393,11 @@ public:
                            juce::Justification::centred, false);
             };
             draw("MODE",      labelGroupMode);
-            draw(interactionController.view() == EditorView::Phrase ? "PHRASE" : "NOTE TYPE",
-                 labelGroupNote);
+            draw("NOTE TYPE", labelGroupNote);
+            draw("PHRASE",    labelGroupPhrase);
             draw("GRID",      labelGroupGrid);
-            draw("VIEW",      labelGroupView);
+            // No VIEW label: the stepper's value is the view's name, so a label over it would
+            // only say the same word twice.
         }
     }
 
@@ -379,37 +421,42 @@ public:
         // drums' three plus Cym. Switching parts swaps what is inside it and nothing else
         // on the row moves.
         const int noteSquares = juce::jmax((int)guitarForceItems, (int)drumDynamicItems + 1);
-        const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES
-                            + SNAP_SQUARES + SUBTOOLBAR_VIEW_SQUARES;
-        const float gapSquares = SUBTOOLBAR_GROUP_GAP * 3.0f + SUBTOOLBAR_ITEM_GAP * 4.0f;
+        const float squares = MODE_SQUARES + (float)noteSquares + SUBTOOLBAR_BAR_SQUARES * 2.0f
+                            + SNAP_SQUARES;
+        const float gapSquares = SUBTOOLBAR_GROUP_GAP * 3.0f + SUBTOOLBAR_ITEM_GAP * 4.0f
+                               + SUBTOOLBAR_LEFT_MARGIN;
 
         // A stepper is two arrow zones that scale with the squares plus room for its value in
         // pixels, so the value text comes off the width first and the squares shrink into what
         // is left. A tall row in a narrow window would otherwise run off both ends.
-        const float stepperSquares = STEPPER_ARROW_SQUARES * 2.0f;
-        const float fitSide = ((float)getWidth() * SUBTOOLBAR_FIT_FRACTION - stepperTextWidth() * 2.0f)
-                            / (squares + gapSquares + stepperSquares * 2.0f);
+        // Text-sized controls take their pixels off the width first, then the squares divide what
+        // is left. One chevron per dropdown, not the two arrow zones a stepper needed.
+        const int phraseW = PHRASE_MAX_KINDS * phraseItemWidth();
+        // No chevron on these: they are clicked or scrolled, so the whole width is the value.
+        const float chevronSquares = 0.0f;
+        const float fixedPx = (float)(divisionTextWidth() + tupletTextWidth() + phraseW);
+        const float fitSide = ((float)getWidth() * SUBTOOLBAR_FIT_FRACTION - fixedPx)
+                            / (squares + gapSquares + chevronSquares);
         const int side = juce::jmax(8, juce::jmin(juce::roundToInt(available * SUBTOOLBAR_HEIGHT_SCALE),
                                                   (int)fitSide));
 
-        const float arrowZone = side * STEPPER_ARROW_SQUARES;
-        divisionStepper.setArrowZone(arrowZone);
-        tupletStepper.setArrowZone(arrowZone);
-        const int stepW = juce::roundToInt(arrowZone * 2.0f) + stepperTextWidth();
+        const int divisionW = divisionTextWidth();
+        const int tupletW   = tupletTextWidth();
 
         const int groupGap = juce::roundToInt(side * SUBTOOLBAR_GROUP_GAP);
         const int itemGap  = juce::jmax(2, juce::roundToInt(side * SUBTOOLBAR_ITEM_GAP));
         const int barW  = juce::roundToInt(side * SUBTOOLBAR_BAR_SQUARES);
-        const int viewW = juce::roundToInt(side * SUBTOOLBAR_VIEW_SQUARES);
 
         const int modeW = side * MODE_SQUARES;
         const int noteSlotW = side * noteSquares + itemGap;
-        const int noteW = noteSlotW + itemGap + barW;
-        const int gridW = side * SNAP_SQUARES + itemGap * 2 + stepW * 2;
-        const int totalW = modeW + noteW + gridW + viewW + groupGap * 3;
+        const int noteW = noteSlotW + itemGap * 2 + barW * 2;
+        const int gridW = side * SNAP_SQUARES + itemGap * 2 + divisionW + tupletW;
+        const int totalW = modeW + noteW + phraseW + gridW + groupGap * 3;
 
         const int controlY = labelH + padTop + (available - side) / 2;
-        int x = (getWidth() - totalW) / 2;
+        // Left-aligned, but never off the end: a narrow window falls back to centring what fits.
+        int x = juce::roundToInt(side * SUBTOOLBAR_LEFT_MARGIN);
+        if (x + totalW > getWidth()) x = juce::jmax(0, (getWidth() - totalW) / 2);
 
         auto place = [&](juce::Component& c, int w) {
             c.setBounds(x, controlY, w, side);
@@ -422,12 +469,7 @@ public:
 
         labelGroupNote = { x, 0, noteW, labelH };
         const int noteSlotEnd = x + noteSlotW;
-        if (interactionController.view() == EditorView::Phrase)
-        {
-            place(phraseKindButtons,
-                  side * (int)PhraseMath::kindsFor(interactionController.activePart()).size());
-        }
-        else if (drums)
+        if (drums)
         {
             place(drumDynamicButtons, side * (int)drumDynamicItems);
             x += itemGap;
@@ -442,18 +484,27 @@ public:
         }
         x = noteSlotEnd + itemGap;
         place(barToggle, barW);
+        x += itemGap;
+        place(laneToggle, barW);
         x += groupGap;
+
+        // Centred in a slot sized for the most kinds any instrument has, so the segments keep one
+        // width everywhere and only the spare gap either side changes with the part.
+        labelGroupPhrase = { x, 0, phraseW, labelH };
+        const int phraseSlotEnd = x + phraseW;
+        const int phraseItems = (int)PhraseMath::kindsFor(interactionController.activePart()).size();
+        x += (phraseW - phraseItems * phraseItemWidth()) / 2;
+        place(phraseKindButtons, phraseItems * phraseItemWidth());
+        x = phraseSlotEnd + groupGap;
 
         labelGroupGrid = { x, 0, gridW, labelH };
         place(snapToggle, side * SNAP_SQUARES);
         x += itemGap;
-        place(divisionStepper, stepW);
+        place(divisionDropdown, divisionW);
         x += itemGap;
-        place(tupletStepper, stepW);
+        place(tupletDropdown, tupletW);
         x += groupGap;
 
-        labelGroupView = { x, 0, viewW, labelH };
-        place(viewButtons, viewW);
     }
 
 private:
@@ -499,6 +550,17 @@ private:
         auto zone = std::make_unique<HoverHelpZone>(target, keys, desc);
         auto* ptr = zone.get();
         hoverZones.push_back(std::move(zone));
+
+        // The same words the help strip gets, as a tooltip on the control itself. With the group
+        // headers gone the strip is the only thing naming these, and it only reads if you know
+        // to look at it.
+        if (auto* client = dynamic_cast<juce::SettableTooltipClient*>(&target))
+        {
+            juce::StringArray shortcuts;
+            for (const auto& k : keys) shortcuts.add(k);
+            client->setTooltip(shortcuts.isEmpty() ? desc
+                                                   : desc + "  (" + shortcuts.joinIntoString(", ") + ")");
+        }
         return ptr;
     }
 
@@ -528,22 +590,59 @@ private:
 
     // No separate SP view: Phrase shows and writes star power, solo and fill as three lanes, so
     // an SP-only view was one more place to be in for no extra reach.
-    struct ViewItem { EditorView view; const char* label; };
+    // Order is the step order. enabledByDefault is what the stepper walks: a view listed but off
+    // still holds its place here, so turning it on is this flag rather than working out where in
+    // the order it belonged. Sections and Tempo are both listed and both waiting on their views.
+    struct ViewItem { EditorView view; const char* label; bool enabledByDefault; };
     static constexpr ViewItem VIEWS[] = {
-        { EditorView::Notes,     "Notes" },
-        { EditorView::Phrase,    "Phrase" },
-        { EditorView::Sections,  "Sections" },
-        { EditorView::Tempo,     "Tempo" },
+        { EditorView::Notes,     "Notes",    true  },
+        { EditorView::Phrase,    "Phrase",   true  },
+        { EditorView::Sections,  "Sections", false },
+        { EditorView::Tempo,     "Tempo",    false },
     };
 
-    DropdownButton   viewButtons;
+    std::array<bool, std::size(VIEWS)> viewEnabled = [] {
+        std::array<bool, std::size(VIEWS)> a{};
+        for (size_t i = 0; i < std::size(VIEWS); ++i) a[i] = VIEWS[i].enabledByDefault;
+        return a;
+    }();
+
+    // Index of the step `delta` away from the current view, skipping the disabled ones and
+    // stopping at the ends rather than wrapping: with two views enabled, wrapping would make
+    // both arrows do the same thing.
+    // Switch views, but only when that view is enabled and is not already the one showing.
+    void selectView(EditorView v)
+    {
+        for (size_t i = 0; i < std::size(VIEWS); ++i)
+            if (VIEWS[i].view == v && !viewEnabled[i]) return;
+
+        if (onViewChanged && v != interactionController.view())
+            onViewChanged(v);
+    }
+
     SegmentedButtons modeButtons;
     SegmentedButtons phraseKindButtons;
     PillToggle       barToggle      {"BAR"};
+    // Drawing lanes is a third thing a drag can write, alongside notes and phrases, so it sits
+    // with the note types rather than among the phrase kinds.
+    PillToggle       laneToggle     {"LANE"};
 
     PillToggle       snapToggle     {"Snap"};
-    ValueStepper     divisionStepper{"", ""};
-    ValueStepper     tupletStepper  {"", ""};
+    DropdownButton   divisionDropdown;
+    DropdownButton   tupletDropdown;
+
+    // Values and labels from one table each, so a dropdown's index cannot mean one division here
+    // and another where it is applied. These used to live in ToolbarComponent's handlers, which
+    // is why stepping had to search for the current value before it could move off it.
+    static constexpr int STEP_DIVISIONS[] = { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64 };
+    static constexpr int TUPLETS[] = { 0, 3, 5, 7 };
+
+    template <size_t N>
+    static int indexOf(const int (&table)[N], int value)
+    {
+        for (size_t i = 0; i < N; ++i) if (table[i] == value) return (int)i;
+        return -1;
+    }
 
     SegmentedButtons guitarForceButtons;
     SegmentedButtons drumDynamicButtons;
@@ -554,7 +653,7 @@ private:
     HoverHelpZone* barHelpZone = nullptr;
 
     int labelH = 0;
-    juce::Rectangle<int> labelGroupMode, labelGroupNote, labelGroupGrid, labelGroupView;
+    juce::Rectangle<int> labelGroupMode, labelGroupNote, labelGroupPhrase, labelGroupGrid;
 
     // Soft to loud, the same order as the home-row slots in ModifierSlots.h.
     static constexpr DrumDynamic DYNAMIC_ORDER[] = { DrumDynamic::Ghost, DrumDynamic::Normal,
@@ -566,13 +665,44 @@ private:
     static constexpr size_t guitarForceItems = 4;
     static constexpr size_t drumDynamicItems = 3;
 
-    // Room for the widest division ("1/64") between the arrows, whatever is showing now, so
-    // the stepper does not change width as you step.
-    static int stepperTextWidth()
+    // Room for the widest value a control can show, whatever is showing now, so it does not
+    // change width as the value changes.
+    static int textWidthFor(const juce::StringArray& values)
     {
-        return juce::roundToInt(Theme::controlFont.getStringWidthFloat("1/64")
-                                + Theme::controlFont.getHeight() * STEPPER_TEXT_PAD);
+        float w = 0.0f;
+        for (const auto& s : values) w = juce::jmax(w, Theme::controlFont.getStringWidthFloat(s));
+        return juce::roundToInt(w + Theme::controlFont.getHeight() * STEPPER_TEXT_PAD);
     }
+
+    static int divisionTextWidth()
+    {
+        juce::StringArray v;
+        for (int d : STEP_DIVISIONS) v.add("1/" + juce::String(d));
+        return textWidthFor(v);
+    }
+
+    static int tupletTextWidth()
+    {
+        juce::StringArray v;
+        for (int t : TUPLETS) v.add(t == 0 ? "Off" : juce::String(t));
+        return textWidthFor(v);
+    }
+
+    // One phrase segment, wide enough for the longest label any instrument uses. Measured across
+    // every kind rather than the current part's, so a segment is the same width on all of them:
+    // sizing to the part meant the labels squeezed and the whole group's width moved with it.
+    static int phraseItemWidth()
+    {
+        juce::StringArray v;
+        for (auto k : { PhraseMath::Kind::StarPower, PhraseMath::Kind::Solo,
+                        PhraseMath::Kind::Fill, PhraseMath::Kind::Bre })
+            v.add(PhraseMath::phraseShortLabel(k));
+        return textWidthFor(v);
+    }
+
+    // The phrase slot holds the most kinds any instrument has, so switching parts changes which
+    // segments are in it and nothing after it on the row moves. Same trick the note slot uses.
+    static constexpr int PHRASE_MAX_KINDS = 4;
     static constexpr float STEPPER_TEXT_PAD = 0.3f;        // of the font height
     static constexpr float STEPPER_ARROW_SQUARES = 0.6f;   // each arrow zone, in squares
 

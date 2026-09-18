@@ -120,25 +120,19 @@ void ToolbarComponent::initTopBar()
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
-    writeSubToolbar.onStepDivisionStep = [this](int delta) {
-        int current = interactionController.stepDivision();
-        static const int steps[] = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64};
-        int idx = 0;
-        for (int i = 0; i < 12; ++i)
-            if (steps[i] == current) { idx = i; break; }
-        idx = juce::jlimit(0, 11, idx + delta);
-        interactionController.setStepDivision(steps[idx]);
+    writeSubToolbar.onLaneToolChanged = [this](bool on) {
+        interactionController.setLaneTool(on);
+        if (onLaneToolActive) onLaneToolActive(on);
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
-    writeSubToolbar.onTupletStep = [this](int delta) {
-        static const int tuplets[] = {0, 3, 5, 7};
-        int current = interactionController.tuplet();
-        int idx = 0;
-        for (int i = 0; i < 4; ++i)
-            if (tuplets[i] == current) { idx = i; break; }
-        idx = juce::jlimit(0, 3, idx + delta);
-        interactionController.setTuplet(tuplets[idx]);
+    writeSubToolbar.onStepDivisionChanged = [this](int division) {
+        interactionController.setStepDivision(division);
+        if (interactionController.onStateChanged) interactionController.onStateChanged();
+    };
+
+    writeSubToolbar.onTupletChanged = [this](int tuplet) {
+        interactionController.setTuplet(tuplet);
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
