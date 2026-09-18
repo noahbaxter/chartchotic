@@ -13,6 +13,12 @@
 #include "../Midi/Utils/MidiConstants.h"
 #include "../Midi/Utils/GemCalculator.h"
 
+// Drum dynamics ride on velocity rather than a marker: 1 is a ghost, 127 an accent, and anything
+// between is a normal hit. Guitar has no dynamics and writes the normal value throughout.
+constexpr int GHOST_VELOCITY  = 1;
+constexpr int ACCENT_VELOCITY = 127;
+constexpr int NORMAL_VELOCITY = 100;
+
 class AuthoringControllerBase
 {
 public:
@@ -102,12 +108,12 @@ protected:
 
     int resolveVelocity() const
     {
-        if (!isDrums()) return 100;
+        if (!isDrums()) return NORMAL_VELOCITY;
         switch (currentDrumDynamic)
         {
-            case DrumDynamic::Ghost:  return 1;
-            case DrumDynamic::Accent: return 127;
-            default:                  return 100;
+            case DrumDynamic::Ghost:  return GHOST_VELOCITY;
+            case DrumDynamic::Accent: return ACCENT_VELOCITY;
+            default:                  return NORMAL_VELOCITY;
         }
     }
 
@@ -287,14 +293,27 @@ protected:
         patchRemove(lane, qn);
         if (!barModeFlag)
             eraseConflictingKick(trackIdx, qn, pitch);
+        // A marker with nothing left to qualify is junk in the file, and worse, the next note
+        // written there silently inherits it.
+        if (!markerStillClaimed(trackIdx, qn, lane))
+            writeMarkerMask(trackIdx, qn, lane, 0);
         return true;
     }
 
     bool moveNote(int trackIdx, double oldQN, int oldPitch, int oldLane,
                   double newQN, double newEndQN, int newPitch, int newLane)
     {
+        // What the note IS travels with it. Captured first: after the move the source tick no
+        // longer explains itself, and a tom left behind reads as a cymbal at the destination.
+        const uint32_t markers = captureMarkerMask(trackIdx, oldQN, oldLane);
         if (!noteEditor.moveNote(trackIdx, oldQN, oldPitch, newQN, newEndQN, newPitch)) return false;
         patchRemove(oldLane, oldQN);
+        if (!markerStillClaimed(trackIdx, oldQN, oldLane))
+            writeMarkerMask(trackIdx, oldQN, oldLane, 0);
+        // Merged rather than replaced, so arriving next to an already-qualified note keeps both.
+        if (markers != 0)
+            writeMarkerMask(trackIdx, newQN, newLane,
+                            markers | captureMarkerMask(trackIdx, newQN, newLane));
         // SelectedNote carries no gem, so the moved note's own dynamic isn't available here.
         // The lane still decides cymbal-ness, which is what sets the Z offset, so the preview
         // lands at the right height; only a moved ghost/accent previews as the toolbar's.
@@ -386,7 +405,11 @@ protected:
     {
         int pitch = resolveBarPitch(barLane);
         if (pitch < 0) return false;
-        return createNote(trackIdx, qn, pitch, barLane, resolveVelocity());
+        // Only elite kicks carry dynamics. Everywhere else a stock kit sends no kick velocity, so
+        // an armed ghost or accent would write one the format has no reading for.
+        const bool kickDynamics = isElite() || !isDrums();
+        return createNote(trackIdx, qn, pitch, barLane,
+                          kickDynamics ? resolveVelocity() : NORMAL_VELOCITY);
     }
 
     bool eraseBarNote(int trackIdx, double qn, int barLane = 0)
@@ -415,7 +438,19 @@ protected:
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0 && GridMath::same(existing.startQN, qn))
             noteEditor.eraseNoteAt(trackIdx, qn, pitch, currentActivePart, -1, currentActiveSkill);
-        return noteEditor.createNote(trackIdx, qn, pitch, 100, duration);
+        return noteEditor.createNote(trackIdx, qn, pitch, phraseVelocity(pitch), duration);
+    }
+
+    // Roll lanes apply to Expert unless they are written inside the 41-50 window, which extends
+    // them to Hard as well (drums.md:144). Drawing one while Hard is selected and writing the
+    // plain velocity gave a lane that applied to a difficulty you were not looking at. Only the
+    // lane pitches read this window, so everything else keeps the normal velocity.
+    int phraseVelocity(int pitch) const
+    {
+        const bool laneMarker = pitch == (int)MidiPitchDefinitions::Guitar::LANE_1
+                             || pitch == (int)MidiPitchDefinitions::Guitar::LANE_2;
+        if (!laneMarker || currentActiveSkill != SkillLevel::HARD) return NORMAL_VELOCITY;
+        return (MIDI_LANE_HARD_VELOCITY_MIN + MIDI_LANE_HARD_VELOCITY_MAX) / 2;
     }
 
     // No lane of its own, so the gem-erase path would blank the note the marker types.
@@ -535,6 +570,29 @@ protected:
             if (p >= 0) out.push_back(p);
         }
         return out;
+    }
+
+    // Whether anything a marker at this tick would still be qualifying is left there. The scope
+    // is the marker's own: a drum tom marker names one lane, while a guitar force marker and
+    // elite's flam sit on the tick and speak for every note on it. Moving one note out of a
+    // chord must not strip the force off the notes that stayed.
+    bool markerStillClaimed(int trackIdx, double qn, int lane)
+    {
+        const auto* cfg = authoring();
+        if (cfg == nullptr) return false;
+
+        if (isDrums() && !isElite())
+        {
+            int pitch = resolvePitch(lane);
+            return pitch >= 0 && findNote(trackIdx, qn, pitch).noteIndex >= 0;
+        }
+
+        for (int l = 0; l <= cfg->highestLaneKick2x; ++l)
+        {
+            int pitch = cfg->laneToPitch(currentActiveSkill, l, kick2xEnabled);
+            if (pitch >= 0 && findNote(trackIdx, qn, pitch).noteIndex >= 0) return true;
+        }
+        return false;
     }
 
     // Bit i is set when modifierMarkerPitches(lane)[i] is present at qn.
