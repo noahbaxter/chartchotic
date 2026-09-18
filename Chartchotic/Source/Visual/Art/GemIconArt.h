@@ -38,11 +38,15 @@ public:
     // changes, which had the bar's icons resizing themselves whenever the chart was. Generated
     // art (runtime recolours) has no master and is used as it comes. The tint rides here too so
     // that every path through this file picks it up, and it is cached per source and colour.
-    juce::Image* sourceFor(juce::Image* live) const
+    // The one-colour rule is about LANE colours: green against blue says where a note sits on
+    // the board, which is nothing to do with what the button does. An overlay is the opposite.
+    // The tap violet is the same violet on every lane and is the only thing naming the type, so
+    // an overlay keeps its own colour and callers pass applyTint false for it.
+    juce::Image* sourceFor(juce::Image* live, bool applyTint = true) const
     {
         auto* master = assets.masterFor(live);
         auto* img = master != nullptr ? const_cast<juce::Image*>(master) : live;
-        if (img == nullptr || tint.isTransparent()) return img;
+        if (img == nullptr || !applyTint || tint.isTransparent()) return img;
         return assets.getTintedGlyph(img, tint, ICON_TINT_NEUTRAL_PULL);
     }
 
@@ -192,7 +196,7 @@ private:
                  juce::Image* rawOverlay, PositionConstants::OverlayType overlayType) const
     {
         auto* gem     = sourceFor(rawGem);
-        auto* overlay = sourceFor(rawOverlay);
+        auto* overlay = sourceFor(rawOverlay, false);
         if (gem == nullptr || !gem->isValid()) return false;
 
         const auto canvas = gem->getBounds().toFloat();
