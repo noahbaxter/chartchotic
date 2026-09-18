@@ -59,10 +59,10 @@ private:
     std::optional<double> codaQN() const;
 
     std::vector<BreTrack> breTracks() const;
-    std::vector<PhraseMath::PhraseSpan> existingBres(const BreTrack& t) const;
-    void eraseBreNotes(const BreTrack& t);
+    std::optional<PhraseMath::PhraseSpan> existingBre(const BreTrack& t) const;
+    void eraseBreNotes(const BreTrack& t, double startQN);
     juce::String writeBre(double startQN, double endQN);
-    void eraseBre();
+    void eraseBre(double startQN);
 
     MidiWriter& writer;
     InstrumentSession& session;

@@ -64,24 +64,27 @@ std::vector<PhraseWriter::BreTrack> PhraseWriter::breTracks() const
 
 // Every BRE currently in the chart: a 120 phrase the coda covers, on any part. Real charts carry
 // exactly one across all parts at the same tick, which is why writing another replaces it.
-std::vector<PhraseSpan> PhraseWriter::existingBres(const BreTrack& t) const
+// The song's BRE, if it has one: the 120 span that STARTS at the coda. Everything else past the
+// coda is a drum fill that reads as a BRE only because the coda sits in front of it, so treating
+// the whole tail as "the BRE" made writing or deleting one wipe every fill after it.
+std::optional<PhraseSpan> PhraseWriter::existingBre(const BreTrack& t) const
 {
-    std::vector<PhraseSpan> out;
     const auto coda = codaQN();
+    if (!coda.has_value()) return std::nullopt;
+
     for (const auto& s : rangesOf(session.getNotes(t.sessionIdx), FILL_REFERENCE_PITCH))
-        if (isBre(s.startQN, coda)) out.push_back(s);
-    return out;
+        if (GridMath::same(s.startQN, *coda)) return s;
+    return std::nullopt;
 }
 
-void PhraseWriter::eraseBreNotes(const BreTrack& t)
+void PhraseWriter::eraseBreNotes(const BreTrack& t, double startQN)
 {
-    for (const auto& span : existingBres(t))
-        for (int pitch : t.pitches)
-        {
-            auto note = writer.findNote(t.writerIdx, span.startQN, pitch);
-            if (note.noteIndex >= 0 && GridMath::same(note.startQN, span.startQN))
-                writer.batchDeleteNote(t.writerIdx, note.noteIndex, span.startQN);
-        }
+    for (int pitch : t.pitches)
+    {
+        auto note = writer.findNote(t.writerIdx, startQN, pitch);
+        if (note.noteIndex >= 0 && GridMath::same(note.startQN, startQN))
+            writer.batchDeleteNote(t.writerIdx, note.noteIndex, startQN);
+    }
 }
 
 juce::String PhraseWriter::writeBre(double startQN, double endQN)
@@ -90,14 +93,15 @@ juce::String PhraseWriter::writeBre(double startQN, double endQN)
     if (targets.empty()) return "No part in this song can carry a BRE";
 
     const bool replacing = std::any_of(targets.begin(), targets.end(),
-                                       [this](const BreTrack& t) { return !existingBres(t).empty(); });
+                                       [this](const BreTrack& t) { return existingBre(t).has_value(); });
 
     writer.beginBatch("Chartchotic: Set BRE");
 
     bool wrote = true;
     for (const auto& t : targets)
     {
-        eraseBreNotes(t);
+        // Only the BRE this one replaces. Fills charted past the old coda stay put.
+        if (auto old = existingBre(t)) eraseBreNotes(t, old->startQN);
         for (int pitch : t.pitches)
             wrote &= writer.batchInsertNote(t.writerIdx, startQN, endQN, PHRASE_CHANNEL, pitch,
                                             PHRASE_VELOCITY);
@@ -118,15 +122,17 @@ juce::String PhraseWriter::writeBre(double startQN, double endQN)
     return replacing ? "BRE moved; replaced the one already in this song" : juce::String();
 }
 
-void PhraseWriter::eraseBre()
+void PhraseWriter::eraseBre(double startQN)
 {
     const auto targets = breTracks();
 
     writer.beginBatch("Chartchotic: Delete BRE");
+    // Just the span that was clicked, on every part that carries it.
     for (const auto& t : targets)
-        eraseBreNotes(t);
+        eraseBreNotes(t, startQN);
 
     // Without a BRE the coda is a trap: the next drum fill charted past it would read as one.
+    // Clearing it is also what hands the fills after it back their own look.
     writer.setCoda(std::nullopt);
     writer.endBatch();
 
@@ -224,7 +230,7 @@ juce::String PhraseWriter::resize(Kind kind, double startQN, double endQN)
 
 void PhraseWriter::erase(Kind kind, double startQN)
 {
-    if (kind == Kind::Bre) { eraseBre(); return; }
+    if (kind == Kind::Bre) { eraseBre(startQN); return; }
 
     int track = writerTrack();
     if (track < 0 || !writer.isAvailable()) return;

@@ -500,10 +500,10 @@ int main(int argc, char** argv)
                     // Ghost brackets and accent chevrons are their own image composited over the
                     // gem, sized and nudged by OverlayAdjust. Mirrors NoteRenderer's mapping --
                     // without it a note and an accent look identical on a sheet like this.
-                    // Not on the bar columns: the renderer sizes a bar's overlay off the full
-                    // board width, which this sheet has no equivalent of, so drawing one here
-                    // says more about the cell than about the art.
-                    if (isBarCell(r, c)) continue;
+                    // Drum bars carry their dynamic in the bake and the renderer draws them no
+                    // overlay. An open tap is the opposite: the overlay is the only thing that
+                    // says tap, so it has to be here or the sheet reads as a plain open note.
+                    if (isBarCell(r, c) && r.drums) continue;
                     auto* ovl = assets.getOverlayImage(gem, r.drums ? Part::DRUMS : Part::GUITAR);
                     if (ovl == nullptr || !ovl->isValid()) continue;
                     // The ring and chevron take the activation recut with the gem under them.
