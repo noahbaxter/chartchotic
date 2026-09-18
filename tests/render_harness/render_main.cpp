@@ -348,7 +348,9 @@ int main(int argc, char** argv)
         constexpr int cell = 48, pad = 2;
         GemIconArt icons(assets);
         using Draw = std::function<bool(juce::Graphics&, juce::Rectangle<float>)>;
-        struct Item { int squares; Draw draw; };
+        // bg is the button's fill, so an icon can be checked against the colour it will really
+        // sit on: the LANE pill fills with the selection colour the moment the tool is on.
+        struct Item { int squares; Draw draw; juce::uint32 bg = Theme::darkBg; };
         const std::vector<Item> items = {
             { 1, [&](auto& g, auto r) { return icons.drawGuitarGem(g, r, Gem::HOPO_GHOST); } },
             { 1, [&](auto& g, auto r) { return icons.drawGuitarGem(g, r, Gem::NOTE); } },
@@ -358,6 +360,9 @@ int main(int argc, char** argv)
             { 1, [&](auto& g, auto r) { return icons.drawDrumGem(g, r, Gem::TAP_ACCENT); } },
             { 1, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getCymYellowImage()).isEmpty(); } },
             { 1, [&](auto& g, auto r) { return icons.drawFlam(g, r); } },
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt)); } },
+            { 1, [&](auto& g, auto r) { return icons.drawLane(g, r, juce::Colour(Theme::controlLaneArt)); },
+                 Theme::controlSelected },
             { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarOpenImage()).isEmpty(); } },
             { 2, [&](auto& g, auto r) { return !icons.drawImage(g, r, assets.getBarKickImage()).isEmpty(); } },
         };
@@ -372,7 +377,7 @@ int main(int argc, char** argv)
         for (const auto& it : items)
         {
             auto button = juce::Rectangle<float>((float)x, (float)pad, (float)(it.squares * cell), (float)cell);
-            g.setColour(juce::Colour(Theme::darkBg));
+            g.setColour(juce::Colour(it.bg));
             g.fillRect(button);
             it.draw(g, button.reduced(cell * 0.05f));
             x += it.squares * cell + pad;
