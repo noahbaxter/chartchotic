@@ -35,6 +35,16 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
       interactionController(state),
       toolbar(state, interactionController)
 {
+    // The person's colours, before anything draws with them. Global rather than part of the
+    // project state, so they are already right the first time a window opens.
+    PartPalettes::global().load();
+
+    // And the board has to be baked against them. The track art is only rebuilt when its
+    // dimensions move, so a window reopening at the size it closed at would otherwise keep
+    // whatever the strikeline looked like before the palettes were read. Dirtying the cache
+    // here makes the first layout bake rather than reuse.
+    trackImageCache.invalidate();
+
     // Create scratch renderer for shared track image cache
     cacheRenderer = std::make_unique<TrackRenderer>(state);
 
@@ -1098,6 +1108,26 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
         partsMenu.onUnpinWaveform = [this]()
                             { audioProcessor.getPartMap().unpinWaveform();    commitPartPins(); };
         partsMenu.onDismiss  = [this]() { partsMenu.setVisible(false); };
+        partsMenu.onEditColours = [this](Part part)
+        {
+            // The menu covers the highway, and the highway is what you are picking colours
+            // against, so opening the picker puts the menu away.
+            partsMenu.setVisible(false);
+            palettePicker.open(part, this);
+        };
+        // Every drag of the wheel repaints the board, so the colours are chosen against the
+        // chart rather than against a swatch.
+        palettePicker.onChanged = [this]()
+        {
+            // The strikeline pads are baked into the shared track image, so a repaint alone
+            // would redraw the gems in their new colours over pads still in the old ones.
+            trackImageCache.invalidate();
+            requestAsyncRebake();
+            forAllHighways([](auto& hw) { hw.repaintTrackArt(); });
+
+            partsMenu.repaint();
+            repaint();
+        };
         // confirmPrompt is not a child: it puts itself on the desktop as its own window.
         addChildComponent(partsMenu);
     }

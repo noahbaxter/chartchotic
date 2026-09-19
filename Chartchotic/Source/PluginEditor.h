@@ -30,6 +30,7 @@
 #include "UI/FooterComponent.h"
 #include "UI/PartsMenuComponent.h"
 #include "UI/ConfirmPrompt.h"
+#include "UI/PalettePicker.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
@@ -393,6 +394,8 @@ private:
     // working with the window shut. This is only the view on it.
     PartsMenuComponent partsMenu;
     ConfirmPrompt confirmPrompt;
+    // Opened from the colour strip under a part's icon. Its own window, like the prompt.
+    PalettePicker palettePicker;
     static constexpr int partsMenuMargin = 16;
     void togglePartsMenu();
     void createTrackForPart(Part part);

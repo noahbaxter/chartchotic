@@ -6,6 +6,9 @@
 #include "PartIcon.h"
 #include "Theme.h"
 #include "../Midi/Discovery/PartMapping.h"
+#include "../Visual/Utils/LaneColours.h"
+#include "../Visual/Utils/PaletteLanes.h"
+#include "../Visual/Utils/PartPalettes.h"
 
 // The parts menu: which REAPER track feeds which instrument, as a grid of tracks down the side
 // and parts across the top. Reads a track list and a PartMapping::Map it does not own, so the
@@ -56,6 +59,8 @@ public:
     std::function<void(int)>       onPinWaveform;
     std::function<void()>          onUnpinWaveform;
     std::function<void()>          onDismiss;
+    // The colour strip under a part's icon was clicked: open that part's palette.
+    std::function<void(Part)>      onEditColours;
 
     // The toolbar's own scale, handed over rather than worked out again here, so a part icon
     // in this table is the same size as the same icon in the header and stays that way at
@@ -147,6 +152,15 @@ public:
         if (cell.row < 0 && inNameColumn)
             cell.row = rowAtY(e.getPosition().y);
 
+        // The colour strips live in the header, which no cell covers, so they are their own
+        // hit test rather than a row of column 0.
+        const int colourColumn = colourColumnAt(e.getPosition());
+        if (colourColumn != hoveredColourColumn)
+        {
+            hoveredColourColumn = colourColumn;
+            repaint();
+        }
+
         // The X belongs to the name, not the row: reaching across a row of cells is not
         // asking about deleting the track, and an X that appears out there is one stray
         // click from taking the track with it.
@@ -188,6 +202,14 @@ public:
 
     void mouseDown(const juce::MouseEvent& e) override
     {
+        // Colour strips sit in the header, above every cell, so they answer first.
+        const int colourColumn = colourColumnAt(e.getPosition());
+        if (colourColumn >= 0)
+        {
+            if (onEditColours) onEditColours(partForColumn(colourColumn));
+            return;
+        }
+
         // The X sits in the name column, outside any cell, so it is checked before them.
         if (hoveredOverDelete && canDeleteRow(hoveredNameRow)
             && deleteButtonBounds(hoveredNameRow).contains(e.getPosition()))
@@ -259,6 +281,7 @@ private:
     {
         int rowH = 26, headerH = 64, nameColumnW = 180, cellW = 56, pad = 8, numberColumnW = 26;
         int stripH = 22, scrollBarW = 4, wheelStep = 60, iconSize = 28, bottomPad = 12;
+        int colourStripH = 8;   // the lane-colour bar under each part icon
         float fontH = 12.0f, stripFontH = 11.0f, hoverFontH = 13.0f, corner = 4.0f;
     };
 
@@ -281,7 +304,8 @@ private:
     std::vector<PartMapping::Assignment> resolved;
     const PartMapping::Map* map = nullptr;
     Cell hoverCell;
-    int hoveredNameRow = -1;   // the row whose name is under the cursor, which is what shows the X
+    int hoveredNameRow = -1;      // the row whose name is under the cursor, which is what shows the X
+    int hoveredColourColumn = -1; // the part whose colour strip is under the cursor
     int scrollX = 0, scrollY = 0;
     float chromeScale = 1.0f;
     bool hoveredOverDelete = false;
@@ -297,7 +321,8 @@ private:
         m.cellW       = m.iconSize + px(10);
         m.rowH        = px(24);
         m.stripH      = px(20);
-        m.headerH     = m.stripH + m.iconSize + px(8);
+        m.colourStripH = px(8);
+        m.headerH      = m.stripH + m.iconSize + px(8) + m.colourStripH;
         m.nameColumnW = px(170);
         m.numberColumnW = px(24);
         m.pad         = px(8);
@@ -516,6 +541,8 @@ private:
             g.setOpacity(1.0f);
         }
 
+        paintColourStrip(g, column, part);
+
         // Nothing renders these, so a mapping would point into a dead end. Struck through
         // rather than hidden, so the table still says the part exists.
         if (!mappable)
@@ -526,6 +553,41 @@ private:
                        (float)box.getRight(), (float)box.getBottom(), 1.6f);
             g.drawLine((float)box.getRight(), (float)box.getY(),
                        (float)box.getX(), (float)box.getBottom(), 1.6f);
+        }
+    }
+
+    // The part's lane colours as a bar under its icon: both what this part is currently drawn
+    // with and the way in to changing it. A strip rather than a button because the colours
+    // are the label -- a paint icon would say less about this part than the colours do.
+    juce::Rectangle<int> colourStripBounds(int column) const
+    {
+        const auto band = juce::Rectangle<int>(columnX(column), m.headerH - m.colourStripH,
+                                               m.cellW, m.colourStripH);
+        return band.reduced(m.pad / 2, m.colourStripH / 4);
+    }
+
+    void paintColourStrip(juce::Graphics& g, int column, Part part)
+    {
+        const auto lanes = PaletteLanes::forPart(part);
+        if (lanes.empty()) return;   // nothing renders this part, so it has no colours to show
+
+        const auto box = colourStripBounds(column);
+        const auto& palette = PartPalettes::global().forPart(part);
+        const float w = (float)box.getWidth() / (float)lanes.size();
+
+        for (int i = 0; i < (int)lanes.size(); ++i)
+        {
+            g.setColour(LaneColours::bright(PaletteLanes::colourOf(palette, lanes[(size_t)i])));
+            g.fillRect(juce::Rectangle<float>(box.getX() + w * i, (float)box.getY(),
+                                              w, (float)box.getHeight()));
+        }
+
+        // Lit only under the cursor, like the row delete: a permanent outline on every column
+        // would draw the eye to the chrome rather than to the colours.
+        if (hoveredColourColumn == column)
+        {
+            g.setColour(juce::Colour(Theme::textWhite));
+            g.drawRect(box.expanded(1), 1);
         }
     }
 
@@ -633,6 +695,20 @@ private:
         // Nothing maps to a utility track, so its name sits back with the dead cells.
         g.setColour(juce::Colour(track.isUtility ? Theme::textDim : Theme::textWhite));
         g.drawText(track.name, text.withTrimmedRight(m.rowH), juce::Justification::centredLeft, true);
+    }
+
+    // Which part's colour strip is under this point, or -1. Clipped to the scrolling grid the
+    // icons live in, so a strip scrolled off the side cannot be clicked through the edge.
+    int colourColumnAt(juce::Point<int> p) const
+    {
+        if (!gridViewport().contains(p)) return -1;
+
+        for (int c = 1; c < displayColumns(); ++c)   // column 0 is the waveform, which has no palette
+            if (colourStripBounds(c).expanded(1).contains(p)
+                && !PaletteLanes::forPart(partForColumn(c)).empty())
+                return c;
+
+        return -1;
     }
 
     // Deleting the track this plugin sits on takes the plugin, this component and the
