@@ -183,6 +183,51 @@ BarRamp barRampWhite()
         { 0.938f, 0xff8a8c8f }, { 1.000f, 0xff808285 } });
 }
 
+BarRamp recolouredRamp(const BarRamp& base, juce::Colour target)
+{
+    // ONE reference stop, the gloss line, and hue, saturation and brightness are all measured
+    // against it. Taking each from whichever stop happened to be highest mixed two different
+    // references together, so recolouring a ramp with its own colour did not give the ramp
+    // back: the rim came out washed out because it was scaled against a saturation the gloss
+    // line never had.
+    juce::Colour reference;
+    float peakBrightness = -1.0f;
+    for (const auto& stop : base)
+        if (stop.second.getBrightness() > peakBrightness)
+        {
+            peakBrightness = stop.second.getBrightness();
+            reference = stop.second;
+        }
+
+    const float peakSaturation = reference.getSaturation();
+    const float peakHue        = reference.getHue();
+
+    BarRamp out;
+    out.reserve(base.size());
+
+    for (const auto& [position, colour] : base)
+    {
+        // Relative to the ramp's own peak, so the gloss line stays the brightest point of the
+        // tube whatever colour it is, instead of every stop clipping to the target.
+        const float b = peakBrightness > 0.0f ? colour.getBrightness() / peakBrightness : 1.0f;
+        const float s = peakSaturation > 0.0f ? colour.getSaturation() / peakSaturation : 1.0f;
+
+        // A tube is not one hue. The stock kick runs orange at the rim up to yellow at the
+        // gloss, and that drift is what makes it read as a lit cylinder rather than a flat
+        // strip. So each stop keeps its distance from the peak's hue and the whole run is
+        // rotated onto the target. Feeding a ramp its own peak colour reproduces it exactly.
+        float hue = target.getHue() + (colour.getHue() - peakHue);
+        hue -= std::floor(hue);
+
+        out.emplace_back(position,
+                         target.withHue(hue)
+                               .withBrightness(juce::jlimit(0.0f, 1.0f, target.getBrightness() * b))
+                               .withSaturation(juce::jlimit(0.0f, 1.0f, target.getSaturation() * s)));
+    }
+
+    return out;
+}
+
 BarRamp barRampKick()
 {
     return makeRamp({
