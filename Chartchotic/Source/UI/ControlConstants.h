@@ -167,21 +167,16 @@ enum class Part
     PRO_BASS,           // PART REAL_BASS, PART REAL_BASS_22
     PRO_KEYS,           // PART REAL_KEYS_X/H/M/E (separate track per difficulty)
 
-    // Not instruments. These carry a Part so they flow through discovery, the parts menu and
-    // the write path, all of which are keyed on Part throughout. isHighwayRenderable() is a
-    // whitelist, so they never get a slot or a highway; PartMapping::isMappable decides which
-    // of them a track can actually be pointed at, and today that is EVENTS alone.
-    EVENTS,             // EVENTS — sections and [coda], song-scoped
-    BEAT,               // BEAT — the beat grid. Listed so the table says it exists; unread.
-    VENUE,              // VENUE — lighting and camera cues. Listed, unread.
+    // Not an instrument: the song-scoped EVENTS track (sections, [coda]). Carries a Part so it
+    // flows through discovery, the parts menu and the write path, which are keyed on Part
+    // throughout. isHighwayRenderable() is a whitelist, so it never gets a slot or a highway.
+    EVENTS,             // EVENTS
 };
 
-// The non-instrument tracks. Grouped apart from the parts everywhere they are shown, because
-// "which track is my guitar" and "which track is my EVENTS" are different questions.
-inline bool isUtilityPart(Part p)
-{
-    return p == Part::EVENTS || p == Part::BEAT || p == Part::VENUE;
-}
+// The non-instrument tracks. Grouped apart from the parts in the menu, because "which track is
+// my guitar" and "which track is my EVENTS" are different questions. One member today: BEAT
+// restates the tempo map and VENUE is Rock Band staging, so neither earned a column.
+inline bool isUtilityPart(Part p) { return p == Part::EVENTS; }
 
 // How a Part renders on the highway — determines interpreter, lane count, gem style
 enum class RenderType
@@ -194,7 +189,7 @@ enum class RenderType
     VOCALS,             // Pitch-based vocal track
     PRO_GUITAR,         // 17/22-fret pro guitar/bass
     PRO_KEYS,           // 25-key two-octave keyboard
-    UTILITY,            // No highway; song-scoped or non-chart data (EVENTS, BEAT, VENUE)
+    EVENTS,             // No highway; song-scoped text events only
 };
 
 inline RenderType getRenderType(Part p)
@@ -214,9 +209,7 @@ inline RenderType getRenderType(Part p)
         case Part::PRO_GUITAR:
         case Part::PRO_BASS:     return RenderType::PRO_GUITAR;
         case Part::PRO_KEYS:     return RenderType::PRO_KEYS;
-        case Part::EVENTS:
-        case Part::BEAT:
-        case Part::VENUE:        return RenderType::UTILITY;
+        case Part::EVENTS:       return RenderType::EVENTS;
         default:                 return RenderType::FIVE_FRET;
     }
 }
@@ -267,10 +260,6 @@ inline const std::vector<TrackNameEntry>& getUnimplementedTrackNames()
         { "PART REAL_GUITAR_22", Part::PRO_GUITAR },
         { "PART REAL_BASS",      Part::PRO_BASS },
         { "PART REAL_BASS_22",   Part::PRO_BASS },
-        // Recognised so a track called one of these reads as itself rather than falling to a
-        // hint and claiming an instrument column. Nothing reads either yet.
-        { "BEAT",                Part::BEAT },
-        { "VENUE",               Part::VENUE },
     };
     return names;
 }
@@ -293,11 +282,9 @@ inline int getPartSortOrder(Part p)
         case Part::ELITE_DRUMS: return 11;
         case Part::VOCALS:      return 12;
         case Part::HARMONIES:   return 13;
-        // After every instrument, and in the order the format lists them. Their column group
-        // already puts them last; this decides the order inside it.
+        // After every instrument. Its column group already puts it last; this keeps the sort
+        // agreeing with that rather than relying on the grouping alone.
         case Part::EVENTS:      return 20;
-        case Part::BEAT:        return 21;
-        case Part::VENUE:       return 22;
         default:                return 99;
     }
 }
@@ -321,8 +308,6 @@ inline juce::String getPartDisplayName(Part p)
         case Part::PRO_BASS:    return "Pro Bass";
         case Part::PRO_KEYS:    return "Pro Keys";
         case Part::EVENTS:      return "Events";
-        case Part::BEAT:        return "Beat";
-        case Part::VENUE:       return "Venue";
         default:                return "Unknown";
     }
 }

@@ -214,51 +214,37 @@ TEST_CASE("PartMapping - resolve assigns the EVENTS track", "[partmapping]")
                                      [](const auto& a) { return a.part == Part::EVENTS; });
     REQUIRE(events != out.end());
     REQUIRE(events->sourceTrackIndex == 3);
-
-    // BEAT and VENUE resolve to themselves but are not mappable, so they never come back as
-    // an assignment and never steal an instrument column either.
-    const auto none = map.resolve({ track(1, "BEAT"), track(2, "VENUE") });
-    REQUIRE(none.empty());
 }
 
-TEST_CASE("PartMapping - only the nameless tracks are utility names", "[partmapping]")
+TEST_CASE("PartMapping - utility names are the ones with no part", "[partmapping]")
 {
-    // Nothing maps to these: they have no Part, so there is nowhere to point them.
+    // Nothing maps to these: they have no Part, so there is nowhere to point them. BEAT
+    // restates the tempo map and VENUE is Rock Band staging, so neither earned one.
     REQUIRE(PartMapping::isUtilityTrackName("master"));
     REQUIRE(PartMapping::isUtilityTrackName("Tempo Map"));
+    REQUIRE(PartMapping::isUtilityTrackName("BEAT"));
+    REQUIRE(PartMapping::isUtilityTrackName("VENUE"));
+    REQUIRE(PartMapping::isUtilityTrackName("MV VENUE"));
 
-    // EVENTS, BEAT and VENUE used to live here, which is exactly why they could never be
-    // mapped to anything. They are Parts of their own now and resolve like any other track.
-    REQUIRE_FALSE(PartMapping::isUtilityTrackName("EVENTS"));
-    REQUIRE_FALSE(PartMapping::isUtilityTrackName("BEAT"));
-    REQUIRE_FALSE(PartMapping::isUtilityTrackName("VENUE"));
-
+    // Only the whole name, so a track that merely mentions one is still a track.
+    REQUIRE_FALSE(PartMapping::isUtilityTrackName("Beat Box Gtr"));
     REQUIRE_FALSE(PartMapping::isUtilityTrackName("PART GUITAR"));
+
+    // EVENTS used to live here, which is exactly why it could never be mapped to anything.
+    REQUIRE_FALSE(PartMapping::isUtilityTrackName("EVENTS"));
 }
 
-TEST_CASE("PartMapping - the non-instrument tracks guess to their own parts", "[partmapping]")
+TEST_CASE("PartMapping - EVENTS is mappable without being renderable", "[partmapping]")
 {
-    REQUIRE(PartMapping::guessPart("EVENTS")  == Part::EVENTS);
-    REQUIRE(PartMapping::guessPart("events")  == Part::EVENTS);
-    REQUIRE(PartMapping::guessPart("BEAT")    == Part::BEAT);
-    REQUIRE(PartMapping::guessPart("VENUE")   == Part::VENUE);
+    REQUIRE(PartMapping::guessPart("EVENTS") == Part::EVENTS);
+    REQUIRE(PartMapping::guessPart("events") == Part::EVENTS);
 
-    // Venue is matched as a word anywhere, because templates prefix it and no instrument is
-    // ever called one.
-    REQUIRE(PartMapping::guessPart("MV VENUE") == Part::VENUE);
-    REQUIRE(PartMapping::guessPart("mv_venue") == Part::VENUE);
-
-    // BEAT gets no such hint: a track that merely mentions it is still an instrument.
-    REQUIRE(PartMapping::guessPart("Beat Box Gtr") == Part::GUITAR);
-
-    // Only EVENTS is read by anything, so only EVENTS can actually be pointed at a track.
+    // Something reads it (sections and the song list), so it can be pointed at a track, even
+    // though it has no highway. Conflating the two questions is what dropped it from
+    // discovery and silently emptied both.
     REQUIRE(PartMapping::isMappable(Part::EVENTS));
-    REQUIRE_FALSE(PartMapping::isMappable(Part::BEAT));
-    REQUIRE_FALSE(PartMapping::isMappable(Part::VENUE));
-
-    // Mappable is not the same question as renderable, and conflating them is what dropped
-    // the EVENTS track out of discovery and emptied the section list.
     REQUIRE_FALSE(isHighwayRenderable(Part::EVENTS));
+    REQUIRE(isUtilityPart(Part::EVENTS));
 }
 
 TEST_CASE("PartMapping - an empty track named for a part still guesses it", "[partmapping]")
@@ -323,7 +309,7 @@ TEST_CASE("PartMapping - the waveform track saves beside the part pins", "[partm
     REQUIRE_FALSE(restored.waveformTrack().has_value());
 }
 
-TEST_CASE("PartMapping - every part gets a column, utility ones last", "[partmapping]")
+TEST_CASE("PartMapping - every part gets a column, EVENTS included", "[partmapping]")
 {
     const auto parts = PartMapping::columnParts();
     const auto has = [&](Part p)
@@ -332,17 +318,10 @@ TEST_CASE("PartMapping - every part gets a column, utility ones last", "[partmap
     REQUIRE(has(Part::GUITAR));
     // Shown struck through rather than hidden, so the table reads as the full list.
     REQUIRE(has(Part::GHL_GUITAR));
-    // Their own block on the right. EVENTS can be mapped; the other two say what exists.
+    // A column of its own, beside the waveform. Leaving it out is what hid the bug.
     REQUIRE(has(Part::EVENTS));
-    REQUIRE(has(Part::BEAT));
-    REQUIRE(has(Part::VENUE));
 
     // The app's usual part order, so the columns match every other picker.
     for (size_t i = 1; i < parts.size(); ++i)
         REQUIRE(getPartSortOrder(parts[i - 1]) <= getPartSortOrder(parts[i]));
-
-    // Sort order alone has to put the block last, or the menu's grouping fights it.
-    for (auto p : parts)
-        if (isUtilityPart(p))
-            REQUIRE(getPartSortOrder(p) > getPartSortOrder(Part::HARMONIES));
 }

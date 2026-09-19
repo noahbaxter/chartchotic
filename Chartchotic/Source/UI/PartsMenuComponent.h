@@ -422,23 +422,26 @@ private:
         return isWaveformColumn(column) || PartMapping::isMappable(partForColumn(column));
     }
 
-    // 0 active, 1 idle but available, 2 not supported yet, 3 utility. The order the columns
-    // read in. Utility sorts last as a block regardless of whether it is mapped: "which track
-    // is my guitar" and "which track is my EVENTS" are different questions, and mixing an
-    // EVENTS column in among the instruments answers neither.
+    // -1 utility, 0 active, 1 idle but available, 2 not supported yet. The order the columns
+    // read in. Utility sorts first regardless of whether it is mapped, so it lands beside the
+    // waveform, which is the other column that is not a part: "which track is my guitar" and
+    // "which track is my EVENTS" are different questions, and the two non-instrument lanes
+    // answer the second one together.
     int columnGroup(Part part) const
     {
-        if (isUtilityPart(part)) return 3;
+        if (isUtilityPart(part)) return -1;
         if (!PartMapping::isMappable(part)) return 2;
         return columnIsMapped(part) ? 0 : 1;
     }
 
-    // The first utility column, or -1 when none is shown. The divider hangs off this.
-    int firstUtilityColumn() const
+    // How many leading display columns are not parts: the waveform, plus the utility parts
+    // sorted in beside it. Everything from here on is an instrument.
+    int utilityColumnCount() const
     {
-        for (int c = 1; c < displayColumns(); ++c)
-            if (isUtilityPart(partForColumn(c))) return c;
-        return -1;
+        int count = 1;   // the waveform
+        while (count < displayColumns() && isUtilityPart(partForColumn(count)))
+            ++count;
+        return count;
     }
 
     void rebuildLayout()
@@ -849,17 +852,15 @@ private:
     // list. Clipped to the grid so it never runs under the pinned name column.
     void paintUtilityBand(juce::Graphics& g)
     {
-        const int first = firstUtilityColumn();
-        if (first < 0) return;
+        const int count = utilityColumnCount();
 
         juce::Graphics::ScopedSaveState clip(g);
         g.reduceClipRegion({ m.nameColumnW, m.stripH,
                              juce::jmax(0, getWidth() - m.nameColumnW),
                              juce::jmax(0, getHeight() - m.stripH) });
 
-        const int x = columnX(first);
         g.setColour(juce::Colour(Theme::panelGroupBg));
-        g.fillRect(x, m.stripH, (displayColumns() - first) * m.cellW,
+        g.fillRect(columnX(0), m.stripH, count * m.cellW,
                    juce::jmax(0, getHeight() - m.stripH));
     }
 
@@ -867,16 +868,14 @@ private:
     // rather than one more cell edge.
     void paintUtilityDivider(juce::Graphics& g)
     {
-        const int first = firstUtilityColumn();
-        if (first < 0) return;
-
         juce::Graphics::ScopedSaveState clip(g);
         g.reduceClipRegion({ m.nameColumnW, m.stripH,
                              juce::jmax(0, getWidth() - m.nameColumnW),
                              juce::jmax(0, getHeight() - m.stripH) });
 
+        // Where the utility lanes stop and the parts begin.
         g.setColour(juce::Colour(Theme::panelGroupLine));
-        g.fillRect((float)columnX(first) - 1.0f, (float)m.stripH,
+        g.fillRect((float)columnX(utilityColumnCount()) - 1.0f, (float)m.stripH,
                    2.0f, (float)juce::jmax(0, getHeight() - m.stripH));
     }
 

@@ -33,10 +33,6 @@ namespace PartMapping
     inline const std::vector<NameHint>& getNameHints()
     {
         static const std::vector<NameHint> hints = {
-            // No instrument is ever called one, and templates prefix it freely ("MV VENUE"),
-            // while the format documents only the bare name (`_refs/midi/overview.md:51`).
-            // BEAT gets no hint on purpose: "Beat Box Gtr" is a guitar, not the beat grid.
-            { "venue",       Part::VENUE },
             { "elite",       Part::ELITE_DRUMS },
             { "coop",        Part::GUITAR_COOP },
             { "co op",       Part::GUITAR_COOP },
@@ -90,12 +86,21 @@ namespace PartMapping
     {
         const auto key = normalise(name).trim();
 
-        // Only the names that are not a Part at all. EVENTS, BEAT and VENUE used to be here
-        // too, which is why they could never be mapped to anything: they now have Parts of
-        // their own and resolve through guessPart like every other track.
-        static const char* exact[] = { "master", "tempo map" };
+        // The names that are not a Part at all, so there is nowhere to point them. EVENTS used
+        // to be in here too, which is exactly why it could never be mapped and why sections
+        // went empty: it has a Part and resolves through guessPart like any other track.
+        //
+        // Whole name, because these are short words an instrument track can legitimately
+        // contain: "Beat Box Gtr" is a guitar, not the BEAT track.
+        static const char* exact[] = { "beat", "master", "tempo map" };
         for (const auto* u : exact)
             if (key == u) return true;
+
+        // Venue is matched as a word anywhere instead, since no instrument is ever called one
+        // and templates prefix it freely ("MV VENUE"). The format only documents the bare
+        // name (`_refs/midi/overview.md:51`), so the prefix is a template's, not the spec's.
+        for (const auto& token : juce::StringArray::fromTokens(key, " ", {}))
+            if (token == "venue") return true;
 
         return false;
     }
