@@ -145,7 +145,7 @@ class ReaperApiHelpers
 public:
     // Get current REAPER project
     // Returns nullptr if EnumProjects is unavailable or fails
-    static void* getProject(std::function<void*(const char*)> apiFunc)
+    static void* getProject(const std::function<void*(const char*)>& apiFunc)
     {
         if (!apiFunc)
             return nullptr;
@@ -276,9 +276,11 @@ public:
     // Template parameters:
     //   Callable: any callable that takes void* project and returns Result
     //   Result: the return type of the query callable
+    // apiFunc is by const reference: ppqToTime routes through here once per note and three times
+    // per sustain, every frame, per highway, so a std::function copy per call is not free.
     template<typename Callable, typename Result>
     static Result performQuery(
-        std::function<void*(const char*)> apiFunc,
+        const std::function<void*(const char*)>& apiFunc,
         bool isInitialized,
         juce::CriticalSection& lock,
         Callable&& query,
