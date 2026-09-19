@@ -109,6 +109,10 @@ public:
 
         // Columns scroll sideways under a pinned name column, so the icons and the cells are
         // clipped to the same region and share one offset.
+        // Under the headers and the cells both, so the block reads as one region rather than
+        // two tinted strips. The row stripes and cell fills above it are all translucent.
+        paintUtilityBand(g);
+
         {
             juce::Graphics::ScopedSaveState clip(g);
             g.reduceClipRegion(gridViewport());
@@ -121,6 +125,9 @@ public:
             paintAddRowCells(g);
             paintGridLines(g);
         }
+
+        // Full height, so its own clip rather than the cells'.
+        paintUtilityDivider(g);
         {
             juce::Graphics::ScopedSaveState clip(g);
             g.reduceClipRegion(nameViewport());
@@ -415,11 +422,23 @@ private:
         return isWaveformColumn(column) || PartMapping::isMappable(partForColumn(column));
     }
 
-    // 0 active, 1 idle but available, 2 not supported yet. The order the columns read in.
+    // 0 active, 1 idle but available, 2 not supported yet, 3 utility. The order the columns
+    // read in. Utility sorts last as a block regardless of whether it is mapped: "which track
+    // is my guitar" and "which track is my EVENTS" are different questions, and mixing an
+    // EVENTS column in among the instruments answers neither.
     int columnGroup(Part part) const
     {
+        if (isUtilityPart(part)) return 3;
         if (!PartMapping::isMappable(part)) return 2;
         return columnIsMapped(part) ? 0 : 1;
+    }
+
+    // The first utility column, or -1 when none is shown. The divider hangs off this.
+    int firstUtilityColumn() const
+    {
+        for (int c = 1; c < displayColumns(); ++c)
+            if (isUtilityPart(partForColumn(c))) return c;
+        return -1;
     }
 
     void rebuildLayout()
@@ -795,6 +814,41 @@ private:
 
     // A column is a claim on one part, and without a line between them a dot reads as
     // belonging to whichever icon it is nearest.
+    // The tinted ground behind every utility column, from the headers to the bottom of the
+    // list. Clipped to the grid so it never runs under the pinned name column.
+    void paintUtilityBand(juce::Graphics& g)
+    {
+        const int first = firstUtilityColumn();
+        if (first < 0) return;
+
+        juce::Graphics::ScopedSaveState clip(g);
+        g.reduceClipRegion({ m.nameColumnW, m.stripH,
+                             juce::jmax(0, getWidth() - m.nameColumnW),
+                             juce::jmax(0, getHeight() - m.stripH) });
+
+        const int x = columnX(first);
+        g.setColour(juce::Colour(Theme::panelGroupBg));
+        g.fillRect(x, m.stripH, (displayColumns() - first) * m.cellW,
+                   juce::jmax(0, getHeight() - m.stripH));
+    }
+
+    // The rule where the instruments stop. Drawn after the grid so it reads as a boundary
+    // rather than one more cell edge.
+    void paintUtilityDivider(juce::Graphics& g)
+    {
+        const int first = firstUtilityColumn();
+        if (first < 0) return;
+
+        juce::Graphics::ScopedSaveState clip(g);
+        g.reduceClipRegion({ m.nameColumnW, m.stripH,
+                             juce::jmax(0, getWidth() - m.nameColumnW),
+                             juce::jmax(0, getHeight() - m.stripH) });
+
+        g.setColour(juce::Colour(Theme::panelGroupLine));
+        g.fillRect((float)columnX(first) - 1.0f, (float)m.stripH,
+                   2.0f, (float)juce::jmax(0, getHeight() - m.stripH));
+    }
+
     void paintGridLines(juce::Graphics& g)
     {
         g.setColour(juce::Colour(Theme::panelNeutralLine));
