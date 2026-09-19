@@ -306,9 +306,28 @@ int main(int argc, char** argv)
 
     juce::ScopedJuceInitialiser_GUI juceInit;
 
+    // Every name the flag accepts, spelled out. An unknown one used to fall through to drums,
+    // so `--part bass` silently rendered drums and a NO-DIFF pass that thought it covered four
+    // parts really covered three.
+    const std::pair<const char*, Part> partNames[] = {
+        { "guitar", Part::GUITAR }, { "coop",  Part::GUITAR_COOP },
+        { "rhythm", Part::RHYTHM }, { "bass",  Part::BASS },
+        { "keys",   Part::KEYS   }, { "drums", Part::DRUMS },
+        { "elite",  Part::ELITE_DRUMS },
+    };
+
     Part part = Part::DRUMS;
-    if      (partName == "guitar") part = Part::GUITAR;
-    else if (partName == "elite")  part = Part::ELITE_DRUMS;
+    bool known = false;
+    for (const auto& [name, p] : partNames)
+        if (partName == name) { part = p; known = true; break; }
+
+    if (!known)
+    {
+        std::printf("unknown --part '%s'. known:", partName.toRawUTF8());
+        for (const auto& [name, p] : partNames) std::printf(" %s", name);
+        std::printf("\n");
+        return 1;
+    }
 
     juce::ValueTree state("PluginState");
     state.setProperty("part",              (int)part,               nullptr);
