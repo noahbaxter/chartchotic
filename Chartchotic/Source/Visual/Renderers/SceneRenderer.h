@@ -39,6 +39,19 @@ class SceneRenderer
 
         void paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
+        // paint() is these two back to back. They are separable because everything that decides
+        // WHAT to draw happens in the first and everything that draws it happens in the second:
+        // populate resolves every image pointer and rect into drawCallMap, and execute only
+        // replays them into a Graphics.
+        //
+        // The split exists so several highways can rasterise at once. populate is the half that
+        // touches shared mutable state (the editor hands every highway one AssetManager, and its
+        // asset and gem caches fill lazily), so it has to stay on the message thread; execute
+        // reads what populate resolved and can run on a worker with its own image. Measured
+        // 3.43x on four threads, see the render harness's --thread-spike.
+        void populate(int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying = true);
+        void execute(juce::Graphics& g);
+
         // Pre-scale assets for the current viewport size. Call on window resize.
         void rescaleAssets(int viewportWidth)
         {
