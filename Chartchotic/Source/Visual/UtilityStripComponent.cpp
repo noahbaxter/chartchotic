@@ -1,4 +1,5 @@
 #include "UtilityStripComponent.h"
+#include "../Midi/Utils/MidiTypes.h"
 
 namespace
 {
@@ -70,6 +71,35 @@ namespace
             col = InstrumentMapper::getGuitarColumn(pitch, skill);
 
         return col == (uint)-1 ? -1 : (int)col;
+    }
+
+    // Whether a 4-lane drum note is drawn as a cymbal, which is what decides its colour.
+    // Yellow, blue and green are cymbals by DEFAULT: a tom marker (110/111/112) spanning the
+    // note is what makes it a tom. So a map that always used the pad colour was showing the
+    // tom colour for the notes that are most often cymbals.
+    //
+    // Elite is not asked: there the lane itself is a cymbal or a drum, and getLaneColour
+    // already knows. Guitar has no cymbals at all.
+    bool isCymbalNote(const UtilityStripComponent::NoteSource& src, int column, PPQ at)
+    {
+        if (src.notes == nullptr || !isDrumLike(src.part)) return false;
+        if (getRenderType(src.part) == RenderType::ELITE_DRUMS) return false;
+
+        using Drums = MidiPitchDefinitions::Drums;
+        uint marker = 0;
+        switch (column)
+        {
+        case 2: marker = (uint)Drums::TOM_YELLOW; break;
+        case 3: marker = (uint)Drums::TOM_BLUE;   break;
+        case 4: marker = (uint)Drums::TOM_GREEN;  break;
+        default: return false;    // kick and snare are never cymbals
+        }
+
+        for (const auto& m : *src.notes)
+            if (m.pitch == marker && m.startPPQ <= at && at < m.endPPQ)
+                return false;     // marked as a tom for this stretch
+
+        return true;
     }
 
     // Columns the part actually has, left to right. Gem column indices are neither
@@ -545,8 +575,9 @@ void UtilityStripComponent::drawNotes(juce::Graphics& g, const View& v) const
         if (src.notes == nullptr) continue;
 
         const auto& columns = displayColumns(src.part);
-        // Guitar-likes share the 5-fret column layout, the same normalisation the renderers use.
-        Part colourPart = isGuitarLike(src.part) ? Part::GUITAR : src.part;
+        // The part's own colours. Guitar-likes share the 5-fret column LAYOUT, which is what
+        // displayColumns is for, but they no longer share a palette.
+        Part colourPart = src.part;
 
         const float x0 = inset + s * sourceW;
         const float laneW = sourceW / (float)columns.size();
@@ -575,7 +606,12 @@ void UtilityStripComponent::drawNotes(juce::Graphics& g, const View& v) const
             // Muted hard: the map is a glance reference for "oh right, that part", not a
             // surface you reach for. Full lane colour reads as interactive.
             g.setColour(assetManager != nullptr
-                        ? assetManager->getLaneColour((uint)col, colourPart, false)
+                        // No gem here, only MIDI: the map draws from raw notes, so it resolves
+                        // the tom markers itself and says which kind it means outright.
+                        ? assetManager->getGlanceColour((uint)col, colourPart,
+                                                        isCymbalNote(src, col, n.startPPQ)
+                                                            ? AssetManager::LaneKind::Cymbal
+                                                            : AssetManager::LaneKind::Pad)
                               .withMultipliedSaturation(NOTE_MAP_SATURATION)
                               .withAlpha(NOTE_MAP_ALPHA)
                         : UtilityColours::noteMark);

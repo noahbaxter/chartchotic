@@ -268,9 +268,11 @@ void TrackResolver::resolvePhrases(PartWindow& result, const SharedWindow& share
             frame->second[(size_t)column].activation = true;
 
             // The band covers the whole fill, so it can fade from nothing at the fill's start to
-            // full where the note that takes star power is.
+            // full where the note that takes star power is. It carries that note's own gem, not
+            // a stand-in: the swell is drawn in the lane's colour, and on a drum lane only the
+            // gem says whether that colour is the tom's or the cymbal's.
             diff.phraseWindow.push_back({ fill.start, activationPPQ, (uint)column,
-                                          SustainType::ACTIVATION, GemWrapper(Gem::NOTE) });
+                                          SustainType::ACTIVATION, frame->second[(size_t)column] });
         }
     }
 }

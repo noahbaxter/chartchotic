@@ -141,7 +141,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = assetManager.getLaneColour(drawColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
+    auto colour = assetManager.getNoteColour(drawColumn, activePart, sustain.gemType.gem, shouldBeWhite);
 
     for (const auto& ts : tintedSustains)
     {
@@ -201,8 +201,10 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
     if (bre && !showBre)    return;
     if (activation && !showActivationLane) return;
 
+    // The phrase carries the gem it was built from, so the swell pointing at a cymbal is
+    // painted as that cymbal rather than as the tom sharing its lane.
     const juce::Colour laneColour =
-        assetManager.getLaneColour(column, isGuitarLike(activePart) ? Part::GUITAR : activePart, false);
+        assetManager.getNoteColour(column, activePart, phrase.gemType.gem, false);
 
     const juce::Colour colour = starPower ? PHRASE_STAR_POWER_COLOUR
                               : solo      ? PHRASE_SOLO_COLOUR

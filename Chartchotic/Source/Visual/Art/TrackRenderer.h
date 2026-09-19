@@ -18,6 +18,7 @@
 #include "../../Utils/ChartTypes.h"
 #include "TrackFade.h"
 #include "../Geometry/PositionMath.h"
+#include "../Utils/LaneColours.h"
 #include "../Utils/DrawingConstants.h"
 
 class TrackRenderer
@@ -139,6 +140,11 @@ private:
         int overflow = 0;            // extra pixels above viewport
         bool isDrums = false;
         RenderType renderType = RenderType::FIVE_FRET;   // distinguishes elite from 4-lane drums
+        // The colours the strikeline was painted in. Part of what identifies this bake, not a
+        // note about it: two 5-fret parts share a render type, so without this, switching from
+        // guitar to a differently coloured bass kept guitar's pads, and so did editing a
+        // palette without touching the window size.
+        LaneColours::Palette palette = LaneColours::defaultPalette();
         float posEnd = 0, fadeEnd = 0, fadeLen = 0, fadeCurve = 0;
         int totalHeight() const { return height + overflow; }
     } cached;
