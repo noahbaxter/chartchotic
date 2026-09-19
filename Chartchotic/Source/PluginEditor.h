@@ -352,6 +352,34 @@ private:
                                    + bannerLineGap));
     }
 
+    // The two strips of editor chrome that actually change while playing. onFrame repaints
+    // these rather than the whole window, which used to drag the background, toolbar, footer
+    // and strip through the rasteriser on every vblank for nothing.
+    juce::Rectangle<int> sectionBannerBounds() const
+    {
+        return { utilityStripWidth, toolbar.getHeight(),
+                 getWidth() - utilityStripWidth,
+                 sectionBannerReserve() + sectionBannerShadowPx + 2 };
+    }
+
+    juce::Rectangle<int> fpsOverlayBounds() const
+    {
+        float s = (float)getHeight() / (float)defaultHeight;
+        int tbHeight = std::min(juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio),
+                                ToolbarComponent::maxToolbarHeight);
+        int pad = juce::roundToInt(8.0f * s);
+        return { pad, tbHeight + pad, juce::roundToInt(80.0f * s), juce::roundToInt(16.0f * s) };
+    }
+
+    // A visible background has to show through the highway's letterbox, so a highway can only
+    // claim opacity (and so spare the editor a full repaint underneath it every frame) when
+    // there is no background to show.
+    void applyBackgroundVisibility(bool on)
+    {
+        assets.setBackgroundVisible(on);
+        forAllHighways([on](auto& hw) { hw.setOpaque(!on); });
+    }
+
     void drawSectionBanner(juce::Graphics& g);
     int drawBannerLine(juce::Graphics& g, const juce::String& name, float size, int left, int y);
 
@@ -511,6 +539,8 @@ private:
 
     // FPS counter
     bool showFps = false;
+    // Last banner text pushed to screen, so onFrame can tell a section change from a repeat.
+    juce::String lastBannerSong, lastBannerSection;
     static constexpr int FPS_RING_SIZE = 60;
     double fpsRing[FPS_RING_SIZE] = {};
     int fpsRingIndex = 0;

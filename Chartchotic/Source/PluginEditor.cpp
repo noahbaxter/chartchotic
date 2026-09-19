@@ -735,7 +735,38 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
 #endif
 
-    repaint();
+    // The editor's own painting is a full-window backdrop plus the banner, and none of it moves
+    // between section boundaries, so repainting the lot every vblank dragged the background,
+    // toolbar, footer and strip through the rasteriser for nothing. Repaint only what changes.
+    // Debug overlays are the exception: they redraw their own numbers every frame.
+    constexpr bool debugOverlaysNeedFullRepaint =
+       #ifdef DEBUG
+        true;
+       #else
+        false;
+       #endif
+
+    if (debugOverlaysNeedFullRepaint)
+    {
+        repaint();
+        return;
+    }
+
+    // Slack covers the rounded pill drawFpsOverlay paints outside the text rect.
+    if (showFps)
+        repaint(fpsOverlayBounds().expanded(8));
+
+    if (sectionBannerShown())
+    {
+        auto song = utilityStrip.currentSongName();
+        auto section = utilityStrip.currentSectionName();
+        if (song != lastBannerSong || section != lastBannerSection)
+        {
+            lastBannerSong = song;
+            lastBannerSection = section;
+            repaint(sectionBannerBounds());
+        }
+    }
 }
 
 void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
@@ -919,7 +950,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     };
 
     toolbar.onShowFpsChanged = [this](bool on) { showFps = on; };
-    toolbar.onShowBackgroundChanged = [this](bool on) { assets.setBackgroundVisible(on); };
+    toolbar.onShowBackgroundChanged = [this](bool on) { applyBackgroundVisibility(on); };
 
     toolbar.onTrackDiscoveryChanged = [this](bool on) {
         lastDisplayedTrackNumber = -1; // force status bar refresh
@@ -1565,7 +1596,7 @@ void ChartchoticAudioProcessorEditor::loadState()
     }
 
     // Background visibility (default off)
-    assets.setBackgroundVisible(state.hasProperty("showBackground") && (bool)state["showBackground"]);
+    applyBackgroundVisibility(state.hasProperty("showBackground") && (bool)state["showBackground"]);
 
     // Load saved background image
     {
@@ -1896,11 +1927,7 @@ void ChartchoticAudioProcessorEditor::drawFpsOverlay(juce::Graphics& g)
     double fps = avgDelta > 0.0 ? 1000000.0 / avgDelta : 0.0;
 
     float s = (float)getHeight() / (float)defaultHeight;
-    int tbHeight = std::min(juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio),
-                            ToolbarComponent::maxToolbarHeight);
-    int pad = juce::roundToInt(8.0f * s);
-    int textH = juce::roundToInt(16.0f * s);
-    auto area = juce::Rectangle<int>(pad, tbHeight + pad, juce::roundToInt(80.0f * s), textH);
+    auto area = fpsOverlayBounds();
 
     g.setColour(juce::Colours::black.withAlpha(0.5f));
     g.fillRoundedRectangle(area.toFloat().expanded(4.0f * s, 2.0f * s), 3.0f);
