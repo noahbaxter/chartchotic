@@ -143,7 +143,9 @@ struct ScenarioSpec
 };
 
 // Notes/sustains/gridlines are independent — tuned to realistic chart densities.
-// "stress" = absurd worst case, way beyond any real chart.
+// "stress" is not a worst case that charts never reach: a tech-death drum chart
+// (Psycroptic, Job for a Cowboy) peaks at 121 notes in a 1s window and 218 in 2s,
+// so 200 is a real double-bass passage, not an invented ceiling.
 constexpr ScenarioSpec SCENARIOS[] = {
     {"empty",           0,   0, 0,  0},
     {"grid_only",       0,   0, 0, 20},

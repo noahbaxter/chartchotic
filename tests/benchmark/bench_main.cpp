@@ -64,6 +64,10 @@ static const char* drawOrderName(DrawOrder d)
         case DrawOrder::BACKGROUND:     return "BG";
         case DrawOrder::TRACK:          return "TRACK";
         case DrawOrder::GRID:           return "GRID";
+        case DrawOrder::TRACK_SIDEBARS:  return "SIDEBAR";
+        case DrawOrder::TRACK_LANE_LINES: return "LANELINE";
+        case DrawOrder::TRACK_STRIKELINE: return "STRIKE";
+        case DrawOrder::TRACK_CONNECTORS: return "CONNECT";
         case DrawOrder::LANE:           return "LANE";
         case DrawOrder::BAR:            return "BAR";
         case DrawOrder::BAR_ANIMATION:  return "BAR_ANIM";
@@ -81,7 +85,7 @@ struct BenchResult
     std::string instrument;
     std::string resolution;
     int width, height, iterations;
-    TimingStats notes, sustains, gridlines, texture, execute, total;
+    TimingStats notes, sustains, gridlines, texture, track, execute, total;
     std::map<DrawOrder, TimingStats> layers;
 };
 
@@ -107,12 +111,13 @@ void printTable(const std::vector<BenchResult>& results)
                   << std::setw(9) << "Sustains"
                   << std::setw(7) << "Grid"
                   << std::setw(9) << "Texture"
+                  << std::setw(8) << "Track"
                   << std::setw(9) << "Execute"
                   << std::setw(9) << "Total"
                   << std::setw(9) << "p95"
                   << std::setw(7) << "@60fps"
                   << std::endl;
-        std::cout << std::string(88, '-') << std::endl;
+        std::cout << std::string(96, '-') << std::endl;
 
         std::string lastScenario;
         for (const auto* r : entries)
@@ -129,6 +134,7 @@ void printTable(const std::vector<BenchResult>& results)
                       << std::setw(9) << r->sustains.mean
                       << std::setw(7) << r->gridlines.mean
                       << std::setw(9) << r->texture.mean
+                      << std::setw(8) << r->track.mean
                       << std::setw(9) << r->execute.mean
                       << std::setw(9) << r->total.mean
                       << std::setw(9) << r->total.p95
@@ -144,8 +150,9 @@ void printTable(const std::vector<BenchResult>& results)
 
         // Collect all layer types seen
         std::vector<DrawOrder> layerOrder = {
+            DrawOrder::TRACK_SIDEBARS, DrawOrder::TRACK_LANE_LINES, DrawOrder::TRACK_STRIKELINE,
             DrawOrder::GRID, DrawOrder::LANE, DrawOrder::BAR,
-            DrawOrder::SUSTAIN, DrawOrder::NOTE, DrawOrder::OVERLAY
+            DrawOrder::SUSTAIN, DrawOrder::NOTE, DrawOrder::TRACK_CONNECTORS, DrawOrder::OVERLAY
         };
 
         std::cout << std::left << std::setw(13) << "Scenario"
@@ -296,6 +303,7 @@ std::string resultsToJson(const std::vector<BenchResult>& results)
         json += "\"sustains_mean_us\":" + fmt(r.sustains.mean) + ",";
         json += "\"gridlines_mean_us\":" + fmt(r.gridlines.mean) + ",";
         json += "\"texture_mean_us\":" + fmt(r.texture.mean) + ",";
+        json += "\"track_mean_us\":" + fmt(r.track.mean) + ",";
         json += "\"execute_mean_us\":" + fmt(r.execute.mean) + ",";
         json += "\"total_mean_us\":" + fmt(r.total.mean) + ",";
         json += "\"total_p95_us\":" + fmt(r.total.p95) + ",";
@@ -325,7 +333,7 @@ std::string resultsToJson(const std::vector<BenchResult>& results)
 void runInstrument(const char* instrumentName, Part part, int maxColumn, bool noSustains,
                    juce::ValueTree& state,
                    SceneRenderer& renderer, TrackRenderer& trackRenderer,
-                   bool withTexture, bool noRescale, bool lowQuality,
+                   bool withTexture, bool noRescale, bool lowQuality, float trackOversize,
                    int iterationCount, int warmupCount, double windowStart, double windowEnd,
                    std::vector<BenchResult>& results, int& combo, int totalCombos)
 {
@@ -361,8 +369,6 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
                       << instrumentName << " " << spec.name << " @ " << res.name
                       << " (" << iterationCount << " iters)..." << std::flush;
 
-            juce::Image canvas(juce::Image::ARGB, res.width, res.height, true);
-
             const auto& tw = scenarioData.trackWindow;
             const auto& sw = scenarioData.sustainWindow;
             const auto& gm = scenarioData.gridlines;
@@ -394,35 +400,72 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
             const int overflow = std::max(0, (int)std::ceil(-farEdge.centerY));
             const int totalH   = res.height + overflow;
 
-            trackRenderer.rebuild(res.width, res.height, overflow,
+            // Canvas covers the overflow band, as the plugin's component does. Rendering into a
+            // res.height canvas clipped away every far-end gem and gridline that the real frame
+            // rasterizes, and left the track layers nowhere to land.
+            juce::Image canvas(juce::Image::ARGB, res.width, totalH, true);
+
+            // --track-oversize models what the plugin actually does today: the shared cache is
+            // baked once at full scene resolution and blitted down into each ~960px slot. At 1.0
+            // the bake matches its destination, which is what Phase 2.1 is trying to achieve, so
+            // the pair of runs brackets 2.1's whole value.
+            const int bakeW  = std::max(1, (int)std::lround(res.width  * trackOversize));
+            const int bakeH  = std::max(1, (int)std::lround(res.height * trackOversize));
+            const int bakeOv = (int)std::lround(overflow * trackOversize);
+
+            trackRenderer.rebuild(bakeW, bakeH, bakeOv,
                                   renderer.farFadeEnd, renderer.farFadeLen, renderer.farFadeCurve,
                                   renderer.highwayPosEnd);
 
-            std::vector<double> notesSamples, sustainsSamples, gridlinesSamples, textureSamples, executeSamples, totalSamples;
+            // The baked track layers are full-viewport composites and the single biggest block
+            // of blit work in a real frame. Baking them and never registering them, which is
+            // what this harness did until now, measured a frame the plugin never draws.
+            renderer.overlayYOffset = overflow;
+            renderer.clearOverlays();
+            renderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &trackRenderer.getLayerImage(TrackRenderer::SIDEBARS));
+            renderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &trackRenderer.getLayerImage(TrackRenderer::LANE_LINES));
+            renderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &trackRenderer.getLayerImage(TrackRenderer::STRIKELINE));
+            renderer.setOverlay(DrawOrder::TRACK_CONNECTORS, &trackRenderer.getLayerImage(TrackRenderer::CONNECTORS));
+
+            std::vector<double> notesSamples, sustainsSamples, gridlinesSamples, textureSamples, trackSamples, executeSamples, totalSamples;
             std::map<DrawOrder, std::vector<double>> layerSamples;
 
             // Warmup
             for (int w = 0; w < warmupCount; w++)
             {
-                canvas.clear({0, 0, res.width, res.height});
+                canvas.clear({0, 0, res.width, totalH});
                 juce::Graphics g(canvas);
                 if (lowQuality)
                     g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
+                trackRenderer.paint(g, res.width, totalH);
                 if (withTexture)
                     trackRenderer.paintTexture(g, (float)w * 0.1f, res.width, totalH);
+                if (overflow > 0)
+                    g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
                 renderer.paint(g, res.width, res.height, tw, sw, gm, flipRegions, eventMarkers,
                                windowStart, windowEnd, false);
             }
 
             for (int i = 0; i < iterationCount; i++)
             {
-                canvas.clear({0, 0, res.width, res.height});
+                canvas.clear({0, 0, res.width, totalH});
                 juce::Graphics g(canvas);
                 // CoreGraphicsContext never calls CGContextSetInterpolationQuality, so the default
                 // here is whatever the context inherits. This flag forces kCGInterpolationNone to
                 // measure how much of a frame is resampling rather than compositing.
                 if (lowQuality)
                     g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
+
+                // The faded track fill, timed on its own. It is one full-viewport blit and the
+                // target of 2.1, so it needs to be separable from the layer composites.
+                double trackUs = 0.0;
+                {
+                    auto t0 = std::chrono::high_resolution_clock::now();
+                    trackRenderer.paint(g, res.width, totalH);
+                    auto t1 = std::chrono::high_resolution_clock::now();
+                    trackUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+                }
+                trackSamples.push_back(trackUs);
 
                 // Time texture rendering separately
                 double texUs = 0.0;
@@ -435,6 +478,9 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
                 }
                 textureSamples.push_back(texUs);
 
+                if (overflow > 0)
+                    g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
+
                 renderer.paint(g, res.width, res.height, tw, sw, gm, flipRegions, eventMarkers,
                                windowStart, windowEnd, false);
 
@@ -443,7 +489,7 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
                 sustainsSamples.push_back(pt.sustains_us);
                 gridlinesSamples.push_back(pt.gridlines_us);
                 executeSamples.push_back(pt.execute_us);
-                totalSamples.push_back(pt.total_us + texUs);
+                totalSamples.push_back(pt.total_us + texUs + trackUs);
 
                 for (int li = 0; li < DRAW_ORDER_COUNT; ++li)
                     if (pt.layer_us[li] > 0.0)
@@ -461,6 +507,7 @@ void runInstrument(const char* instrumentName, Part part, int maxColumn, bool no
             r.sustains = computeStats(sustainsSamples);
             r.gridlines = computeStats(gridlinesSamples);
             r.texture = computeStats(textureSamples);
+            r.track = computeStats(trackSamples);
             r.execute = computeStats(executeSamples);
             r.total = computeStats(totalSamples);
             for (const auto& [layer, samples] : layerSamples)
@@ -483,6 +530,7 @@ int main(int argc, char* argv[])
     bool withTexture = false;
     bool noRescale = false;
     bool lowQuality = false;
+    float trackOversize = 1.0f;
     int iterationCount = 50;
     int warmupCount = 5;
 
@@ -507,6 +555,8 @@ int main(int argc, char* argv[])
             noRescale = true;
         else if (arg == "--low-quality")
             lowQuality = true;
+        else if (arg == "--track-oversize" && i + 1 < argc)
+            trackOversize = (float)std::atof(argv[++i]);
     }
 
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -562,7 +612,7 @@ int main(int argc, char* argv[])
 
     for (const auto& inst : INSTRUMENTS)
         runInstrument(inst.name, inst.part, inst.maxColumn, inst.noSustains,
-                      state, renderer, trackRenderer, withTexture, noRescale, lowQuality,
+                      state, renderer, trackRenderer, withTexture, noRescale, lowQuality, trackOversize,
                       iterationCount, warmupCount, windowStart, windowEnd,
                       results, combo, totalCombos);
 

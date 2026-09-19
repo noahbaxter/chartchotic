@@ -69,7 +69,9 @@ build_benchmark() {
         exit 1
     fi
 
-    if ! cmake --build "$BENCH_BUILD_DIR" --config Release > "$BENCH_BUILD_DIR.build.log" 2>&1; then
+    # Only the target this command runs. bench_pipeline shares the directory but is built
+    # against a long-dead MIDI API, and building it unconditionally blocks the rendering run.
+    if ! cmake --build "$BENCH_BUILD_DIR" --config Release --target bench_rendering > "$BENCH_BUILD_DIR.build.log" 2>&1; then
         echo "Error: benchmark build failed"
         tail -40 "$BENCH_BUILD_DIR.build.log"
         exit 1
