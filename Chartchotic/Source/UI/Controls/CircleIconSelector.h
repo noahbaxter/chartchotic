@@ -24,6 +24,7 @@ class CircleIconSelector : public juce::Component,
 {
 public:
     static constexpr float multiStackOffset = 0.15f; // fraction of circle diameter between stacked icons
+    static constexpr float emptyLabelScale = 0.38f;  // "N/A" against the circle's diameter
 
     CircleIconSelector() {}
 
@@ -127,9 +128,17 @@ public:
 
     void paint(juce::Graphics& g) override
     {
-        if (items.empty()) return;
         auto bounds = getLocalBounds().toFloat();
         float d = juce::jmin(bounds.getWidth(), bounds.getHeight());
+
+        // Nothing to choose from at all: no instrument tracks in the project yet. Drawn as an
+        // empty circle saying so rather than skipped, since a gap in the toolbar reads as the
+        // control having failed to appear.
+        if (items.empty())
+        {
+            paintEmptyCircle(g, circleOfSize(bounds, d), "N/A");
+            return;
+        }
 
         if (multiSelectMode)
         {
@@ -141,14 +150,9 @@ public:
 
             if (enabled.empty())
             {
-                // Nothing selected — draw dim empty circle
-                auto circle = juce::Rectangle<float>(
-                    bounds.getCentreX() - d / 2.0f,
-                    bounds.getCentreY() - d / 2.0f, d, d);
-                g.setColour(juce::Colour(Theme::darkBg));
-                g.fillEllipse(circle);
-                g.setColour(juce::Colour(Theme::textDim).withAlpha(0.3f));
-                g.drawEllipse(circle.reduced(0.5f), 1.0f);
+                // There are instruments, you have just turned them all off. No label: the
+                // choices are a hover away, unlike the empty case above.
+                paintEmptyCircle(g, circleOfSize(bounds, d), {});
             }
             else if (enabled.size() == 1)
             {
@@ -192,6 +196,10 @@ public:
 
     void mouseEnter(const juce::MouseEvent&) override
     {
+        // Nothing to choose from, so nothing to offer: the N/A circle stays inert rather than
+        // lighting up and dropping an empty panel.
+        if (items.empty()) return;
+
         mouseHovered = true;
         repaint();
         hoverTimer.stopTimer();
@@ -464,6 +472,27 @@ private:
     std::unique_ptr<ExpandedPanel> panel;
 
     //==========================================================================
+    static juce::Rectangle<float> circleOfSize(juce::Rectangle<float> bounds, float d)
+    {
+        return { bounds.getCentreX() - d / 2.0f, bounds.getCentreY() - d / 2.0f, d, d };
+    }
+
+    // The circle with nothing in it, optionally with a word saying why.
+    void paintEmptyCircle(juce::Graphics& g, juce::Rectangle<float> circle,
+                          const juce::String& label)
+    {
+        g.setColour(juce::Colour(Theme::darkBg));
+        g.fillEllipse(circle);
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(0.3f));
+        g.drawEllipse(circle.reduced(0.5f), 1.0f);
+
+        if (label.isEmpty()) return;
+
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(0.7f));
+        g.setFont(juce::FontOptions().withHeight(circle.getHeight() * emptyLabelScale));
+        g.drawText(label, circle, juce::Justification::centred, false);
+    }
+
     void paintCircle(juce::Graphics& g, juce::Rectangle<float> bounds,
                      const CircleItem& item, bool selected, bool hovering,
                      bool dimmed = false) const

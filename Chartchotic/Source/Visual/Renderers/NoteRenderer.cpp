@@ -115,11 +115,13 @@ const OverlayAdjust& NoteRenderer::getOverlayAdjustForGem(Gem gem, bool isDrums,
 // leaves alone. Recolouring the source reaches them, and goes through the same cache and curve
 // bake as every other glyph. The ghost ring and accent chevron take it too: left untouched, a
 // vivid gem wore a stock grey chevron and the note read as half-recoloured.
-juce::Image* NoteRenderer::activationRecut(juce::Image* image, uint gemColumn) const
+juce::Image* NoteRenderer::activationRecut(juce::Image* image, uint gemColumn, Gem gem) const
 {
     if (image == nullptr) return image;
-    const juce::Colour lane = assetManager.getLaneColour(
-        gemColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, false);
+    // The gem's OWN colour: the part itself rather than a guitar-like collapsed onto guitar,
+    // and the cymbal's entry rather than the tom's when that is what was hit. A vivid recut
+    // in the neighbouring colour is a note that changes colour for being the activation one.
+    const juce::Colour lane = assetManager.getNoteColour(gemColumn, activePart, gem, false);
     return assetManager.getTintedGlyph(
         image,
         lane.withMultipliedSaturation(PHRASE_ACTIVATION_VIVID_SATURATION)
@@ -354,12 +356,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     else if (isGuitarLike(activePart))
     {
         barNote = isBarNote(gemColumn, Part::GUITAR);
-        glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
+        glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive, activePart);
     }
     else
     {
         barNote = isBarNote(gemColumn, activePart);
-        glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive, elite);
+        glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive, elite, activePart);
     }
 
     // The activation gem swaps in a more vivid cut of its own art. Not a tint sprite over the
@@ -368,7 +370,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // deliberately leaves alone. Recolouring the source reaches them, and goes through the same
     // cache and curve bake as every other glyph.
     if (showActivation && gemWrapper.activation)
-        glyphImage = activationRecut(glyphImage, gemColumn);
+        glyphImage = activationRecut(glyphImage, gemColumn, gemWrapper.gem);
 
     // Elite hi-hat pedal bars (Stomp / Splash) render like a bar (draw order, height, bar
     // scales) but are NOT full width: the geometry block below spans ~3 lanes centered on
@@ -490,11 +492,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     float hScale = baseScale.height * typeScale * spMul * userScale;
 
     // zOff (Z lift in strike-reference pixels) + per-column adjustment
-    bool isCymbalGem = !barNote && isDrums
-        && (gemWrapper.gem == Gem::CYM
-            || gemWrapper.gem == Gem::CYM_GHOST
-            || gemWrapper.gem == Gem::CYM_ACCENT);
-    float zOff = barNote ? barZOffset : (isCymbalGem ? cymZOffset : gemZOffset);
+    bool isCymbal = !barNote && isDrums && isCymbalGem(gemWrapper.gem);
+    float zOff = barNote ? barZOffset : (isCymbal ? cymZOffset : gemZOffset);
 
     float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
     if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
@@ -570,7 +569,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // highway. The rim says accent on its own.
     if (barNote && isDrums) overlayImage = nullptr;
     if (showActivation && gemWrapper.activation)
-        overlayImage = activationRecut(overlayImage, gemColumn);
+        overlayImage = activationRecut(overlayImage, gemColumn, gemWrapper.gem);
     const OverlayAdjust* overlayAdjPtr = nullptr;
     int ovlIdx = -1;
     // Single-overlay flams: the left copy draws no overlay, and the right one draws it centred
@@ -713,12 +712,9 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
                                             glyphRect.getWidth() * userScale,
                                             glyphRect.getHeight() * userScale);
     }
-    bool isCymbalGem = !barNote && isDrums
-        && (gemWrapper.gem == Gem::CYM
-            || gemWrapper.gem == Gem::CYM_GHOST
-            || gemWrapper.gem == Gem::CYM_ACCENT);
+    bool isCymbal = !barNote && isDrums && isCymbalGem(gemWrapper.gem);
     float nudge = barNote ? bemaniConfig.barNudge
-                          : (isCymbalGem ? bemaniConfig.cymNudge : config->bemaniGemNudge());
+                          : (isCymbal ? bemaniConfig.cymNudge : config->bemaniGemNudge());
     float pixelsPerUnit = PositionConstants::REFERENCE_HEIGHT * bemaniConfig.strikelinePos
                         / std::max(0.1f, PositionMath::bemaniHwyScale);
     glyphRect.translate(0.0f, pixelsPerUnit * nudge);
@@ -767,7 +763,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     // highway. The rim says accent on its own.
     if (barNote && isDrums) overlayImage = nullptr;
     if (showActivation && gemWrapper.activation)
-        overlayImage = activationRecut(overlayImage, gemColumn);
+        overlayImage = activationRecut(overlayImage, gemColumn, gemWrapper.gem);
     const OverlayAdjust* overlayAdjPtr = nullptr;
     int ovlIdx = -1;
     if (overlayImage != nullptr)

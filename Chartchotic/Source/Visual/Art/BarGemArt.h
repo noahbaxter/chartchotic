@@ -29,6 +29,12 @@ namespace GemArt
     BarRamp barRampKick2x();    // red-orange
     BarRamp barRampOpen();      // purple
 
+    // The same tube in another colour. A ramp is a shading profile as much as a colour: the
+    // stops run dark at the rim, blown out at the gloss line, and drift in hue along the way.
+    // Only the hue is replaced; each stop keeps its brightness and saturation relative to the
+    // ramp's own peak, so a recoloured bar is lit like the original rather than flat.
+    BarRamp recolouredRamp(const BarRamp& base, juce::Colour target);
+
     // `thickness` squeezes the tube and its caps about the bar's centreline. The arc, the
     // canvas and the centreline are untouched, so a thin bar curves exactly like a fat one
     // and the gems that sit on it don't move. Elite bakes thin (kEliteBarThickness) because

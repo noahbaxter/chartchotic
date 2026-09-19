@@ -168,7 +168,7 @@ private:
                        bool kickFlam);
 
     const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums, bool hiHat, bool hiHatOpen) const;
-    juce::Image* activationRecut(juce::Image* image, uint gemColumn) const;
+    juce::Image* activationRecut(juce::Image* image, uint gemColumn, Gem gem) const;
 
     // True when this gem renders the elite Hi-Hat gem art (col 2, not star-power, not Indifferent)
     // -- mirrors getDrumGlyphImage's hi-hat branch so the overlay adjust matches the drawn glyph.
