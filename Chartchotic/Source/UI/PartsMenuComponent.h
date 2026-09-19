@@ -559,6 +559,13 @@ private:
             g.drawImage(image, area.toFloat(), juce::RectanglePlacement::centred);
             g.setOpacity(1.0f);
         }
+        else
+        {
+            // Five icons cover the instruments and none of them means EVENTS. Rather than
+            // invent art for a track that is not an instrument, the header turns the name on
+            // its side, which is the one direction a column this narrow has room in.
+            paintSidewaysName(g, column, part, lit);
+        }
 
         paintColourStrip(g, column, part);
 
@@ -573,6 +580,30 @@ private:
             g.drawLine((float)box.getRight(), (float)box.getY(),
                        (float)box.getX(), (float)box.getBottom(), 1.6f);
         }
+    }
+
+    // The column's name rotated to read bottom-to-top, for the parts with no icon. The text
+    // box is laid out in the unrotated space, so its width is the header's height and its
+    // height is the column's width, then the whole thing turns about the centre.
+    void paintSidewaysName(juce::Graphics& g, int column, Part part, bool lit)
+    {
+        const auto band = juce::Rectangle<int>(columnX(column), m.stripH, m.cellW,
+                                               m.headerH - m.stripH - m.colourStripH);
+        if (band.getHeight() <= 0) return;
+
+        juce::Graphics::ScopedSaveState save(g);
+        const auto centre = band.toFloat().getCentre();
+        const auto box = juce::Rectangle<float>(0.0f, 0.0f,
+                                                (float)band.getHeight(), (float)band.getWidth())
+                             .withCentre(centre);
+
+        g.addTransform(juce::AffineTransform::rotation(
+            -juce::MathConstants<float>::halfPi, centre.x, centre.y));
+
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(lit ? 1.0f : fadedAlpha));
+        g.setFont(juce::FontOptions().withHeight(m.stripFontH));
+        g.drawText(getPartDisplayName(part).toUpperCase(), box.toNearestInt(),
+                   juce::Justification::centred, false);
     }
 
     // The part's lane colours as a bar under its icon: both what this part is currently drawn
