@@ -881,9 +881,9 @@ void HighwayComponent::timerCallback()
     rebuildTrack();
 }
 
-void HighwayComponent::setFrameData(const HighwayFrameData& data)
+void HighwayComponent::setFrameData(HighwayFrameData data)
 {
-    frameData = data;
+    frameData = std::move(data);
     if (frameData.builtForPart == pendingPart)
         commitPendingPart();
 }
