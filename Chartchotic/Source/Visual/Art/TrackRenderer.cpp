@@ -9,7 +9,9 @@
 
 #include "TrackRenderer.h"
 #include "../Geometry/RenderTypeConfig.h"
+#include "../Managers/AssetManager.h"
 #include "../Utils/LaneColours.h"
+#include "../Utils/PartPalettes.h"
 #include "ProceduralTrackArt.h"
 
 using namespace PositionConstants;
@@ -403,12 +405,19 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
 {
     if (width <= 0 || height <= 0) return;
 
-    // Skip if nothing changed
+    // Skip if nothing changed. The palette counts as "something": the strikeline is painted
+    // in it, and a bake made in another part's colours is as stale as one made at another
+    // size, however unchanged the geometry is.
+    const auto& palette = PartPalettes::global().forPart(activePart);
+
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
-        getRenderType(activePart) == cached.renderType)
+        getRenderType(activePart) == cached.renderType &&
+        palette == cached.palette)
         return;
+
+    cached.palette = palette;
 
     bool isDrums = isDrumLike(activePart);
     int totalH = height + overflow;
@@ -584,40 +593,14 @@ void TrackRenderer::bakeSidebarRailsPerspective(int w, int h, int overflow, bool
                  posEnd);
 }
 
-// Strikeline pad colours. The lane hues come from the shared LaneColours table (single
-// source of truth, also drives gem tints); pad top = lane dark, bottom = lane bright.
+// Strikeline pad colours. A pad is one lane colour as a gradient: top = dark, bottom =
+// bright. The colours themselves are no longer named here, because they are no longer fixed:
+// they come from the part's palette at draw time.
 namespace FretColour
 {
     static PadColours pad(const LaneColours::Lane& l) { return { LaneColours::dark(l), LaneColours::bright(l) }; }
     const PadColours none     { juce::Colours::transparentBlack,          juce::Colours::transparentBlack };          // kick / open lane (undrawn)
-    const PadColours red      = pad(LaneColours::red);
-    const PadColours yellow   = pad(LaneColours::yellow);
-    const PadColours blue     = pad(LaneColours::blue);
-    const PadColours green    = pad(LaneColours::green);
-    const PadColours orange   = pad(LaneColours::orange);
-    const PadColours purple   = pad(LaneColours::purple);
-    const PadColours white    = pad(LaneColours::white);
     const PadColours fallback { TrackColours::padFallbackDark, TrackColours::padFallbackLite };  // unmapped lane
-}
-
-// Map the shared lane tint (PositionConstants::ELITE_LANE_STYLES) to pad colours, so the
-// strikeline and the gems read from the same colour scheme.
-static PadColours tintToPad(PositionConstants::DrumLaneTint t)
-{
-    using namespace FretColour;
-    using T = PositionConstants::DrumLaneTint;
-    switch (t)
-    {
-        case T::Red:    return red;
-        case T::Yellow: return yellow;
-        case T::Purple: return purple;
-        case T::Orange: return orange;
-        case T::Blue:   return blue;
-        case T::Green:  return green;
-        case T::White:  return white;
-        case T::None:   return none;
-    }
-    return fallback;
 }
 
 // Strikeline grouping key: consecutive hand lanes with the same key merge into one wide
@@ -631,21 +614,25 @@ static int strikeGroupKey(Part part, int lane)
     return 1000 + lane;
 }
 
+// The pad under a lane, in the part's own colours. Always the pad entry, never the cymbal
+// one: a lane whose gem is a cymbal still sits on its drum's pad, so recolouring a cymbal
+// leaves the strikeline where it was. Which hue a lane wears comes from AssetManager, the
+// same answer the gems use, so the pad and the gem on it cannot disagree.
 static PadColours strikePadColours(Part part, int lane)
 {
     using namespace FretColour;
-    if (part == Part::ELITE_DRUMS)
-        return (lane >= 0 && lane < 9) ? tintToPad(PositionConstants::ELITE_LANE_STYLES[lane].tint)
-                                       : fallback;
-    if (isGuitarLike(part))
-    {
-        // 5-fret GRYBO (lane 0 = open).
-        static const PadColours g[6] = { none, green, red, yellow, blue, orange };
-        return (lane >= 0 && lane < 6) ? g[lane] : fallback;
-    }
-    // 4-lane drums: kick, red, yellow, blue, green.
-    static const PadColours d[5] = { none, red, yellow, blue, green };
-    return (lane >= 0 && lane < 5) ? d[lane] : fallback;
+
+    const int laneCount = part == Part::ELITE_DRUMS ? 9 : isGuitarLike(part) ? 6 : 5;
+    if (lane < 0 || lane >= laneCount) return fallback;
+
+    // Lane 0 is the kick or open bar, which has no pad of its own to draw.
+    if (lane == 0 && part != Part::ELITE_DRUMS) return none;
+    if (part == Part::ELITE_DRUMS && PositionConstants::ELITE_LANE_STYLES[lane].tint
+                                      == PositionConstants::DrumLaneTint::None)
+        return none;
+
+    const auto& palette = PartPalettes::global().forPart(part);
+    return pad(palette.padFor(AssetManager::laneHue((uint)lane, part)));
 }
 
 void TrackRenderer::bakeStrikelinePadsPerspective(int w, int h, int overflow, bool isDrums,

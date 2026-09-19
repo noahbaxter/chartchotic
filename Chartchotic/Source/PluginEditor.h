@@ -28,6 +28,9 @@
 #include "UI/Controls/WriteModeIcon.h"
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
+#include "UI/PartsMenuComponent.h"
+#include "UI/ConfirmPrompt.h"
+#include "UI/PalettePicker.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
@@ -205,11 +208,21 @@ private:
 
     // The slot the cursor is over, which is where the ghost is drawn and which lanes a hover is
     // read against. Separate from focus so moving across highways previews on each without the
-    // write bar rewriting itself under the cursor: focus, and the bar with it, follows a click.
+    // write bar rewriting itself under the cursor: focus follows a click, or a hover that stays.
     // Only ever set from a pointer MOVE, which JUCE does not send while a button is down, so a
     // drag wandering over a neighbour cannot retarget the stroke halfway through.
     int hoveredSlot = -1;
     void setHoveredSlot(int index);
+
+    // A cursor that settles on one highway and stays there is asking for that highway, so the
+    // write bar stops describing one the mouse left. Crossing a highway on the way to the
+    // toolbar never gets there, because leaving drops the hover and the clock with it, and the
+    // dwell has to be served on one slot without a break. Both modes: an idle cursor is not
+    // mid-edit, and a press is its own claim on the highway without waiting.
+    static constexpr juce::uint32 hoverFocusDwellMs = 1200;
+    // When the current hover began, or 0 for a hover that can no longer earn focus.
+    juce::uint32 hoverDwellStartMs = 0;
+    void updateHoverFocusDwell();
     // Which slot the controller is currently resolving points against. Only the draw ghost
     // follows the cursor: an edit-mode selection is held against one part's tracks, so pointing
     // the controller at a neighbouring highway mid-selection would aim it at the wrong notes.
@@ -376,6 +389,29 @@ private:
 
     UpdateBannerComponent updateBanner;
     FooterComponent footer { updateBanner };
+
+    // The map itself lives on the processor, since discovery reads it and has to keep
+    // working with the window shut. This is only the view on it.
+    PartsMenuComponent partsMenu;
+    ConfirmPrompt confirmPrompt;
+    // Opened from the colour strip under a part's icon. Its own window, like the prompt.
+    PalettePicker palettePicker;
+    static constexpr int partsMenuMargin = 16;
+    void togglePartsMenu();
+    void createTrackForPart(Part part);
+    void confirmDeleteTrack(int trackIndex, const juce::String& name);
+    void deleteTrack(int trackIndex);
+    void openPartsMenu();
+    void layoutPartsMenu();
+    void refreshPartsMenuTracks();
+    // REAPER changes tracks out from under the open menu, an undo of a delete included, so
+    // the list is re-read while it is on screen rather than only when it opens. Throttled:
+    // reading it walks every track's items, which is far more than a frame's worth of work
+    // for an answer that changes when you go and change it.
+    void pollPartsMenuTracks();
+    static constexpr double partsMenuPollIntervalMs = 250.0;
+    double lastPartsMenuPollMs = 0.0;
+    void commitPartPins();
     UpdateChecker updateChecker;
 
     //==============================================================================
