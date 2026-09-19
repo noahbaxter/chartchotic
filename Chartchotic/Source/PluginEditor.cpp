@@ -57,7 +57,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         hw.setOnPointerDown       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDown(p, c); });
         hw.setOnPointerDrag       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDrag(p, c); });
         hw.setOnPointerUp         ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerUp(p, c); });
-        hw.setOnPointerExit       ([this, i]() { if (hoveredSlot == i) hoveredSlot = -1; interactionController.onPointerExit(); });
+        hw.setOnPointerExit       ([this, i]() { if (hoveredSlot == i) { hoveredSlot = -1; hoverDwellStartMs = 0; } interactionController.onPointerExit(); });
         hw.setOnPointerCancel     ([this]() { interactionController.onPointerCancel(); });
         hw.setOnPointerDoubleClick([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDoubleClick(p, c); });
         hw.onMouseWheel = [this](const juce::MouseEvent& e, const juce::MouseWheelDetails& w) { handleHighwayScroll(e, w); };
@@ -308,14 +308,133 @@ void ChartchoticAudioProcessorEditor::focusSlot(int index)
 void ChartchoticAudioProcessorEditor::setHoveredSlot(int index)
 {
     if (index < 0 || index >= activeSlotCount || index == hoveredSlot) return;
-    // Draw only, for the reason pointerContextSlot gives: edit mode's selection belongs to the
-    // focused highway and must not be retargeted by the cursor passing over another.
-    if (interactionController.subMode() != SubMode::Draw) return;
 
     hoveredSlot = index;
+    // A new slot restarts the dwell: it is time spent on ONE highway that earns focus, so
+    // travelling across three of them arrives with nothing banked.
+    hoverDwellStartMs = juce::Time::getMillisecondCounter();
+
+    // Tracking the hover is for both modes, since the dwell takes focus in both. Aiming the
+    // controller at the hovered lanes is draw only, for the reason pointerContextSlot gives:
+    // edit mode's selection belongs to the focused highway and must not be retargeted by the
+    // cursor passing over another.
+    if (interactionController.subMode() != SubMode::Draw) return;
+
     const auto& slot = slots[index];
     interactionController.setActivePart(slot.part);
     interactionController.setActiveSkill(slot.skillLevel);
+}
+
+// Hand focus to a highway the cursor has settled on. Called every frame rather than from the
+// move, because the thing being measured is the cursor NOT moving on to somewhere else.
+void ChartchoticAudioProcessorEditor::updateHoverFocusDwell()
+{
+    if (hoverDwellStartMs == 0 || hoveredSlot < 0 || hoveredSlot >= activeSlotCount) return;
+
+    // Already there. Drop the clock rather than hold it, so the next hover starts its own.
+    if (hoveredSlot == effectiveFocusSlot())
+    {
+        hoverDwellStartMs = 0;
+        return;
+    }
+
+    // Only an idle cursor earns focus this way. Interacting is its own answer: a press takes
+    // the highway immediately, so the dwell has nothing to settle. Holding still with a button
+    // down would otherwise let the clock run out and retarget the stroke from under it.
+    if (juce::ModifierKeys::currentModifiers.isAnyMouseButtonDown()) return;
+
+    if (juce::Time::getMillisecondCounter() - hoverDwellStartMs < hoverFocusDwellMs) return;
+
+    hoverDwellStartMs = 0;
+    focusSlot(hoveredSlot);
+}
+
+// Read the project's tracks straight from REAPER rather than from discovery, which only
+// reports tracks it already recognised. The whole point of the menu is the ones it did not.
+void ChartchoticAudioProcessorEditor::refreshPartsMenuTracks()
+{
+    if (audioProcessor.reaperGetFunc == nullptr) return;
+    auto getFunc = [this](const char* name) { return audioProcessor.reaperGetFunc(name); };
+
+    std::vector<PartsMenuComponent::TrackRow> rows;
+    const int count = ReaperTrackDetector::getTrackCount(getFunc);
+    for (int i = 0; i < count; ++i)
+    {
+        auto name = juce::String(ReaperTrackDetector::getTrackName(getFunc, i));
+        // Passed through rather than dropped: the menu hides utility tracks by default and
+        // shows them under All tracks, which it cannot do if they never arrive.
+        const auto content = ReaperTrackDetector::getTrackContent(getFunc, i);
+        rows.push_back({ i, name, content.midi, content.audio,
+                         PartMapping::isUtilityTrackName(name) });
+    }
+
+    partsMenu.setTracks(std::move(rows));
+}
+
+// The readout is the menu's one control: clicking it again puts the menu away, the way any
+// toggle does, so the panel never needs a button of its own to close.
+void ChartchoticAudioProcessorEditor::togglePartsMenu()
+{
+    if (partsMenu.isVisible()) { partsMenu.setVisible(false); return; }
+    openPartsMenu();
+}
+
+void ChartchoticAudioProcessorEditor::openPartsMenu()
+{
+    refreshPartsMenuTracks();
+    layoutPartsMenu();
+    partsMenu.setVisible(true);
+    partsMenu.toFront(true);
+    partsMenu.grabKeyboardFocus();   // so Escape closes it
+}
+
+// Out of the corner it was opened from, at the size the table actually needs, and never
+// past the window: a big project fills the plugin, a small one stays a panel.
+void ChartchoticAudioProcessorEditor::layoutPartsMenu()
+{
+    // Between the toolbar and the footer. The menu sits over the scene and everything in it,
+    // the write mode button included, but the toolbar stays reachable: a panel that covers
+    // its own header has nothing left to anchor it, which is what a tall project did.
+    const int top = toolbar.getBottom() + partsMenuMargin;
+    const int bottom = getHeight() - footer.getHeight() - partsMenuMargin;
+    // Starts clear of the strip rather than over it: the strip is how you know where you are
+    // in the song, and the menu is a thing you open while reading it.
+    const int left = (utilityStripVisible ? utilityStrip.getRight() : 0) + partsMenuMargin;
+    const auto available = juce::Rectangle<int>(left, top,
+                                                juce::jmax(0, getWidth() - left - partsMenuMargin),
+                                                juce::jmax(0, bottom - top));
+
+    // The toolbar's own scale, so a part icon in the table is the same size as the one in the
+    // header. Taken before asking what the panel needs, since it sets the row height.
+    partsMenu.setChromeScale((float)toolbar.getStripHeight()
+                             / (float)ToolbarComponent::referenceHeight);
+
+    // Full width always, so the columns have every pixel going and only scroll when even that
+    // is not enough. Height is what the rows need, capped, with the rest scrolling.
+    const int h = juce::jmin(partsMenu.preferredSize().y, available.getHeight());
+
+    partsMenu.setBounds(available.getX(), available.getBottom() - h, available.getWidth(), h);
+
+    // Last word on z-order. The write mode chip and the strip both raise themselves during
+    // layout, so the menu has to re-claim the front after them or it opens underneath.
+    if (partsMenu.isVisible()) partsMenu.toFront(false);
+}
+
+// Save the change and put it to work in one step. Discovery reads the same map, so a pin has
+// to re-run it or the highways keep showing whatever the last scan decided.
+void ChartchoticAudioProcessorEditor::commitPartPins()
+{
+    auto pins = state.getOrCreateChildWithName("partPins", nullptr);
+    audioProcessor.getPartMap().writeTo(pins);
+    audioProcessor.rediscoverParts();
+
+    // Same path the 50ms poll takes when a track changes under us, so a pin lands the way
+    // any other discovery change does rather than through a route of its own.
+    if (auto* instrSession = audioProcessor.getInstrumentSession())
+        session.rebuildFromSession(*instrSession);
+
+    partsMenu.refresh();
+    repaint();
 }
 
 void ChartchoticAudioProcessorEditor::onFrame()
@@ -336,6 +455,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
 
     printCallback();
+
+    updateHoverFocusDwell();
 
     // Frame delta tracking (used by FPS overlay and debug profiler)
     double frameDelta_us_local = 0.0;
@@ -889,6 +1010,29 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
     updateFooterHelpText();
     addAndMakeVisible(footer);
 
+    // The parts menu is only reachable in REAPER: outside it there is no project to map
+    // tracks from, so the readout stays the inert status text it has always been.
+    if (audioProcessor.isReaperHost)
+    {
+        auto& partMap = audioProcessor.getPartMap();
+        partMap.readFrom(state.getOrCreateChildWithName("partPins", nullptr));
+        audioProcessor.rediscoverParts();   // pins loaded from state have to take effect too
+
+        footer.getStatusBar().onTrackLabelClicked = [this]() { togglePartsMenu(); };
+
+        partsMenu.setMap(&partMap);
+        partsMenu.onPin   = [this](Part p, int track)
+                            { audioProcessor.getPartMap().pin(p, track); commitPartPins(); };
+        partsMenu.onClearPart = [this](Part p)
+                            { audioProcessor.getPartMap().clearPart(p);  commitPartPins(); };
+        partsMenu.onPinWaveform   = [this](int track)
+                            { audioProcessor.getPartMap().pinWaveform(track); commitPartPins(); };
+        partsMenu.onUnpinWaveform = [this]()
+                            { audioProcessor.getPartMap().unpinWaveform();    commitPartPins(); };
+        partsMenu.onDismiss  = [this]() { partsMenu.setVisible(false); };
+        addChildComponent(partsMenu);
+    }
+
     updateBanner.onPromptDismissed = [this]() { audioProcessor.updatePromptDismissed = true; };
     updateChecker.onUpdateCheckComplete = [this](const UpdateChecker::UpdateInfo& info)
     {
@@ -1007,6 +1151,10 @@ int ChartchoticAudioProcessorEditor::drawBannerLine(juce::Graphics& g, const juc
 
 void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 {
+    // Painted after every child, so toFront does not lift a panel above it. The parts menu is
+    // the one thing meant to sit over the scene, so the scene's own labels stand down for it.
+    if (partsMenu.isVisible()) return;
+
     drawSectionBanner(g);
 
     // "Nothing selected" or "no parts detected" placeholder
@@ -1261,6 +1409,8 @@ void ChartchoticAudioProcessorEditor::resized()
     }
 
     footer.setBounds(0, getHeight() - footerH, getWidth(), footerH);
+
+    if (partsMenu.isVisible()) layoutPartsMenu();
 
     // Rebake shared track cache when scene dimensions change or cache was externally invalidated
     if (trackImageCache.isDirty() ||

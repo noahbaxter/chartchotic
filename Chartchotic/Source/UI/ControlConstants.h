@@ -303,6 +303,25 @@ inline juce::String getPartDisplayName(Part p)
     }
 }
 
+// Five icons cover fourteen parts, so the variants are told apart by a letter in the corner
+// rather than by art of their own. Empty for the part an icon already means on its own.
+inline juce::String getPartBadge(Part p)
+{
+    switch (p) {
+        case Part::RHYTHM:      return "R";
+        case Part::GUITAR_COOP: return "C";
+        case Part::ELITE_DRUMS: return "E";
+        // 6-fret, which is what GHL is; the pick glyph it wants is not in a system font.
+        case Part::GHL_GUITAR:
+        case Part::GHL_BASS:    return "6";
+        case Part::PRO_GUITAR:
+        case Part::PRO_BASS:
+        case Part::PRO_KEYS:    return "P";
+        case Part::HARMONIES:   return "H";
+        default:                return {};
+    }
+}
+
 // Per-instrument icon (BinaryData pointer + size)
 struct PartIconData {
     const char* data;
@@ -320,6 +339,8 @@ inline PartIconData getPartIcon(Part p)
         case Part::PRO_BASS:    return { BinaryData::icon_bass_png,   BinaryData::icon_bass_pngSize };
         case Part::KEYS:
         case Part::PRO_KEYS:    return { BinaryData::icon_keys_png,   BinaryData::icon_keys_pngSize };
+        case Part::VOCALS:
+        case Part::HARMONIES:   return { BinaryData::icon_vocals_png, BinaryData::icon_vocals_pngSize };
         default:                return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize };
     }
 #else

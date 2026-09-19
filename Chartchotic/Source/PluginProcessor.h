@@ -14,6 +14,7 @@
 #include "Midi/Processing/MidiProcessor.h"
 #include "Midi/Providers/REAPER/ReaperMidiProvider.h"
 #include "Midi/InstrumentSession.h"
+#include "Midi/Discovery/PartMapping.h"
 #include "DebugTools/Logger.h"
 
 // Forward declarations
@@ -122,6 +123,13 @@ public:
     // Multi-instrument session (REAPER Global mode + standalone debug)
     InstrumentSession* getInstrumentSession() { return instrumentSession.get(); }
     void createInstrumentSession();
+
+    // Which REAPER track feeds which part. Lives here, not in the editor, because discovery
+    // reads it and has to keep working with the window closed.
+    PartMapping::Map& getPartMap() { return partMap; }
+    // Re-run discovery against the map as it stands now. Called when a pin changes, so the
+    // highways follow the menu instead of waiting for the next reload.
+    void rediscoverParts();
     void destroyInstrumentSession() { instrumentSession.reset(); }
 
 
@@ -159,6 +167,7 @@ public:
 
     // Multi-instrument session (owns discovery + provider)
     std::unique_ptr<InstrumentSession> instrumentSession;
+    PartMapping::Map partMap;
 
     // Display window size (set by editor, used by pipeline)
     PPQ displayWindowSize = PPQ(4.0);
