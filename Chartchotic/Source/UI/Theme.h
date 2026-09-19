@@ -31,6 +31,12 @@ public:
     // Edit are told apart by which segment is lit, not by the bar changing hue under you.
     static constexpr juce::uint32 controlSelected  = coral;
 
+    // The parts menu's utility block (EVENTS, BEAT, VENUE). A wash a shade off the panel
+    // ground plus a brighter rule where it starts, so the block reads as a different kind of
+    // thing from the instrument columns without introducing another hue to the chrome.
+    static constexpr juce::uint32 panelGroupBg     = 0xFF1B1B20;
+    static constexpr juce::uint32 panelGroupLine   = 0xFF4A4A56;
+
     // Accent palette (matches logo dot cluster)
     static constexpr juce::uint32 green  = 0xFF5CB85C;
     static constexpr juce::uint32 red    = coral;

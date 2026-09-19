@@ -33,6 +33,10 @@ namespace PartMapping
     inline const std::vector<NameHint>& getNameHints()
     {
         static const std::vector<NameHint> hints = {
+            // No instrument is ever called one, and templates prefix it freely ("MV VENUE"),
+            // while the format documents only the bare name (`_refs/midi/overview.md:51`).
+            // BEAT gets no hint on purpose: "Beat Box Gtr" is a guitar, not the beat grid.
+            { "venue",       Part::VENUE },
             { "elite",       Part::ELITE_DRUMS },
             { "coop",        Part::GUITAR_COOP },
             { "co op",       Part::GUITAR_COOP },
@@ -86,17 +90,12 @@ namespace PartMapping
     {
         const auto key = normalise(name).trim();
 
-        // Whole name, because these are short words an instrument track can legitimately
-        // contain: "Beat Box Gtr" is a guitar, not the BEAT track.
-        static const char* exact[] = { "events", "beat", "master", "tempo map" };
+        // Only the names that are not a Part at all. EVENTS, BEAT and VENUE used to be here
+        // too, which is why they could never be mapped to anything: they now have Parts of
+        // their own and resolve through guessPart like every other track.
+        static const char* exact[] = { "master", "tempo map" };
         for (const auto* u : exact)
             if (key == u) return true;
-
-        // Venue is matched as a word anywhere instead, since no instrument is ever called one
-        // and templates prefix it freely ("MV VENUE"). The format only documents the bare
-        // name (`_refs/midi/overview.md:51`), so the prefix is a template's, not the spec's.
-        for (const auto& token : juce::StringArray::fromTokens(key, " ", {}))
-            if (token == "venue") return true;
 
         return false;
     }
@@ -113,8 +112,14 @@ namespace PartMapping
     }
 
     // Whether a part can be mapped at all. The others are shown so the table says what exists,
-    // but nothing renders them, so pointing a track at one would map into a dead end.
-    inline bool isMappable(Part p) { return isHighwayRenderable(p); }
+    // but nothing reads them, so pointing a track at one would map into a dead end.
+    //
+    // NOT the same question as isHighwayRenderable, though it was an alias for it until the
+    // EVENTS track went missing: EVENTS has no highway and never gets a slot, but something
+    // does read it (sections and the song list, InstrumentSession.cpp:143), so it has to be
+    // mappable. Conflating "can I draw it" with "can I point a track at it" is what silently
+    // dropped it from discovery.
+    inline bool isMappable(Part p) { return isHighwayRenderable(p) || p == Part::EVENTS; }
 
     // The parts almost every chart has. The rest are real but rare, and burying them behind a
     // toggle keeps the common case to a handful of columns instead of fourteen.
@@ -136,7 +141,7 @@ namespace PartMapping
     {
         std::vector<Part> parts;
         for (const auto& entry : getImplementedTrackNames())
-            if (entry.part != Part::EVENTS) parts.push_back(entry.part);
+            parts.push_back(entry.part);
         for (const auto& entry : getUnimplementedTrackNames())
             if (std::find(parts.begin(), parts.end(), entry.part) == parts.end())
                 parts.push_back(entry.part);
