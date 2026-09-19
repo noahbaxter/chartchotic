@@ -1173,19 +1173,23 @@ void ToolbarComponent::setDiscoveredParts(const std::vector<Part>& parts)
     discoveredParts = parts;
     showMultiInstrument = true;
 
-    // Build CircleItems from discovered parts (with per-instrument icons)
+    // Composite icons, badge included, so Rhythm and Co-op are not three identical guitars
+    // in a row. Same renderer the parts menu uses.
     std::vector<CircleItem> circleItems;
     for (auto part : parts)
     {
         CircleItem item;
         item.tooltip = getPartDisplayName(part);
-        auto icon = getPartIcon(part);
-        item.image = juce::ImageCache::getFromMemory(icon.data, icon.size);
+        item.image = PartIcon::get(part, partIconRenderSize);
         circleItems.push_back(std::move(item));
     }
 
     instrumentSelector.setItems(std::move(circleItems));
-    instrumentSelector.setMultiSelectMode(true, true); // with "All" option
+    // "All" sits as a row in the expanded panel rather than as another circle in the stack, so
+    // it reads as a choice in a list instead of a fifteenth instrument, and it is the way back
+    // to everything after scrolling down to one. It only earns that row when there is more
+    // than one thing to be all of: with a single instrument it presses the same button twice.
+    instrumentSelector.setMultiSelectMode(true, parts.size() > 1);
 
     // Wire multi-select callback
     instrumentSelector.onMultiSelectionChanged = [this](int index, bool modifierHeld) {

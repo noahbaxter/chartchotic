@@ -148,6 +148,30 @@ TEST_CASE("PartMapping - pins survive a round trip through state", "[partmapping
     REQUIRE(restored.pinnedTrack(Part::ELITE_DRUMS) == 5);
 }
 
+TEST_CASE("PartMapping - deleting a track renumbers the pins after it", "[partmapping]")
+{
+    PartMapping::Map map;
+    map.pin(Part::GUITAR, 2);
+    map.pin(Part::BASS, 5);
+    map.pin(Part::DRUMS, 7);
+    map.pinWaveform(9);
+
+    map.trackDeleted(5);
+
+    REQUIRE(map.pinnedTrack(Part::GUITAR) == 2);            // before it, untouched
+    REQUIRE_FALSE(map.pinnedTrack(Part::BASS).has_value()); // the deleted one itself
+    REQUIRE(map.pinnedTrack(Part::DRUMS) == 6);             // after it, shifted down
+    REQUIRE(map.waveformTrack() == 8);
+}
+
+TEST_CASE("PartMapping - deleting the waveform's own track clears it", "[partmapping]")
+{
+    PartMapping::Map map;
+    map.pinWaveform(3);
+    map.trackDeleted(3);
+    REQUIRE_FALSE(map.waveformTrack().has_value());
+}
+
 TEST_CASE("PartMapping - clearing a part turns off the guess too", "[partmapping]")
 {
     PartMapping::Map map;
