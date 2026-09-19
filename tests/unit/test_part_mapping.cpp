@@ -331,17 +331,25 @@ TEST_CASE("PartMapping - the waveform track saves beside the part pins", "[partm
     REQUIRE_FALSE(restored.waveformTrack().has_value());
 }
 
-TEST_CASE("PartMapping - every part gets a column, EVENTS included", "[partmapping]")
+TEST_CASE("PartMapping - only mappable parts get a column", "[partmapping]")
 {
     const auto parts = PartMapping::columnParts();
     const auto has = [&](Part p)
     { return std::find(parts.begin(), parts.end(), p) != parts.end(); };
 
     REQUIRE(has(Part::GUITAR));
-    // Shown struck through rather than hidden, so the table reads as the full list.
-    REQUIRE(has(Part::GHL_GUITAR));
+    REQUIRE(has(Part::DRUMS));
     // A column of its own, beside the waveform. Leaving it out is what hid the bug.
     REQUIRE(has(Part::EVENTS));
+
+    // Nothing renders these, so a column for them is one you cannot use.
+    REQUIRE_FALSE(has(Part::GHL_GUITAR));
+    REQUIRE_FALSE(has(Part::GHL_BASS));
+    REQUIRE_FALSE(has(Part::PRO_GUITAR));
+    REQUIRE_FALSE(has(Part::PRO_BASS));
+
+    for (auto p : parts)
+        REQUIRE(PartMapping::isMappable(p));
 
     // The app's usual part order, so the columns match every other picker.
     for (size_t i = 1; i < parts.size(); ++i)

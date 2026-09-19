@@ -140,15 +140,15 @@ namespace PartMapping
         }
     }
 
-    // Every part that gets a column, in the app's usual order. Unmappable parts are included:
-    // they are drawn struck through rather than hidden, so the table reads as the full list.
+    // Every part that gets a column, in the app's usual order. Only the ones a track can
+    // actually be pointed at: the GHL and Pro entries used to show struck through so the table
+    // read as the full list, but a column you cannot use is a column in the way, and they made
+    // the row wider than the useful part of it.
     inline std::vector<Part> columnParts()
     {
         std::vector<Part> parts;
         for (const auto& entry : getImplementedTrackNames())
-            parts.push_back(entry.part);
-        for (const auto& entry : getUnimplementedTrackNames())
-            if (std::find(parts.begin(), parts.end(), entry.part) == parts.end())
+            if (isMappable(entry.part))
                 parts.push_back(entry.part);
 
         std::sort(parts.begin(), parts.end(), [](Part a, Part b)
