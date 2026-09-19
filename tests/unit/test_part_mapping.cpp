@@ -82,15 +82,37 @@ TEST_CASE("PartMapping - pinning a part steals it from wherever it was", "[partm
 TEST_CASE("PartMapping - unpinning hands the part back to the guess", "[partmapping]")
 {
     PartMapping::Map map;
-    const std::vector<InstrumentTrackInfo> tracks = { track(0, "Lead Gtr") };
+    // Both tracks have to be in the list. A pin is only resolved against tracks that exist,
+    // so pinning to an index the caller never passes in tests the missing-track guard below
+    // rather than the handover this case is about.
+    const std::vector<InstrumentTrackInfo> tracks = { track(0, "Lead Gtr"), track(5, "Whatever") };
 
     map.pin(Part::GUITAR, 5);
-    REQUIRE(map.resolve(tracks)[0].sourceTrackIndex == 5);
+    const auto pinned = map.resolve(tracks);
+    REQUIRE(pinned[0].sourceTrackIndex == 5);
+    REQUIRE(pinned[0].origin == PartMapping::Origin::Pin);
 
     map.unpin(Part::GUITAR);
     const auto out = map.resolve(tracks);
     REQUIRE(out[0].sourceTrackIndex == 0);
     REQUIRE(out[0].origin == PartMapping::Origin::Guess);
+}
+
+TEST_CASE("PartMapping - a pin to a track that is not there resolves to nothing", "[partmapping]")
+{
+    PartMapping::Map map;
+    map.pin(Part::DRUMS, 9);
+
+    // Nothing to show for it, so the part does not light up as mapped with no row under it.
+    const auto out = map.resolve({ track(0, "Lead Gtr") });
+    REQUIRE(std::none_of(out.begin(), out.end(),
+                         [](const auto& a) { return a.part == Part::DRUMS; }));
+
+    // But the pin is kept, so the mapping comes back when the track does.
+    REQUIRE(map.pinnedTrack(Part::DRUMS) == 9);
+    const auto back = map.resolve({ track(0, "Lead Gtr"), track(9, "Whatever") });
+    REQUIRE(std::any_of(back.begin(), back.end(),
+                        [](const auto& a) { return a.part == Part::DRUMS && a.sourceTrackIndex == 9; }));
 }
 
 TEST_CASE("PartMapping - two tracks reading the same settle on the lower index", "[partmapping]")
