@@ -20,12 +20,27 @@ public:
         if (!reaperGetFunc) return {};
 
         std::vector<InstrumentTrackInfo> candidates;
+        std::vector<InstrumentTrackInfo> songScoped;
         const int trackCount = ReaperTrackDetector::getTrackCount(reaperGetFunc);
 
         for (int i = 0; i < trackCount; ++i)
         {
             auto name = juce::String(ReaperTrackDetector::getTrackName(reaperGetFunc, i));
             const auto content = ReaperTrackDetector::getTrackContent(reaperGetFunc, i);
+
+            // EVENTS never goes through the mapping. It is song-scoped, so there is no column
+            // to claim and no part to pin it to, and the mapping would drop it twice over:
+            // isUtilityTrackName matches it by name, and resolve() enforces isMappable, which
+            // is the highway whitelist. Sections and the song list come from this track alone
+            // (InstrumentSession.cpp:143), so filtering it here silently emptied both.
+            // First one wins, matching how duplicate parts were handled before the mapping.
+            Part named;
+            if (matchTrackNameToPart(name.toStdString(), named) && named == Part::EVENTS)
+            {
+                if (songScoped.empty())
+                    songScoped.push_back({ Part::EVENTS, i, name });
+                continue;
+            }
 
             if (!PartMapping::canBeGuessedAsPart(content.midi, content.audio,
                                                  PartMapping::isUtilityTrackName(name)))
@@ -38,7 +53,7 @@ public:
         static const PartMapping::Map empty;
         const auto& mapping = partMap != nullptr ? *partMap : empty;
 
-        std::vector<InstrumentTrackInfo> tracks;
+        std::vector<InstrumentTrackInfo> tracks = songScoped;
         for (const auto& assignment : mapping.resolve(candidates))
         {
             InstrumentTrackInfo info;
