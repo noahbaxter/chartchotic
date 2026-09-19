@@ -165,10 +165,16 @@ void ChartchoticAudioProcessor::createInstrumentSession()
         return;
 
     auto noteProvider = std::make_unique<ReaperTrackNoteProvider>(reaperMidiProvider);
-    auto discovery = std::make_unique<ReaperGlobalDiscovery>(reaperMidiProvider.getReaperGetFunc());
+    auto discovery = std::make_unique<ReaperGlobalDiscovery>(reaperMidiProvider.getReaperGetFunc(),
+                                                             &partMap);
 
     instrumentSession = std::make_unique<InstrumentSession>(std::move(discovery), std::move(noteProvider));
     instrumentSession->discover();
+}
+
+void ChartchoticAudioProcessor::rediscoverParts()
+{
+    if (instrumentSession) instrumentSession->discover();
 }
 
 // MANUAL OVERRIDES

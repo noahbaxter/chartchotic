@@ -53,6 +53,48 @@ int ReaperTrackDetector::detectPluginTrack(ReaperGetFunc reaperGetFunc)
     return -1;  // Not found
 }
 
+ReaperTrackDetector::TrackContent
+ReaperTrackDetector::getTrackContent(ReaperGetFunc reaperGetFunc, int trackIndex)
+{
+    TrackContent content;
+    if (!reaperGetFunc)
+        return content;
+
+    auto GetTrack = (void*(*)(int, int))reaperGetFunc("GetTrack");
+    auto CountTrackMediaItems = (int(*)(void*))reaperGetFunc("CountTrackMediaItems");
+    auto GetTrackMediaItem = (void*(*)(void*, int))reaperGetFunc("GetTrackMediaItem");
+    auto GetActiveTake = (void*(*)(void*))reaperGetFunc("GetActiveTake");
+    auto TakeIsMIDI = (bool(*)(void*))reaperGetFunc("TakeIsMIDI");
+
+    if (!GetTrack || !CountTrackMediaItems || !GetTrackMediaItem || !GetActiveTake || !TakeIsMIDI)
+        return content;
+
+    void* track = GetTrack(0, trackIndex);  // 0 = current project
+    if (!track)
+        return content;
+
+    int itemCount = CountTrackMediaItems(track);
+    for (int i = 0; i < itemCount; ++i)
+    {
+        void* item = GetTrackMediaItem(track, i);
+        if (!item)
+            continue;
+
+        void* take = GetActiveTake(item);
+        if (!take)
+            continue;
+
+        if (TakeIsMIDI(take)) content.midi = true;
+        else                  content.audio = true;
+
+        // Both answers found, so the rest of a long track's items say nothing new.
+        if (content.midi && content.audio)
+            break;
+    }
+
+    return content;
+}
+
 std::string ReaperTrackDetector::getTrackName(ReaperGetFunc reaperGetFunc, int trackIndex)
 {
     if (!reaperGetFunc)

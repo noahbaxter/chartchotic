@@ -26,4 +26,9 @@ public:
 
     // Get the total number of tracks in the project
     static int getTrackCount(ReaperGetFunc reaperGetFunc);
+
+    // What a track actually holds. Parts need MIDI and the waveform needs audio, so both
+    // answers come from one walk of the track's items rather than two.
+    struct TrackContent { bool midi = false; bool audio = false; };
+    static TrackContent getTrackContent(ReaperGetFunc reaperGetFunc, int trackIndex);
 };

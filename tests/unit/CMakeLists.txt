@@ -35,6 +35,7 @@ target_sources(unit_tests PRIVATE
     test_phrase_math.cpp
     test_grid_math.cpp
     test_events_track_text.cpp
+    test_part_mapping.cpp
     test_frame.cpp
     ${SOURCE_ROOT}/Editor/AuthoringConfig.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
