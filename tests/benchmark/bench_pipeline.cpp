@@ -19,8 +19,8 @@
 #include "Midi/Utils/MidiTypes.h"
 #include "Midi/Providers/REAPER/MidiCache.h"
 #include "Midi/ChartTextEvent.h"
-#include "Utils/Utils.h"
-#include "Utils/TimeConverter.h"
+#include "Utils/ChartTypes.h"
+#include "Midi/Utils/TimeConverter.h"
 #include "Visual/HighwayComponent.h"
 #include "Visual/Managers/AssetManager.h"
 
