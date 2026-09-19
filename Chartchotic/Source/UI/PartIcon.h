@@ -14,12 +14,16 @@ namespace PartIcon
 
     inline juce::Image render(Part part, int sizePx)
     {
-        juce::Image out(juce::Image::ARGB, sizePx, sizePx, true);
+        // A part with no art returns nothing rather than a blank square, so a caller can tell
+        // "no icon" from "transparent icon" and draw whatever it wants instead. Returning the
+        // blank made every isValid() check pass and hid the fact that EVENTS had no icon.
         const auto icon = getPartIcon(part);
-        if (icon.data == nullptr) return out;
+        if (icon.data == nullptr) return {};
 
         auto base = juce::ImageCache::getFromMemory(icon.data, icon.size);
-        if (!base.isValid()) return out;
+        if (!base.isValid()) return {};
+
+        juce::Image out(juce::Image::ARGB, sizePx, sizePx, true);
 
         juce::Graphics g(out);
         const auto box = juce::Rectangle<int>(0, 0, sizePx, sizePx);
