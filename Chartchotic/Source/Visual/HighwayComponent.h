@@ -97,7 +97,9 @@ public:
     // Format a project QN as "M.B" position label (e.g. "37.2.5"). Wired by PluginEditor.
     void setFormatPositionQN(std::function<juce::String(double)> fn) { formatPositionQN = std::move(fn); }
 
-    void setFrameData(const HighwayFrameData& data);
+    // By value so a caller with a dead local can move its windows in rather than deep-copying
+    // seven containers, one of them a std::map with a node per visible note, every frame per slot.
+    void setFrameData(HighwayFrameData data);
     void rebuildTrack();
 
     // The board's colours changed under us. rebuildTrack alone is not enough: TrackRenderer

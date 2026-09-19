@@ -716,9 +716,13 @@ void ChartchoticAudioProcessorEditor::onFrame()
                 FrameDataBuilder::buildStandard(frameData, ctx, *slot.interpreter);
             frameData.builtForPart = slot.interpreter->instrumentPart;
 
+#ifdef DEBUG
+            // Only the frame profiler reads this back after the loop, so in release the copy
+            // was pure waste and the windows can go straight into the slot.
             if (i == 0)
                 primaryFrameData = frameData;
-            slot.highway->setFrameData(frameData);
+#endif
+            slot.highway->setFrameData(std::move(frameData));
             slot.highway->repaint();
         }
     }
