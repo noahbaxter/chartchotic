@@ -13,6 +13,7 @@
 #   --compare         Compare against saved baseline (20% threshold)
 #   --json            Output raw JSON instead of table
 #   --iterations N    Override iteration count (default: 100)
+#   --texture         Enable the highway texture (off by default, as in the plugin)
 #   --no-build        Skip build step (use existing binary)
 
 set -e
@@ -50,17 +51,30 @@ usage() {
     echo "  --compare         Compare against saved baseline"
     echo "  --json            Output raw JSON instead of table"
     echo "  --iterations N    Override iteration count (default: 100)"
+    echo "  --texture         Enable the highway texture (off by default, as in the plugin)"
     echo "  --no-build        Skip build step (use existing binary)"
     exit 1
 }
 
 build_benchmark() {
     echo "Building benchmark (Release)..."
-    cmake -B "$BENCH_BUILD_DIR" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -S "$SCRIPT_DIR/tests/benchmark" \
-        > /dev/null 2>&1
-    cmake --build "$BENCH_BUILD_DIR" --config Release 2>&1 | tail -1
+    # Configure output is quiet while it succeeds and loud when it does not. Swallowing it
+    # unconditionally is how the benchmark sat broken against a moved asset path unnoticed.
+    if ! cmake -B "$BENCH_BUILD_DIR" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -S "$SCRIPT_DIR/tests/benchmark" \
+            > "$BENCH_BUILD_DIR.configure.log" 2>&1; then
+        echo "Error: cmake configure failed"
+        cat "$BENCH_BUILD_DIR.configure.log"
+        exit 1
+    fi
+
+    if ! cmake --build "$BENCH_BUILD_DIR" --config Release > "$BENCH_BUILD_DIR.build.log" 2>&1; then
+        echo "Error: benchmark build failed"
+        tail -40 "$BENCH_BUILD_DIR.build.log"
+        exit 1
+    fi
+    tail -1 "$BENCH_BUILD_DIR.build.log"
 
     BENCH_BIN="$(find_bench_bin)"
     if [ -z "$BENCH_BIN" ]; then
@@ -84,6 +98,7 @@ cmd_benchmark() {
                 BENCH_ARGS+=("--baseline" "$BASELINE_PATH")
                 ;;
             --json)         BENCH_ARGS+=("--json") ;;
+            --texture)      BENCH_ARGS+=("--texture") ;;
             --iterations)
                 BENCH_ARGS+=("--iterations" "$2")
                 shift

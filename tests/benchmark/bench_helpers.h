@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "Utils/TimeConverter.h"
+#include "Midi/Utils/TimeConverter.h"
 #include <random>
 
 namespace BenchHelpers

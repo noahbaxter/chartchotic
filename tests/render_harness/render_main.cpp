@@ -267,6 +267,7 @@ int main(int argc, char** argv)
     // Editor view overlays, as HighwayComponent appends them in write mode.
     bool spView = false;      // --sp-view: star power bands
     bool phraseView = false;  // --phrase-view: fill lanes and the activation gem
+    bool lowQuality = false;  // --low-quality: kCGInterpolationNone, to eyeball the resampling cost
 
     for (int i = 1; i < argc; ++i)
     {
@@ -283,6 +284,7 @@ int main(int argc, char** argv)
         else if (a == "--fret-width" && i + 1 < argc) fretWidth = juce::String(argv[++i]).getFloatValue();
         else if (a == "--scroll" && i + 1 < argc) scroll = juce::String(argv[++i]).getFloatValue();
         else if (a == "--bench" && i + 1 < argc) benchIters = juce::String(argv[++i]).getIntValue();
+        else if (a == "--low-quality") lowQuality = true;
         else if (a == "--flam-width"  && i + 1 < argc) {
             float v = juce::String(argv[++i]).getFloatValue();   // sets every glyph type
             flamWidths = { v, v, v, v, v, v };
@@ -408,8 +410,11 @@ int main(int argc, char** argv)
 
         // The colour an activation gem is recut in, same as NoteRenderer::activationRecut.
         auto actTint = [&](const Row& r, uint c) {
+            const Part p = r.drums ? (r.elite ? Part::ELITE_DRUMS : Part::DRUMS) : Part::GUITAR;
+            // kindOf has no default on purpose: elite resolves cymbal-vs-pad from the lane, and
+            // a plain NOTE stands in for the gem the preview does not carry.
             const juce::Colour lane = assets.getLaneColour(
-                c, r.drums ? (r.elite ? Part::ELITE_DRUMS : Part::DRUMS) : Part::GUITAR, false);
+                c, p, false, AssetManager::kindOf(p, c, Gem::NOTE));
             return lane.withMultipliedSaturation(PHRASE_ACTIVATION_VIVID_SATURATION)
                        .brighter(PHRASE_ACTIVATION_VIVID_BRIGHTEN);
         };
@@ -789,6 +794,8 @@ int main(int argc, char** argv)
     juce::Image canvas(juce::Image::ARGB, renderWidth, totalH, true);
     {
         juce::Graphics g(canvas);
+        if (lowQuality)
+            g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
         if (showBoard)
         {
             track.paint(g, renderWidth, totalH);
