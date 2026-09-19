@@ -11,5 +11,5 @@ Installation:
    - VST3: ~/Library/Audio/Plug-Ins/VST3/
    - AU: ~/Library/Audio/Plug-Ins/Components/
 
-Requirements: macOS 10.15 or later
+Requirements: macOS 11.0 or later
 Built: Thu  9 Oct 2025 13:41:01 PDT
