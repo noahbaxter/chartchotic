@@ -29,6 +29,7 @@
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
 #include "UI/PartsMenuComponent.h"
+#include "UI/ConfirmPrompt.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
@@ -391,11 +392,22 @@ private:
     // The map itself lives on the processor, since discovery reads it and has to keep
     // working with the window shut. This is only the view on it.
     PartsMenuComponent partsMenu;
+    ConfirmPrompt confirmPrompt;
     static constexpr int partsMenuMargin = 16;
     void togglePartsMenu();
+    void createTrackForPart(Part part);
+    void confirmDeleteTrack(int trackIndex, const juce::String& name);
+    void deleteTrack(int trackIndex);
     void openPartsMenu();
     void layoutPartsMenu();
     void refreshPartsMenuTracks();
+    // REAPER changes tracks out from under the open menu, an undo of a delete included, so
+    // the list is re-read while it is on screen rather than only when it opens. Throttled:
+    // reading it walks every track's items, which is far more than a frame's worth of work
+    // for an answer that changes when you go and change it.
+    void pollPartsMenuTracks();
+    static constexpr double partsMenuPollIntervalMs = 250.0;
+    double lastPartsMenuPollMs = 0.0;
     void commitPartPins();
     UpdateChecker updateChecker;
 

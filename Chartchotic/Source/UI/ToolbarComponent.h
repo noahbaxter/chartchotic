@@ -17,6 +17,7 @@
 #include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
+#include "PartIcon.h"
 
 class InteractionController;
 #ifdef DEBUG
@@ -30,6 +31,9 @@ public:
     static constexpr float toolbarRatio = TOOLBAR_RATIO;
     static constexpr int maxToolbarHeight = TOOLBAR_MAX_HEIGHT;
     static constexpr int referenceHeight = 36;
+    // Baked once at a size that still looks right scaled up on a large window, rather than
+    // re-rendered every time the toolbar resizes.
+    static constexpr int partIconRenderSize = 64;
     static constexpr float stripFraction = 1.0f;
     static constexpr float logoFontRatio = 0.90f;
 

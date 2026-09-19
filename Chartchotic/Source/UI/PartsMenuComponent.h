@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include <vector>
 #include "ControlConstants.h"
+#include "PartIcon.h"
 #include "Theme.h"
 #include "../Midi/Discovery/PartMapping.h"
 
@@ -24,6 +25,18 @@ public:
         // but never dropped: showing all tracks has to mean all of them, or the one you are
         // looking for is missing with no way to ask for it.
         bool isUtility;
+        // The track this plugin instance is on. Deleting it takes the plugin, the editor and
+        // everything mid-callback down with it, so the row never offers the X at all.
+        bool hostsPlugin;
+
+        // The list is re-read while the menu is open, so the menu needs to know when the
+        // answer is the same one it already has and nothing needs redrawing.
+        bool operator==(const TrackRow& o) const
+        {
+            return sourceTrackIndex == o.sourceTrackIndex && name == o.name
+                && hasMidiItems == o.hasMidiItems && hasAudioItems == o.hasAudioItems
+                && isUtility == o.isUtility && hostsPlugin == o.hostsPlugin;
+        }
     };
 
     // Takes focus so Escape closes it. Not opaque: the panel sits just short of solid so the
@@ -34,6 +47,10 @@ public:
     std::function<void(Part, int)> onPin;      // part, track index
     // Turn the part off: no pin, and no guess either.
     std::function<void(Part)>      onClearPart;
+    // Make a track named for this part and point the part at it.
+    std::function<void(Part)>      onCreateTrackForPart;
+    // Destructive, so the host confirms before doing anything.
+    std::function<void(int, juce::String)> onDeleteTrack;   // track index, name for the prompt
     // The waveform view is not a part, so it gets its own pair rather than a fake Part
     // threaded through every switch that takes one.
     std::function<void(int)>       onPinWaveform;
@@ -51,7 +68,16 @@ public:
         refresh();
     }
 
-    void setTracks(std::vector<TrackRow> rows) { tracks = std::move(rows); refresh(); }
+    // Says whether it took anything, so a caller polling the project does not relayout and
+    // repaint the table twenty times a second over a list that has not moved.
+    bool setTracks(std::vector<TrackRow> rows)
+    {
+        if (rows == tracks) return false;
+        tracks = std::move(rows);
+        refresh();
+        return true;
+    }
+
     void setMap(const PartMapping::Map* m)     { map = m; refresh(); }
     void refresh() { rebuildLayout(); repaint(); }
 
@@ -59,8 +85,11 @@ public:
     // difference is what scrolls.
     juce::Point<int> preferredSize() const
     {
+        // Header plus everything that scrolls under it, add row and bottom gutter included.
+        // Asking for less than the table draws is what pinned the plus row to the bottom edge
+        // and made a list that fits scroll anyway.
         return { m.nameColumnW + displayColumns() * m.cellW + m.pad,
-                 m.headerH + (int)visibleTracks.size() * m.rowH + m.pad };
+                 m.headerH + contentH() };
     }
 
     void paint(juce::Graphics& g) override
@@ -84,12 +113,14 @@ public:
             juce::Graphics::ScopedSaveState clip(g);
             g.reduceClipRegion(cellViewport());
             for (size_t r = 0; r < visibleTracks.size(); ++r) paintRowCells(g, (int)r);
+            paintAddRowCells(g);
             paintGridLines(g);
         }
         {
             juce::Graphics::ScopedSaveState clip(g);
             g.reduceClipRegion(nameViewport());
             for (size_t r = 0; r < visibleTracks.size(); ++r) paintRowName(g, (int)r);
+            paintAddRowName(g);
         }
 
         paintTrackColumnHeader(g);
@@ -108,13 +139,40 @@ public:
 
     void mouseMove(const juce::MouseEvent& e) override
     {
-        const auto cell = cellAt(e.getPosition());
-        if (cell != hoverCell) { hoverCell = cell; repaint(); }
+        auto cell = cellAt(e.getPosition());
+
+        // The name column is not a cell, but hovering it still lights the row.
+        const bool inNameColumn = e.getPosition().x < nameColumnWidth()
+                               && e.getPosition().y >= headerHeight();
+        if (cell.row < 0 && inNameColumn)
+            cell.row = rowAtY(e.getPosition().y);
+
+        // The X belongs to the name, not the row: reaching across a row of cells is not
+        // asking about deleting the track, and an X that appears out there is one stray
+        // click from taking the track with it.
+        const int nameRow = inNameColumn ? cell.row : -1;
+
+        const bool overDelete = canDeleteRow(nameRow)
+                             && deleteButtonBounds(nameRow).contains(e.getPosition());
+
+        if (cell != hoverCell || nameRow != hoveredNameRow || overDelete != hoveredOverDelete)
+        {
+            hoverCell = cell;
+            hoveredNameRow = nameRow;
+            hoveredOverDelete = overDelete;
+            repaint();
+        }
     }
 
     void mouseExit(const juce::MouseEvent&) override
     {
-        if (hoverCell != Cell{}) { hoverCell = {}; repaint(); }
+        if (hoverCell != Cell{} || hoveredNameRow >= 0 || hoveredOverDelete)
+        {
+            hoverCell = {};
+            hoveredNameRow = -1;
+            hoveredOverDelete = false;
+            repaint();
+        }
     }
 
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
@@ -130,14 +188,29 @@ public:
 
     void mouseDown(const juce::MouseEvent& e) override
     {
+        // The X sits in the name column, outside any cell, so it is checked before them.
+        if (hoveredOverDelete && canDeleteRow(hoveredNameRow)
+            && deleteButtonBounds(hoveredNameRow).contains(e.getPosition()))
+        {
+            const auto& track = visibleTracks[(size_t)hoveredNameRow];
+            if (onDeleteTrack) onDeleteTrack(track.sourceTrackIndex, track.name);
+            return;
+        }
+
         const auto cell = cellAt(e.getPosition());
         if (cell.row < 0 || cell.column < 0 || map == nullptr) return;
+
+        if (isAddRow(cell.row))
+        {
+            if (canCreateForColumn(cell.column) && onCreateTrackForPart)
+                onCreateTrackForPart(partForColumn(cell.column));
+            return;
+        }
 
         if (!cellIsLive(cell.row, cell.column)) return;
 
         const int trackIndex = visibleTracks[(size_t)cell.row].sourceTrackIndex;
-        // Right click only ever takes a mapping off, whatever the cell holds. Left click
-        // toggles, which is quicker but means the same click both sets and clears.
+        // Right click only ever takes a mapping off, whatever the cell holds.
         const bool clearOnly = e.mods.isPopupMenu();
 
         if (isWaveformColumn(cell.column))
@@ -152,12 +225,15 @@ public:
         const auto part = partForColumn(cell.column);
 
         // Right click turns the part off outright, guess included, which is the only way to
-        // say no to something the app decided on its own. Left click on the cell that already
-        // holds it does the same; anywhere else claims it from whichever track had it.
-        const bool held = cellState(trackIndex, part).has_value();
+        // say no to something the app decided on its own.
+        const auto origin = cellState(trackIndex, part);
 
-        if (clearOnly || held) { if (onClearPart) onClearPart(part); }
-        else if (onPin)          onPin(part, trackIndex);
+        // A guess left-clicks into a pin: the app worked it out from the name and clicking it
+        // is you saying yes, which is the whole point of the cell being clickable. Clearing a
+        // guess from the left button read as the click undoing the thing it was agreeing to.
+        // Only a pin toggles off, and right click still clears whatever is there.
+        if (clearOnly || origin == PartMapping::Origin::Pin) { if (onClearPart) onClearPart(part); }
+        else if (onPin)                                        onPin(part, trackIndex);
 
         refresh();
     }
@@ -182,7 +258,7 @@ private:
     struct Metrics
     {
         int rowH = 26, headerH = 64, nameColumnW = 180, cellW = 56, pad = 8, numberColumnW = 26;
-        int stripH = 22, scrollBarW = 4, wheelStep = 60, iconSize = 28;
+        int stripH = 22, scrollBarW = 4, wheelStep = 60, iconSize = 28, bottomPad = 12;
         float fontH = 12.0f, stripFontH = 11.0f, hoverFontH = 13.0f, corner = 4.0f;
     };
 
@@ -195,7 +271,6 @@ private:
     static constexpr float panelDensity = 0.8f;
     static constexpr float panelAlpha   = 0.94f;     // just short of solid, so the board reads through
     static constexpr float outlineAlpha = 0.3f;      // matches the steppers and segmented buttons
-    static constexpr float badgeScale   = 0.42f;     // of the icon box
     static constexpr float fadedAlpha   = 0.35f;     // unmapped column, and the guess it holds
     static constexpr float hoverGrowth  = 1.25f;     // the hovered column's name against the rest
 
@@ -206,8 +281,10 @@ private:
     std::vector<PartMapping::Assignment> resolved;
     const PartMapping::Map* map = nullptr;
     Cell hoverCell;
+    int hoveredNameRow = -1;   // the row whose name is under the cursor, which is what shows the X
     int scrollX = 0, scrollY = 0;
     float chromeScale = 1.0f;
+    bool hoveredOverDelete = false;
 
     void updateMetrics()
     {
@@ -224,6 +301,7 @@ private:
         m.nameColumnW = px(170);
         m.numberColumnW = px(24);
         m.pad         = px(8);
+        m.bottomPad   = px(12);
         m.scrollBarW  = px(4);
         m.wheelStep   = px(60);
         m.fontH       = 12.0f * s;
@@ -248,13 +326,29 @@ private:
     static bool isWaveformColumn(int displayColumn) { return displayColumn == 0; }
     Part partForColumn(int displayColumn) const { return columns[(size_t)displayColumn - 1]; }
 
+    // The trailing "add track" row, which is not a track and never scrolls out of reach of
+    // being the last thing in the list.
+    int addRowIndex() const { return (int)visibleTracks.size(); }
+    bool isAddRow(int row) const { return row == addRowIndex(); }
+
     int contentW() const { return displayColumns() * m.cellW; }
-    int contentH() const { return (int)visibleTracks.size() * m.rowH; }
+    // The add row counts, and a gutter under it: the plus buttons sitting hard against the
+    // panel edge read as a list that got cut off rather than one that ended.
+    int contentH() const { return ((int)visibleTracks.size() + 1) * m.rowH + m.bottomPad; }
     int maxScrollX() const { return juce::jmax(0, contentW() - cellViewport().getWidth()); }
     int maxScrollY() const { return juce::jmax(0, contentH() - cellViewport().getHeight()); }
 
     int columnX(int column) const { return m.nameColumnW + column * m.cellW - scrollX; }
     int rowY(int row) const       { return m.headerH + row * m.rowH - scrollY; }
+
+    // For the hit tests that live outside the grid, in the pinned name column.
+    int nameColumnWidth() const { return m.nameColumnW; }
+    int headerHeight() const    { return m.headerH; }
+    int rowAtY(int y) const
+    {
+        const int row = (y - m.headerH + scrollY) / m.rowH;
+        return (row >= 0 && row <= addRowIndex()) ? row : -1;
+    }
 
     Cell cellAt(juce::Point<int> p) const
     {
@@ -267,7 +361,7 @@ private:
         if (p.y < m.headerH) return { -1, column };
 
         const int row = (p.y - m.headerH + scrollY) / m.rowH;
-        if (row < 0 || row >= (int)visibleTracks.size()) return { -1, column };
+        if (row < 0 || row > addRowIndex()) return { -1, column };
         return { row, column };
     }
 
@@ -414,17 +508,12 @@ private:
         const bool mappable = PartMapping::isMappable(part);
         const bool lit      = mappable && columnIsMapped(part);
 
-        const auto icon = getPartIcon(part);
-        if (icon.data != nullptr)
+        auto image = PartIcon::get(part, m.iconSize);
+        if (image.isValid())
         {
-            auto image = juce::ImageCache::getFromMemory(icon.data, icon.size);
-            if (image.isValid())
-            {
-                g.setOpacity(lit ? 1.0f : fadedAlpha);
-                g.drawImage(image, area.toFloat(), juce::RectanglePlacement::centred);
-                g.setOpacity(1.0f);
-                paintBadge(g, area, part, lit);
-            }
+            g.setOpacity(lit ? 1.0f : fadedAlpha);
+            g.drawImage(image, area.toFloat(), juce::RectanglePlacement::centred);
+            g.setOpacity(1.0f);
         }
 
         // Nothing renders these, so a mapping would point into a dead end. Struck through
@@ -465,19 +554,52 @@ private:
                                                 juce::PathStrokeType::rounded));
     }
 
-    void paintBadge(juce::Graphics& g, juce::Rectangle<int> iconBox, Part part, bool lit)
+    void paintAddRowName(juce::Graphics& g)
     {
-        const auto badge = getPartBadge(part);
-        if (badge.isEmpty()) return;
+        const auto area = juce::Rectangle<int>(0, rowY(addRowIndex()), m.nameColumnW, m.rowH);
+        g.setColour(juce::Colour(Theme::textDim));
+        g.setFont(juce::FontOptions().withHeight(m.stripFontH));
+        g.drawText("ADD TRACK", area.reduced(m.pad, 0), juce::Justification::centredLeft, false);
+    }
 
-        const int side = juce::roundToInt(iconBox.getWidth() * badgeScale);
-        const auto box = juce::Rectangle<int>(iconBox.getRight() - side, iconBox.getBottom() - side,
-                                              side, side);
-        g.setColour(juce::Colour(Theme::darkBg).withAlpha(lit ? 0.95f : fadedAlpha));
-        g.fillEllipse(box.toFloat());
-        g.setColour(juce::Colour(Theme::textWhite).withAlpha(lit ? 1.0f : fadedAlpha));
-        g.setFont(juce::Font(juce::FontOptions().withHeight((float)side * 0.8f).withStyle("Bold")));
-        g.drawText(badge, box, juce::Justification::centred, false);
+    // A plus per part, so the row answers "there is no track for this yet" in the same place
+    // the question is asked.
+    void paintAddRowCells(juce::Graphics& g)
+    {
+        const int row = addRowIndex();
+        for (int c = 0; c < displayColumns(); ++c)
+        {
+            if (!canCreateForColumn(c)) continue;
+
+            const auto area = juce::Rectangle<int>(columnX(c), rowY(row), m.cellW, m.rowH);
+            const bool hovered = hoverCell == Cell{ row, c };
+
+            if (hovered)
+            {
+                g.setColour(juce::Colour(Theme::darkBgHover));
+                g.fillRect(area.reduced(2));
+            }
+
+            const auto plus = area.withSizeKeepingCentre(m.rowH / 3, m.rowH / 3).toFloat();
+            g.setColour(juce::Colour(hovered ? Theme::textWhite : Theme::textDim));
+            g.drawLine(plus.getCentreX(), plus.getY(), plus.getCentreX(), plus.getBottom(), 1.4f);
+            g.drawLine(plus.getX(), plus.getCentreY(), plus.getRight(), plus.getCentreY(), 1.4f);
+        }
+    }
+
+    // The waveform has no name to give a new track, and a part nothing renders has nowhere
+    // to put one, so neither offers a plus.
+    //
+    // Neither does a part that already has a track. The plus names the new track after the
+    // part and pins the part to it, so on an assigned column it would make a second track
+    // called PART GUITAR and move the mapping to the empty one, leaving the track with your
+    // notes in it sitting there unread. Clear the column first and the plus comes back.
+    bool canCreateForColumn(int column) const
+    {
+        if (isWaveformColumn(column)) return false;
+        const auto part = partForColumn(column);
+        return PartMapping::isMappable(part) && trackNameFor(part).isNotEmpty()
+            && !columnIsMapped(part);
     }
 
     void paintRowName(juce::Graphics& g, int row)
@@ -499,9 +621,52 @@ private:
         g.drawText(juce::String(track.sourceTrackIndex + 1),
                    text.removeFromLeft(m.numberColumnW), juce::Justification::centredLeft, false);
 
+        // The plugin's own row says so instead, always, in the slot the X would have taken:
+        // the one row you cannot delete is also the one worth pointing at.
+        if (track.hostsPlugin)
+            paintHostMarker(g, deleteButtonBounds(row));
+        // Only while the cursor is on this row's name: a column of X's invites a mis-click on
+        // the one control here that destroys work.
+        else if (hoveredNameRow == row)
+            paintDeleteButton(g, deleteButtonBounds(row), hoveredOverDelete);
+
         // Nothing maps to a utility track, so its name sits back with the dead cells.
         g.setColour(juce::Colour(track.isUtility ? Theme::textDim : Theme::textWhite));
-        g.drawText(track.name, text, juce::Justification::centredLeft, true);
+        g.drawText(track.name, text.withTrimmedRight(m.rowH), juce::Justification::centredLeft, true);
+    }
+
+    // Deleting the track this plugin sits on takes the plugin, this component and the
+    // callback running through it down together, so that row never offers the X.
+    bool canDeleteRow(int row) const
+    {
+        return row >= 0 && row < (int)visibleTracks.size()
+            && !visibleTracks[(size_t)row].hostsPlugin;
+    }
+
+    juce::Rectangle<int> deleteButtonBounds(int row) const
+    {
+        return juce::Rectangle<int>(m.nameColumnW - m.rowH, rowY(row), m.rowH, m.rowH)
+                   .reduced(m.rowH / 4);
+    }
+
+    void paintDeleteButton(juce::Graphics& g, juce::Rectangle<int> box, bool hovered)
+    {
+        // Red only under the cursor. At rest it is another piece of dim chrome, so a row of
+        // them does not read as a warning.
+        const auto x = box.reduced(box.getWidth() / 4).toFloat();
+        g.setColour(juce::Colour(hovered ? Theme::coral : Theme::textDim));
+        g.drawLine(x.getX(), x.getY(), x.getRight(), x.getBottom(), 1.4f);
+        g.drawLine(x.getRight(), x.getY(), x.getX(), x.getBottom(), 1.4f);
+    }
+
+    // A filled dot inside a ring, in the app's own colour: the plugin is on this track. Drawn
+    // rather than an asset so it stays crisp at whatever the row height works out to.
+    void paintHostMarker(juce::Graphics& g, juce::Rectangle<int> box)
+    {
+        const auto ring = box.reduced(box.getWidth() / 5).toFloat();
+        g.setColour(juce::Colour(Theme::coral));
+        g.drawEllipse(ring, 1.2f);
+        g.fillEllipse(ring.reduced(ring.getWidth() * 0.3f));
     }
 
     void paintRowCells(juce::Graphics& g, int row)

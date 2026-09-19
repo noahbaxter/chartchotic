@@ -358,6 +358,7 @@ void ChartchoticAudioProcessorEditor::refreshPartsMenuTracks()
 
     std::vector<PartsMenuComponent::TrackRow> rows;
     const int count = ReaperTrackDetector::getTrackCount(getFunc);
+    const int hostTrack = ReaperTrackDetector::detectPluginTrack(getFunc);
     for (int i = 0; i < count; ++i)
     {
         auto name = juce::String(ReaperTrackDetector::getTrackName(getFunc, i));
@@ -365,10 +366,24 @@ void ChartchoticAudioProcessorEditor::refreshPartsMenuTracks()
         // shows them under All tracks, which it cannot do if they never arrive.
         const auto content = ReaperTrackDetector::getTrackContent(getFunc, i);
         rows.push_back({ i, name, content.midi, content.audio,
-                         PartMapping::isUtilityTrackName(name) });
+                         PartMapping::isUtilityTrackName(name), i == hostTrack });
     }
 
-    partsMenu.setTracks(std::move(rows));
+    // Only relayout when the list actually moved: the poll runs this while the menu is open,
+    // and resizing the panel every time would fight the scroll position for no reason.
+    if (partsMenu.setTracks(std::move(rows)) && partsMenu.isVisible())
+        layoutPartsMenu();
+}
+
+void ChartchoticAudioProcessorEditor::pollPartsMenuTracks()
+{
+    if (!partsMenu.isVisible()) return;
+
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (now - lastPartsMenuPollMs < partsMenuPollIntervalMs) return;
+
+    lastPartsMenuPollMs = now;
+    refreshPartsMenuTracks();
 }
 
 // The readout is the menu's one control: clicking it again puts the menu away, the way any
@@ -377,6 +392,55 @@ void ChartchoticAudioProcessorEditor::togglePartsMenu()
 {
     if (partsMenu.isVisible()) { partsMenu.setVisible(false); return; }
     openPartsMenu();
+}
+
+// Make the track REAPER does not have yet and point the part straight at it, so the plus is
+// one action rather than "now go and find it in the list".
+void ChartchoticAudioProcessorEditor::createTrackForPart(Part part)
+{
+    if (audioProcessor.reaperGetFunc == nullptr) return;
+    auto getFunc = [this](const char* name) { return audioProcessor.reaperGetFunc(name); };
+
+    const auto name = trackNameFor(part);
+    if (name.isEmpty()) return;
+
+    const int index = ReaperTrackDetector::createTrackNamed(getFunc, name.toStdString());
+    if (index < 0) return;
+
+    audioProcessor.getPartMap().pin(part, index);
+    commitPartPins();
+    refreshPartsMenuTracks();
+    layoutPartsMenu();          // one more row to make room for
+}
+
+// Deleting a REAPER track takes its MIDI with it, so it asks first and does nothing on its
+// own. Just the question: the X was aimed at a named row a moment ago, and a paragraph
+// explaining REAPER's undo is not what anyone reads here.
+void ChartchoticAudioProcessorEditor::confirmDeleteTrack(int trackIndex, const juce::String& name)
+{
+    confirmPrompt.ask("Delete \"" + name + "\"?", {},
+                      "Delete", true,
+                      [this, trackIndex](bool confirmed)
+                      {
+                          if (confirmed) deleteTrack(trackIndex);
+                      },
+                      this);
+}
+
+void ChartchoticAudioProcessorEditor::deleteTrack(int trackIndex)
+{
+    if (audioProcessor.reaperGetFunc == nullptr) return;
+    auto getFunc = [this](const char* name) { return audioProcessor.reaperGetFunc(name); };
+
+    if (!ReaperTrackDetector::deleteTrack(getFunc, trackIndex)) return;
+
+    // Everything after it just renumbered, and pins are held by index, so they have to move
+    // with it or they end up pointing at a neighbour.
+    audioProcessor.getPartMap().trackDeleted(trackIndex);
+
+    commitPartPins();
+    refreshPartsMenuTracks();
+    layoutPartsMenu();
 }
 
 void ChartchoticAudioProcessorEditor::openPartsMenu()
@@ -513,6 +577,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
 
     updateTrackInfoDisplay();
+    pollPartsMenuTracks();
 
     // Create InstrumentSession on first REAPER detection (if multi-highway enabled)
     bool trackDiscovery = !state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"];
@@ -1025,11 +1090,15 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
                             { audioProcessor.getPartMap().pin(p, track); commitPartPins(); };
         partsMenu.onClearPart = [this](Part p)
                             { audioProcessor.getPartMap().clearPart(p);  commitPartPins(); };
+        partsMenu.onCreateTrackForPart = [this](Part p) { createTrackForPart(p); };
+        partsMenu.onDeleteTrack = [this](int index, juce::String name)
+                                  { confirmDeleteTrack(index, name); };
         partsMenu.onPinWaveform   = [this](int track)
                             { audioProcessor.getPartMap().pinWaveform(track); commitPartPins(); };
         partsMenu.onUnpinWaveform = [this]()
                             { audioProcessor.getPartMap().unpinWaveform();    commitPartPins(); };
         partsMenu.onDismiss  = [this]() { partsMenu.setVisible(false); };
+        // confirmPrompt is not a child: it puts itself on the desktop as its own window.
         addChildComponent(partsMenu);
     }
 

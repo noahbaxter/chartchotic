@@ -175,6 +175,25 @@ namespace PartMapping
 
         bool isSuppressed(Part part) const { return suppressed.count(part) > 0; }
 
+        // A track was removed, so REAPER renumbered everything after it. Pins are held by
+        // index, so they have to move with it or they quietly point at a neighbour. The pin
+        // on the deleted track itself is dropped; there is nothing left to point at.
+        void trackDeleted(int deletedIndex)
+        {
+            for (auto it = pins.begin(); it != pins.end(); )
+            {
+                if (it->second == deletedIndex)      it = pins.erase(it);
+                else                               { if (it->second > deletedIndex) --it->second;
+                                                     ++it; }
+            }
+
+            if (waveform)
+            {
+                if (*waveform == deletedIndex)      waveform.reset();
+                else if (*waveform > deletedIndex)  --*waveform;
+            }
+        }
+
         // The waveform view is not a chart part, but it is chosen the same way: one track
         // drives it. Kept here so there is one answer to "which track is this", and one thing
         // to save, rather than a second store beside this one.
