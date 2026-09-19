@@ -12,12 +12,13 @@
         Each lane is a { dark, bright } pair (ARGB): the pad gradient runs dark
         (top) -> bright (bottom), and gem tint ramps use the same pair.
 
-        Caveat: colours here fully drive the strikeline and any tint-derived gem
-        (currently the purple L-Crash cymbal, rebuilt from greyscale in
-        AssetManager). The blue/red/yellow/green gem PNGs still have their colour
-        baked into the art, so they only follow these constants once the gems
-        move to the greyscale-master + tint path (see BACKLOG). Keep the values
-        here matched to the PNG art until then.
+        Every lane-tinted gem is now rebuilt from a greyscale master against these
+        values (AssetManager), so there is no PNG holding a colour of its own and
+        nothing here has to stay matched to baked art.
+
+        The constants are the DEFAULTS. What actually gets drawn is a Palette,
+        which a part can hold its own copy of, so two parts can disagree about
+        what green is.
 
     ==============================================================================
 */
@@ -38,12 +39,61 @@ namespace LaneColours
     constexpr Lane purple { 0xFF5B2A8C, 0xFFAF3EE6 };   // bright = vivid open-bar purple
     constexpr Lane white  { 0xFFAEAEAE, 0xFFEAEAEA };
 
-    // Kick / bar tube colours (tint the greyscale bar master). Open bars reuse `purple`.
-    constexpr Lane kick   { 0xFF8A3D06, 0xFFF16E0B };   // kick bar: red amber (baked art)
-    constexpr Lane kick2x { 0xFF8A2806, 0xFFF14A0B };   // 2x-kick bar: distinct redder cue
+    // Kick / 2x-kick bar tubes: bright is the gloss line along the top, dark is the rim.
+    // Both read ORANGE, the 2x deeper, which is closer to the game than the yellow the old
+    // art bakes had. These are a deliberate choice rather than the ramps' own colours, so the
+    // bars no longer match barRampKick pixel for pixel: the ramp supplies the shading and
+    // these supply the hue.
+    constexpr Lane kick   { 0xFFD04A08, 0xFFFF7A14 };   // kick bar: orange gloss, deeper rim
+    constexpr Lane kick2x { 0xFF9C3406, 0xFFC85A0C };   // 2x-kick: the same tube, darker
+    // The open bar's own purple, which is NOT the purple gem's: the bar art runs far brighter
+    // than the gem hue. Sharing one entry made the open bar darker than its art and tied it to
+    // elite's left crash, so recolouring either moved the other.
+    constexpr Lane openBar { 0xFF7200D3, 0xFFFD93FE };
 
     inline juce::Colour dark   (const Lane& l) { return juce::Colour(l.dark); }
     inline juce::Colour bright (const Lane& l) { return juce::Colour(l.bright); }
+
+    // The hues a lane can be, in one order that everything indexes by. DrumLaneTint over in
+    // PositionConstants says which hue an elite lane wears; it maps onto this and is not a
+    // second palette.
+    enum class Hue { Red, Yellow, Blue, Green, Orange, Purple, White };
+    inline constexpr int hueCount = 7;
+
+    // What a part is actually drawn with. Cymbals get their own entry per hue: a yellow
+    // hi-hat and a yellow tom are two colours, and recolouring the cymbal leaves the pad
+    // under it alone. The strikeline reads `pad` for every lane, cymbal lanes included,
+    // which is what keeps a cymbal recolour self-contained.
+    struct Palette
+    {
+        Lane pad[hueCount];
+        Lane cymbal[hueCount];
+        Lane kick, kick2x, open;
+
+        const Lane& padFor   (Hue h) const { return pad[(int)h]; }
+        const Lane& cymbalFor(Hue h) const { return cymbal[(int)h]; }
+
+        bool operator==(const Palette& o) const
+        {
+            for (int i = 0; i < hueCount; ++i)
+                if (pad[i].dark != o.pad[i].dark || pad[i].bright != o.pad[i].bright
+                    || cymbal[i].dark != o.cymbal[i].dark || cymbal[i].bright != o.cymbal[i].bright)
+                    return false;
+            return kick.dark == o.kick.dark && kick.bright == o.kick.bright
+                && kick2x.dark == o.kick2x.dark && kick2x.bright == o.kick2x.bright
+                && open.dark == o.open.dark && open.bright == o.open.bright;
+        }
+        bool operator!=(const Palette& o) const { return !(*this == o); }
+    };
+
+    // Cymbals start from the same hues as the pads. The metallic master's green is darkened
+    // at bake time rather than here, since that is a property of the art, not of the colour.
+    constexpr Palette defaultPalette()
+    {
+        return Palette{ { red, yellow, blue, green, orange, purple, white },
+                        { red, yellow, blue, green, orange, purple, white },
+                        kick, kick2x, openBar };
+    }
 }
 
 // Structural / neutral render colours (highway backing, strikeline pad bevels, side
