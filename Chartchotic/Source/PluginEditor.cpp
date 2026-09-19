@@ -1547,9 +1547,7 @@ void ChartchoticAudioProcessorEditor::resized()
     if (partsMenu.isVisible()) layoutPartsMenu();
 
     // Rebake shared track cache when scene dimensions change or cache was externally invalidated
-    if (trackImageCache.isDirty() ||
-        sceneWidth != trackImageCache.getBakedWidth() ||
-        sceneHeight != trackImageCache.getBakedHeight())
+    if (trackImageCache.isDirty() || !trackImageCache.covers(collectBakeSizes()))
     {
         trackImageCache.invalidate();
         requestAsyncRebake();
@@ -1706,31 +1704,58 @@ void ChartchoticAudioProcessorEditor::loadState()
 }
 
 
+std::vector<TrackImageCache::BakeSize> ChartchoticAudioProcessorEditor::collectBakeSizes()
+{
+    // One entry per distinct slot geometry actually on screen. Baking at sceneWidth instead,
+    // which is what this did before, meant every slot in a multi-highway layout blitted a
+    // roughly 2x-oversized source and paid a downscale resample on five full-viewport layers
+    // per frame. Elite is skipped: it renders live, so a bake at its size would go unused.
+    std::vector<TrackImageCache::BakeSize> sizes;
+
+    for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+    {
+        if (!slots[i].active || slots[i].highway == nullptr) continue;
+        if (getRenderType(slots[i].part) == RenderType::ELITE_DRUMS) continue;
+
+        auto& hw = *slots[i].highway;
+        if (hw.renderWidth <= 0 || hw.renderHeight <= 0) continue;
+
+        auto& sr = hw.getSceneRenderer();
+        auto overflowFor = [&](bool drums) {
+            auto edge = PositionMath::getFretboardEdge(
+                drums, sr.farFadeEnd, hw.renderWidth, hw.renderHeight,
+                PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
+            return std::max(0, (int)std::ceil(-edge.centerY));
+        };
+
+        TrackImageCache::BakeSize s;
+        s.width = hw.renderWidth;
+        s.height = hw.renderHeight;
+        s.overflowGuitar = overflowFor(false);
+        s.overflowDrums  = overflowFor(true);
+
+        bool seen = false;
+        for (const auto& existing : sizes)
+            if (existing == s) { seen = true; break; }
+        if (!seen)
+            sizes.push_back(s);
+    }
+
+    return sizes;
+}
+
 void ChartchoticAudioProcessorEditor::requestAsyncRebake()
 {
     if (!trackImageCache.isDirty() || activeSlotCount == 0)
         return;
 
-    // Always bake at full single-highway resolution (sceneWidth × sceneHeight),
-    // NOT at per-slot dimensions which are smaller in multi-highway mode.
-    int w = sceneWidth;
-    int h = sceneHeight;
-    if (w <= 0 || h <= 0) return;
+    auto sizes = collectBakeSizes();
+    if (sizes.empty()) return;
 
-    // Compute overflow at full resolution
     auto& sr = slots[0].highway->getSceneRenderer();
-    auto farEdgeGuitar = PositionMath::getFretboardEdge(
-        false, sr.farFadeEnd, w, h,
-        PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
-    auto farEdgeDrums = PositionMath::getFretboardEdge(
-        true, sr.farFadeEnd, w, h,
-        PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
-    int overflowGuitar = std::max(0, (int)std::ceil(-farEdgeGuitar.centerY));
-    int overflowDrums  = std::max(0, (int)std::ceil(-farEdgeDrums.centerY));
-
     auto& hw = *slots[0].highway;
 
-    trackImageCache.requestBake(*cacheRenderer, w, h, overflowGuitar, overflowDrums,
+    trackImageCache.requestBake(*cacheRenderer, std::move(sizes),
         sr.farFadeEnd, sr.farFadeLen, sr.farFadeCurve, sr.highwayPosEnd,
         sr.guitarLaneCoordsLocal, (int)PositionConstants::GUITAR_LANE_COUNT,
         sr.drumLaneCoordsLocal, (int)PositionConstants::DRUM_LANE_COUNT,

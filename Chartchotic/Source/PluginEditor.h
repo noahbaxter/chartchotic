@@ -236,6 +236,7 @@ private:
     TrackImageCache trackImageCache;
     std::unique_ptr<TrackRenderer> cacheRenderer;
     void requestAsyncRebake();
+    std::vector<TrackImageCache::BakeSize> collectBakeSizes();
 
     HighwayComponent& primaryHighway() { return *slots[0].highway; }
     MidiInterpreter& primaryInterpreter() { return *slots[0].interpreter; }
