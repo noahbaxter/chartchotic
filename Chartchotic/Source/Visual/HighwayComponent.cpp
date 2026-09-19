@@ -69,6 +69,12 @@ static const TimeBasedEventMarkers kNoMarkers;
 
 void HighwayComponent::paint(juce::Graphics& g)
 {
+    // Opaque only when nothing is meant to show through the letterbox. Claiming opacity is what
+    // stops JUCE repainting the editor underneath on every frame, but it obliges us to cover
+    // every pixel of our own bounds, which the uniform-scale path does not otherwise do.
+    if (isOpaque())
+        g.fillAll(HIGHWAY_LETTERBOX_COLOUR);
+
 #ifdef DEBUG
     if (showDebugColour && debugColour != juce::Colour()) g.fillAll(debugColour);
     ScopedPhaseMeasure _hwPaintMeasure(debugHighwayPaint_us, sceneRenderer.collectPhaseTiming);

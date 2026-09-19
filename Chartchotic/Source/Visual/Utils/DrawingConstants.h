@@ -39,6 +39,11 @@ constexpr float LANE_OPACITY = 0.6f;         // Lane sustain opacity
 // gems it covers still read through it.
 // A literal, not juce::Colours::white: that is a static in another translation unit, so a
 // namespace-scope copy of it can initialise first and come out black.
+// What sits beside the board when the highway is letterboxed. Matches the editor's own backdrop,
+// so an opaque highway is indistinguishable from a transparent one wherever no background image
+// is showing through.
+inline const juce::Colour HIGHWAY_LETTERBOX_COLOUR { 0xFF000000 };
+
 inline const juce::Colour PHRASE_STAR_POWER_COLOUR { 0xFFFFFFFF };
 constexpr float PHRASE_STAR_POWER_OPACITY = 0.3f;
 // Star power is the one phrase drawn in pure white, so the shared phrase-view boost blows it out
