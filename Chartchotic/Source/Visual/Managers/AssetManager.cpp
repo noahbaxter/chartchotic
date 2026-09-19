@@ -92,49 +92,16 @@ void AssetManager::initAssets()
     {
         const auto canvas  = GemArt::barCanvas();
         const auto content = GemArt::barContentBounds();
-        barWhiteImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content);
-        barKickImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content);
-        barKick2xImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content);
-        barOpenImage   = GemArt::bakeBar(GemArt::barRampOpen(),   canvas, content);
-        // An open HOPO keeps the open note's purple and takes the rim instead of being replaced
-        // by the white SP bar, which read as a star power note that was not there.
-        auto hopoRamp = GemArt::barRampOpen();
-        for (auto& stop : hopoRamp)
-            stop.second = stop.second.brighter(GemArt::kBarOutlineBrighten);
-        hopoBarOpenImage = GemArt::bakeBar(hopoRamp, canvas, content, 1.0f, 0.0f,
-                                           GemArt::kBarOutlineAlpha);
-
-        // Elite's full-width bars: same arc and centreline, thinner tube.
+        // Only the star power bars are fixed art. Every coloured bar (kick, 2x kick, open, and
+        // the elite dynamics) is baked per colour through barGem, because which colours exist
+        // is a question about the person's palettes rather than a list known here.
         const float eliteTh = GemArt::kEliteBarThickness;
-        barWhiteEliteImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content, eliteTh);
-        barKickEliteImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content, eliteTh);
-        barKick2xEliteImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content, eliteTh);
-
-        // Elite kick dynamics: the same bar at the same size as a normal kick, rimmed the way an
-        // open HOPO is. An accent takes a light rim on a lifted tube, a ghost a near-black rim on
-        // a darkened one. Nothing changes size, so the three read as one note played three ways.
-        auto shaded = [](GemArt::BarRamp ramp, float amount, bool up) {
-            for (auto& stop : ramp)
-                stop.second = up ? stop.second.brighter(amount) : stop.second.darker(amount);
-            return ramp;
-        };
-        const float lift = GemArt::kBarOutlineBrighten, sink = GemArt::kBarGhostDarken;
-        const float rim = GemArt::kBarOutlineAlpha, ghostRim = GemArt::kBarGhostOutlineAlpha;
-        const auto ghostCol = GemArt::kBarGhostOutlineColour;
-
-        barKickAccentImage   = GemArt::bakeBar(shaded(GemArt::barRampKick(), lift, true),
-                                               canvas, content, eliteTh, 0.0f, rim);
-        barKick2xAccentImage = GemArt::bakeBar(shaded(GemArt::barRampKick2x(), lift, true),
-                                               canvas, content, eliteTh, 0.0f, rim);
+        barWhiteImage       = GemArt::bakeBar(GemArt::barRampWhite(), canvas, content);
+        barWhiteEliteImage  = GemArt::bakeBar(GemArt::barRampWhite(), canvas, content, eliteTh);
         // Star power flattens every colour to white, so a white rim would say nothing there:
         // the SP accent keeps the centre line as its cue.
-        barWhiteAccentImage  = GemArt::bakeBar(GemArt::barRampWhite(), canvas, content, eliteTh,
-                                               GemArt::kAccentCentreLineAlpha);
-
-        barKickGhostImage   = GemArt::bakeBar(shaded(GemArt::barRampKick(), sink, false),
-                                              canvas, content, eliteTh, 0.0f, ghostRim, ghostCol);
-        barKick2xGhostImage = GemArt::bakeBar(shaded(GemArt::barRampKick2x(), sink, false),
-                                              canvas, content, eliteTh, 0.0f, ghostRim, ghostCol);
+        barWhiteAccentImage = GemArt::bakeBar(GemArt::barRampWhite(), canvas, content, eliteTh,
+                                              GemArt::kAccentCentreLineAlpha);
     }
     // Elite Stomp/Splash pedal bar: procedurally baked FLAT (like the kick bars). The highway
     // curve is applied at render time (over the bar's off-centre span) so it matches the tilted
@@ -150,14 +117,7 @@ void AssetManager::initAssets()
     // a colour changes in one place (the constant) with no per-colour PNG. The white / star
     // power cymbal keeps its PNG (its gold rim is not a greyscale tint).
     cymWhiteImage = juce::ImageCache::getFromMemory(BinaryData::cym_white_png, BinaryData::cym_white_pngSize);
-    {
-        const juce::Image cymMaster = juce::ImageCache::getFromMemory(BinaryData::cym_blue_png, BinaryData::cym_blue_pngSize);
-        cymBlueImage   = recolorGem(cymMaster, LaneColours::bright(LaneColours::blue));
-        cymRedImage    = recolorGem(cymMaster, LaneColours::bright(LaneColours::red));
-        cymYellowImage = recolorGem(cymMaster, LaneColours::bright(LaneColours::yellow));
-        cymGreenImage  = recolorGem(cymMaster, LaneColours::bright(LaneColours::green), 0.68f);   // tuned to the deep green of cym_green.png (body brightness ~148, vs ~218 at full value)
-        cymPurpleImage = recolorGem(cymMaster, LaneColours::bright(LaneColours::purple));
-    }
+    cymMaster = juce::ImageCache::getFromMemory(BinaryData::cym_blue_png, BinaryData::cym_blue_pngSize);
     // Elite hi-hat: extracted gold/metallic art, drawn as-is (NOT tinted) on the Hi-Hat lane.
     // Closed is the default; the open variant hooks in once open/closed parsing (upper octave
     // 84-90) lands to pick a gem type.
@@ -169,25 +129,9 @@ void AssetManager::initAssets()
     // new part/palette needs no per-colour note art and purple gets real art for free. The
     // white (star power) glyphs keep their PNGs.
     noteWhiteImage = juce::ImageCache::getFromMemory(BinaryData::note_white_png, BinaryData::note_white_pngSize);
-    {
-        const juce::Image noteMaster = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
-        noteBlueImage   = recolorGem(noteMaster, LaneColours::bright(LaneColours::blue));
-        noteRedImage    = recolorGem(noteMaster, LaneColours::bright(LaneColours::red));
-        noteYellowImage = recolorGem(noteMaster, LaneColours::bright(LaneColours::yellow));
-        noteGreenImage  = recolorGem(noteMaster, LaneColours::bright(LaneColours::green));
-        noteOrangeImage = recolorGem(noteMaster, LaneColours::bright(LaneColours::orange));
-        notePurpleImage = recolorGem(noteMaster, LaneColours::bright(LaneColours::purple));
-    }
+    noteMaster     = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
     hopoWhiteImage = juce::ImageCache::getFromMemory(BinaryData::hopo_white_png, BinaryData::hopo_white_pngSize);
-    {
-        const juce::Image hopoMaster = juce::ImageCache::getFromMemory(BinaryData::hopo_blue_png, BinaryData::hopo_blue_pngSize);
-        hopoBlueImage   = recolorGem(hopoMaster, LaneColours::bright(LaneColours::blue));
-        hopoRedImage    = recolorGem(hopoMaster, LaneColours::bright(LaneColours::red));
-        hopoYellowImage = recolorGem(hopoMaster, LaneColours::bright(LaneColours::yellow));
-        hopoGreenImage  = recolorGem(hopoMaster, LaneColours::bright(LaneColours::green));
-        hopoOrangeImage = recolorGem(hopoMaster, LaneColours::bright(LaneColours::orange));
-        hopoPurpleImage = recolorGem(hopoMaster, LaneColours::bright(LaneColours::purple));
-    }
+    hopoMaster     = juce::ImageCache::getFromMemory(BinaryData::hopo_blue_png, BinaryData::hopo_blue_pngSize);
 
     laneEndImage = juce::ImageCache::getFromMemory(BinaryData::lane_end_png, BinaryData::lane_end_pngSize);
     laneMidImage = juce::ImageCache::getFromMemory(BinaryData::lane_mid_png, BinaryData::lane_mid_pngSize);
@@ -271,30 +215,20 @@ void AssetManager::initAssets()
     // Full-res originals are copied now; rescaleForWidth() overwrites the active members.
     // Entries default to the Lane width class; FULL marks the ones drawn board-wide.
     constexpr auto FULL = AssetWidthClass::FullBoard;
+    // The lane-coloured gems are NOT here: they are baked per colour on demand and rescaled
+    // through laneGems in rescaleForWidth, which is the same width-class treatment by another
+    // route. Only the star power glyphs and the untinted hi-hat art are fixed images.
     scalableAssets = {
         // Notes
-        {&noteBlueImage, noteBlueImage}, {&noteGreenImage, noteGreenImage},
-        {&noteOrangeImage, noteOrangeImage}, {&noteRedImage, noteRedImage},
-        {&noteWhiteImage, noteWhiteImage}, {&noteYellowImage, noteYellowImage},
-        {&notePurpleImage, notePurpleImage},
+        {&noteWhiteImage, noteWhiteImage},
         // Cymbals
-        {&cymBlueImage, cymBlueImage}, {&cymGreenImage, cymGreenImage},
-        {&cymRedImage, cymRedImage}, {&cymWhiteImage, cymWhiteImage},
-        {&cymYellowImage, cymYellowImage}, {&cymPurpleImage, cymPurpleImage},
+        {&cymWhiteImage, cymWhiteImage},
         {&cymHiHatClosedImage, cymHiHatClosedImage}, {&cymHiHatOpenImage, cymHiHatOpenImage},
         // HOPOs
-        {&hopoBlueImage, hopoBlueImage}, {&hopoGreenImage, hopoGreenImage},
-        {&hopoOrangeImage, hopoOrangeImage}, {&hopoRedImage, hopoRedImage},
-        {&hopoWhiteImage, hopoWhiteImage}, {&hopoYellowImage, hopoYellowImage},
-        {&hopoPurpleImage, hopoPurpleImage},
+        {&hopoWhiteImage, hopoWhiteImage},
         // Bars — full board width, so they keep a full-width master
-        {&barKickImage, barKickImage, FULL}, {&barKick2xImage, barKick2xImage, FULL},
-        {&barOpenImage, barOpenImage, FULL}, {&barWhiteImage, barWhiteImage, FULL},
-        {&hopoBarOpenImage, hopoBarOpenImage, FULL},
-        {&barKickEliteImage, barKickEliteImage, FULL}, {&barKick2xEliteImage, barKick2xEliteImage, FULL},
+        {&barWhiteImage, barWhiteImage, FULL},
         {&barWhiteEliteImage, barWhiteEliteImage, FULL},
-        {&barKickAccentImage, barKickAccentImage, FULL}, {&barKick2xAccentImage, barKick2xAccentImage, FULL},
-        {&barKickGhostImage, barKickGhostImage, FULL}, {&barKick2xGhostImage, barKick2xGhostImage, FULL},
         {&barWhiteAccentImage, barWhiteAccentImage, FULL},
         {&barStompImage, barStompImage, FULL}, {&barSplashImage, barSplashImage, FULL},
         // Overlays
@@ -378,12 +312,25 @@ void AssetManager::rescaleForWidth(int viewportWidth)
     // really are drawn board-wide, so they keep the wide master and stay sharp; gems and
     // their overlays never exceed one lane's gem box, whose widest case is 4-lane drums at
     // roughly a third of the board once GEM_SIZE and the gem-scale slider are in.
-    const int fullBoardWidth = std::max(200, viewportWidth / 2);
-    const int laneWidth      = std::max(200, viewportWidth / 3);
+    const int fullBoardWidth = fullBoardWidthFor(viewportWidth);
+    const int laneWidth      = laneWidthFor(viewportWidth);
 
     for (auto& asset : scalableAssets)
         *asset.target = downscale(asset.fullRes,
             asset.widthClass == AssetWidthClass::FullBoard ? fullBoardWidth : laneWidth);
+
+    // Baked lane gems take the same treatment. A resize is also the one safe place to drop
+    // colours that have piled up from palette edits: every pointer into the cache is being
+    // replaced on this pass regardless.
+    if (laneGems.size() > laneGemCacheLimit) laneGems.clear();
+    if (barGems.size()  > laneGemCacheLimit) barGems.clear();
+
+    for (auto& [key, gem] : laneGems)
+        gem.scaled = downscale(gem.fullRes, laneWidth);
+
+    // Bars really are drawn board-wide, so they keep the wide master.
+    for (auto& [key, bar] : barGems)
+        bar.scaled = downscale(bar.fullRes, fullBoardWidth);
 
     // Flare tints derive from the (now rescaled) smoke master — drop them so they
     // regenerate at the new scale on next use.
@@ -397,7 +344,130 @@ const juce::Image* AssetManager::masterFor(const juce::Image* live) const
     if (live == nullptr) return nullptr;
     for (const auto& asset : scalableAssets)
         if (asset.target == live) return &asset.fullRes;
+
+    // Lane gems and bars keep their master beside them rather than in scalableAssets, so
+    // anything drawn outside the highway (icons, swatches) can still get the unscaled bake.
+    for (const auto& [key, gem] : laneGems)
+        if (&gem.scaled == live) return &gem.fullRes;
+    for (const auto& [key, bar] : barGems)
+        if (&bar.scaled == live) return &bar.fullRes;
+
     return nullptr;
+}
+
+// The colour-carrying bars, baked from the stock tube profile re-hued to the palette. Same
+// on-demand caching as the gems and for the same reason: which colours exist is now a
+// question about the person's palettes, not a fixed list.
+juce::Image* AssetManager::barGem(BarVariant variant, const LaneColours::Lane& lane)
+{
+    const auto key = std::make_pair((int)variant, lane.bright);
+
+    auto it = barGems.find(key);
+    if (it == barGems.end())
+    {
+        const auto canvas  = GemArt::barCanvas();
+        const auto content = GemArt::barContentBounds();
+        const auto target  = LaneColours::bright(lane);
+
+        const float eliteTh  = GemArt::kEliteBarThickness;
+        const float lift     = GemArt::kBarOutlineBrighten, sink = GemArt::kBarGhostDarken;
+        const float rim      = GemArt::kBarOutlineAlpha,    ghostRim = GemArt::kBarGhostOutlineAlpha;
+        const auto  ghostCol = GemArt::kBarGhostOutlineColour;
+
+        auto base = [&](BarVariant v)
+        {
+            const bool twice = v == BarVariant::Kick2x || v == BarVariant::Kick2xElite
+                            || v == BarVariant::Kick2xAccent || v == BarVariant::Kick2xGhost;
+            const bool open  = v == BarVariant::Open || v == BarVariant::OpenHopo;
+
+            return GemArt::recolouredRamp(open    ? GemArt::barRampOpen()
+                                        : twice   ? GemArt::barRampKick2x()
+                                                  : GemArt::barRampKick(), target);
+        };
+
+        auto shaded = [](GemArt::BarRamp ramp, float amount, bool up)
+        {
+            for (auto& stop : ramp)
+                stop.second = up ? stop.second.brighter(amount) : stop.second.darker(amount);
+            return ramp;
+        };
+
+        juce::Image baked;
+        switch (variant)
+        {
+        case BarVariant::Kick:
+        case BarVariant::Kick2x:
+        case BarVariant::Open:
+            baked = GemArt::bakeBar(base(variant), canvas, content);
+            break;
+
+        // An open HOPO keeps the open note's colour and takes the rim instead of being
+        // replaced by the white SP bar, which read as a star power note that was not there.
+        case BarVariant::OpenHopo:
+            baked = GemArt::bakeBar(shaded(base(variant), lift, true), canvas, content,
+                                    1.0f, 0.0f, rim);
+            break;
+
+        case BarVariant::KickElite:
+        case BarVariant::Kick2xElite:
+            baked = GemArt::bakeBar(base(variant), canvas, content, eliteTh);
+            break;
+
+        case BarVariant::KickAccent:
+        case BarVariant::Kick2xAccent:
+            baked = GemArt::bakeBar(shaded(base(variant), lift, true),
+                                    canvas, content, eliteTh, 0.0f, rim);
+            break;
+
+        case BarVariant::KickGhost:
+        case BarVariant::Kick2xGhost:
+            baked = GemArt::bakeBar(shaded(base(variant), sink, false),
+                                    canvas, content, eliteTh, 0.0f, ghostRim, ghostCol);
+            break;
+        }
+
+        LaneGem bar;
+        bar.fullRes = std::move(baked);
+        bar.scaled  = lastScaledWidth > 0
+                    ? downscale(bar.fullRes, fullBoardWidthFor(lastScaledWidth))
+                    : bar.fullRes;
+
+        it = barGems.emplace(key, std::move(bar)).first;
+    }
+
+    return &it->second.scaled;
+}
+
+// Baked on first ask, then kept. `dark` rides along in the key so a palette that only moves
+// a lane's gradient still gets its own bake rather than silently reusing the old one.
+juce::Image* AssetManager::laneGem(GemFamily family, const LaneColours::Lane& lane)
+{
+    const auto key = std::make_pair((int)family, lane.bright);
+
+    auto it = laneGems.find(key);
+    if (it == laneGems.end())
+    {
+        const juce::Image* master = family == GemFamily::Note   ? &noteMaster
+                                  : family == GemFamily::Hopo   ? &hopoMaster
+                                                                : &cymMaster;
+
+        // The metallic master reads far brighter than the old green cymbal art did, so the
+        // stock green keeps the darkening that was tuned to match it. A green someone picked
+        // themselves is theirs and is left alone.
+        const bool stockGreenCymbal = family == GemFamily::Cymbal
+                                   && lane.bright == LaneColours::green.bright;
+
+        LaneGem gem;
+        gem.fullRes = recolorGem(*master, LaneColours::bright(lane), stockGreenCymbal ? 0.68f : 1.0f);
+        // Scaled to the width already in force, so a colour first asked for mid-session is
+        // not the one sprite on the board blitting from an oversized source.
+        gem.scaled  = lastScaledWidth > 0 ? downscale(gem.fullRes, laneWidthFor(lastScaledWidth))
+                                          : gem.fullRes;
+
+        it = laneGems.emplace(key, std::move(gem)).first;
+    }
+
+    return &it->second.scaled;
 }
 
 // Tint the smoke master by an arbitrary lane colour, memoized per colour. Node-based
@@ -416,11 +486,11 @@ juce::Image* AssetManager::getHitFlarePurpleImage()
     return flareTinted(LaneColours::bright(LaneColours::purple));
 }
 
-juce::Image* AssetManager::getHitFlareImage(uint gemColumn, Part part)
+juce::Image* AssetManager::getHitFlareImage(uint gemColumn, Part part, Gem gem)
 {
     // Colour comes from the same generic source the gems/pads use, so the flare
     // lights up in the lane's own colour for any part / lane count (elite included).
-    return flareTinted(getLaneColour(gemColumn, part, /*starPowerActive=*/false));
+    return flareTinted(getNoteColour(gemColumn, part, gem, /*starPowerActive=*/false));
 }
 
 juce::Image* AssetManager::getGhostCursorImage(bool isDrums, int lane)
@@ -430,7 +500,7 @@ juce::Image* AssetManager::getGhostCursorImage(bool isDrums, int lane)
     return &noteBlankImage;
 }
 
-juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
+juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive, Part part)
 {
     // Use the gem's star power flag to determine if it should be white
     bool shouldBeWhite = starPowerActive && gemWrapper.starPower;
@@ -474,38 +544,29 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
     }
     else
     {
+        // The lane's colour comes from this part's palette, so bass and guitar can hold the
+        // same fret in different colours. Column 0 is the open bar, which is art of its own.
+        const auto& palette = paletteFor(part);
+        auto gem = [&](GemFamily family) { return laneGem(family, palette.padFor(laneHue(gemColumn, part))); };
+
+        // The open bar has its own palette entry, not the purple gem's: its art is a far
+        // brighter orchid, and sharing one entry tied it to elite's left crash.
+        const auto& open = palette.open;
+
         switch (gemWrapper.gem)
         {
         case Gem::HOPO_GHOST:
-            switch (gemColumn)
-            {
-            case 0: return getHopoBarOpenImage();
-            case 1: return getHopoGreenImage();
-            case 2: return getHopoRedImage();
-            case 3: return getHopoYellowImage();
-            case 4: return getHopoBlueImage();
-            case 5: return getHopoOrangeImage();
-            } break;
+            if (gemColumn == 0) return barGem(BarVariant::OpenHopo, open);
+            if (gemColumn <= 5) return gem(GemFamily::Hopo);
+            break;
         case Gem::NOTE:
-            switch (gemColumn)
-            {
-            case 0: return getBarOpenImage();
-            case 1: return getNoteGreenImage();
-            case 2: return getNoteRedImage();
-            case 3: return getNoteYellowImage();
-            case 4: return getNoteBlueImage();
-            case 5: return getNoteOrangeImage();
-            } break;
+            if (gemColumn == 0) return barGem(BarVariant::Open, open);
+            if (gemColumn <= 5) return gem(GemFamily::Note);
+            break;
         case Gem::TAP_ACCENT:
-            switch (gemColumn)
-            {
-            case 0: return getBarOpenImage();
-            case 1: return getHopoGreenImage();
-            case 2: return getHopoRedImage();
-            case 3: return getHopoYellowImage();
-            case 4: return getHopoBlueImage();
-            case 5: return getHopoOrangeImage();
-            } break;
+            if (gemColumn == 0) return barGem(BarVariant::Open, open);
+            if (gemColumn <= 5) return gem(GemFamily::Hopo);
+            break;
         default: break;
         }
     }
@@ -513,7 +574,7 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
     return nullptr;
 }
 
-juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive, bool elite)
+juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive, bool elite, Part part)
 {
     // Use the gem's star power flag to determine if it should be white
     bool shouldBeWhite = starPowerActive && gemWrapper.starPower;
@@ -532,6 +593,9 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
         // has no gem art yet, so it borrows the tap-note glyph as a placeholder until the
         // procedural note glyph lands.
         using T = PositionConstants::DrumLaneTint;
+        const auto& palette = paletteFor(part);
+        const auto hue = laneHue(gemColumn, part);
+
         if (gemColumn >= 1 && gemColumn <= 8)
         {
             const auto& style = PositionConstants::ELITE_LANE_STYLES[gemColumn];
@@ -548,15 +612,15 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
                     switch (gemWrapper.hihat)
                     {
                     case HiHatState::Closed:      return getCymHiHatClosedImage();
-                    case HiHatState::Indifferent: return getCymYellowImage();
+                    case HiHatState::Indifferent: return laneGem(GemFamily::Cymbal, palette.cymbalFor(hue));
                     default:                      return isOpenHiHat(gemWrapper.hihat)
                                                          ? getCymHiHatOpenImage()
                                                          : getCymHiHatClosedImage();
                     }
-                case T::Blue:   return getCymBlueImage();
-                case T::Green:  return getCymGreenImage();
-                case T::Red:    return getCymRedImage();
-                case T::Purple: return getCymPurpleImage();
+                case T::Blue:
+                case T::Green:
+                case T::Red:
+                case T::Purple: return laneGem(GemFamily::Cymbal, palette.cymbalFor(hue));
                 default:        return getCymWhiteImage();
                 }
             }
@@ -564,16 +628,10 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
             // normal and accent use the full note glyph (accent adds its chevron overlay).
             const bool ghost = (gemWrapper.gem == Gem::HOPO_GHOST);
             if (shouldBeWhite) return ghost ? getHopoWhiteImage() : getNoteWhiteImage();
-            switch (style.tint)
-            {
-            case T::Red:    return ghost ? getHopoRedImage()    : getNoteRedImage();
-            case T::Orange: return ghost ? getHopoOrangeImage() : getNoteOrangeImage();
-            case T::Blue:   return ghost ? getHopoBlueImage()   : getNoteBlueImage();
-            case T::Yellow: return ghost ? getHopoYellowImage() : getNoteYellowImage();
-            case T::Green:  return ghost ? getHopoGreenImage()  : getNoteGreenImage();
-            case T::Purple: return ghost ? getHopoPurpleImage()  : getNotePurpleImage();
-            default:        return ghost ? getHopoWhiteImage()  : getNoteWhiteImage();
-            }
+            if (style.tint == T::None) return ghost ? getHopoWhiteImage() : getNoteWhiteImage();
+
+            // A shell lane: the pad colour, which is also what the strikeline under it reads.
+            return laneGem(ghost ? GemFamily::Hopo : GemFamily::Note, palette.padFor(hue));
         }
         // Kick / 2x Kick. Elite kicks carry dynamics (spec), so each dynamic has its own bake:
         // an accent is thicker with a light rim, a ghost is darkened with a near-black one.
@@ -583,12 +641,12 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
         if (shouldBeWhite)
             return accent ? getBarWhiteAccentImage() : getBarWhiteEliteImage();
         if (gemColumn == ELITE_KICK_2X_COLUMN)
-            return accent ? getBarKick2xAccentImage()
-                 : ghost  ? getBarKick2xGhostImage()
-                          : getBarKick2xEliteImage();
-        return accent ? getBarKickAccentImage()
-             : ghost  ? getBarKickGhostImage()
-                      : getBarKickEliteImage();
+            return barGem(accent ? BarVariant::Kick2xAccent
+                        : ghost  ? BarVariant::Kick2xGhost
+                                 : BarVariant::Kick2xElite, palette.kick2x);
+        return barGem(accent ? BarVariant::KickAccent
+                    : ghost  ? BarVariant::KickGhost
+                             : BarVariant::KickElite, palette.kick);
     }
 
     if (shouldBeWhite)
@@ -630,36 +688,27 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
     }
     else
     {
+        // 4-lane drums, where the lane does not say pad or cymbal: the same yellow lane holds
+        // a tom and a hi-hat, so the gem picks which of the two colours the lane has.
+        const auto& palette = paletteFor(part);
+        const auto hue = laneHue(gemColumn, part);
+
         switch (gemWrapper.gem)
         {
         case Gem::HOPO_GHOST:
-            switch (gemColumn)
-            {
-            case 1: return getHopoRedImage();
-            case 2: return getHopoYellowImage();
-            case 3: return getHopoBlueImage();
-            case 4: return getHopoGreenImage();
-            } break;
+            if (gemColumn >= 1 && gemColumn <= 4) return laneGem(GemFamily::Hopo, palette.padFor(hue));
+            break;
         case Gem::NOTE:
         case Gem::TAP_ACCENT:
-            switch (gemColumn)
-            {
-            case 0: return getBarKickImage();
-            case 6: return getBarKick2xImage();
-            case 1: return getNoteRedImage();
-            case 2: return getNoteYellowImage();
-            case 3: return getNoteBlueImage();
-            case 4: return getNoteGreenImage();
-            } break;
+            if (gemColumn == 0) return barGem(BarVariant::Kick,   palette.kick);
+            if (gemColumn == 6) return barGem(BarVariant::Kick2x, palette.kick2x);
+            if (gemColumn >= 1 && gemColumn <= 4) return laneGem(GemFamily::Note, palette.padFor(hue));
+            break;
         case Gem::CYM_GHOST:
         case Gem::CYM:
         case Gem::CYM_ACCENT:
-            switch (gemColumn)
-            {
-            case 2: return getCymYellowImage();
-            case 3: return getCymBlueImage();
-            case 4: return getCymGreenImage();
-            } break;
+            if (gemColumn >= 2 && gemColumn <= 4) return laneGem(GemFamily::Cymbal, palette.cymbalFor(hue));
+            break;
         default: break;
         }
     }
@@ -719,28 +768,24 @@ juce::Image* AssetManager::getTintedGlyph(juce::Image* source, juce::Colour tint
     return &it->second;
 }
 
-juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPowerActive)
+// Which hue a lane wears. This is the lane's identity, not its colour: what that hue is
+// actually painted comes from the part's palette, which is why nothing here reads a colour.
+LaneColours::Hue AssetManager::laneHue(uint gemColumn, Part part)
 {
-    if (starPowerActive)
-    {
-        return juce::Colours::white;
-    }
-
-    // All lane colours come from the shared LaneColours palette (same source as the
-    // strikeline pads and cymbal tints), keyed by the lane's tint, so gems, roll lanes,
-    // strikeline pads and effects always agree on a lane's colour.
     using T = PositionConstants::DrumLaneTint;
-    auto fromTint = [](T t) -> juce::Colour
+    using H = LaneColours::Hue;
+
+    auto fromTint = [](T t)
     {
         switch (t)
         {
-        case T::Red:    return LaneColours::bright(LaneColours::red);
-        case T::Yellow: return LaneColours::bright(LaneColours::yellow);
-        case T::Blue:   return LaneColours::bright(LaneColours::blue);
-        case T::Green:  return LaneColours::bright(LaneColours::green);
-        case T::Orange: return LaneColours::bright(LaneColours::orange);
-        case T::Purple: return LaneColours::bright(LaneColours::purple);
-        default:        return LaneColours::bright(LaneColours::white);
+        case T::Red:    return H::Red;
+        case T::Yellow: return H::Yellow;
+        case T::Blue:   return H::Blue;
+        case T::Green:  return H::Green;
+        case T::Orange: return H::Orange;
+        case T::Purple: return H::Purple;
+        default:        return H::White;
         }
     };
 
@@ -748,15 +793,75 @@ juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPow
     {
         if (gemColumn >= 1 && gemColumn <= 8)
             return fromTint(PositionConstants::ELITE_LANE_STYLES[gemColumn].tint);
-        return fromTint(T::Orange);   // kick / 2x-kick lanes read as orange
+        return H::Orange;   // kick / 2x-kick lanes read as orange
     }
-    if (part == Part::GUITAR)
+    if (isGuitarLike(part))
     {
-        // 5-fret: col 0 = open (purple), 1-5 = GRYBO.
-        static const T g[6] = { T::Purple, T::Green, T::Red, T::Yellow, T::Blue, T::Orange };
-        return fromTint(g[std::min(gemColumn, 5u)]);
+        // 5-fret: col 0 = open (purple), 1-5 = GRYBO. Every guitar-like part uses this
+        // layout, and each now answers for its own colours rather than borrowing guitar's.
+        static const H g[6] = { H::Purple, H::Green, H::Red, H::Yellow, H::Blue, H::Orange };
+        return g[std::min(gemColumn, 5u)];
     }
     // 4-lane drums: kick(orange), red, yellow, blue, green.
-    static const T d[5] = { T::Orange, T::Red, T::Yellow, T::Blue, T::Green };
-    return fromTint(d[std::min(drumColumnIndex(gemColumn, part), 4u)]);
+    static const H d[5] = { H::Orange, H::Red, H::Yellow, H::Blue, H::Green };
+    return d[std::min(drumColumnIndex(gemColumn, part), 4u)];
+}
+
+bool AssetManager::eliteLaneIsCymbal(uint gemColumn)
+{
+    return gemColumn >= 1 && gemColumn <= 8
+        && PositionConstants::ELITE_LANE_STYLES[gemColumn].cymbal;
+}
+
+// The palette entry behind a column: the dark/bright pair, before anything decides which end
+// of it to read. Both colour accessors come through here so they cannot disagree about which
+// entry a column belongs to.
+const LaneColours::Lane& AssetManager::laneEntry(uint gemColumn, Part part, LaneKind kind) const
+{
+    const auto& palette = paletteFor(part);
+
+    // A bar is not a lane. The kick, the 2x kick and the open note have palette entries of
+    // their own, and reading them off the lane table instead gave the kick whatever colour
+    // the ORANGE pad happened to be: paint the toms red and the kick turned red with them,
+    // in the note map and anywhere else that asked by column.
+    if (isGuitarLike(part))
+    {
+        if (gemColumn == 0) return palette.open;
+    }
+    else if (isDrumLike(part))
+    {
+        const uint twoXColumn = part == Part::ELITE_DRUMS ? (uint)ELITE_KICK_2X_COLUMN
+                                                          : (uint)DRUM_KICK_2X_COLUMN;
+        if (gemColumn == twoXColumn)             return palette.kick2x;
+        if (gemColumn == (uint)DRUM_KICK_COLUMN) return palette.kick;
+    }
+
+    // Gems, roll lanes, strikeline pads and effects all come through here, so a lane has one
+    // colour whoever is asking. Elite overrules the caller: there the lane itself is a cymbal
+    // or a drum, and a caller guessing otherwise would be wrong rather than unaware.
+    const auto hue = laneHue(gemColumn, part);
+    const bool cymbal = part == Part::ELITE_DRUMS ? eliteLaneIsCymbal(gemColumn)
+                                                  : kind == LaneKind::Cymbal;
+
+    return cymbal ? palette.cymbalFor(hue) : palette.padFor(hue);
+}
+
+juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPowerActive, LaneKind kind)
+{
+    if (starPowerActive)
+    {
+        return juce::Colours::white;
+    }
+
+    return LaneColours::bright(laneEntry(gemColumn, part, kind));
+}
+
+// What something READS as where its gradient cannot be seen. A gem is mostly its bright
+// colour, but a bar is a lit tube running from a deep rim to a gloss line, and taking the
+// gloss alone made a strip mark that stood for an orange kick come out pale and yellow next
+// to the bar itself. The midpoint is what the eye averages the tube to.
+juce::Colour AssetManager::getGlanceColour(uint gemColumn, Part part, LaneKind kind)
+{
+    const auto& lane = laneEntry(gemColumn, part, kind);
+    return LaneColours::bright(lane).interpolatedWith(LaneColours::dark(lane), 0.5f);
 }

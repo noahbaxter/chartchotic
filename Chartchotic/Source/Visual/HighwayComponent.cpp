@@ -108,27 +108,23 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Draw them in component coordinates (no translation needed).
     if (showHighway)
     {
-        bool useCache = trackImageCache && !PositionMath::bemaniMode
-                        && getRenderType(activePart) != RenderType::ELITE_DRUMS;
+        // getFor, not get: the shared bake belongs to whichever palette it was made in, and a
+        // part that has been recoloured draws its own board rather than wearing another's.
+        auto* cachedTrack = (trackImageCache && !PositionMath::bemaniMode
+                             && getRenderType(activePart) != RenderType::ELITE_DRUMS)
+                          ? trackImageCache->getFor(activePart) : nullptr;
+        bool useCache = cachedTrack != nullptr;
 #ifdef DEBUG
         {
             ScopedPhaseMeasure _trackMeasure(debugTrackRender_us, sceneRenderer.collectPhaseTiming);
             if (useCache)
-            {
-                auto& cached = trackImageCache->get(isDrumLike(activePart));
-                if (cached.valid)
-                    trackRenderer.paintFromCache(g, cached.fadedTrack, w, totalH);
-            }
+                trackRenderer.paintFromCache(g, cachedTrack->fadedTrack, w, totalH);
             else
                 trackRenderer.paint(g, w, totalH);
         }
 #else
         if (useCache)
-        {
-            auto& cached = trackImageCache->get(isDrumLike(activePart));
-            if (cached.valid)
-                trackRenderer.paintFromCache(g, cached.fadedTrack, w, totalH);
-        }
+            trackRenderer.paintFromCache(g, cachedTrack->fadedTrack, w, totalH);
         else
             trackRenderer.paint(g, w, totalH);
 #endif
@@ -914,7 +910,12 @@ void HighwayComponent::rebuildTrack()
     // board with drum assets. Until the cache learns a third elite variant, render
     // elite live through the non-cache path (same one bemani/standalone use), which
     // honours the 9-lane elite geometry/assets.
-    bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode && !isElite;
+    // A recoloured part is in the same position as elite: the shared bake is not in its
+    // colours, so it renders live rather than wearing someone else's strikeline.
+    auto* cachedTrack = (trackImageCache && trackImageCache->isValid()
+                         && !PositionMath::bemaniMode && !isElite)
+                      ? trackImageCache->getFor(activePart) : nullptr;
+    bool useCache = cachedTrack != nullptr;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
@@ -936,9 +937,8 @@ void HighwayComponent::rebuildTrack()
 
         // Point overlays at the correct cache entry for this instrument
         sceneRenderer.clearOverlays();
-        auto& cached = trackImageCache->get(isDrums);
-        if (cached.valid)
         {
+            auto& cached = *cachedTrack;
             sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &cached.layers[TrackRenderer::STRIKELINE]);
             sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &cached.layers[TrackRenderer::LANE_LINES]);
             sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &cached.layers[TrackRenderer::SIDEBARS]);
@@ -1228,14 +1228,15 @@ void HighwayComponent::onInstrumentChanged()
 {
     setActivePart(getPartFromState(state));
 
-    if (trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode)
+    auto* switchedTo = (trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode)
+                     ? trackImageCache->getFor(activePart) : nullptr;
+
+    if (switchedTo != nullptr)
     {
-        // Cache active — just swap overlay pointers, no rebuild needed
-        bool isDrums = isDrumLike(activePart);
+        // Cache active and in this part's colours — just swap overlay pointers, no rebuild
         sceneRenderer.clearOverlays();
-        auto& cached = trackImageCache->get(isDrums);
-        if (cached.valid)
         {
+            auto& cached = *switchedTo;
             sceneRenderer.setOverlay(DrawOrder::TRACK_STRIKELINE, &cached.layers[TrackRenderer::STRIKELINE]);
             sceneRenderer.setOverlay(DrawOrder::TRACK_LANE_LINES, &cached.layers[TrackRenderer::LANE_LINES]);
             sceneRenderer.setOverlay(DrawOrder::TRACK_SIDEBARS,   &cached.layers[TrackRenderer::SIDEBARS]);

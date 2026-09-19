@@ -8,6 +8,8 @@
 #include <JuceHeader.h>
 #include "Art/TrackRenderer.h"
 #include "Geometry/PositionMath.h"
+#include "Utils/LaneColours.h"
+#include "Utils/PartPalettes.h"
 
 class TrackImageCache
 {
@@ -20,10 +22,24 @@ public:
         juce::Image layers[TrackRenderer::NUM_LAYERS];
         int overflow = 0;
         bool valid = false;
+        // The colours this was baked with. There are two bakes for a whole project, one per
+        // board shape, and the strikeline inside them is painted in a part's palette: without
+        // this, every 5-fret part wore guitar's pads and every drum part wore drums'.
+        LaneColours::Palette palette = LaneColours::defaultPalette();
     };
 
     BakedTrack& get(bool isDrums) { return isDrums ? drums : guitar; }
     const BakedTrack& get(bool isDrums) const { return isDrums ? drums : guitar; }
+
+    // The shared bake for this part, or null when it was made in someone else's colours and
+    // the caller has to draw its own. Parts that agree on colours still share one bake, so a
+    // project where nobody has touched a palette costs exactly what it did before.
+    BakedTrack* getFor(Part part)
+    {
+        auto& baked = get(isDrumLike(part));
+        if (!baked.valid) return nullptr;
+        return baked.palette == PartPalettes::global().forPart(part) ? &baked : nullptr;
+    }
 
     /** Request an async bake on a background thread.
         Drops the request if a bake is already in flight.
@@ -132,6 +148,8 @@ private:
                          const PositionConstants::NormalizedCoordinates* drumLaneCoords, int drumLaneCount)
     {
         auto bakeOne = [&](bool isDrums, BakedTrack& out) {
+            // One bake per board shape, painted in that shape's canonical part. Which colours
+            // those were is recorded below, so a part that disagrees can tell.
             renderer.activePart = isDrums ? Part::DRUMS : Part::GUITAR;
             auto* coords = isDrums ? drumLaneCoords : guitarLaneCoords;
             int count = isDrums ? drumLaneCount : guitarLaneCount;
@@ -144,6 +162,7 @@ private:
             for (int i = 0; i < TrackRenderer::NUM_LAYERS; i++)
                 out.layers[i] = renderer.getLayerImage((TrackRenderer::Layer)i).createCopy();
             out.overflow = ov;
+            out.palette = PartPalettes::global().forPart(renderer.activePart);
             out.valid = true;
         };
 

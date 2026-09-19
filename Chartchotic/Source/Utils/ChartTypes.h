@@ -125,6 +125,13 @@ enum class Gem
     SPLASH,         // Elite hi-hat pedal: "splash" (same bar; also a hi-hat sustain generator)
 };
 
+// Whether a gem is drawn as a cymbal. In 4-lane drums the lane cannot say this, so the gem
+// has to: the same yellow lane holds a tom and a hi-hat, and they are two different colours.
+inline bool isCymbalGem(Gem gem)
+{
+    return gem == Gem::CYM || gem == Gem::CYM_GHOST || gem == Gem::CYM_ACCENT;
+}
+
 // Elite hi-hat pedal state, orthogonal to the gem's ghost/accent type. Only meaningful on the
 // Hi-Hat (yellow cymbal) lane. Open is the spec default; Closed needs a coincident pedal-down;
 // Indifferent renders as an ordinary cymbal.

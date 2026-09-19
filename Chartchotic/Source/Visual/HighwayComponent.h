@@ -100,6 +100,16 @@ public:
     void setFrameData(const HighwayFrameData& data);
     void rebuildTrack();
 
+    // The board's colours changed under us. rebuildTrack alone is not enough: TrackRenderer
+    // skips a rebuild whose dimensions have not moved, so the strikeline would keep the pads
+    // it baked in the old palette while everything else repainted in the new one.
+    void repaintTrackArt()
+    {
+        trackRenderer.invalidate();
+        rebuildTrack();
+        repaint();
+    }
+
     // Visibility flags
     void setShowGems(bool on)           { sceneRenderer.showGems = on; repaint(); }
     void setShowBars(bool on)           { sceneRenderer.showBars = on; repaint(); }

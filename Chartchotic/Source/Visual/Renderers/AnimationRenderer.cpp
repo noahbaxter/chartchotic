@@ -181,11 +181,13 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 
     juce::Image* animFrame = nullptr;
     if (useWhiteSP) {
+        // Star power flattens every colour to white, so this one stays as it is.
         animFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
-    } else if (isGuitar && anim.isOpen) {
-        animFrame = assetManager.getOpenAnimationFrame(anim.currentFrame);
     } else {
-        animFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
+        // The flash belongs to the bar it came off, so it follows that bar's colour: a kick
+        // recoloured green flashing stock orange looks like a different note being hit.
+        animFrame = assetManager.getBarHitFrame(anim.currentFrame, activePart,
+                                                isGuitar && anim.isOpen, anim.is2xKick);
     }
 
     if (animFrame)
@@ -286,7 +288,9 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         ? assetManager.getHitFlareWhiteImage()
         : usePurple
             ? assetManager.getHitFlarePurpleImage()
-            : assetManager.getHitFlareImage(anim.lane, activePart);
+            // The gem that was hit, so a hi-hat flashes as a hi-hat rather than as the tom
+            // sharing its lane. HitAnimation has carried the gem all along.
+            : assetManager.getHitFlareImage(anim.lane, activePart, anim.gemType);
 
     bool barNote = isBarNote(anim.lane, activePart);
     uint colIdx = resolveLaneIndex(anim.lane);
