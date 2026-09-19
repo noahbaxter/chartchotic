@@ -17,9 +17,15 @@ namespace Render
                    juce::Point<float> scale,
                    DrawCallMap& drawCalls)
     {
+        // Below half of one 8-bit alpha step the blend cannot change a destination pixel, so the
+        // sprite is a guaranteed no-op. Gems keep fading to nothing at the far end of the board
+        // and were paying a full transformed blit all the way down.
+        constexpr float invisibleAlpha = 0.5f / 255.0f;
+
         for (const auto& sprite : frame.sprites)
         {
             if (sprite.image == nullptr) continue;
+            if (sprite.opacity < invisibleAlpha && sprite.tint.getAlpha() == 0) continue;
 
             float cx = anchor.x + sprite.offsetX * scale.x;
             float cy = anchor.y + sprite.offsetY * scale.y;
