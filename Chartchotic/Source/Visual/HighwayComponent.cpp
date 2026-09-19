@@ -118,7 +118,7 @@ void HighwayComponent::paint(juce::Graphics& g)
         // part that has been recoloured draws its own board rather than wearing another's.
         auto* cachedTrack = (trackImageCache && !PositionMath::bemaniMode
                              && getRenderType(activePart) != RenderType::ELITE_DRUMS)
-                          ? trackImageCache->getFor(activePart) : nullptr;
+                          ? trackImageCache->getFor(activePart, w, h) : nullptr;
         bool useCache = cachedTrack != nullptr;
 #ifdef DEBUG
         {
@@ -920,7 +920,7 @@ void HighwayComponent::rebuildTrack()
     // colours, so it renders live rather than wearing someone else's strikeline.
     auto* cachedTrack = (trackImageCache && trackImageCache->isValid()
                          && !PositionMath::bemaniMode && !isElite)
-                      ? trackImageCache->getFor(activePart) : nullptr;
+                      ? trackImageCache->getFor(activePart, w, h) : nullptr;
     bool useCache = cachedTrack != nullptr;
 
     sceneRenderer.rescaleAssets(w);
@@ -1235,7 +1235,7 @@ void HighwayComponent::onInstrumentChanged()
     setActivePart(getPartFromState(state));
 
     auto* switchedTo = (trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode)
-                     ? trackImageCache->getFor(activePart) : nullptr;
+                     ? trackImageCache->getFor(activePart, renderWidth, renderHeight) : nullptr;
 
     if (switchedTo != nullptr)
     {
