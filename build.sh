@@ -127,11 +127,31 @@ fi
 # gets its own build directory. Reconfigure only when the cache is missing or
 # the build type changed.
 NINJA_BUILD_DIR="$BUILD_DIR/$BUILD_CONFIG"
+
+# The minimum macOS the binaries claim. Below 11.0 the current Xcode SDK's libc++ warns
+# once per translation unit per architecture. Declared here so the value the cache is
+# checked against and the value passed to cmake cannot drift apart.
+DEPLOYMENT_TARGET=11.0
+OSX_ARCHITECTURES="arm64;x86_64"
+
 NEEDS_CONFIGURE=false
 if [ ! -f "$NINJA_BUILD_DIR/CMakeCache.txt" ]; then
     NEEDS_CONFIGURE=true
 elif ! grep -q "CMAKE_BUILD_TYPE:STRING=$BUILD_CONFIG" "$NINJA_BUILD_DIR/CMakeCache.txt" 2>/dev/null; then
     NEEDS_CONFIGURE=true
+fi
+
+# Reconfigure if the deployment target or the architectures changed. Without this the cache
+# keeps whatever it was first configured with, and editing the value above does nothing at
+# all: that is how a build kept warning about 10.15 for a whole session after the switch to
+# 11.0. Any cmake setting this script hardcodes needs a check like this one to take effect.
+if [ "$NEEDS_CONFIGURE" = false ] && [ -f "$NINJA_BUILD_DIR/CMakeCache.txt" ]; then
+    CACHED_TARGET=$(grep "^CMAKE_OSX_DEPLOYMENT_TARGET:" "$NINJA_BUILD_DIR/CMakeCache.txt" 2>/dev/null | cut -d= -f2-)
+    CACHED_ARCHS=$(grep "^CMAKE_OSX_ARCHITECTURES:" "$NINJA_BUILD_DIR/CMakeCache.txt" 2>/dev/null | cut -d= -f2-)
+    if [ "$CACHED_TARGET" != "$DEPLOYMENT_TARGET" ] || [ "$CACHED_ARCHS" != "$OSX_ARCHITECTURES" ]; then
+        echo "Build settings changed (deployment target / architectures) — reconfiguring"
+        NEEDS_CONFIGURE=true
+    fi
 fi
 
 # Reconfigure if SKIN_DIR changed
@@ -163,8 +183,8 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
     fi
     cmake -B "$NINJA_BUILD_DIR" -G Ninja \
         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
-        -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-        -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+        -DCMAKE_OSX_ARCHITECTURES="$OSX_ARCHITECTURES" \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
         -DBUILD_CHANNEL="$BUILD_CHANNEL" \
         $CMAKE_EXTRA_ARGS \
         -S "$SCRIPT_DIR"
