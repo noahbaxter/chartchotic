@@ -350,7 +350,15 @@ inline PartIconData getPartIcon(Part p)
         case Part::PRO_KEYS:    return { BinaryData::icon_keys_png,   BinaryData::icon_keys_pngSize };
         case Part::VOCALS:
         case Part::HARMONIES:   return { BinaryData::icon_vocals_png, BinaryData::icon_vocals_pngSize };
-        default:                return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize };
+        case Part::GUITAR:
+        case Part::GUITAR_COOP:
+        case Part::RHYTHM:
+        case Part::GHL_GUITAR:
+        case Part::PRO_GUITAR:  return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize };
+        // The guitar-likes are listed rather than defaulted so a part with no icon of its own
+        // says so instead of wearing a guitar. EVENTS is not an instrument and there is no art
+        // that means it; callers draw its name instead.
+        default:                return { nullptr, 0 };
     }
 #else
     juce::ignoreUnused(p);
