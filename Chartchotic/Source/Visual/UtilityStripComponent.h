@@ -109,6 +109,9 @@ public:
     UtilityStripComponent()
     {
         setInterceptsMouseClicks(true, false);
+        // paint() opens with an unconditional fillAll, so every pixel of our bounds is ours.
+        // Saying so keeps the editor's background from being repainted underneath us each frame.
+        setOpaque(true);
         rebuildMetrics();  // before the first resize, so nothing reads an unset size
     }
 

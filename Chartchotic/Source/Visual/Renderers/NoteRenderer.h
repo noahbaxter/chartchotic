@@ -186,7 +186,6 @@ private:
         int   gemColumn;
         bool  isDrums;
         float gemBaseW;            // base width before scale
-        float gemBaseH;            // base height before scale
         float hScale;              // height scale multiplier
         float overlayBaseW;        // width the overlay's HEIGHT comes from. Whole lane, like
                                    // gemBaseW: the sprite rect already carries any squish
@@ -198,17 +197,20 @@ private:
                               const CurvedSwapArgs& args);
 
     // Curved note image cache (per (image, column, isDrums))
+    //
+    // Every field is a fraction of the gem's FULL source canvas as drawn, so the draw site
+    // rebuilds the rect without knowing what the bake trimmed or padded. Expressing it against
+    // the canvas rather than against the bake is what makes the numbers scale-invariant: the
+    // old `contentFraction = srcH/destH` was a ratio against a padding of `ceil(maxShift) + 2`
+    // whole pixels, which is 6.25% of a 32px bake and 3.1% of a 64px one, so both the height
+    // and the offset stepped at every bucket boundary and the gem jumped as it travelled.
     struct CurvedImageEntry
     {
         juce::Image image;
-        float yOffsetFraction;  // baseline shift as fraction of dest height
-        // Rows of the baked image that are glyph rather than arc padding. Sprite height is
-        // derived from the CONTENT (contentHeight / contentFraction), never from the padded
-        // image's aspect: the padding is `ceil(maxShift) + 2` whole pixels, which is a bigger
-        // slice of a small bake than a large one, so sizing off the image aspect made a gem's
-        // height drift with its bake bucket — visible as a flam changing height as its width
-        // slider moves.
-        float contentFraction = 1.0f;
+        float wFraction = 1.0f;        // baked width  / full canvas width
+        float hFraction = 1.0f;        // baked height / full canvas height
+        float xOffsetFraction = 0.0f;  // bake centre - canvas centre, over canvas width
+        float yOffsetFraction = 0.0f;  // bake centre - canvas centre, over canvas height
     };
 
     // Cache key includes curvature (quantized to 1e-4) so dragging the curvature
@@ -236,6 +238,17 @@ private:
     // baking a new one every frame.
     static constexpr int CURVE_BAKE_MIN_WIDTH = 32;
     static int curveSizeBucket(float drawnWidthPx, int sourceWidth);
+
+    // Arc padding, as a fraction of the baked content height rather than a fixed pixel count.
+    // A constant pad is a different share of every bucket, which is the snap this replaces.
+    static constexpr float CURVE_BAKE_PAD_FRACTION = 0.02f;
+
+    // Gem art is mostly transparent margin: measured across the real assets, note canvases are
+    // 43.5% visible and hopos 22.9%, so 2.3x of every gem blit was blending nothing. The bake
+    // keeps only the visible box and the entry's fractions put it back where it belongs.
+    static constexpr juce::uint8 CURVE_VISIBLE_ALPHA = 2;
+    const juce::Rectangle<int>& visibleBoundsOf(juce::Image* src);
+    std::map<std::tuple<void*, int, int>, juce::Rectangle<int>> visibleBoundsCache;
 
     // When set, getCurvedImage warps across THESE coords instead of a single lane's. Only the
     // elite Stomp/Splash bar uses it, which spans the ~3-lane pedal zone (off-centre), so its

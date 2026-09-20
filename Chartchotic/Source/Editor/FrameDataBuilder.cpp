@@ -193,7 +193,7 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     }
 }
 
-void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
+void FrameDataBuilder::buildReaperBatched([[maybe_unused]] HighwayFrameData& primaryOut,
                                           const FrameContext& ctx)
 {
     PPQ trackWindowStartPPQ = applyLatencyOffset(ctx.cursorPPQ, ctx);
@@ -323,9 +323,12 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
             }
 
             frameData.builtForPart = interp.instrumentPart;
+#ifdef DEBUG
+            // Read back only by the frame profiler, so release skips the copy entirely.
             if (idx == 0)
                 primaryOut = frameData;
-            slot.highway->setFrameData(frameData);
+#endif
+            slot.highway->setFrameData(std::move(frameData));
             slot.highway->repaint();
         }
     }

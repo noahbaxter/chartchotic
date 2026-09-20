@@ -218,7 +218,7 @@ void DebugEditorController::paintOverChildren(juce::Graphics& g, HighwayComponen
     if (hasSlotsVisible && primaryHighway)
     {
         if (showProfilerOverlay)
-            drawProfilerOverlay(g, primaryHighway->getSceneRenderer());
+            drawProfilerOverlay(g, primaryHighway->getSceneRenderer(), primaryHighway);
 
         // Collect per-highway timing
         HighwayProfileRecord hwRecords[MAX_PROFILED_HIGHWAYS] = {};
@@ -249,7 +249,8 @@ void DebugEditorController::paintOverChildren(juce::Graphics& g, HighwayComponen
     }
 }
 
-void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer)
+void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer,
+                                                const HighwayComponent* primaryHighway)
 {
     auto& t = sceneRenderer.lastPhaseTiming;
 
@@ -275,8 +276,17 @@ void DebugEditorController::drawProfilerOverlay(juce::Graphics& g, const SceneRe
     double avgLockWait = ringAvg(lockWaitRing, PROFILER_RING_SIZE);
     double fps = avgFrameDelta > 0.0 ? 1000000.0 / avgFrameDelta : 0.0;
 
+    // Device pixels per point, and the slot in points. If scale reads 1.00 on a retina display
+    // the editor is being composited at 1x and every "bake at device pixels" argument is moot.
+    juce::String scaleLine;
+    if (primaryHighway != nullptr)
+        scaleLine << "Scale:   " << juce::String(primaryHighway->physicalScale, 2)
+                  << "  slot " << primaryHighway->renderWidth
+                  << "x" << primaryHighway->renderHeight << "\n";
+
     juce::String text;
     text << "FPS: " << juce::String(fps, 1) << "\n"
+         << scaleLine
          << "Delta:   " << juce::String((int)avgFrameDelta) << " us\n"
          << "Lock:    " << juce::String((int)avgLockWait) << " us\n"
          << "Notes:   " << juce::String((int)t.notes_us) << " us\n"

@@ -97,7 +97,9 @@ public:
     // Format a project QN as "M.B" position label (e.g. "37.2.5"). Wired by PluginEditor.
     void setFormatPositionQN(std::function<juce::String(double)> fn) { formatPositionQN = std::move(fn); }
 
-    void setFrameData(const HighwayFrameData& data);
+    // By value so a caller with a dead local can move its windows in rather than deep-copying
+    // seven containers, one of them a std::map with a node per visible note, every frame per slot.
+    void setFrameData(HighwayFrameData data);
     void rebuildTrack();
 
     // The board's colours changed under us. rebuildTrack alone is not enough: TrackRenderer
@@ -221,6 +223,38 @@ public:
     bool stretchToFill = false;
 
     int renderWidth = 0, renderHeight = 0;
+    // Device pixels per point for the display this highway is on, recorded during paint. The
+    // track bake reads it so its images land 1:1 on a retina backing store instead of being
+    // interpolated up at blit time.
+    float physicalScale = 1.0f;
+
+    /** What paint()'s transform scales the scene by on its way into the component, for the
+        component's CURRENT bounds. Derived rather than remembered from the last paint: the
+        window is resizable, and resized() asks for this before the next paint has run, so a
+        cached value would bake every resize at the previous size's scale.
+
+        paint() computes the same thing inline rather than calling this, because while the
+        resize debounce is running it deliberately scales the STALE baked dimensions instead
+        of the live ones. This always answers for the live ones, which is what the next bake
+        wants. */
+    void getDrawScale(float& outX, float& outY) const
+    {
+        outX = outY = 1.0f;
+        const int w = renderWidth > 0 ? renderWidth : getWidth();
+        const int totalH = (renderHeight > 0 ? renderHeight : getHeight()) + topOverflow;
+        if (w <= 0 || totalH <= 0 || getWidth() <= 0 || getHeight() <= 0) return;
+
+        if (stretchToFill && !PositionMath::bemaniMode)
+        {
+            outX = (float)getWidth()  / (float)w;
+            outY = (float)getHeight() / (float)totalH;
+        }
+        else
+        {
+            outX = outY = std::min((float)getWidth()  / (float)w,
+                                   (float)getHeight() / (float)totalH);
+        }
+    }
     std::function<void()> onOverflowChanged;
 
     /** Defer an expensive rebuild (e.g. window resize).

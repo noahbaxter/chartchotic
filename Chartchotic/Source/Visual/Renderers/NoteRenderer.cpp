@@ -144,14 +144,18 @@ void NoteRenderer::applyCurvedImageSwap(Frame& frame, int gemIdx, int ovlIdx,
     auto& gemSprite = frame.sprites[gemIdx];
     const auto& gemEntry = getCurvedImage(args.glyphImage, args.gemColumn, args.isDrums,
                                           gemSprite.width * args.pixelScale);
-    // Size the glyph content, then grow the sprite to cover the arc padding around it. Going
-    // via the padded image's aspect instead lets the bake's integer padding leak into the
-    // gem's height.
+    // The canvas rect the untrimmed art would have filled. Height comes from the ART's aspect,
+    // not the sprite rect's: the rect is a fixed 2:1 while the masters run 1.62 to 2.42 (the
+    // hi-hats), and every fraction the bake returns is against the art.
     float srcAspect = (float)args.glyphImage->getWidth() / (float)args.glyphImage->getHeight();
-    float gemContentH = (args.gemBaseW / srcAspect) * args.hScale;
+    float canvasW = gemSprite.width;
+    float canvasH = (args.gemBaseW / srcAspect) * args.hScale;
+
     gemSprite.image  = const_cast<juce::Image*>(&gemEntry.image);
-    gemSprite.height = gemContentH / gemEntry.contentFraction;
-    gemSprite.offsetY += gemEntry.yOffsetFraction * args.gemBaseH;
+    gemSprite.width   = canvasW * gemEntry.wFraction;
+    gemSprite.height  = canvasH * gemEntry.hFraction;
+    gemSprite.offsetX += gemEntry.xOffsetFraction * canvasW;
+    gemSprite.offsetY += gemEntry.yOffsetFraction * canvasH;
 
     if (args.overlayImage && args.overlayAdj && ovlIdx >= 0)
     {
@@ -161,17 +165,18 @@ void NoteRenderer::applyCurvedImageSwap(Frame& frame, int gemIdx, int ovlIdx,
         float ovlSrcAspect = (float)args.overlayImage->getWidth()
                            / (float)args.overlayImage->getHeight();
         float ovlRectSX = args.overlayAdj->scaleX * args.overlayAdj->scale;
-        float ovlRectSY = args.overlayAdj->scaleY * args.overlayAdj->scale;
-        float ovlContentH = (args.overlayBaseW * ovlRectSX) / ovlSrcAspect * args.hScale;
-        float ovlCurvedH = ovlContentH / ovlEntry.contentFraction;
-        float ovlContentYBase = args.gemBaseH * ovlRectSY;
+        float ovlCanvasW = ovlSprite.width;
+        float ovlCanvasH = (args.overlayBaseW * ovlRectSX) / ovlSrcAspect * args.hScale;
 
         ovlSprite.image  = const_cast<juce::Image*>(&ovlEntry.image);
-        ovlSprite.height = ovlCurvedH;
-        ovlSprite.offsetX = args.overlayAnchorX + args.overlayAdj->offsetX * ovlSprite.width;
+        ovlSprite.width  = ovlCanvasW * ovlEntry.wFraction;
+        ovlSprite.height = ovlCanvasH * ovlEntry.hFraction;
+        ovlSprite.offsetX = args.overlayAnchorX
+                          + ovlEntry.xOffsetFraction * ovlCanvasW
+                          + args.overlayAdj->offsetX * ovlCanvasW;
         ovlSprite.offsetY = args.overlayAnchorY
-                          + ovlEntry.yOffsetFraction * ovlContentYBase
-                          + args.overlayAdj->offsetY * ovlSprite.height;
+                          + ovlEntry.yOffsetFraction * ovlCanvasH
+                          + args.overlayAdj->offsetY * ovlCanvasH;
     }
 }
 
@@ -632,7 +637,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
             // width here, not its own squished width. Passing the squished width made the
             // curved path scale the gem down instead of squishing it, which is what turned
             // flams into two small gems rather than one gem split in two.
-            laneStrikeWidth, strikeColHeight, hScale,
+            laneStrikeWidth, hScale,
             laneStrikeWidth,
             flamOneOverlay ? laneOffsetX : strikeOffsetX,
             zOff + arcOffsetStrike,
@@ -795,7 +800,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         CurvedSwapArgs args{
             glyphImage, overlayImage, overlayAdjPtr,
             (int)gemColumn, isDrums,
-            glyphRect.getWidth(), glyphRect.getHeight(), hScale,
+            glyphRect.getWidth(), hScale,
             glyphRect.getWidth(), 0.0f, 0.0f,
             1.0f,
         };
@@ -847,11 +852,41 @@ int NoteRenderer::curveSizeBucket(float drawnWidthPx, int sourceWidth)
     return juce::jmin(bucket, juce::jmax(1, sourceWidth));
 }
 
+// Visible box of a gem master, scanned once. Keyed on the pixel buffer AND its size: a rescale
+// frees the old data and the allocator can hand the same address straight back, which would
+// otherwise serve bounds belonging to an image that had changed size.
+const juce::Rectangle<int>& NoteRenderer::visibleBoundsOf(juce::Image* src)
+{
+    const auto key = std::make_tuple((void*)src->getPixelData().get(),
+                                     src->getWidth(), src->getHeight());
+    auto hit = visibleBoundsCache.find(key);
+    if (hit != visibleBoundsCache.end()) return hit->second;
+
+    juce::Image::BitmapData bmp(*src, juce::Image::BitmapData::readOnly);
+    int x0 = src->getWidth(), y0 = src->getHeight(), x1 = -1, y1 = -1;
+    for (int y = 0; y < src->getHeight(); ++y)
+        for (int x = 0; x < src->getWidth(); ++x)
+            if (bmp.getPixelColour(x, y).getAlpha() > CURVE_VISIBLE_ALPHA)
+            {
+                x0 = juce::jmin(x0, x); x1 = juce::jmax(x1, x);
+                y0 = juce::jmin(y0, y); y1 = juce::jmax(y1, y);
+            }
+
+    auto bounds = x1 < 0 ? src->getBounds()
+                         : juce::Rectangle<int>(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+    return visibleBoundsCache.emplace(key, bounds).first->second;
+}
+
 const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     juce::Image* src, int column, bool isDrums, float drawnWidthPx)
 {
     float curv = (isDrums ? noteCurvatureDrums : noteCurvatureGuitar) * curveScaleOverride;
-    int bucket = curveSizeBucket(drawnWidthPx, src->getWidth());
+
+    // Bucket on the width the VISIBLE part is drawn at, not the canvas: a gem whose art fills
+    // half its canvas needs half the bake to hit the same on-screen resolution.
+    const auto vis = visibleBoundsOf(src);
+    const float visWFrac = (float)vis.getWidth() / (float)src->getWidth();
+    int bucket = curveSizeBucket(drawnWidthPx * visWFrac, vis.getWidth());
     CurveKey key{src, column, isDrums, (int)std::lround(curv * 10000.0f), bucket};
     auto it = curvedCache.find(key);
     if (it != curvedCache.end())
@@ -864,18 +899,25 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     if (curvedCache.size() >= 1200)
         curvedCache.clear();
 
-    // Bake at the size bucket, i.e. roughly what this gem is drawn at, rather than a fixed
-    // fraction of the art.
+    // Bake the visible box at the size bucket, i.e. roughly what it is drawn at, rather than a
+    // fixed fraction of the art. One uniform scale for both axes so the art keeps its aspect.
+    const double bakeScale = (double)bucket / (double)vis.getWidth();
     int srcW = bucket;
-    int srcH = (int)std::lround((double)src->getHeight() * bucket / (double)src->getWidth());
+    int srcH = (int)std::lround((double)vis.getHeight() * bakeScale);
     if (srcW < 1) srcW = 1;
     if (srcH < 1) srcH = 1;
 
-    // Downsampled source
+    // What the FULL canvas would measure at this bake scale. Every fraction the entry returns
+    // is against these, so the draw site can place the trimmed bake inside the gem's rect.
+    const float canvasWpx = (float)(src->getWidth()  * bakeScale);
+    const float canvasHpx = (float)(src->getHeight() * bakeScale);
+
+    // Downsampled source, cropped to the visible box
     juce::Image downSrc(juce::Image::ARGB, srcW, srcH, true);
     {
         juce::Graphics gDown(downSrc);
-        gDown.drawImage(*src, juce::Rectangle<float>(0.0f, 0.0f, (float)srcW, (float)srcH));
+        gDown.drawImage(*src, 0, 0, srcW, srcH,
+                        vis.getX(), vis.getY(), vis.getWidth(), vis.getHeight());
     }
 
     // Compute per-column Y offsets: arcHeight * (1 - dist²) matching snapshot math
@@ -887,18 +929,23 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     const auto& colCoords = curveCoordsOverride ? *curveCoordsOverride
                                                 : laneCoords[resolveLaneIndex((uint)column)];
 
-    float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);
+    // The CANVAS spans the lane, not the trimmed bake, so both the arc's scale and each pixel
+    // column's place on the fretboard are measured against the canvas.
+    float fbWidthInCache = canvasWpx * (fbCoords.normWidth1 / colCoords.normWidth1);
     float arcHeight = fbWidthInCache * curv;
 
     float noteLeftNorm = colCoords.normX1;
     float noteRightNorm = colCoords.normX1 + colCoords.normWidth1;
+
+    const float visXpx = (float)(vis.getX() * bakeScale);
+    const float visYpx = (float)(vis.getY() * bakeScale);
 
     // Compute Y offset for every pixel column
     std::vector<float> colOffsets(srcW);
 
     for (int x = 0; x < srcW; x++)
     {
-        float t = ((float)x + 0.5f) / (float)srcW;
+        float t = (visXpx + (float)x + 0.5f) / canvasWpx;
         float xNorm = noteLeftNorm + t * (noteRightNorm - noteLeftNorm);
         float dist = (xNorm - fbCenterNorm) / fbHalfWNorm;
         colOffsets[x] = arcHeight * (1.0f - dist * dist);
@@ -916,7 +963,9 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
         if (shift > maxShift) maxShift = shift;
     }
 
-    int extraPx = (int)std::ceil(maxShift) + 2;
+    // Pad proportionally. The arc term already scales with the bake; the slack on top of it has
+    // to as well, or its share of the image (and so every fraction below) steps per bucket.
+    int extraPx = (int)std::ceil(maxShift + (float)srcH * CURVE_BAKE_PAD_FRACTION);
     int destH = srcH + extraPx;
 
     juce::Image dest(juce::Image::ARGB, srcW, destH, true);
@@ -955,15 +1004,21 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
         }
     }
 
-    // yOffsetFraction: where this column's content center sits relative to dest image center
+    // Place the bake in canvas space. The warp moves source row s to dest row s + yShift, so
+    // the centre column's content sits at dest rows [centerColShift, +srcH]; putting the image
+    // top at (visYpx - centerColShift) lands that content exactly on the canvas rows it was
+    // trimmed from. The centre of the gem stays where the art puts it and the arc lifts the
+    // edges, which is what curvature is supposed to look like.
     float centerColShift = colOffsets[srcW / 2] - globalRef;
-    float srcCenterInDest = centerColShift + (float)srcH * 0.5f;
-    float destCenter = (float)destH * 0.5f;
-    float yOffsetFraction = (srcCenterInDest - destCenter) / (float)srcH;
+    float destTopInCanvas = visYpx - centerColShift;
 
-    float contentFraction = (float)srcH / (float)destH;
+    CurvedImageEntry entry;
+    entry.image = std::move(dest);
+    entry.wFraction = (float)srcW / canvasWpx;
+    entry.hFraction = (float)destH / canvasHpx;
+    entry.xOffsetFraction = (visXpx + (float)srcW * 0.5f - canvasWpx * 0.5f) / canvasWpx;
+    entry.yOffsetFraction = (destTopInCanvas + (float)destH * 0.5f - canvasHpx * 0.5f) / canvasHpx;
 
-    auto [insertIt, _] = curvedCache.emplace(
-        key, CurvedImageEntry{std::move(dest), yOffsetFraction, contentFraction});
+    auto [insertIt, _] = curvedCache.emplace(key, std::move(entry));
     return insertIt->second;
 }
