@@ -10,6 +10,8 @@ build-benchmark/
 build-render*/
 tests/render_harness/*.png
 tests/render_harness/out/
+# render_harness writes here when run from the repo root with no output path given
+/highway.png
 tests/unit/build*/
 **/DerivedData/
 **/x64/

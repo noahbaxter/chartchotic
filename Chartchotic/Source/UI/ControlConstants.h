@@ -167,11 +167,16 @@ enum class Part
     PRO_BASS,           // PART REAL_BASS, PART REAL_BASS_22
     PRO_KEYS,           // PART REAL_KEYS_X/H/M/E (separate track per difficulty)
 
-    // Not an instrument: the song-scoped EVENTS track (sections, [coda]). Carries a Part so
-    // it flows through discovery and the write path, which are keyed on Part throughout.
-    // isHighwayRenderable() is a whitelist, so it stays out of slots and the part picker.
+    // Not an instrument: the song-scoped EVENTS track (sections, [coda]). Carries a Part so it
+    // flows through discovery, the parts menu and the write path, which are keyed on Part
+    // throughout. isHighwayRenderable() is a whitelist, so it never gets a slot or a highway.
     EVENTS,             // EVENTS
 };
+
+// The non-instrument tracks. Grouped apart from the parts in the menu, because "which track is
+// my guitar" and "which track is my EVENTS" are different questions. One member today: BEAT
+// restates the tempo map and VENUE is Rock Band staging, so neither earned a column.
+inline bool isUtilityPart(Part p) { return p == Part::EVENTS; }
 
 // How a Part renders on the highway — determines interpreter, lane count, gem style
 enum class RenderType
@@ -277,6 +282,9 @@ inline int getPartSortOrder(Part p)
         case Part::ELITE_DRUMS: return 11;
         case Part::VOCALS:      return 12;
         case Part::HARMONIES:   return 13;
+        // After every instrument. Its column group already puts it last; this keeps the sort
+        // agreeing with that rather than relying on the grouping alone.
+        case Part::EVENTS:      return 20;
         default:                return 99;
     }
 }
@@ -299,6 +307,7 @@ inline juce::String getPartDisplayName(Part p)
         case Part::PRO_GUITAR:  return "Pro Gtr";
         case Part::PRO_BASS:    return "Pro Bass";
         case Part::PRO_KEYS:    return "Pro Keys";
+        case Part::EVENTS:      return "Events";
         default:                return "Unknown";
     }
 }
@@ -341,7 +350,15 @@ inline PartIconData getPartIcon(Part p)
         case Part::PRO_KEYS:    return { BinaryData::icon_keys_png,   BinaryData::icon_keys_pngSize };
         case Part::VOCALS:
         case Part::HARMONIES:   return { BinaryData::icon_vocals_png, BinaryData::icon_vocals_pngSize };
-        default:                return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize };
+        case Part::GUITAR:
+        case Part::GUITAR_COOP:
+        case Part::RHYTHM:
+        case Part::GHL_GUITAR:
+        case Part::PRO_GUITAR:  return { BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize };
+        // The guitar-likes are listed rather than defaulted so a part with no icon of its own
+        // says so instead of wearing a guitar. EVENTS is not an instrument and there is no art
+        // that means it; callers draw its name instead.
+        default:                return { nullptr, 0 };
     }
 #else
     juce::ignoreUnused(p);

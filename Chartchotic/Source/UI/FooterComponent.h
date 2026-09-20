@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "../DebugTools/Perf.h"
 #include "Theme.h"
 #include "ControlConstants.h"
 #include "HelpTypes.h"
@@ -95,6 +96,7 @@ public:
 
     void paint(juce::Graphics& g) override
     {
+        PERF_SCOPE("paint/footer");
         g.fillAll(juce::Colour(Theme::sceneBg));
 
         if (dawIcon)

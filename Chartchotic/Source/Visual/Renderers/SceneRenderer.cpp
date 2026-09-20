@@ -9,6 +9,7 @@
 */
 
 #include "SceneRenderer.h"
+#include "../../DebugTools/Perf.h"
 #include "../Utils/DrawingConstants.h"
 #include "../Geometry/PositionConstants.h"
 #include "../Geometry/RenderTypeConfig.h"
@@ -34,6 +35,15 @@ SceneRenderer::~SceneRenderer()
 void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying)
 {
     ScopedPhaseMeasure totalMeasure(lastPhaseTiming.total_us, collectPhaseTiming);
+    { PERF_SCOPE("paint/highway/scene/populate");
+      populate(viewportWidth, viewportHeight, trackWindow, sustainWindow, gridlines,
+               flipRegions, eventMarkers, windowStartTime, windowEndTime, isPlaying); }
+    { PERF_SCOPE("paint/highway/scene/execute");
+      execute(g); }
+}
+
+void SceneRenderer::populate(int viewportWidth, int viewportHeight, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, const TimeBasedFlipRegions& flipRegions, const TimeBasedEventMarkers& eventMarkers, double windowStartTime, double windowEndTime, bool isPlaying)
+{
 
     // Use the full viewport size, not clip bounds — partial repaints must not
     // change the perspective math or the scene will render incorrectly.
@@ -293,6 +303,10 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         }
     }
 
+}
+
+void SceneRenderer::execute(juce::Graphics& g)
+{
     // Draw layer by layer, then column by column within each layer
     {
         ScopedPhaseMeasure m(lastPhaseTiming.execute_us, collectPhaseTiming);

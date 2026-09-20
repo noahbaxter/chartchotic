@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Host/ReaperTrackDetector.h"
+#include "DebugTools/Perf.h"
 #include "Midi/Processing/NoteProcessor.h"
 #include "Visual/Geometry/PositionMath.h"
 
@@ -520,6 +521,11 @@ void ChartchoticAudioProcessorEditor::onFrame()
         double elapsed = (now - lastFrameTicks) / ticksPerSec;
         if (elapsed < targetFrameInterval)
             return;
+
+        // The frame boundary. Everything from here to the next one belongs to this frame,
+        // including the paints JUCE runs after this tick returns.
+        Perf::beginFrame();
+
         // Advance by target interval to stay on a stable grid.
         // If we overshot by more than a full interval (e.g. app was suspended), snap to now.
         juce::int64 intervalTicks = static_cast<juce::int64>(targetFrameInterval * ticksPerSec);
@@ -527,6 +533,10 @@ void ChartchoticAudioProcessorEditor::onFrame()
         if ((now - lastFrameTicks) / ticksPerSec > targetFrameInterval)
             lastFrameTicks = now;
     }
+
+    // Closed by hand at buildFrameContext. Everything before that point is the per-frame sync
+    // and pollForChanges, which is the REAPER API traffic no offline harness can see.
+    Perf::Scope tickScope { "tick/sync" };
 
     printCallback();
 
@@ -642,6 +652,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #ifdef DEBUG
     auto dataBuildStart = std::chrono::high_resolution_clock::now();
 #endif
+    tickScope.close();
+    PERF_SCOPE("tick/ctx");
     auto ctx = buildFrameContext();
     HighwayFrameData primaryFrameData;
 
@@ -706,6 +718,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
     else
     {
+        PERF_SCOPE("tick/buildFrameData");
         for (int i = 0; i < activeSlotCount; i++)
         {
             auto& slot = slots[i];
@@ -716,9 +729,13 @@ void ChartchoticAudioProcessorEditor::onFrame()
                 FrameDataBuilder::buildStandard(frameData, ctx, *slot.interpreter);
             frameData.builtForPart = slot.interpreter->instrumentPart;
 
+#ifdef DEBUG
+            // Only the frame profiler reads this back after the loop, so in release the copy
+            // was pure waste and the windows can go straight into the slot.
             if (i == 0)
                 primaryFrameData = frameData;
-            slot.highway->setFrameData(frameData);
+#endif
+            slot.highway->setFrameData(std::move(frameData));
             slot.highway->repaint();
         }
     }
@@ -735,7 +752,38 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
 #endif
 
-    repaint();
+    // The editor's own painting is a full-window backdrop plus the banner, and none of it moves
+    // between section boundaries, so repainting the lot every vblank dragged the background,
+    // toolbar, footer and strip through the rasteriser for nothing. Repaint only what changes.
+    // Debug overlays are the exception: they redraw their own numbers every frame.
+    constexpr bool debugOverlaysNeedFullRepaint =
+       #ifdef DEBUG
+        true;
+       #else
+        false;
+       #endif
+
+    if (debugOverlaysNeedFullRepaint)
+    {
+        repaint();
+        return;
+    }
+
+    // Slack covers the rounded pill drawFpsOverlay paints outside the text rect.
+    if (showFps)
+        repaint(fpsOverlayBounds().expanded(8));
+
+    if (sectionBannerShown())
+    {
+        auto song = utilityStrip.currentSongName();
+        auto section = utilityStrip.currentSectionName();
+        if (song != lastBannerSong || section != lastBannerSection)
+        {
+            lastBannerSong = song;
+            lastBannerSection = section;
+            repaint(sectionBannerBounds());
+        }
+    }
 }
 
 void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
@@ -919,7 +967,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     };
 
     toolbar.onShowFpsChanged = [this](bool on) { showFps = on; };
-    toolbar.onShowBackgroundChanged = [this](bool on) { assets.setBackgroundVisible(on); };
+    toolbar.onShowBackgroundChanged = [this](bool on) { applyBackgroundVisibility(on); };
 
     toolbar.onTrackDiscoveryChanged = [this](bool on) {
         lastDisplayedTrackNumber = -1; // force status bar refresh
@@ -1194,6 +1242,7 @@ void ChartchoticAudioProcessorEditor::updateTrackInfoDisplay()
 //==============================================================================
 void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 {
+    PERF_SCOPE("paint/editor");
     g.fillAll(juce::Colours::black);
 
     if (assets.isBackgroundVisible())
@@ -1512,9 +1561,7 @@ void ChartchoticAudioProcessorEditor::resized()
     if (partsMenu.isVisible()) layoutPartsMenu();
 
     // Rebake shared track cache when scene dimensions change or cache was externally invalidated
-    if (trackImageCache.isDirty() ||
-        sceneWidth != trackImageCache.getBakedWidth() ||
-        sceneHeight != trackImageCache.getBakedHeight())
+    if (trackImageCache.isDirty() || !trackImageCache.covers(collectBakeSizes()))
     {
         trackImageCache.invalidate();
         requestAsyncRebake();
@@ -1565,7 +1612,7 @@ void ChartchoticAudioProcessorEditor::loadState()
     }
 
     // Background visibility (default off)
-    assets.setBackgroundVisible(state.hasProperty("showBackground") && (bool)state["showBackground"]);
+    applyBackgroundVisibility(state.hasProperty("showBackground") && (bool)state["showBackground"]);
 
     // Load saved background image
     {
@@ -1671,31 +1718,66 @@ void ChartchoticAudioProcessorEditor::loadState()
 }
 
 
+std::vector<TrackImageCache::BakeSize> ChartchoticAudioProcessorEditor::collectBakeSizes()
+{
+    // One entry per distinct slot geometry actually on screen. Baking at sceneWidth instead,
+    // which is what this did before, meant every slot in a multi-highway layout blitted a
+    // roughly 2x-oversized source and paid a downscale resample on five full-viewport layers
+    // per frame. Elite is skipped: it renders live, so a bake at its size would go unused.
+    std::vector<TrackImageCache::BakeSize> sizes;
+
+    for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+    {
+        if (!slots[i].active || slots[i].highway == nullptr) continue;
+        if (getRenderType(slots[i].part) == RenderType::ELITE_DRUMS) continue;
+
+        auto& hw = *slots[i].highway;
+        if (hw.renderWidth <= 0 || hw.renderHeight <= 0) continue;
+
+        auto& sr = hw.getSceneRenderer();
+        auto overflowFor = [&](bool drums) {
+            auto edge = PositionMath::getFretboardEdge(
+                drums, sr.farFadeEnd, hw.renderWidth, hw.renderHeight,
+                PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
+            return std::max(0, (int)std::ceil(-edge.centerY));
+        };
+
+        TrackImageCache::BakeSize s;
+        s.width = hw.renderWidth;
+        s.height = hw.renderHeight;
+        s.overflowGuitar = overflowFor(false);
+        s.overflowDrums  = overflowFor(true);
+        // Device scale times the shrink paint() applies at the CURRENT bounds. Derived from
+        // the component rather than from the last paint, so a resize bakes at the size it is
+        // about to be drawn instead of the size it just was. Floored so a slot mid-layout, or
+        // one scaled to almost nothing, cannot ask for a degenerate bake.
+        float dsx = 1.0f, dsy = 1.0f;
+        hw.getDrawScale(dsx, dsy);
+        s.scaleX = juce::jmax(0.1f, hw.physicalScale * dsx);
+        s.scaleY = juce::jmax(0.1f, hw.physicalScale * dsy);
+
+        bool seen = false;
+        for (const auto& existing : sizes)
+            if (existing == s) { seen = true; break; }
+        if (!seen)
+            sizes.push_back(s);
+    }
+
+    return sizes;
+}
+
 void ChartchoticAudioProcessorEditor::requestAsyncRebake()
 {
     if (!trackImageCache.isDirty() || activeSlotCount == 0)
         return;
 
-    // Always bake at full single-highway resolution (sceneWidth × sceneHeight),
-    // NOT at per-slot dimensions which are smaller in multi-highway mode.
-    int w = sceneWidth;
-    int h = sceneHeight;
-    if (w <= 0 || h <= 0) return;
+    auto sizes = collectBakeSizes();
+    if (sizes.empty()) return;
 
-    // Compute overflow at full resolution
     auto& sr = slots[0].highway->getSceneRenderer();
-    auto farEdgeGuitar = PositionMath::getFretboardEdge(
-        false, sr.farFadeEnd, w, h,
-        PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
-    auto farEdgeDrums = PositionMath::getFretboardEdge(
-        true, sr.farFadeEnd, w, h,
-        PositionConstants::HIGHWAY_POS_START, sr.highwayPosEnd);
-    int overflowGuitar = std::max(0, (int)std::ceil(-farEdgeGuitar.centerY));
-    int overflowDrums  = std::max(0, (int)std::ceil(-farEdgeDrums.centerY));
-
     auto& hw = *slots[0].highway;
 
-    trackImageCache.requestBake(*cacheRenderer, w, h, overflowGuitar, overflowDrums,
+    trackImageCache.requestBake(*cacheRenderer, std::move(sizes),
         sr.farFadeEnd, sr.farFadeLen, sr.farFadeCurve, sr.highwayPosEnd,
         sr.guitarLaneCoordsLocal, (int)PositionConstants::GUITAR_LANE_COUNT,
         sr.drumLaneCoordsLocal, (int)PositionConstants::DRUM_LANE_COUNT,
@@ -1896,11 +1978,7 @@ void ChartchoticAudioProcessorEditor::drawFpsOverlay(juce::Graphics& g)
     double fps = avgDelta > 0.0 ? 1000000.0 / avgDelta : 0.0;
 
     float s = (float)getHeight() / (float)defaultHeight;
-    int tbHeight = std::min(juce::roundToInt(getHeight() * ToolbarComponent::toolbarRatio),
-                            ToolbarComponent::maxToolbarHeight);
-    int pad = juce::roundToInt(8.0f * s);
-    int textH = juce::roundToInt(16.0f * s);
-    auto area = juce::Rectangle<int>(pad, tbHeight + pad, juce::roundToInt(80.0f * s), textH);
+    auto area = fpsOverlayBounds();
 
     g.setColour(juce::Colours::black.withAlpha(0.5f));
     g.fillRoundedRectangle(area.toFloat().expanded(4.0f * s, 2.0f * s), 3.0f);

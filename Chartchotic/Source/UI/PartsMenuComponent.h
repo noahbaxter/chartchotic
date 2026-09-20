@@ -109,6 +109,10 @@ public:
 
         // Columns scroll sideways under a pinned name column, so the icons and the cells are
         // clipped to the same region and share one offset.
+        // Under the headers and the cells both, so the block reads as one region rather than
+        // two tinted strips. The row stripes and cell fills above it are all translucent.
+        paintUtilityBand(g);
+
         {
             juce::Graphics::ScopedSaveState clip(g);
             g.reduceClipRegion(gridViewport());
@@ -121,6 +125,9 @@ public:
             paintAddRowCells(g);
             paintGridLines(g);
         }
+
+        // Full height, so its own clip rather than the cells'.
+        paintUtilityDivider(g);
         {
             juce::Graphics::ScopedSaveState clip(g);
             g.reduceClipRegion(nameViewport());
@@ -415,11 +422,26 @@ private:
         return isWaveformColumn(column) || PartMapping::isMappable(partForColumn(column));
     }
 
-    // 0 active, 1 idle but available, 2 not supported yet. The order the columns read in.
+    // -1 utility, 0 active, 1 idle but available, 2 not supported yet. The order the columns
+    // read in. Utility sorts first regardless of whether it is mapped, so it lands beside the
+    // waveform, which is the other column that is not a part: "which track is my guitar" and
+    // "which track is my EVENTS" are different questions, and the two non-instrument lanes
+    // answer the second one together.
     int columnGroup(Part part) const
     {
+        if (isUtilityPart(part)) return -1;
         if (!PartMapping::isMappable(part)) return 2;
         return columnIsMapped(part) ? 0 : 1;
+    }
+
+    // How many leading display columns are not parts: the waveform, plus the utility parts
+    // sorted in beside it. Everything from here on is an instrument.
+    int utilityColumnCount() const
+    {
+        int count = 1;   // the waveform
+        while (count < displayColumns() && isUtilityPart(partForColumn(count)))
+            ++count;
+        return count;
     }
 
     void rebuildLayout()
@@ -540,6 +562,13 @@ private:
             g.drawImage(image, area.toFloat(), juce::RectanglePlacement::centred);
             g.setOpacity(1.0f);
         }
+        else
+        {
+            // Five icons cover the instruments and none of them means EVENTS. Rather than
+            // invent art for a track that is not an instrument, the header turns the name on
+            // its side, which is the one direction a column this narrow has room in.
+            paintSidewaysName(g, column, part, lit);
+        }
 
         paintColourStrip(g, column, part);
 
@@ -554,6 +583,30 @@ private:
             g.drawLine((float)box.getRight(), (float)box.getY(),
                        (float)box.getX(), (float)box.getBottom(), 1.6f);
         }
+    }
+
+    // The column's name rotated to read bottom-to-top, for the parts with no icon. The text
+    // box is laid out in the unrotated space, so its width is the header's height and its
+    // height is the column's width, then the whole thing turns about the centre.
+    void paintSidewaysName(juce::Graphics& g, int column, Part part, bool lit)
+    {
+        const auto band = juce::Rectangle<int>(columnX(column), m.stripH, m.cellW,
+                                               m.headerH - m.stripH - m.colourStripH);
+        if (band.getHeight() <= 0) return;
+
+        juce::Graphics::ScopedSaveState save(g);
+        const auto centre = band.toFloat().getCentre();
+        const auto box = juce::Rectangle<float>(0.0f, 0.0f,
+                                                (float)band.getHeight(), (float)band.getWidth())
+                             .withCentre(centre);
+
+        g.addTransform(juce::AffineTransform::rotation(
+            -juce::MathConstants<float>::halfPi, centre.x, centre.y));
+
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(lit ? 1.0f : fadedAlpha));
+        g.setFont(juce::FontOptions().withHeight(m.stripFontH));
+        g.drawText(getPartDisplayName(part).toUpperCase(), box.toNearestInt(),
+                   juce::Justification::centred, false);
     }
 
     // The part's lane colours as a bar under its icon: both what this part is currently drawn
@@ -795,6 +848,37 @@ private:
 
     // A column is a claim on one part, and without a line between them a dot reads as
     // belonging to whichever icon it is nearest.
+    // The tinted ground behind every utility column, from the headers to the bottom of the
+    // list. Clipped to the grid so it never runs under the pinned name column.
+    void paintUtilityBand(juce::Graphics& g)
+    {
+        const int count = utilityColumnCount();
+
+        juce::Graphics::ScopedSaveState clip(g);
+        g.reduceClipRegion({ m.nameColumnW, m.stripH,
+                             juce::jmax(0, getWidth() - m.nameColumnW),
+                             juce::jmax(0, getHeight() - m.stripH) });
+
+        g.setColour(juce::Colour(Theme::panelGroupBg));
+        g.fillRect(columnX(0), m.stripH, count * m.cellW,
+                   juce::jmax(0, getHeight() - m.stripH));
+    }
+
+    // The rule where the instruments stop. Drawn after the grid so it reads as a boundary
+    // rather than one more cell edge.
+    void paintUtilityDivider(juce::Graphics& g)
+    {
+        juce::Graphics::ScopedSaveState clip(g);
+        g.reduceClipRegion({ m.nameColumnW, m.stripH,
+                             juce::jmax(0, getWidth() - m.nameColumnW),
+                             juce::jmax(0, getHeight() - m.stripH) });
+
+        // Where the utility lanes stop and the parts begin.
+        g.setColour(juce::Colour(Theme::panelGroupLine));
+        g.fillRect((float)columnX(utilityColumnCount()) - 1.0f, (float)m.stripH,
+                   2.0f, (float)juce::jmax(0, getHeight() - m.stripH));
+    }
+
     void paintGridLines(juce::Graphics& g)
     {
         g.setColour(juce::Colour(Theme::panelNeutralLine));

@@ -82,15 +82,37 @@ TEST_CASE("PartMapping - pinning a part steals it from wherever it was", "[partm
 TEST_CASE("PartMapping - unpinning hands the part back to the guess", "[partmapping]")
 {
     PartMapping::Map map;
-    const std::vector<InstrumentTrackInfo> tracks = { track(0, "Lead Gtr") };
+    // Both tracks have to be in the list. A pin is only resolved against tracks that exist,
+    // so pinning to an index the caller never passes in tests the missing-track guard below
+    // rather than the handover this case is about.
+    const std::vector<InstrumentTrackInfo> tracks = { track(0, "Lead Gtr"), track(5, "Whatever") };
 
     map.pin(Part::GUITAR, 5);
-    REQUIRE(map.resolve(tracks)[0].sourceTrackIndex == 5);
+    const auto pinned = map.resolve(tracks);
+    REQUIRE(pinned[0].sourceTrackIndex == 5);
+    REQUIRE(pinned[0].origin == PartMapping::Origin::Pin);
 
     map.unpin(Part::GUITAR);
     const auto out = map.resolve(tracks);
     REQUIRE(out[0].sourceTrackIndex == 0);
     REQUIRE(out[0].origin == PartMapping::Origin::Guess);
+}
+
+TEST_CASE("PartMapping - a pin to a track that is not there resolves to nothing", "[partmapping]")
+{
+    PartMapping::Map map;
+    map.pin(Part::DRUMS, 9);
+
+    // Nothing to show for it, so the part does not light up as mapped with no row under it.
+    const auto out = map.resolve({ track(0, "Lead Gtr") });
+    REQUIRE(std::none_of(out.begin(), out.end(),
+                         [](const auto& a) { return a.part == Part::DRUMS; }));
+
+    // But the pin is kept, so the mapping comes back when the track does.
+    REQUIRE(map.pinnedTrack(Part::DRUMS) == 9);
+    const auto back = map.resolve({ track(0, "Lead Gtr"), track(9, "Whatever") });
+    REQUIRE(std::any_of(back.begin(), back.end(),
+                        [](const auto& a) { return a.part == Part::DRUMS && a.sourceTrackIndex == 9; }));
 }
 
 TEST_CASE("PartMapping - two tracks reading the same settle on the lower index", "[partmapping]")
@@ -202,21 +224,49 @@ TEST_CASE("PartMapping - a pin to a track that is gone resolves to nothing", "[p
                         [](const auto& a) { return a.part == Part::RHYTHM; }));
 }
 
-TEST_CASE("PartMapping - utility tracks are not parts", "[partmapping]")
+// The regression this guards: discovery became a projection of this mapping, and the mapping
+// dropped EVENTS twice over (isUtilityTrackName by name, then isMappable). Sections and the
+// song list are built from that track alone, so both silently went empty.
+TEST_CASE("PartMapping - resolve assigns the EVENTS track", "[partmapping]")
 {
-    REQUIRE(PartMapping::isUtilityTrackName("EVENTS"));
+    PartMapping::Map map;
+    const auto out = map.resolve({ track(0, "PART GUITAR"), track(3, "EVENTS") });
+
+    const auto events = std::find_if(out.begin(), out.end(),
+                                     [](const auto& a) { return a.part == Part::EVENTS; });
+    REQUIRE(events != out.end());
+    REQUIRE(events->sourceTrackIndex == 3);
+}
+
+TEST_CASE("PartMapping - utility names are the ones with no part", "[partmapping]")
+{
+    // Nothing maps to these: they have no Part, so there is nowhere to point them. BEAT
+    // restates the tempo map and VENUE is Rock Band staging, so neither earned one.
+    REQUIRE(PartMapping::isUtilityTrackName("master"));
+    REQUIRE(PartMapping::isUtilityTrackName("Tempo Map"));
     REQUIRE(PartMapping::isUtilityTrackName("BEAT"));
     REQUIRE(PartMapping::isUtilityTrackName("VENUE"));
-    REQUIRE(PartMapping::isUtilityTrackName("venue"));
+    REQUIRE(PartMapping::isUtilityTrackName("MV VENUE"));
 
-    REQUIRE_FALSE(PartMapping::isUtilityTrackName("PART GUITAR"));
     // Only the whole name, so a track that merely mentions one is still a track.
     REQUIRE_FALSE(PartMapping::isUtilityTrackName("Beat Box Gtr"));
+    REQUIRE_FALSE(PartMapping::isUtilityTrackName("PART GUITAR"));
 
-    // Venue is the exception, matched as a word anywhere, because templates prefix it and
-    // no instrument is ever called one.
-    REQUIRE(PartMapping::isUtilityTrackName("MV VENUE"));
-    REQUIRE(PartMapping::isUtilityTrackName("mv_venue"));
+    // EVENTS used to live here, which is exactly why it could never be mapped to anything.
+    REQUIRE_FALSE(PartMapping::isUtilityTrackName("EVENTS"));
+}
+
+TEST_CASE("PartMapping - EVENTS is mappable without being renderable", "[partmapping]")
+{
+    REQUIRE(PartMapping::guessPart("EVENTS") == Part::EVENTS);
+    REQUIRE(PartMapping::guessPart("events") == Part::EVENTS);
+
+    // Something reads it (sections and the song list), so it can be pointed at a track, even
+    // though it has no highway. Conflating the two questions is what dropped it from
+    // discovery and silently emptied both.
+    REQUIRE(PartMapping::isMappable(Part::EVENTS));
+    REQUIRE_FALSE(isHighwayRenderable(Part::EVENTS));
+    REQUIRE(isUtilityPart(Part::EVENTS));
 }
 
 TEST_CASE("PartMapping - an empty track named for a part still guesses it", "[partmapping]")
@@ -281,14 +331,25 @@ TEST_CASE("PartMapping - the waveform track saves beside the part pins", "[partm
     REQUIRE_FALSE(restored.waveformTrack().has_value());
 }
 
-TEST_CASE("PartMapping - EVENTS is not a column, unmappable parts still are", "[partmapping]")
+TEST_CASE("PartMapping - only mappable parts get a column", "[partmapping]")
 {
     const auto parts = PartMapping::columnParts();
+    const auto has = [&](Part p)
+    { return std::find(parts.begin(), parts.end(), p) != parts.end(); };
 
-    REQUIRE(std::find(parts.begin(), parts.end(), Part::EVENTS) == parts.end());
-    REQUIRE(std::find(parts.begin(), parts.end(), Part::GUITAR) != parts.end());
-    // Shown struck through rather than hidden, so the table reads as the full list.
-    REQUIRE(std::find(parts.begin(), parts.end(), Part::GHL_GUITAR) != parts.end());
+    REQUIRE(has(Part::GUITAR));
+    REQUIRE(has(Part::DRUMS));
+    // A column of its own, beside the waveform. Leaving it out is what hid the bug.
+    REQUIRE(has(Part::EVENTS));
+
+    // Nothing renders these, so a column for them is one you cannot use.
+    REQUIRE_FALSE(has(Part::GHL_GUITAR));
+    REQUIRE_FALSE(has(Part::GHL_BASS));
+    REQUIRE_FALSE(has(Part::PRO_GUITAR));
+    REQUIRE_FALSE(has(Part::PRO_BASS));
+
+    for (auto p : parts)
+        REQUIRE(PartMapping::isMappable(p));
 
     // The app's usual part order, so the columns match every other picker.
     for (size_t i = 1; i < parts.size(); ++i)

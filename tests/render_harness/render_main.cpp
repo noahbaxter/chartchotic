@@ -21,6 +21,7 @@
 */
 
 #include <JuceHeader.h>
+#include <thread>
 #include <iostream>
 #include <cmath>
 #include <algorithm>
@@ -249,6 +250,8 @@ int main(int argc, char** argv)
     // The plugin's own benchmark target can't build (its asset list predates the repo
     // reorganisation), and this path already links the real renderers with real assets.
     int    benchIters = 0;
+    // >0: run the CoreGraphics threading spike with this many concurrent frames, then exit.
+    int    threadSpike = 0;
     // Elite flam shape, the same two knobs as the debug panel's Flam section.
     PositionConstants::FlamTypeWidths flamWidths = PositionConstants::FLAM_TYPE_WIDTHS;
     float  flamSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
@@ -267,6 +270,7 @@ int main(int argc, char** argv)
     // Editor view overlays, as HighwayComponent appends them in write mode.
     bool spView = false;      // --sp-view: star power bands
     bool phraseView = false;  // --phrase-view: fill lanes and the activation gem
+    bool lowQuality = false;  // --low-quality: kCGInterpolationNone, to eyeball the resampling cost
 
     for (int i = 1; i < argc; ++i)
     {
@@ -283,6 +287,8 @@ int main(int argc, char** argv)
         else if (a == "--fret-width" && i + 1 < argc) fretWidth = juce::String(argv[++i]).getFloatValue();
         else if (a == "--scroll" && i + 1 < argc) scroll = juce::String(argv[++i]).getFloatValue();
         else if (a == "--bench" && i + 1 < argc) benchIters = juce::String(argv[++i]).getIntValue();
+        else if (a == "--thread-spike" && i + 1 < argc) threadSpike = juce::String(argv[++i]).getIntValue();
+        else if (a == "--low-quality") lowQuality = true;
         else if (a == "--flam-width"  && i + 1 < argc) {
             float v = juce::String(argv[++i]).getFloatValue();   // sets every glyph type
             flamWidths = { v, v, v, v, v, v };
@@ -304,9 +310,28 @@ int main(int argc, char** argv)
 
     juce::ScopedJuceInitialiser_GUI juceInit;
 
+    // Every name the flag accepts, spelled out. An unknown one used to fall through to drums,
+    // so `--part bass` silently rendered drums and a NO-DIFF pass that thought it covered four
+    // parts really covered three.
+    const std::pair<const char*, Part> partNames[] = {
+        { "guitar", Part::GUITAR }, { "coop",  Part::GUITAR_COOP },
+        { "rhythm", Part::RHYTHM }, { "bass",  Part::BASS },
+        { "keys",   Part::KEYS   }, { "drums", Part::DRUMS },
+        { "elite",  Part::ELITE_DRUMS },
+    };
+
     Part part = Part::DRUMS;
-    if      (partName == "guitar") part = Part::GUITAR;
-    else if (partName == "elite")  part = Part::ELITE_DRUMS;
+    bool known = false;
+    for (const auto& [name, p] : partNames)
+        if (partName == name) { part = p; known = true; break; }
+
+    if (!known)
+    {
+        std::printf("unknown --part '%s'. known:", partName.toRawUTF8());
+        for (const auto& [name, p] : partNames) std::printf(" %s", name);
+        std::printf("\n");
+        return 1;
+    }
 
     juce::ValueTree state("PluginState");
     state.setProperty("part",              (int)part,               nullptr);
@@ -408,8 +433,11 @@ int main(int argc, char** argv)
 
         // The colour an activation gem is recut in, same as NoteRenderer::activationRecut.
         auto actTint = [&](const Row& r, uint c) {
+            const Part p = r.drums ? (r.elite ? Part::ELITE_DRUMS : Part::DRUMS) : Part::GUITAR;
+            // kindOf has no default on purpose: elite resolves cymbal-vs-pad from the lane, and
+            // a plain NOTE stands in for the gem the preview does not carry.
             const juce::Colour lane = assets.getLaneColour(
-                c, r.drums ? (r.elite ? Part::ELITE_DRUMS : Part::DRUMS) : Part::GUITAR, false);
+                c, p, false, AssetManager::kindOf(p, c, Gem::NOTE));
             return lane.withMultipliedSaturation(PHRASE_ACTIVATION_VIVID_SATURATION)
                        .brighter(PHRASE_ACTIVATION_VIVID_BRIGHTEN);
         };
@@ -729,6 +757,72 @@ int main(int argc, char** argv)
     const double windowStart = 0.0;
     const double windowEnd   = 1.0;
 
+    // Does CoreGraphics rasterisation actually scale across threads? Four highways is
+    // embarrassingly parallel on paper, but only if JUCE's CoreGraphics context does not
+    // serialise on something global. Each thread gets its OWN canvas and its own Graphics and
+    // replays the same mix a frame does: full-viewport blits, per-gem blits and a gradient
+    // path fill. Serial and parallel run the identical total work, so the ratio is the ceiling
+    // any per-highway threading could reach. TrackImageCache already bakes off the message
+    // thread, so a juce::Graphics on a worker is established practice here.
+    if (threadSpike > 0)
+    {
+        const int W = renderWidth, H = totalH;
+        auto* gemSrc = assets.getGuitarGlyphImage(GemWrapper(Gem::NOTE), 1, false);
+
+        auto oneFrame = [&](int)
+        {
+            juce::Image canvas(juce::Image::ARGB, W, H, true);
+            juce::Graphics g(canvas);
+            g.drawImage(track.getLayerImage(TrackRenderer::SIDEBARS),
+                        juce::Rectangle<float>(0, 0, (float)W, (float)H));
+            g.drawImage(track.getLayerImage(TrackRenderer::LANE_LINES),
+                        juce::Rectangle<float>(0, 0, (float)W, (float)H));
+            if (gemSrc != nullptr && gemSrc->isValid())
+                for (int i = 0; i < 150; i++)
+                {
+                    float s = 0.25f + 0.75f * ((float)(i % 20) / 20.0f);
+                    g.drawImage(*gemSrc, juce::Rectangle<float>((float)((i * 37) % (W - 80)),
+                                                                (float)((i * 53) % (H - 40)),
+                                                                90.0f * s, 45.0f * s));
+                }
+            for (int i = 0; i < 40; i++)
+            {
+                juce::ColourGradient grad(juce::Colours::white.withAlpha(0.6f), 0.0f, (float)(i * 13),
+                                          juce::Colours::black.withAlpha(0.0f), (float)W, (float)(i * 13), false);
+                g.setGradientFill(grad);
+                g.fillRect(0.0f, (float)(i * 13), (float)W, 9.0f);
+            }
+        };
+
+        auto timeRun = [&](bool parallel)
+        {
+            auto t0 = std::chrono::high_resolution_clock::now();
+            if (parallel)
+            {
+                std::vector<std::thread> ts;
+                for (int i = 0; i < threadSpike; i++) ts.emplace_back(oneFrame, i);
+                for (auto& t : ts) t.join();
+            }
+            else
+                for (int i = 0; i < threadSpike; i++) oneFrame(i);
+            auto t1 = std::chrono::high_resolution_clock::now();
+            return std::chrono::duration<double, std::milli>(t1 - t0).count();
+        };
+
+        timeRun(false); timeRun(true);   // warm
+
+        double ser = 0, par = 0;
+        const int reps = 10;
+        for (int r = 0; r < reps; r++) { ser += timeRun(false); par += timeRun(true); }
+        ser /= reps; par /= reps;
+
+        std::printf("thread spike: %d frames of %dx%d, %d reps\n", threadSpike, W, H, reps);
+        std::printf("  serial   %8.2f ms  (%.2f ms/frame)\n", ser, ser / threadSpike);
+        std::printf("  parallel %8.2f ms  (%.2f ms/frame)\n", par, par / threadSpike);
+        std::printf("  speedup  %8.2fx  of %dx ideal\n", ser / par, threadSpike);
+        return 0;
+    }
+
     if (benchIters > 0)
     {
         scene.collectPhaseTiming = true;
@@ -789,6 +883,8 @@ int main(int argc, char** argv)
     juce::Image canvas(juce::Image::ARGB, renderWidth, totalH, true);
     {
         juce::Graphics g(canvas);
+        if (lowQuality)
+            g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
         if (showBoard)
         {
             track.paint(g, renderWidth, totalH);

@@ -224,7 +224,11 @@ void TrackResolver::resolvePhrases(PartWindow& result, const SharedWindow& share
         result.phraseWindow.push_back({ solo.start, solo.end, 0, SustainType::SOLO,
                                         GemWrapper(Gem::NOTE) });
 
-    auto [firstColumn, lastColumn] = PhraseMath::handColumns(cfg.part);
+    // Plain locals rather than the structured bindings themselves: capturing those in the
+    // lambda below is a C++20 extension, and this builds as C++17.
+    const auto handCols = PhraseMath::handColumns(cfg.part);
+    const uint firstColumn = handCols.first;
+    const uint lastColumn  = handCols.second;
 
     // Both light every hand column, and both come from their markers alone, so they belong to
     // the part. Only the activation band below depends on the notes.

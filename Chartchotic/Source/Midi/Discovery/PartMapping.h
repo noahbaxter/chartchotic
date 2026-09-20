@@ -86,9 +86,13 @@ namespace PartMapping
     {
         const auto key = normalise(name).trim();
 
+        // The names that are not a Part at all, so there is nowhere to point them. EVENTS used
+        // to be in here too, which is exactly why it could never be mapped and why sections
+        // went empty: it has a Part and resolves through guessPart like any other track.
+        //
         // Whole name, because these are short words an instrument track can legitimately
         // contain: "Beat Box Gtr" is a guitar, not the BEAT track.
-        static const char* exact[] = { "events", "beat", "master", "tempo map" };
+        static const char* exact[] = { "beat", "master", "tempo map" };
         for (const auto* u : exact)
             if (key == u) return true;
 
@@ -113,8 +117,14 @@ namespace PartMapping
     }
 
     // Whether a part can be mapped at all. The others are shown so the table says what exists,
-    // but nothing renders them, so pointing a track at one would map into a dead end.
-    inline bool isMappable(Part p) { return isHighwayRenderable(p); }
+    // but nothing reads them, so pointing a track at one would map into a dead end.
+    //
+    // NOT the same question as isHighwayRenderable, though it was an alias for it until the
+    // EVENTS track went missing: EVENTS has no highway and never gets a slot, but something
+    // does read it (sections and the song list, InstrumentSession.cpp:143), so it has to be
+    // mappable. Conflating "can I draw it" with "can I point a track at it" is what silently
+    // dropped it from discovery.
+    inline bool isMappable(Part p) { return isHighwayRenderable(p) || p == Part::EVENTS; }
 
     // The parts almost every chart has. The rest are real but rare, and burying them behind a
     // toggle keeps the common case to a handful of columns instead of fourteen.
@@ -130,15 +140,15 @@ namespace PartMapping
         }
     }
 
-    // Every part that gets a column, in the app's usual order. Unmappable parts are included:
-    // they are drawn struck through rather than hidden, so the table reads as the full list.
+    // Every part that gets a column, in the app's usual order. Only the ones a track can
+    // actually be pointed at: the GHL and Pro entries used to show struck through so the table
+    // read as the full list, but a column you cannot use is a column in the way, and they made
+    // the row wider than the useful part of it.
     inline std::vector<Part> columnParts()
     {
         std::vector<Part> parts;
         for (const auto& entry : getImplementedTrackNames())
-            if (entry.part != Part::EVENTS) parts.push_back(entry.part);
-        for (const auto& entry : getUnimplementedTrackNames())
-            if (std::find(parts.begin(), parts.end(), entry.part) == parts.end())
+            if (isMappable(entry.part))
                 parts.push_back(entry.part);
 
         std::sort(parts.begin(), parts.end(), [](Part a, Part b)
