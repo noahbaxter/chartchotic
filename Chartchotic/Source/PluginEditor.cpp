@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Host/ReaperTrackDetector.h"
+#include "DebugTools/Perf.h"
 #include "Midi/Processing/NoteProcessor.h"
 #include "Visual/Geometry/PositionMath.h"
 
@@ -521,6 +522,10 @@ void ChartchoticAudioProcessorEditor::onFrame()
         if (elapsed < targetFrameInterval)
             return;
 
+        // The frame boundary. Everything from here to the next one belongs to this frame,
+        // including the paints JUCE runs after this tick returns.
+        Perf::beginFrame();
+
         // Advance by target interval to stay on a stable grid.
         // If we overshot by more than a full interval (e.g. app was suspended), snap to now.
         juce::int64 intervalTicks = static_cast<juce::int64>(targetFrameInterval * ticksPerSec);
@@ -528,6 +533,10 @@ void ChartchoticAudioProcessorEditor::onFrame()
         if ((now - lastFrameTicks) / ticksPerSec > targetFrameInterval)
             lastFrameTicks = now;
     }
+
+    // Closed by hand at buildFrameContext. Everything before that point is the per-frame sync
+    // and pollForChanges, which is the REAPER API traffic no offline harness can see.
+    Perf::Scope tickScope { "tick/sync" };
 
     printCallback();
 
@@ -643,6 +652,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
 #ifdef DEBUG
     auto dataBuildStart = std::chrono::high_resolution_clock::now();
 #endif
+    tickScope.close();
+    PERF_SCOPE("tick/ctx");
     auto ctx = buildFrameContext();
     HighwayFrameData primaryFrameData;
 
@@ -707,6 +718,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
     else
     {
+        PERF_SCOPE("tick/buildFrameData");
         for (int i = 0; i < activeSlotCount; i++)
         {
             auto& slot = slots[i];
@@ -1230,6 +1242,7 @@ void ChartchoticAudioProcessorEditor::updateTrackInfoDisplay()
 //==============================================================================
 void ChartchoticAudioProcessorEditor::paint(juce::Graphics& g)
 {
+    PERF_SCOPE("paint/editor");
     g.fillAll(juce::Colours::black);
 
     if (assets.isBackgroundVisible())
