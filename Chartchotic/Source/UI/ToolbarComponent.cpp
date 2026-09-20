@@ -1,4 +1,5 @@
 #include "ToolbarComponent.h"
+#include "../DebugTools/Perf.h"
 #include "TooltipStrings.h"
 #include "../Editor/InteractionController.h"
 
@@ -588,6 +589,7 @@ void ToolbarComponent::initSettingsPanel()
 
 void ToolbarComponent::paint(juce::Graphics& g)
 {
+    PERF_SCOPE("paint/toolbar");
     g.setColour(juce::Colour(Theme::toolbarBg));
     g.fillRect(getLocalBounds());
 }

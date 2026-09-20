@@ -1,4 +1,5 @@
 #include "UtilityStripComponent.h"
+#include "../DebugTools/Perf.h"
 #include "../Midi/Utils/MidiTypes.h"
 
 namespace
@@ -1379,6 +1380,7 @@ int UtilityStripComponent::plateTextWidth(const juce::String& name) const
 
 void UtilityStripComponent::paint(juce::Graphics& g)
 {
+    PERF_SCOPE("paint/strip");
     g.fillAll(UtilityColours::background);
 
     auto v = visibleRange();

@@ -13,6 +13,7 @@
 #include "../UI/Theme.h"
 #include "../Midi/Utils/MidiConstants.h"
 #include "../Midi/Utils/InstrumentMapper.h"
+#include "../DebugTools/Perf.h"
 #include "../Midi/Utils/GridMath.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
@@ -69,6 +70,8 @@ static const TimeBasedEventMarkers kNoMarkers;
 
 void HighwayComponent::paint(juce::Graphics& g)
 {
+    PERF_SCOPE("paint/highway");
+
     // Device pixels per point, straight from the context the way JUCE's own cached-component
     // image reads it (juce_StandardCachedComponentImage.h:47). Only knowable while painting,
     // so it is recorded here for the async track bake, which runs nowhere near a Graphics.
@@ -126,6 +129,10 @@ void HighwayComponent::paint(juce::Graphics& g)
                              && getRenderType(activePart) != RenderType::ELITE_DRUMS)
                           ? trackImageCache->getFor(activePart, w, h) : nullptr;
         bool useCache = cachedTrack != nullptr;
+        // Split so a cache MISS reads as its own cost. A part whose palette nobody baked, or
+        // elite, renders the whole board live here every frame, and that looked identical to a
+        // cheap blit in every earlier measurement.
+        { PERF_SCOPE(useCache ? "paint/highway/track-blit" : "paint/highway/track-LIVE");
 #ifdef DEBUG
         {
             ScopedPhaseMeasure _trackMeasure(debugTrackRender_us, sceneRenderer.collectPhaseTiming);
@@ -140,7 +147,9 @@ void HighwayComponent::paint(juce::Graphics& g)
         else
             trackRenderer.paint(g, w, totalH);
 #endif
-        trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH);
+        }
+        { PERF_SCOPE("paint/highway/texture");
+          trackRenderer.paintTexture(g, frameData.scrollOffset, w, totalH); }
     }
     // Bemani overlay (lane dividers, strikeline) always draws — independent of highway texture toggle
     if (showHighway || PositionMath::bemaniMode)
@@ -623,6 +632,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                                               ? frameData.sectionMarkers
                                               : kNoMarkers;
 
+    PERF_SCOPE("paint/highway/scene");
     sceneRenderer.paint(g, w, h,
                         trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, eventMarkers,
