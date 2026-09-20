@@ -520,6 +520,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
         double elapsed = (now - lastFrameTicks) / ticksPerSec;
         if (elapsed < targetFrameInterval)
             return;
+
         // Advance by target interval to stay on a stable grid.
         // If we overshot by more than a full interval (e.g. app was suspended), snap to now.
         juce::int64 intervalTicks = static_cast<juce::int64>(targetFrameInterval * ticksPerSec);
@@ -1733,6 +1734,14 @@ std::vector<TrackImageCache::BakeSize> ChartchoticAudioProcessorEditor::collectB
         s.height = hw.renderHeight;
         s.overflowGuitar = overflowFor(false);
         s.overflowDrums  = overflowFor(true);
+        // Device scale times the shrink paint() applies at the CURRENT bounds. Derived from
+        // the component rather than from the last paint, so a resize bakes at the size it is
+        // about to be drawn instead of the size it just was. Floored so a slot mid-layout, or
+        // one scaled to almost nothing, cannot ask for a degenerate bake.
+        float dsx = 1.0f, dsy = 1.0f;
+        hw.getDrawScale(dsx, dsy);
+        s.scaleX = juce::jmax(0.1f, hw.physicalScale * dsx);
+        s.scaleY = juce::jmax(0.1f, hw.physicalScale * dsy);
 
         bool seen = false;
         for (const auto& existing : sizes)

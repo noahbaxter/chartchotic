@@ -23,13 +23,22 @@ public:
         that row is a different size from the slots in the row below. */
     struct BakeSize
     {
+        // The slot in logical points. This is the key, and it is what the blit draws into.
         int width = 0, height = 0;
         int overflowGuitar = 0, overflowDrums = 0;
+        // Device pixels per point, times what paint()'s transform scales the scene by on its
+        // way into the component. That transform is usually a shrink, so baking at slot size
+        // still left every layer resampled: measured in a live editor, a 1095x1060 scene lands
+        // in a 1095x597 slot at 0.563, which is 3.15x oversampled by area. Baking at the drawn
+        // size makes the blit a copy.
+        float scaleX = 1.0f, scaleY = 1.0f;
 
         bool operator==(const BakeSize& o) const
         {
             return width == o.width && height == o.height
-                && overflowGuitar == o.overflowGuitar && overflowDrums == o.overflowDrums;
+                && overflowGuitar == o.overflowGuitar && overflowDrums == o.overflowDrums
+                && std::abs(scaleX - o.scaleX) < 0.01f
+                && std::abs(scaleY - o.scaleY) < 0.01f;
         }
     };
 
@@ -205,7 +214,14 @@ private:
             int ov = isDrums ? size.overflowDrums : size.overflowGuitar;
             renderer.setLaneCoords(coords, count);
             renderer.invalidate();
-            renderer.rebuild(size.width, size.height, ov, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+
+            // Built in DEVICE pixels. Everything downstream scales the source into the logical
+            // rect it is drawn in, so the only thing a bigger bake changes is that the blit
+            // stops interpolating.
+            const auto pxX = [&](int v) { return juce::jmax(1, (int)std::lround(v * size.scaleX)); };
+            const auto pxY = [&](int v) { return juce::jmax(1, (int)std::lround(v * size.scaleY)); };
+            renderer.rebuild(pxX(size.width), pxY(size.height), pxY(ov),
+                             farFadeEnd, farFadeLen, farFadeCurve, posEnd);
 
             out.fadedTrack = renderer.getFadedTrackImage().createCopy();
             for (int i = 0; i < TrackRenderer::NUM_LAYERS; i++)
