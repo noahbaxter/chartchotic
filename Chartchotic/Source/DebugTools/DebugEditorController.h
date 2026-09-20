@@ -54,7 +54,8 @@ public:
     ScopedPhaseMeasure measureLockWait() { return ScopedPhaseMeasure(lockWait_us, true); }
 
     // Called from paint() — draws profiler overlay
-    void drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer);
+    void drawProfilerOverlay(juce::Graphics& g, const SceneRenderer& sceneRenderer,
+                             const HighwayComponent* highway);
 
     // Build frame data for standalone debug mode
     void buildStandaloneFrameData(HighwayFrameData& out,

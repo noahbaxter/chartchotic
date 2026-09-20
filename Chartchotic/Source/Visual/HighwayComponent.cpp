@@ -69,6 +69,12 @@ static const TimeBasedEventMarkers kNoMarkers;
 
 void HighwayComponent::paint(juce::Graphics& g)
 {
+    // Device pixels per point, straight from the context the way JUCE's own cached-component
+    // image reads it (juce_StandardCachedComponentImage.h:47). Only knowable while painting,
+    // so it is recorded here for the async track bake, which runs nowhere near a Graphics.
+    // It starts at 1 and the first paint corrects it, which costs one extra bake on open.
+    physicalScale = g.getInternalContext().getPhysicalPixelScaleFactor();
+
     // Opaque only when nothing is meant to show through the letterbox. Claiming opacity is what
     // stops JUCE repainting the editor underneath on every frame, but it obliges us to cover
     // every pixel of our own bounds, which the uniform-scale path does not otherwise do.
