@@ -154,22 +154,75 @@ TEST_CASE("PartMapping - deleting a track renumbers the pins after it", "[partma
     map.pin(Part::GUITAR, 2);
     map.pin(Part::BASS, 5);
     map.pin(Part::DRUMS, 7);
-    map.pinWaveform(9);
+    map.toggleGlobalAudioSource(9);
 
     map.trackDeleted(5);
 
     REQUIRE(map.pinnedTrack(Part::GUITAR) == 2);            // before it, untouched
     REQUIRE_FALSE(map.pinnedTrack(Part::BASS).has_value()); // the deleted one itself
     REQUIRE(map.pinnedTrack(Part::DRUMS) == 6);             // after it, shifted down
-    REQUIRE(map.waveformTrack() == 8);
+    REQUIRE(map.globalAudioSources() == std::vector<int>{ 8 });
 }
 
-TEST_CASE("PartMapping - deleting the waveform's own track clears it", "[partmapping]")
+TEST_CASE("PartMapping - deleting a track drops it from every audio set", "[partmapping]")
 {
     PartMapping::Map map;
-    map.pinWaveform(3);
+    map.toggleGlobalAudioSource(3);
+    map.toggleAudioSource(Part::DRUMS, 3);
+    map.toggleAudioSource(Part::DRUMS, 7);
+
     map.trackDeleted(3);
-    REQUIRE_FALSE(map.waveformTrack().has_value());
+
+    REQUIRE(map.globalAudioSources().empty());
+    // The part keeps its own set, minus the deleted track and renumbered.
+    REQUIRE(map.audioSources(Part::DRUMS) == std::vector<int>{ 6 });
+}
+
+// A part whose set is emptied has to fall back to the global one rather than sit on "chosen,
+// but nothing", which draws identically to inheriting and cannot be undone from the grid.
+TEST_CASE("PartMapping - emptying a part's audio set hands it back to the global one",
+          "[partmapping]")
+{
+    PartMapping::Map map;
+    map.toggleGlobalAudioSource(1);
+    map.toggleAudioSource(Part::DRUMS, 4);
+    REQUIRE(map.hasOwnAudioSet(Part::DRUMS));
+    REQUIRE(map.audioSources(Part::DRUMS) == std::vector<int>{ 4 });
+
+    map.toggleAudioSource(Part::DRUMS, 4);   // off again
+    REQUIRE_FALSE(map.hasOwnAudioSet(Part::DRUMS));
+    REQUIRE(map.audioSources(Part::DRUMS) == std::vector<int>{ 1 });
+}
+
+// The set is the pool's cache key, so two parts that picked the same tracks in a different
+// order have to produce the same vector or the same audio gets built twice.
+TEST_CASE("PartMapping - an audio set is kept sorted whatever order it was picked in",
+          "[partmapping]")
+{
+    PartMapping::Map a, b;
+    for (int t : { 7, 2, 5 }) a.toggleAudioSource(Part::DRUMS, t);
+    for (int t : { 5, 7, 2 }) b.toggleAudioSource(Part::DRUMS, t);
+
+    REQUIRE(a.audioSources(Part::DRUMS) == std::vector<int>{ 2, 5, 7 });
+    REQUIRE(a.audioSources(Part::DRUMS) == b.audioSources(Part::DRUMS));
+}
+
+// The names people actually give the track the song is on. Loose on purpose: a wrong guess
+// costs one click in the parts menu, no guess costs an empty view that reads as broken.
+TEST_CASE("PartMapping - the song's track is guessed from its name", "[partmapping]")
+{
+    REQUIRE(PartMapping::isSongTrackName("SONG"));
+    REQUIRE(PartMapping::isSongTrackName("song.ogg"));
+    REQUIRE(PartMapping::isSongTrackName("Backing Track"));
+    REQUIRE(PartMapping::isSongTrackName("full mix"));
+    REQUIRE(PartMapping::isSongTrackName("Audio 1"));
+
+    REQUIRE_FALSE(PartMapping::isSongTrackName("PART GUITAR"));
+    REQUIRE_FALSE(PartMapping::isSongTrackName("EVENTS"));
+    REQUIRE_FALSE(PartMapping::isSongTrackName(""));
+    // REAPER's default name for every new track. Matching it would point the view at whatever
+    // track happened to come first and call it the song.
+    REQUIRE_FALSE(PartMapping::isSongTrackName("Track 1"));
 }
 
 TEST_CASE("PartMapping - clearing a part turns off the guess too", "[partmapping]")
@@ -311,12 +364,14 @@ TEST_CASE("PartMapping - common parts are the ones every chart has", "[partmappi
     REQUIRE_FALSE(PartMapping::isCommonPart(Part::ELITE_DRUMS));
 }
 
-TEST_CASE("PartMapping - the waveform track saves beside the part pins", "[partmapping]")
+TEST_CASE("PartMapping - the audio sets save beside the part pins", "[partmapping]")
 {
     PartMapping::Map map;
-    REQUIRE_FALSE(map.waveformTrack().has_value());
+    REQUIRE(map.globalAudioSources().empty());
 
-    map.pinWaveform(4);
+    map.toggleGlobalAudioSource(4);
+    map.toggleAudioSource(Part::DRUMS, 2);
+    map.toggleAudioSource(Part::DRUMS, 6);
     map.pin(Part::GUITAR, 1);
 
     juce::ValueTree tree("partPins");
@@ -324,11 +379,26 @@ TEST_CASE("PartMapping - the waveform track saves beside the part pins", "[partm
 
     PartMapping::Map restored;
     restored.readFrom(tree);
-    REQUIRE(restored.waveformTrack() == 4);
+    REQUIRE(restored.globalAudioSources() == std::vector<int>{ 4 });
+    REQUIRE(restored.audioSources(Part::DRUMS) == std::vector<int>{ 2, 6 });
     REQUIRE(restored.pinnedTrack(Part::GUITAR) == 1);
+    // Guitar named no audio of its own, so it reads the global set.
+    REQUIRE_FALSE(restored.hasOwnAudioSet(Part::GUITAR));
+    REQUIRE(restored.audioSources(Part::GUITAR) == std::vector<int>{ 4 });
+}
 
-    restored.unpinWaveform();
-    REQUIRE_FALSE(restored.waveformTrack().has_value());
+// State written before the waveform could read more than one track. Its single track meant
+// "the audio behind everything", which is exactly the global set.
+TEST_CASE("PartMapping - an old single-track waveform setting becomes the global set",
+          "[partmapping]")
+{
+    juce::ValueTree tree("partPins");
+    tree.setProperty("waveform", 5, nullptr);
+
+    PartMapping::Map restored;
+    restored.readFrom(tree);
+    REQUIRE(restored.globalAudioSources() == std::vector<int>{ 5 });
+    REQUIRE(restored.audioSources(Part::GUITAR) == std::vector<int>{ 5 });
 }
 
 TEST_CASE("PartMapping - only mappable parts get a column", "[partmapping]")

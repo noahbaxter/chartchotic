@@ -52,7 +52,13 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperNoteFetcher::fetchNotesInR
         if (!project) return notes;
 
         void* targetTrack = getTargetTrack(project, trackIndex);
-        if (!targetTrack) return notes;
+        if (!targetTrack)
+        {
+            juce::String failure = ClipReadLog::track(trackIndex) + " did not resolve";
+            if (ClipReadLog::changed(lastNoteReadSummary, failure))
+                ClipReadLog::midi(failure);
+            return notes;
+        }
 
         return iterateAndExtractNotes(project, targetTrack, startPPQ, endPPQ, true);
     }
@@ -92,6 +98,10 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperNoteFetcher::iterateAndExt
 
     int itemCount = apis.CountMediaItems(project);
 
+    // Counted for the log, not for the read: "no notes" has several causes and they are told
+    // apart by where the items stopped surviving the walk.
+    int itemsOnTrack = 0, midiItems = 0;
+
     for (int itemIdx = 0; itemIdx < itemCount; itemIdx++)
     {
         void* item = apis.GetMediaItem(project, itemIdx);
@@ -104,15 +114,31 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperNoteFetcher::iterateAndExt
         void* itemTrack = apis.GetMediaItemTake_Track(take);
         if (itemTrack != targetTrack) continue;
 
+        ++itemsOnTrack;
+
         // Check if MIDI take
         int noteCount = 0, ccCount = 0, sysexCount = 0;
         if (!apis.MIDI_CountEvts || apis.MIDI_CountEvts(take, &noteCount, &ccCount, &sysexCount) == 0 || noteCount == 0)
             continue;
 
+        ++midiItems;
+
         // Extract notes from this take
         extractNotesFromTake(take, notes, filterByRange ? startPPQ : -std::numeric_limits<double>::infinity(),
                             filterByRange ? endPPQ : std::numeric_limits<double>::infinity());
     }
+
+    // This runs on every reload, so it reports only when the answer moves. An unchanging line
+    // repeated forever is what buries the one read that went wrong.
+    juce::String summary = juce::String(itemCount) + " items in project, "
+                         + juce::String(itemsOnTrack) + " on the track, "
+                         + juce::String(midiItems) + " of those MIDI, "
+                         + juce::String((int)notes.size()) + " notes read";
+
+    if (ClipReadLog::changed(lastNoteReadSummary, summary))
+        ClipReadLog::midi(summary
+                          + (itemsOnTrack == 0 ? "   NO ITEMS ON THIS TRACK"
+                             : midiItems == 0  ? "   ITEMS ARE NOT MIDI" : ""));
 
     return notes;
 }
@@ -208,6 +234,17 @@ std::vector<ReaperMidiProvider::ReaperItemSpan> ReaperNoteFetcher::fetchItemSpan
                               apis.TimeMap2_timeToQN(project, pos + len),
                               juce::String(nameBuf) });
         }
+
+        // The clips themselves, since where a chart starts and stops is decided by them and a
+        // missing one moves a song boundary with no other trace.
+        juce::String summary = ClipReadLog::track(trackIndex) + ": "
+                             + juce::String((int)spans.size()) + " clips";
+        if (!spans.empty())
+            summary += " spanning " + juce::String(spans.front().startQN, 1)
+                     + " .. " + juce::String(spans.back().endQN, 1) + " QN";
+
+        if (ClipReadLog::changed(lastSpanReadSummary, summary))
+            ClipReadLog::midi(summary);
     }
     catch (...)
     {

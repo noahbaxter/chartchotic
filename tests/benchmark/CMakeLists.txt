@@ -21,6 +21,7 @@ target_sources(bench_rendering PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/SustainRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/WaveformRenderer.cpp
     ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Art/ProceduralTrackArt.cpp
     ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp
@@ -109,6 +110,7 @@ target_sources(bench_pipeline PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/SustainRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/WaveformRenderer.cpp
     ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
     ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp

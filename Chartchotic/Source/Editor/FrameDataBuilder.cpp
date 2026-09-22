@@ -167,6 +167,10 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     out.sectionMarkers = buildSectionMarkers(ctx, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
     out.windowEndTime = ctx.displayWindowTimeSeconds;
+    // Where the window starts on the project's own clock. Everything above is relative to
+    // cursorPPQ, so this is the one value saying where the cursor actually is; the waveform
+    // needs it because audio is cached in project time, not playhead-relative time.
+    out.windowOriginTime = ppqToTime(cursorPPQ.toDouble());
     out.isPlaying = ctx.processor.isPlaying;
     out.scrollOffset = ctx.scrollOffset;
 
@@ -296,6 +300,7 @@ void FrameDataBuilder::buildReaperBatched([[maybe_unused]] HighwayFrameData& pri
             frameData.sectionMarkers = sharedSections;
             frameData.windowStartTime = 0.0;
             frameData.windowEndTime = ctx.displayWindowTimeSeconds;
+            frameData.windowOriginTime = ppqToTime(cursorPPQ.toDouble());
             frameData.isPlaying = isPlaying;
             frameData.scrollOffset = ctx.scrollOffset;
 
@@ -389,6 +394,7 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
     out.windowEndTime = ctx.displayWindowTimeSeconds;
+    out.windowOriginTime = ppqToTime(cursorPPQ.toDouble());
     out.isPlaying = ctx.processor.isPlaying;
     out.scrollOffset = ctx.scrollOffset;
     out.builtForPart = interpreter.instrumentPart;

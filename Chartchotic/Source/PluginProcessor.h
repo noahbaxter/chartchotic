@@ -13,6 +13,7 @@
 #include "Midi/MidiProject.h"
 #include "Midi/Processing/MidiProcessor.h"
 #include "Midi/Providers/REAPER/ReaperMidiProvider.h"
+#include "Audio/WaveformSourcePool.h"
 #include "Midi/InstrumentSession.h"
 #include "Midi/Discovery/PartMapping.h"
 #include "DebugTools/Logger.h"
@@ -114,6 +115,11 @@ public:
     ReaperMidiProvider reaperMidiProvider;
     ReaperMidiProvider& getReaperMidiProvider() { return reaperMidiProvider; }
 
+    // Beside the MIDI provider rather than in the editor: the peak caches cost real time to
+    // build, and an editor-owned pool would throw them away and rebuild every time the window
+    // closes and reopens.
+    WaveformSourcePool& getWaveformPool() { return waveformPool; }
+
     // Process REAPER timeline MIDI for a specific window (called from editor)
     void processReaperTimelineMidi(PPQ startPPQ, PPQ endPPQ, double bpm, uint timeSignatureNumerator, uint timeSignatureDenominator);
 
@@ -168,6 +174,7 @@ public:
     // Multi-instrument session (owns discovery + provider)
     std::unique_ptr<InstrumentSession> instrumentSession;
     PartMapping::Map partMap;
+    WaveformSourcePool waveformPool;
 
     // Display window size (set by editor, used by pipeline)
     PPQ displayWindowSize = PPQ(4.0);

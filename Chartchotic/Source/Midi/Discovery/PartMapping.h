@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <algorithm>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <set>
@@ -156,6 +157,28 @@ namespace PartMapping
         return parts;
     }
 
+    // Which track the waveform reads when nothing is pinned. It cannot be the master: REAPER's
+    // audio accessor reads a track's own media items, not the audio routed through it, so the
+    // master reads as silence however loud the mix is. The song's audio has to be on a real
+    // track with a real clip, and this is the guess at which one that is.
+    //
+    // Deliberately loose. Nobody agrees on what to call it, the cost of a wrong guess is a
+    // waveform of the wrong track (fixable with one click in the parts menu), and the cost of
+    // no guess is an empty view that looks broken.
+    inline bool isSongTrackName(const juce::String& name)
+    {
+        const auto key = name.toLowerCase();
+        // No "track": REAPER names every new track "Track 1" and so on, so it would match
+        // whatever happened to be first rather than the song. The audio requirement plus the
+        // first-audio-track fallback already covers that case without guessing wrong out loud.
+        static const char* wanted[] = { "song", "music", "audio", "backing", "mix" };
+
+        for (const auto* w : wanted)
+            if (key.contains(w)) return true;
+
+        return false;
+    }
+
     // The pins, and the assignments that fall out of them once the guesses fill the gaps.
     // Holds no track state of its own: the caller owns the track list and passes it in, so a
     // pin survives a track the plugin cannot currently see.
@@ -197,19 +220,68 @@ namespace PartMapping
                                                      ++it; }
             }
 
-            if (waveform)
+            reindexAfterDelete(globalAudio, deletedIndex);
+
+            for (auto it = audioPins.begin(); it != audioPins.end(); )
             {
-                if (*waveform == deletedIndex)      waveform.reset();
-                else if (*waveform > deletedIndex)  --*waveform;
+                reindexAfterDelete(it->second, deletedIndex);
+                // A set emptied by the delete is no set, so the part goes back to the global
+                // one rather than being left choosing nothing.
+                it = it->second.empty() ? audioPins.erase(it) : std::next(it);
             }
         }
 
-        // The waveform view is not a chart part, but it is chosen the same way: one track
-        // drives it. Kept here so there is one answer to "which track is this", and one thing
-        // to save, rather than a second store beside this one.
-        void pinWaveform(int sourceTrackIndex) { waveform = sourceTrackIndex; }
-        void unpinWaveform()                   { waveform.reset(); }
-        std::optional<int> waveformTrack() const { return waveform; }
+        /*
+            Which audio drives the waveform. Not a chart part and not one track: a part can
+            read several, which are SUMMED into one shape (three drum stems as one waveform),
+            and different parts can read different audio (drums against the drum stem, guitar
+            against the guitar stem).
+
+            Two levels, because the common case is one song track behind everything and it
+            should stay one click. A part's own set wins if it has one; otherwise the global
+            set applies to every part. Kept here beside the MIDI pins so there is one answer to
+            "what is this track for" and one thing to save.
+        */
+        void toggleAudioSource(Part part, int sourceTrackIndex)
+        {
+            toggleIn(audioPins[part], sourceTrackIndex);
+            // An emptied set is no set, so the part falls back to the global one rather than
+            // being stuck on "chosen, but nothing", which reads identically and cannot be
+            // undone from the grid.
+            if (audioPins[part].empty()) audioPins.erase(part);
+        }
+
+        void toggleGlobalAudioSource(int sourceTrackIndex) { toggleIn(globalAudio, sourceTrackIndex); }
+
+        // Whether this track is in the part's OWN set. Deliberately not answering for the
+        // global fallback: the grid has to draw a part inheriting the global set differently
+        // from one that picked the same track by hand, the same way a guess reads differently
+        // from a pin.
+        bool hasAudioSource(Part part, int sourceTrackIndex) const
+        {
+            auto it = audioPins.find(part);
+            return it != audioPins.end() && contains(it->second, sourceTrackIndex);
+        }
+
+        bool hasGlobalAudioSource(int sourceTrackIndex) const
+        {
+            return contains(globalAudio, sourceTrackIndex);
+        }
+
+        bool hasOwnAudioSet(Part part) const { return audioPins.count(part) > 0; }
+
+        const std::vector<int>& globalAudioSources() const { return globalAudio; }
+
+        // What this part's waveform reads. Its own set if it has one, else the global set.
+        //
+        // Empty has no answer here on purpose, the same as an unpinned part: the fallback needs
+        // the track list to guess from (isSongTrackName), which this class deliberately does not
+        // hold, so the caller resolves it and the choice stays the only thing saved.
+        std::vector<int> audioSources(Part part) const
+        {
+            auto it = audioPins.find(part);
+            return it != audioPins.end() ? it->second : globalAudio;
+        }
 
         std::optional<int> pinnedTrack(Part part) const
         {
@@ -267,8 +339,25 @@ namespace PartMapping
         void writeTo(juce::ValueTree& tree) const
         {
             tree.removeAllChildren(nullptr);
-            if (waveform) tree.setProperty("waveform", *waveform, nullptr);
-            else          tree.removeProperty("waveform", nullptr);
+            // The old single-track property. Removed rather than written, so a state saved by
+            // this build does not resurrect a pre-multi-source reading of it on the way back in.
+            tree.removeProperty("waveform", nullptr);
+
+            for (int trackIndex : globalAudio)
+            {
+                juce::ValueTree row("audio");
+                row.setProperty("track", trackIndex, nullptr);
+                tree.appendChild(row, nullptr);
+            }
+
+            for (const auto& [part, set] : audioPins)
+                for (int trackIndex : set)
+                {
+                    juce::ValueTree row("partaudio");
+                    row.setProperty("part", trackNameFor(part), nullptr);
+                    row.setProperty("track", trackIndex, nullptr);
+                    tree.appendChild(row, nullptr);
+                }
 
             for (const auto& [part, trackIndex] : pins)
             {
@@ -292,24 +381,69 @@ namespace PartMapping
         {
             pins.clear();
             suppressed.clear();
-            waveform.reset();
-            if (tree.hasProperty("waveform")) waveform = (int)tree.getProperty("waveform");
+            audioPins.clear();
+            globalAudio.clear();
+
+            // A state written before the waveform could read more than one track. Its single
+            // track becomes the global set, which is what it always meant.
+            if (tree.hasProperty("waveform"))
+                toggleGlobalAudioSource((int)tree.getProperty("waveform"));
 
             for (int i = 0; i < tree.getNumChildren(); ++i)
             {
                 const auto row = tree.getChild(i);
+
+                // The global audio set names no part, so it is read before anything asks which
+                // part a row belongs to.
+                if (row.hasType("audio"))
+                {
+                    toggleGlobalAudioSource((int)row.getProperty("track"));
+                    continue;
+                }
+
                 Part part;
                 if (!matchTrackNameToPart(row.getProperty("part").toString().toStdString(), part))
                     continue;
 
-                if (row.hasType("off")) clearPart(part);
-                else                    pin(part, (int)row.getProperty("track"));
+                if      (row.hasType("off"))       clearPart(part);
+                else if (row.hasType("partaudio")) toggleAudioSource(part, (int)row.getProperty("track"));
+                else                               pin(part, (int)row.getProperty("track"));
             }
         }
 
     private:
+        static bool contains(const std::vector<int>& set, int value)
+        {
+            return std::find(set.begin(), set.end(), value) != set.end();
+        }
+
+        // Kept sorted, because the set is the pool's cache key: two parts that picked the same
+        // tracks in a different order have to resolve to the same key or they build the same
+        // audio twice.
+        static void toggleIn(std::vector<int>& set, int value)
+        {
+            auto it = std::find(set.begin(), set.end(), value);
+            if (it != set.end()) { set.erase(it); return; }
+
+            set.insert(std::upper_bound(set.begin(), set.end(), value), value);
+        }
+
+        // Drops a deleted track and shifts everything above it down, in place.
+        static void reindexAfterDelete(std::vector<int>& set, int deletedIndex)
+        {
+            for (auto it = set.begin(); it != set.end(); )
+            {
+                if (*it == deletedIndex)    it = set.erase(it);
+                else                      { if (*it > deletedIndex) --*it;
+                                            ++it; }
+            }
+        }
+
         std::map<Part, int> pins;
         std::set<Part> suppressed;
-        std::optional<int> waveform;
+
+        // Per-part audio, and the set that applies to any part without its own.
+        std::map<Part, std::vector<int>> audioPins;
+        std::vector<int> globalAudio;
     };
 }

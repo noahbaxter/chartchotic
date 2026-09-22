@@ -22,8 +22,14 @@
  */
 struct ReaperAPIs
 {
-    // Project/timeline functions
-    void* (*GetCurrentProject)() = nullptr;
+    // Project/timeline functions.
+    //
+    // There is no GetCurrentProject in the REAPER API. A null project means "the current one"
+    // to every call that takes one, which is how the rest of this plugin asks for it, so
+    // nothing here needs to look one up. This used to hold a GetCurrentProject resolved from
+    // EnumProjects and declared as taking no arguments; EnumProjects takes (int, char*, int)
+    // and writes a filename into that char*, so the first code to call it wrote through a
+    // garbage pointer and took REAPER down with it.
 
     // Track/item enumeration functions
     void* (*GetTrack)(void*, int) = nullptr;
@@ -49,6 +55,32 @@ struct ReaperAPIs
     bool (*IsMediaItemSelected)(void* item) = nullptr;
     int (*CountSelectedMediaItems)(void* proj) = nullptr;
     void* (*GetSelectedMediaItem)(void* proj, int selitem) = nullptr;
+
+    // Audio accessors, for reading a track's samples to draw the waveform.
+    //
+    // A track accessor reads that track's own media items, NOT the audio routed through it,
+    // so there is deliberately no master accessor here: the master carries the whole mix and
+    // reads as silence, which cost a round of "why is the waveform flat" to find out.
+    //
+    // Accessors are MAIN THREAD ONLY: create, sample and destroy all have to happen on the
+    // message thread, which is why the peak cache is built there and only the finished peaks
+    // cross to anything else.
+    void* (*CreateTrackAudioAccessor)(void* track) = nullptr;
+    void (*DestroyAudioAccessor)(void* accessor) = nullptr;
+    // Samples come back interleaved and pre-FX. Returns 0 for no audio, 1 for audio, -1 on error.
+    int (*GetAudioAccessorSamples)(void* accessor, int samplerate, int numchannels,
+                                   double starttime_sec, int numsamplesperchannel,
+                                   double* samplebuffer) = nullptr;
+    double (*GetAudioAccessorStartTime)(void* accessor) = nullptr;
+    double (*GetAudioAccessorEndTime)(void* accessor) = nullptr;
+    // How long the project runs. The master holds no media items of its own, so its accessor
+    // reports an empty extent even though it carries the whole mix; this is what says how far
+    // there actually is to read.
+    double (*GetProjectLength)(void* proj) = nullptr;
+    // Says the underlying audio moved without updating the accessor, so the cache can decide
+    // whether a rebuild is worth it. ValidateState is what actually reloads it.
+    bool (*AudioAccessorStateChanged)(void* accessor) = nullptr;
+    bool (*AudioAccessorValidateState)(void* accessor) = nullptr;
 
     // Playback state functions
     double (*GetPlayPosition2Ex)(void* proj) = nullptr;
@@ -191,9 +223,6 @@ public:
         if (!apiFunc)
             return false;
 
-        // Project/timeline
-        outAPIs.GetCurrentProject = (void*(*)())apiFunc("EnumProjects");
-
         // Track/item enumeration
         outAPIs.GetTrack = (void*(*)(void*, int))apiFunc("GetTrack");
         outAPIs.CountTracks = (int(*)(void*))apiFunc("CountTracks");
@@ -216,6 +245,17 @@ public:
         outAPIs.IsMediaItemSelected = (bool(*)(void*))apiFunc("IsMediaItemSelected");
         outAPIs.CountSelectedMediaItems = (int(*)(void*))apiFunc("CountSelectedMediaItems");
         outAPIs.GetSelectedMediaItem = (void*(*)(void*, int))apiFunc("GetSelectedMediaItem");
+
+        // Audio accessors (waveform)
+        outAPIs.CreateTrackAudioAccessor = (void*(*)(void*))apiFunc("CreateTrackAudioAccessor");
+        outAPIs.DestroyAudioAccessor = (void(*)(void*))apiFunc("DestroyAudioAccessor");
+        outAPIs.GetAudioAccessorSamples =
+            (int(*)(void*, int, int, double, int, double*))apiFunc("GetAudioAccessorSamples");
+        outAPIs.GetAudioAccessorStartTime = (double(*)(void*))apiFunc("GetAudioAccessorStartTime");
+        outAPIs.GetAudioAccessorEndTime = (double(*)(void*))apiFunc("GetAudioAccessorEndTime");
+        outAPIs.GetProjectLength = (double(*)(void*))apiFunc("GetProjectLength");
+        outAPIs.AudioAccessorStateChanged = (bool(*)(void*))apiFunc("AudioAccessorStateChanged");
+        outAPIs.AudioAccessorValidateState = (bool(*)(void*))apiFunc("AudioAccessorValidateState");
 
         // Playback state
         outAPIs.GetPlayPosition2Ex = (double(*)(void*))apiFunc("GetPlayPosition2Ex");

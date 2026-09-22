@@ -632,6 +632,10 @@ void HighwayComponent::paint(juce::Graphics& g)
                                               ? frameData.sectionMarkers
                                               : kNoMarkers;
 
+    // The chart's times are playhead-relative; the waveform's cache is in project time, so it
+    // takes the cursor's absolute position to line the two up.
+    sceneRenderer.setWaveformOrigin(frameData.windowOriginTime);
+
     PERF_SCOPE("paint/highway/scene");
     sceneRenderer.paint(g, w, h,
                         trackWindow, sustainWindow, frameData.gridlines,

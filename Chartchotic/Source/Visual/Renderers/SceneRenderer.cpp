@@ -220,6 +220,17 @@ void SceneRenderer::populate(int viewportWidth, int viewportHeight, const TimeBa
                                       farFadeEnd, farFadeLen, farFadeCurve);
     }
 
+    // Null when the layer is off, which is the whole gate: nothing here runs, and the provider
+    // is not building a cache either.
+    if (waveformPeaks != nullptr)
+    {
+        PERF_SCOPE("paint/highway/scene/waveform");
+        waveformRenderer.activePart = activePart;
+        waveformRenderer.populate(drawCallMap, *waveformPeaks, windowStartTime, windowEndTime,
+                                  waveformOriginTime, width, height, highwayPosEnd,
+                                  farFadeEnd, farFadeLen, farFadeCurve);
+    }
+
     // Text event markers (disco flip start/end)
     if (!flipRegions.empty())
     {

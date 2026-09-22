@@ -59,6 +59,100 @@ constexpr float PHRASE_SOLO_OPACITY = 0.34f;
 // Bar mode: how far the lanes that are not bar notes fade back.
 constexpr float BAR_MODE_DIM = 0.3f;
 
+//==============================================================================
+// Waveform layer
+//==============================================================================
+
+// Every default below was dialled in against a real mix rather than reasoned about, so they
+// are what they are because they looked right, not because a number was derived.
+
+// A solid mass, not a wash. What makes an editor's waveform readable is the contrast between
+// the near-silence between hits and the hit itself, and opacity is the one control that can
+// throw that contrast away. Left high enough that the shape reads as an object on the board.
+constexpr float WAVEFORM_OPACITY = 0.50f;
+
+// The outline's own opacity, independent of the fill's. The two want to move separately: the
+// point of an outline here is a readable edge over a fill that has been dropped back, so tying
+// them together makes the edge vanish exactly when it is most needed.
+constexpr float WAVEFORM_OUTLINE_OPACITY = 0.70f;
+
+// The outline's thickness in pixels AT THE STRIKELINE, tapering into the distance from there.
+// Heavy on purpose against a fill dropped to half: the edge is what the eye follows and the
+// fill is there to say which side of it the audio is on. Zero is no outline and costs nothing,
+// since the path is not built at all.
+constexpr float WAVEFORM_OUTLINE_WIDTH = 6.0f;
+
+// The full half-board. Anything narrower throws away the resolution that makes a quiet passage
+// legible.
+constexpr float WAVEFORM_WIDTH_FRACTION = 1.0f;
+
+// How much time one drawn point covers, in milliseconds. Fine enough that an attack lands on a
+// 4ms boundary rather than being quantised to the width of the envelope around it, coarse enough
+// that a point averages over several cycles of anything above the very bottom of the mix.
+//
+// Finer is available and does nothing below about 2ms: the board needs one row per point plus
+// the off-board context, and past MAX_ROWS the renderer coarsens the grouping back up, so the
+// slider reads 1 and draws 2.
+constexpr float WAVEFORM_RESOLUTION_MS = 4.0f;
+
+// Effectively off: the gate is for cleaning up a noisy recording, and a mixed track does not
+// need it. Left at the bottom of its range so the normal case is the plain linear waveform.
+constexpr float WAVEFORM_FLOOR_DB = -72.0f;
+
+// A radius of one row, so a point is averaged with its immediate neighbours and nothing more.
+// Just enough to take the single-row jitter off the edge without touching the shape. What made
+// the old 0.63 wrong was not smoothing as such, it was averaging 8 rows of 8ms into a 136ms
+// window, which is wider than a drum hit.
+constexpr float WAVEFORM_SMOOTHING = 0.1f;
+
+// Off. The curve fit and the outline turned out to do the work this was reaching for: the
+// picture reads as hits without the drawing having to decide which moments are hits. Kept as a
+// control for a dense mix where the held content really does bury the attacks.
+constexpr float WAVEFORM_TRANSIENTS = 0.0f;
+
+// How much audio either side of the board is sampled but not drawn, in seconds.
+//
+// Smoothing and transient emphasis both answer for a row using its NEIGHBOURS, so a row at the
+// edge of the buffer has only half the context of the same row once it has scrolled inward, and
+// its drawn width changes as it travels. That is a shape that morphs while it scrolls, which is
+// the same failure the sampling grid was anchored to fix, one stage later.
+//
+// So the buffer runs past both ends of the board and only its middle is drawn. Wide enough to
+// cover the smoothing radius plus the onset lookback plus the release tail decaying out, so
+// every DRAWN row has the full neighbourhood it would have anywhere else.
+constexpr double WAVEFORM_CONTEXT_SECONDS = 0.5;
+
+// The board's edge is 0dBFS. There is deliberately no normalising: it needed the whole source
+// read to find the loudest moment, which is the one thing that forced a cache over the whole
+// song, and it made a quiet passage draw as loud as a chorus. A mix that clips runs off the
+// edge of the board, which is the correct picture of a mix that clips.
+
+// Where a rise stops being steady state and counts as an attack, as a share of FULL SCALE.
+// Below LOW nothing is emphasised, above HIGH it is fully an attack, and between the two it
+// fades in, so the emphasis does not flicker on and off around the boundary.
+//
+// Against full scale, NOT against the biggest rise on screen, which is what these used to mean.
+// A per-view maximum makes every row's emphasis depend on what else happens to be visible, so
+// one loud hit scrolling into the board changed the width of everything already on it. Anchored
+// here, a given moment in the audio gets the same emphasis wherever it is drawn.
+//
+// Never dialled in, because the feature they belong to ended up off by default: the old 0.18 and
+// 0.55 were fractions of a per-frame maximum and mean nothing as absolutes, so these are a
+// starting point for whoever turns the Transients slider up, not settled values.
+constexpr float WAVEFORM_ONSET_LOW  = 0.04f;
+constexpr float WAVEFORM_ONSET_HIGH = 0.20f;
+
+// How long an attack keeps its height once detected. A hit is instant and then rings out, so
+// the emphasis decays rather than lasting exactly one row: without it a transient is a sliver
+// a few milliseconds wide that reads as noise rather than as a note starting.
+constexpr double WAVEFORM_ONSET_RELEASE_MS = 90.0;
+
+// How far back transient emphasis compares each moment against, in milliseconds. Long enough
+// that the body of a note counts as "what came before" rather than as part of its own attack,
+// short enough that two hits in a fast fill are still separate events. Held in time rather
+// than in rows so changing Detail sharpens the picture without redefining what an attack is.
+constexpr double WAVEFORM_ONSET_LOOKBACK_MS = 25.0;
+
 
 // Phrase view: a phrase is what the view is for, so it draws well up from the faint wash it is
 // in the note views. Multiplied rather than replaced, so each kind keeps its relative weight, and
@@ -247,6 +341,10 @@ enum class DrawOrder
     GRID,
     TRACK_SIDEBARS,
     TRACK_LANE_LINES,
+    // Over the board and its gridlines, under everything that is chart. The waveform is
+    // context for the notes, so no note, sustain or bar is ever dimmed by it; the strikeline
+    // stays above it too, since that is the one line you read position against.
+    WAVEFORM,
     TRACK_STRIKELINE,
     SUSTAIN,
     BAR,
@@ -263,7 +361,7 @@ enum class DrawOrder
     TEXT_EVENT,
 };
 
-static constexpr int DRAW_ORDER_COUNT = 15;
+static constexpr int DRAW_ORDER_COUNT = 16;
 
 //==============================================================================
 // Text Event Data

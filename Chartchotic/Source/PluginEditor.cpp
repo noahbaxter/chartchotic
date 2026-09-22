@@ -362,6 +362,64 @@ void ChartchoticAudioProcessorEditor::updateHoverFocusDwell()
 
 // Read the project's tracks straight from REAPER rather than from discovery, which only
 // reports tracks it already recognised. The whole point of the menu is the ones it did not.
+// Which track the waveform reads. A pin is the answer whenever there is one; otherwise the
+// project is scanned for the track the song is most likely on.
+//
+// The scan is not free (it walks every track's items), so it is cached and only redone every
+// few seconds, and only while the layer is on. Re-running it matters because audio arrives
+// after the fact: a project opened before its song is imported would otherwise stay empty
+// until the plugin reloaded.
+int ChartchoticAudioProcessorEditor::guessWaveformTrack()
+{
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (now - lastWaveformScanMs < waveformScanIntervalMs)
+        return cachedWaveformTrack;
+
+    lastWaveformScanMs = now;
+
+    if (audioProcessor.reaperGetFunc == nullptr) return cachedWaveformTrack;
+    auto getFunc = [this](const char* name) { return audioProcessor.reaperGetFunc(name); };
+
+    // Audio is the hard requirement; the name only breaks ties. A track called "song" with no
+    // clip on it is not the song, and the first audio track usually is.
+    int firstWithAudio = WAVEFORM_TRACK_NONE;
+    const int count = ReaperTrackDetector::getTrackCount(getFunc);
+
+    for (int i = 0; i < count; ++i)
+    {
+        if (!ReaperTrackDetector::getTrackContent(getFunc, i).audio) continue;
+
+        if (firstWithAudio < 0) firstWithAudio = i;
+
+        if (PartMapping::isSongTrackName(juce::String(ReaperTrackDetector::getTrackName(getFunc, i))))
+        {
+            cachedWaveformTrack = i;
+            return cachedWaveformTrack;
+        }
+    }
+
+    // Only ever replaced by an answer. A scan that finds nothing leaves the last good track in
+    // place rather than resetting to "no track": the audio does not stop existing because one
+    // scan came back empty, and letting an empty answer through changes the set the pool is
+    // keyed on, which drops the cache and blanks the board until the next scan finds it again.
+    if (firstWithAudio >= 0)
+        cachedWaveformTrack = firstWithAudio;
+
+    return cachedWaveformTrack;
+}
+
+// What one part's waveform reads: the tracks chosen for it, or chosen for everything, or the
+// name guess if nobody has chosen anything. Several tracks are summed into one shape by the
+// provider; the guess is always a single track, since guessing a mix would be guessing twice.
+std::vector<int> ChartchoticAudioProcessorEditor::resolveAudioSources(Part part)
+{
+    auto chosen = audioProcessor.getPartMap().audioSources(part);
+    if (!chosen.empty()) return chosen;
+
+    const int guessed = guessWaveformTrack();
+    return guessed < 0 ? std::vector<int>{} : std::vector<int>{ guessed };
+}
+
 void ChartchoticAudioProcessorEditor::refreshPartsMenuTracks()
 {
     if (audioProcessor.reaperGetFunc == nullptr) return;
@@ -370,6 +428,7 @@ void ChartchoticAudioProcessorEditor::refreshPartsMenuTracks()
     std::vector<PartsMenuComponent::TrackRow> rows;
     const int count = ReaperTrackDetector::getTrackCount(getFunc);
     const int hostTrack = ReaperTrackDetector::detectPluginTrack(getFunc);
+
     for (int i = 0; i < count; ++i)
     {
         auto name = juce::String(ReaperTrackDetector::getTrackName(getFunc, i));
@@ -566,6 +625,66 @@ void ChartchoticAudioProcessorEditor::onFrame()
     {
         toolbar.setReaperMode(true);
         toolbar.updateVisibility();
+    }
+
+    // The waveform's peak cache fills a slice at a time, here, because REAPER's audio
+    // accessor is main-thread only. The budget is what keeps that legal: a frame gives it a
+    // sliver and the cache finishes over the next second or two, rather than one pass
+    // stalling the frame it starts in.
+    //
+    // It builds whether or not the layer is showing. Gating it on the toggle meant the cache
+    // started from nothing every time the layer came on, so V was followed by a second or two
+    // of the waveform filling in from the bottom. The cost of building unasked is a slice of a
+    // frame until the cache completes and nothing at all after that, since a complete set
+    // early-outs; the cost of NOT building unasked is paid every single time the layer is
+    // toggled, which is the thing being looked at.
+    {
+        auto& pool = audioProcessor.getWaveformPool();
+        // Whether to BUILD, which does not depend on the layer being visible.
+        const bool waveformOn = isReaperMode;
+
+        // Each slot's own audio, which is usually the same set for all of them and sometimes a
+        // stem each. Resolved per slot rather than once, because a part can name its own.
+        std::array<std::vector<int>, MAX_HIGHWAY_SLOTS> slotSources;
+
+        if (waveformOn)
+        {
+            pool.initialize(&audioProcessor.getReaperMidiProvider().getAPIs());
+
+            // The focused slot's audio first, so the highway being looked at finishes building
+            // first when several stems are sharing the one budget. Duplicates are dropped: two
+            // parts on the same stem are one entry in the pool and must be one request here.
+            std::vector<WaveformSourcePool::Key> wanted;
+            auto want = [&wanted](const std::vector<int>& key)
+            {
+                if (!key.empty()
+                    && std::find(wanted.begin(), wanted.end(), key) == wanted.end())
+                    wanted.push_back(key);
+            };
+
+            const int focused = effectiveFocusSlot();
+            for (int i = 0; i < activeSlotCount; ++i)
+                slotSources[(size_t)i] = resolveAudioSources(slots[i].part);
+
+            if (focused >= 0 && focused < activeSlotCount)
+                want(slotSources[(size_t)focused]);
+
+            for (int i = 0; i < activeSlotCount; ++i)
+                want(slotSources[(size_t)i]);
+
+            pool.setRequested(std::move(wanted));
+            pool.tick(waveformBuildBudgetMs);
+        }
+
+        // Re-pointed every frame rather than on the toggle: the highways are rebuilt on layout
+        // changes, and a pointer handed over once goes stale with them. THIS is where the
+        // toggle acts, on the handing over rather than on the building, so turning the layer on
+        // shows a cache that is already there.
+        const bool showWaveform = waveformOn && waveformVisible;
+
+        for (int i = 0; i < activeSlotCount; ++i)
+            slots[i].highway->setWaveformPeaks(
+                showWaveform ? pool.peaksFor(slotSources[(size_t)i]) : nullptr);
     }
 
     // Per-frame sync — wires MidiWriter, InstrumentSession, playingState,
@@ -1151,10 +1270,12 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
         partsMenu.onCreateTrackForPart = [this](Part p) { createTrackForPart(p); };
         partsMenu.onDeleteTrack = [this](int index, juce::String name)
                                   { confirmDeleteTrack(index, name); };
-        partsMenu.onPinWaveform   = [this](int track)
-                            { audioProcessor.getPartMap().pinWaveform(track); commitPartPins(); };
-        partsMenu.onUnpinWaveform = [this]()
-                            { audioProcessor.getPartMap().unpinWaveform();    commitPartPins(); };
+        partsMenu.onToggleGlobalAudio = [this](int track)
+                            { audioProcessor.getPartMap().toggleGlobalAudioSource(track);
+                              commitPartPins(); };
+        partsMenu.onToggleAudioSource = [this](Part p, int track)
+                            { audioProcessor.getPartMap().toggleAudioSource(p, track);
+                              commitPartPins(); };
         partsMenu.onDismiss  = [this]() { partsMenu.setVisible(false); };
         partsMenu.onEditColours = [this](Part part)
         {

@@ -189,6 +189,14 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Utils/PPQ.h
         Chartchotic/Source/Midi/Utils/TempoTimeSignatureEventHelper.h
         Chartchotic/Source/Midi/Utils/TimeConverter.h
+        Chartchotic/Source/DebugTools/ClipReadLog.h
+        Chartchotic/Source/UI/WaveformTuningPanel.h
+        Chartchotic/Source/Visual/Utils/WaveformTuning.h
+        # Audio (waveform view)
+        Chartchotic/Source/Audio/WaveformPeaks.h
+        Chartchotic/Source/Audio/ReaperWaveformProvider.cpp
+        Chartchotic/Source/Audio/ReaperWaveformProvider.h
+        Chartchotic/Source/Audio/WaveformSourcePool.h
         # Host (REAPER integration)
         Chartchotic/Source/Host/ReaperIntegration.cpp
         Chartchotic/Source/Host/ReaperIntegration.h
@@ -209,6 +217,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Renderers/GridlineRenderer.h
         Chartchotic/Source/Visual/Renderers/TextEventRenderer.cpp
         Chartchotic/Source/Visual/Renderers/TextEventRenderer.h
+        Chartchotic/Source/Visual/Renderers/WaveformRenderer.cpp
+        Chartchotic/Source/Visual/Renderers/WaveformRenderer.h
         Chartchotic/Source/Visual/Art/TrackRenderer.cpp
 
         Chartchotic/Source/Visual/Art/ProceduralTrackArt.cpp

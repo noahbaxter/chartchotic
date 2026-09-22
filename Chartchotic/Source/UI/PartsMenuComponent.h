@@ -54,10 +54,11 @@ public:
     std::function<void(Part)>      onCreateTrackForPart;
     // Destructive, so the host confirms before doing anything.
     std::function<void(int, juce::String)> onDeleteTrack;   // track index, name for the prompt
-    // The waveform view is not a part, so it gets its own pair rather than a fake Part
-    // threaded through every switch that takes one.
-    std::function<void(int)>       onPinWaveform;
-    std::function<void()>          onUnpinWaveform;
+    // Audio is chosen in the same grid, in Audio mode. A part can name several tracks, which
+    // are summed into one waveform, so these toggle membership rather than setting a value.
+    std::function<void(Part, int)> onToggleAudioSource;   // part, track index
+    // Column 0, which applies to every part that has not named its own audio.
+    std::function<void(int)>       onToggleGlobalAudio;
     std::function<void()>          onDismiss;
     // The colour strip under a part's icon was clicked: open that part's palette.
     std::function<void(Part)>      onEditColours;
@@ -209,6 +210,16 @@ public:
 
     void mouseDown(const juce::MouseEvent& e) override
     {
+        // The mode toggle sits above the grid and changes what every cell means, so it answers
+        // before anything that reads a cell.
+        if (modeToggleBounds().contains(e.getPosition()))
+        {
+            const auto bounds = modeToggleBounds();
+            gridMode = e.getPosition().x < bounds.getCentreX() ? GridMode::Midi : GridMode::Audio;
+            repaint();
+            return;
+        }
+
         // Colour strips sit in the header, above every cell, so they answer first.
         const int colourColumn = colourColumnAt(e.getPosition());
         if (colourColumn >= 0)
@@ -242,16 +253,32 @@ public:
         // Right click only ever takes a mapping off, whatever the cell holds.
         const bool clearOnly = e.mods.isPopupMenu();
 
+        // Column 0 is the audio that applies to every part, in both modes: a grid showing MIDI
+        // assignments still has to say where the song is, and it is one click for the common
+        // case of one track behind everything.
         if (isWaveformColumn(cell.column))
         {
-            const bool held = map->waveformTrack() == trackIndex;
-            if (held)            { if (onUnpinWaveform) onUnpinWaveform(); }
-            else if (!clearOnly) { if (onPinWaveform)   onPinWaveform(trackIndex); }
+            // Right click only ever takes away, so it toggles off a track that is on and does
+            // nothing to one that is off.
+            if (!clearOnly || map->hasGlobalAudioSource(trackIndex))
+                if (onToggleGlobalAudio) onToggleGlobalAudio(trackIndex);
+
             refresh();
             return;
         }
 
         const auto part = partForColumn(cell.column);
+
+        // In Audio mode the part columns name that part's OWN audio instead of its MIDI track.
+        // Same grid, same gesture, different thing being assigned.
+        if (gridMode == GridMode::Audio)
+        {
+            if (!clearOnly || map->hasAudioSource(part, trackIndex))
+                if (onToggleAudioSource) onToggleAudioSource(part, trackIndex);
+
+            refresh();
+            return;
+        }
 
         // Right click turns the part off outright, guess included, which is the only way to
         // say no to something the app decided on its own.
@@ -310,6 +337,11 @@ private:
     std::vector<Part>     columns;
     std::vector<PartMapping::Assignment> resolved;
     const PartMapping::Map* map = nullptr;
+    // What a part column assigns. Not saved: it is where you are looking, not a setting, and a
+    // menu that reopened in Audio mode would read as the MIDI assignments having vanished.
+    enum class GridMode { Midi, Audio };
+    GridMode gridMode = GridMode::Midi;
+
     Cell hoverCell;
     int hoveredNameRow = -1;      // the row whose name is under the cursor, which is what shows the X
     int hoveredColourColumn = -1; // the part whose colour strip is under the cursor
@@ -492,9 +524,63 @@ private:
 
     void paintTopStrip(juce::Graphics& g)
     {
+        paintModeToggle(g);
         paintHoveredPartName(g);
+    }
 
+    /*
+        What the part columns assign: a MIDI track, or the audio behind that part.
 
+        A mode rather than a second set of columns, because the two are the same question asked
+        of the same grid (which track feeds this part) and doubling fourteen columns to ask it
+        twice would not fit. It also keeps multi-select honest: a part has exactly one MIDI
+        track and any number of audio tracks, and a mode is what lets one grid mean both
+        without a cell being ambiguous.
+
+        Drawn as the app's segmented button rather than this panel's own thing: filled with
+        Theme::purple when active, dim-outlined when not, the way every other control reads.
+    */
+    void paintModeToggle(juce::Graphics& g)
+    {
+        const auto bounds = modeToggleBounds();
+        if (bounds.isEmpty()) return;
+
+        const float corner = (float)bounds.getHeight() * 0.5f;
+        g.setColour(juce::Colour(Theme::panelNeutralLine));
+        g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), corner, 1.0f);
+
+        const auto half = [&bounds](bool right)
+        {
+            return right ? bounds.withTrimmedLeft(bounds.getWidth() / 2)
+                         : bounds.withTrimmedRight(bounds.getWidth() - bounds.getWidth() / 2);
+        };
+
+        g.setFont(juce::Font(juce::FontOptions().withHeight((float)bounds.getHeight() * 0.62f)
+                                                .withStyle("Bold")));
+
+        for (int i = 0; i < 2; ++i)
+        {
+            const bool audio = (i == 1);
+            const bool active = (gridMode == GridMode::Audio) == audio;
+            const auto area = half(audio);
+
+            if (active)
+            {
+                g.setColour(juce::Colour(Theme::purple));
+                g.fillRoundedRectangle(area.toFloat().reduced(1.5f), corner - 1.5f);
+            }
+
+            g.setColour(juce::Colour(active ? Theme::textWhite : Theme::textDim));
+            g.drawText(audio ? "AUDIO" : "MIDI", area, juce::Justification::centred);
+        }
+    }
+
+    // Over the track-name column in the top strip, which nothing else uses, and where a control
+    // that labels what the columns mean belongs.
+    juce::Rectangle<int> modeToggleBounds() const
+    {
+        const int width = juce::jmax(0, m.nameColumnW - m.pad * 2);
+        return { m.pad, 1, width, juce::jmax(0, m.stripH - 2) };
     }
 
     // The column under the cursor, named in full and a size up from the rest of the chrome:
@@ -547,7 +633,7 @@ private:
 
         if (isWaveformColumn(column))
         {
-            paintWaveformIcon(g, area, map != nullptr && map->waveformTrack().has_value());
+            paintWaveformIcon(g, area, map != nullptr && !map->globalAudioSources().empty());
             return;
         }
 
@@ -824,12 +910,27 @@ private:
             g.fillRect(area.reduced(2));
         }
 
-        // The waveform is only ever chosen by hand, so it has no guess state to show.
         std::optional<PartMapping::Origin> state;
+
         if (waveform)
         {
-            if (map != nullptr && map->waveformTrack() == trackIndex)
+            // The global audio set is only ever chosen by hand, so it has no guess to show.
+            if (map != nullptr && map->hasGlobalAudioSource(trackIndex))
                 state = PartMapping::Origin::Pin;
+        }
+        else if (gridMode == GridMode::Audio)
+        {
+            if (map != nullptr)
+            {
+                // A part with no audio of its own inherits the global set, and that reads as a
+                // guess: it is true right now but nobody said so about this part, which is the
+                // same thing the hollow mark means for a name guess.
+                if (map->hasAudioSource(partForColumn(column), trackIndex))
+                    state = PartMapping::Origin::Pin;
+                else if (!map->hasOwnAudioSet(partForColumn(column))
+                         && map->hasGlobalAudioSource(trackIndex))
+                    state = PartMapping::Origin::Guess;
+            }
         }
         else state = cellState(trackIndex, partForColumn(column));
 

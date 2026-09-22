@@ -33,8 +33,13 @@ struct HighwayFrameData {
     TimeBasedFlipRegions flipRegions;
     TimeBasedEventMarkers eventMarkers;
     TimeBasedEventMarkers sectionMarkers;   // named gates, for the Sections view
+    // Every time in this struct is relative to the playhead: windowStartTime is 0 and a note's
+    // time is how far ahead of the cursor it sits. That is all the chart needs, because the
+    // chart scrolls with the cursor. Audio does not: the waveform is cached against the
+    // project's own clock, so it needs to know which absolute second the window starts at.
     double windowStartTime = 0.0;
     double windowEndTime = 1.0;
+    double windowOriginTime = 0.0;   // absolute project seconds at windowStartTime
     float scrollOffset = 0.0f;
     double deltaSeconds = 0.0;
     bool isPlaying = false;
@@ -132,6 +137,9 @@ public:
     void setShowLaneSeparators(bool on) { sceneRenderer.showLaneSeparators = on; repaint(); }
     void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
     void setShowHighway(bool on)        { showHighway = on; repaint(); }
+    // Null turns the waveform layer off. Passed as a pointer rather than copied: the cache is
+    // owned by the provider and keeps filling while the layer draws it.
+    void setWaveformPeaks(const Waveform::Peaks* peaks) { sceneRenderer.setWaveformPeaks(peaks); }
     void setWriteMode(bool on)          { writeModeOn = on; sceneRenderer.setWriteMode(on); applyEditorView(); repaint(); }
 
     // The editor view decides which phrase overlays draw. They are a write-mode thing, so

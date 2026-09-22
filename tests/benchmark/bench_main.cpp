@@ -66,6 +66,7 @@ static const char* drawOrderName(DrawOrder d)
         case DrawOrder::GRID:           return "GRID";
         case DrawOrder::TRACK_SIDEBARS:  return "SIDEBAR";
         case DrawOrder::TRACK_LANE_LINES: return "LANELINE";
+        case DrawOrder::WAVEFORM:       return "WAVE";
         case DrawOrder::TRACK_STRIKELINE: return "STRIKE";
         case DrawOrder::TRACK_CONNECTORS: return "CONNECT";
         case DrawOrder::LANE:           return "LANE";

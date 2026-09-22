@@ -39,6 +39,7 @@ target_sources(unit_tests PRIVATE
     test_part_palettes.cpp
     test_bar_ramps.cpp
     test_frame.cpp
+    test_waveform_peaks.cpp
     ${SOURCE_ROOT}/Editor/AuthoringConfig.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp

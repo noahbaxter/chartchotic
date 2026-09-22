@@ -17,6 +17,7 @@
 #include "ReaperApiHelpers.h"
 #include "../../Utils/PPQ.h"
 #include "../../../DebugTools/Logger.h"
+#include "../../../DebugTools/ClipReadLog.h"
 #include "../../ChartTextEvent.h"
 
 /**
@@ -53,6 +54,11 @@ private:
     std::function<void*(const char*)> getReaperApi;  // For track detection only
     const ReaperAPIs& apis;
     DebugTools::Logger* logger = nullptr;
+
+    // The last thing ClipReadLog was told about a note read. Reads repeat on every reload with
+    // the same answer, so only a changed one is worth a line.
+    juce::String lastNoteReadSummary;
+    juce::String lastSpanReadSummary;
 
     // Helper: Get the target track with auto-detection
     void* getTargetTrack(void* project, int& trackIndex);

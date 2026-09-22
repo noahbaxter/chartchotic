@@ -67,6 +67,7 @@ public:
         if (!key.getModifiers().isAnyModifierKeyDown())
         {
             if (key.getKeyCode() == 'U') { toggleUtilityStrip(); return true; }
+            if (key.getKeyCode() == 'V') { toggleWaveform();     return true; }
             if (key.getKeyCode() == 'M' && utilityStripVisible)
             {
                 utilityStrip.toggleZoom();
@@ -325,6 +326,47 @@ private:
     {
         utilityStripVisible = !utilityStripVisible;
         state.setProperty("showUtilityStrip", utilityStripVisible, nullptr);
+        resized();
+    }
+
+    // The waveform is a layer over the highway rather than a view of its own, so it toggles
+    // like the strip does. Off by default: the peak cache costs real time to build, and it
+    // builds only while something is drawing it.
+    bool waveformVisible = false;
+    // The waveform tuning panel is gone from the editor: the values it dialled in are now the
+    // defaults in DrawingConstants.h, and a panel of ten sliders over the highway is a
+    // developer's probe, not a feature to ship. WaveformTuningPanel.h is still on disk and is
+    // meant to be deleted outright before release; see BACKLOG.md.
+    //
+    // Its constructor was also the only thing that read the saved waveform_* properties back
+    // into Waveform::tuning(), so with it gone the drawing comes from the constants alone and
+    // a stale value dialled in during a tuning session cannot outlive it.
+
+    // No track to read: either the project has no audio yet, or REAPER is not answering.
+    static constexpr int WAVEFORM_TRACK_NONE = -1;
+
+    // Pinned track, else a guess at the song's track. Cached; the scan walks every track's
+    // items, which is not something to do per frame.
+    // The name-guess fallback, cached because the scan walks every track's items. Separate from
+    // the resolution below so a part that named its own audio never pays for the scan.
+    int guessWaveformTrack();
+    std::vector<int> resolveAudioSources(Part part);
+    int cachedWaveformTrack = WAVEFORM_TRACK_NONE;
+    double lastWaveformScanMs = 0.0;
+    // Long enough that the scan is invisible, short enough that importing the song mid-session
+    // lights the waveform up on its own rather than needing a reload.
+    static constexpr double waveformScanIntervalMs = 3000.0;
+
+    // How much of a frame the peak cache may take while it fills. A frame at 60fps has 16.6ms
+    // and this one is already spending most of it, so the cache gets a sliver and takes a
+    // second or two rather than a stall. Checked between chunks, so a single slow read of the
+    // master can still overrun it.
+    static constexpr double waveformBuildBudgetMs = 1.5;
+
+    void toggleWaveform()
+    {
+        waveformVisible = !waveformVisible;
+        state.setProperty("showWaveform", waveformVisible, nullptr);
         resized();
     }
 

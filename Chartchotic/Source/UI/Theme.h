@@ -51,6 +51,11 @@ public:
     // Declared down here because it borrows from the accent palette above.
     static constexpr juce::uint32 controlLaneArt = yellow;
 
+    // The waveform layer over the highway. Off-white rather than an accent colour: it sits
+    // under every gem on the board and has to say "this is the audio, not a chart element".
+    // Borrowed from the text colour so the two neutrals on screen are the same neutral.
+    static constexpr juce::uint32 waveform = textWhite;
+
     //==========================================================================
     // Overlay parent — returns the AudioProcessorEditor so overlays inherit
     // the host DPI scale transform. Falls back to getTopLevelComponent() for

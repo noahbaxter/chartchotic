@@ -116,7 +116,7 @@ public:
             "frame\tdelta_us\tonframe_us\tdata_build_us\tlock_us\t"
             "track_render_us\ttexture_us\thighway_paint_us\t"
             "scene_total_us\tnotes_us\tsustains_us\tgrid_us\tanim_us\texecute_us\t"
-            "L0\tL1\tL2\tL3\tL4\tL5\tL6\tL7\tL8\tL9\tL10\tL11\tL12\tL13\tL14\t"
+            "L0\tL1\tL2\tL3\tL4\tL5\tL6\tL7\tL8\tL9\tL10\tL11\tL12\tL13\tL14\tL15\t"
             "track_win\tsustain_win\tgrid_count\t"
             "slots\tpart\tskill\tvp_w\tvp_h\tplaying\tspike\t"
             "agg_paint\tagg_scene\tagg_notes\tagg_sustains\tagg_execute\tagg_track\t"
@@ -254,7 +254,7 @@ private:
         if (!file) return;
         std::fprintf(file,
             "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t"
-            "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t"
+            "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t"
             "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t"
             "%d\t%d\t%d\t%d\t%d\t%d",
             r.frameNumber, r.frameDelta_us, r.onFrame_us, r.dataBuild_us, r.lockWait_us,
@@ -264,7 +264,7 @@ private:
             r.layer_us[0], r.layer_us[1], r.layer_us[2], r.layer_us[3],
             r.layer_us[4], r.layer_us[5], r.layer_us[6], r.layer_us[7],
             r.layer_us[8], r.layer_us[9], r.layer_us[10], r.layer_us[11],
-            r.layer_us[12], r.layer_us[13], r.layer_us[14],
+            r.layer_us[12], r.layer_us[13], r.layer_us[14], r.layer_us[15],
             r.trackWindowSize, r.sustainWindowSize, r.gridlineCount,
             r.slotCount, r.activePart, r.skillLevel,
             r.viewportW, r.viewportH, r.isPlaying, r.isSpike,

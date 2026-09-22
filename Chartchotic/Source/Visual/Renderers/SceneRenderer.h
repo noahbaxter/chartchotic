@@ -23,6 +23,7 @@
 #include "SustainRenderer.h"
 #include "GridlineRenderer.h"
 #include "TextEventRenderer.h"
+#include "WaveformRenderer.h"
 #include "../Geometry/PositionConstants.h"
 #include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
@@ -103,6 +104,16 @@ class SceneRenderer
         std::vector<NoteRenderer::SelectedGem>& getEraseTargets() { return noteRenderer.eraseTargets; }
         std::vector<NoteRenderer::SelectedGem>& getHighlightedGems() { return noteRenderer.highlightedGems; }
         std::vector<SustainRenderer::TintedSustain>& getTintedSustains() { return sustainRenderer.tintedSustains; }
+        // The waveform layer, pointed at a cache someone else owns and builds. Null is the
+        // layer being off; the renderer holds no copy, so a cache that grows while it is on
+        // just draws further up the board each frame.
+        void setWaveformPeaks(const Waveform::Peaks* peaks) { waveformPeaks = peaks; }
+
+        // The absolute project second the window starts at. Set beside the peaks rather than
+        // threaded through populate, whose signature every caller (harness and bench included)
+        // would otherwise have to grow a parameter nothing but the waveform reads.
+        void setWaveformOrigin(double originTime) { waveformOriginTime = originTime; }
+
         void setBarModeDim(float dim) { noteRenderer.barModeDim = dim; }
         void setShowActivation(bool on) { noteRenderer.showActivation = on; }
         void setPhraseDim(float dim) { noteRenderer.phraseDim = dim; }
@@ -210,6 +221,9 @@ class SceneRenderer
         GridlineRenderer gridlineRenderer;
         AnimationRenderer animationRenderer;
         TextEventRenderer textEventRenderer;
+        WaveformRenderer waveformRenderer;
+        const Waveform::Peaks* waveformPeaks = nullptr;
+        double waveformOriginTime = 0.0;
 
         uint width = 0, height = 0;
         double lastFrameTimeSeconds = 0.0;
