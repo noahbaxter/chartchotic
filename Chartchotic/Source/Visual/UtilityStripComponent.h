@@ -17,8 +17,7 @@
         which is where song structure is read, so bar lines are drawn in chunks rather
         than per bar: a line every bar is a wash, a line every 4 or 8 is a ruler.
 
-        Design: docs/superpowers/specs/2026-09-10-utility-strip-design.md
-                docs/superpowers/specs/2026-09-15-editor-views-design.md
+        Design: docs/superpowers/specs/2026-09-15-editor-views-design.md
 
     ==============================================================================
 */
