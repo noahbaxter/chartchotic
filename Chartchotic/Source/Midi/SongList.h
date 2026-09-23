@@ -9,11 +9,19 @@
 /**
  * The songs in a project. One MIDI item on the EVENTS track is one song.
  *
- * Items may overlap, and that is the point: a gapless album is twelve per-song items plus
- * one item spanning all of them, so the singles and the album chart come off the same notes.
- * Overlap costs nothing because selection is explicit, never derived from the playhead.
+ * Items MAY NOT OVERLAP. One position is in at most one song, so which song you are in is a
+ * fact about where the playhead is rather than something to choose, and the feature carries no
+ * selection state at all. `UtilityStripComponent::songAt` depends on this directly: it returns
+ * the first match and stops.
  *
- * Design: docs/superpowers/specs/2026-09-11-song-boundaries-design.md
+ * An earlier draft allowed overlap, so that a gapless album could be twelve per-song items plus
+ * one spanning all of them. That bought one arrangement and cost a selection model, column
+ * packing in the overview, and a rule about which of two items a rename meant. Charts sitting
+ * end to end is the arrangement people actually build.
+ *
+ * Nothing here rejects an overlapping item; the invariant is assumed, not enforced. Two items
+ * that do overlap resolve to whichever sorts first, which is a wrong answer rather than a
+ * crash.
  */
 class SongList
 {
@@ -28,8 +36,8 @@ public:
     // How wide the strip opens on a project it knows nothing about yet.
     static constexpr int DEFAULT_ZOOM_BARS = 64;
 
-    // Unmerged on purpose, unlike InstrumentSession's clipSpans: merging is what would
-    // destroy the album-over-singles arrangement this exists to support.
+    // Unmerged on purpose, unlike InstrumentSession's clipSpans. Two charts sitting end to end
+    // are two songs, and merging them would make them one with the wrong name.
     void buildFromSpans(const std::vector<ClipSpan>& spans)
     {
         songs.clear();

@@ -8,8 +8,7 @@
         on their own: which pitches a phrase is written as, where a phrase may end,
         and what [coda] has to do when a BRE is written.
 
-        Design: docs/superpowers/specs/2026-09-12-strip-authoring-modes-design.md
-                docs/superpowers/specs/2026-09-15-editor-views-design.md
+        Design: docs/superpowers/specs/2026-09-15-editor-views-design.md
 
     ==============================================================================
 */
