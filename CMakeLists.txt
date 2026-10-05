@@ -189,6 +189,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Utils/PPQ.h
         Chartchotic/Source/Midi/Utils/TempoTimeSignatureEventHelper.h
         Chartchotic/Source/Midi/Utils/TimeConverter.h
+        Chartchotic/Source/DebugTools/ClipReadLog.h
         # Host (REAPER integration)
         Chartchotic/Source/Host/ReaperIntegration.cpp
         Chartchotic/Source/Host/ReaperIntegration.h
