@@ -22,8 +22,14 @@
  */
 struct ReaperAPIs
 {
-    // Project/timeline functions
-    void* (*GetCurrentProject)() = nullptr;
+    // Project/timeline functions.
+    //
+    // There is no GetCurrentProject in the REAPER API. A null project means "the current one"
+    // to every call that takes one, which is how the rest of this plugin asks for it, so
+    // nothing here needs to look one up. This used to hold a GetCurrentProject resolved from
+    // EnumProjects and declared as taking no arguments; EnumProjects takes (int, char*, int)
+    // and writes a filename into that char*, so the first code to call it wrote through a
+    // garbage pointer and took REAPER down with it.
 
     // Track/item enumeration functions
     void* (*GetTrack)(void*, int) = nullptr;
@@ -190,9 +196,6 @@ public:
     {
         if (!apiFunc)
             return false;
-
-        // Project/timeline
-        outAPIs.GetCurrentProject = (void*(*)())apiFunc("EnumProjects");
 
         // Track/item enumeration
         outAPIs.GetTrack = (void*(*)(void*, int))apiFunc("GetTrack");
