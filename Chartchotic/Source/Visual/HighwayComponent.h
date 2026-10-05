@@ -17,6 +17,7 @@
 #include "../Midi/Utils/TimeConverter.h"
 #include "../Editor/AuthoringTypes.h"
 #include "PhraseMath.h"
+#include "ViewLayers.h"
 #include "Renderers/SceneRenderer.h"
 #include "Art/TrackRenderer.h"
 #include "Managers/AssetManager.h"
@@ -112,26 +113,34 @@ public:
         repaint();
     }
 
-    // Visibility flags
-    void setShowGems(bool on)           { sceneRenderer.showGems = on; repaint(); }
-    void setShowBars(bool on)           { sceneRenderer.showBars = on; repaint(); }
-    void setShowSustains(bool on)       { sceneRenderer.showSustains = on; repaint(); }
-    void setShowLanes(bool on)          { sceneRenderer.showLanes = on; repaint(); }
-    void setShowFills(bool on)          { sceneRenderer.showFills = on; repaint(); }
-    void setShowBre(bool on)            { sceneRenderer.showBre = on; repaint(); }
-    void setShowActivationLane(bool on)
+    // Everything the View menu controls on a highway, in one go.
+    void applyView(const ViewOptions& view)
     {
-        showActivationOn = on;
-        sceneRenderer.showActivationLane = on;
+        const auto has = [&view](ViewLayers::Layer l)
+        { return view.has(l, ViewLayers::Surface::Highway); };
+        using L = ViewLayers::Layer;
+
+        sceneRenderer.showGems = has(L::Gems);
+        sceneRenderer.showBars = has(L::Bars);
+        sceneRenderer.showSustains = has(L::Sustains);
+        sceneRenderer.showLanes = has(L::Lanes);
+        sceneRenderer.showFills = has(L::Fills);
+        sceneRenderer.showBre = has(L::Bre);
+        sceneRenderer.showSolos = has(L::Solos);
+        sceneRenderer.showGridlines = has(L::BeatLines);
+        sceneRenderer.showMeasureNumbers = has(L::MeasureNumbers);
+        sceneRenderer.showTrack = has(L::SideRails);
+        sceneRenderer.showLaneSeparators = has(L::LaneLines);
+        sceneRenderer.showStrikeline = has(L::Strikeline);
+        showHighway = has(L::Surface);
+
+        // Also drives whether the activation gem grows.
+        showActivationOn = has(L::Activation);
+        sceneRenderer.showActivationLane = showActivationOn;
         applyEditorView();
         repaint();
     }
     void setLaneToolActive(bool on)     { laneToolOn = on; applyEditorView(); repaint(); }
-    void setShowGridlines(bool on)      { sceneRenderer.showGridlines = on; repaint(); }
-    void setShowTrack(bool on)          { sceneRenderer.showTrack = on; repaint(); }
-    void setShowLaneSeparators(bool on) { sceneRenderer.showLaneSeparators = on; repaint(); }
-    void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
-    void setShowHighway(bool on)        { showHighway = on; repaint(); }
     void setWriteMode(bool on)          { writeModeOn = on; sceneRenderer.setWriteMode(on); applyEditorView(); repaint(); }
 
     // The editor view decides which phrase overlays draw. They are a write-mode thing, so

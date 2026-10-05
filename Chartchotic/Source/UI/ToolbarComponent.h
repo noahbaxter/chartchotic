@@ -14,6 +14,7 @@
 #include "Controls/PopupMenuButton.h"
 #include "Controls/WriteSubToolbar.h"
 #include "MenuGroup.h"
+#include "ViewMenuPanel.h"
 #include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
@@ -97,20 +98,8 @@ public:
     // Lane mode dims the gems on every highway, so the editor hears about it the same way the
     // render toggles do rather than each highway polling the controller.
     std::function<void(bool)> onLaneToolActive;
-    std::function<void(bool)> onGemsChanged;
-    std::function<void(bool)> onBarsChanged;
-    std::function<void(bool)> onSustainsChanged;
-    std::function<void(bool)> onLanesChanged;
-    std::function<void(bool)> onFillsChanged;
-    std::function<void(bool)> onBreChanged;
-    std::function<void(bool)> onActivationChanged;
-    std::function<void(bool)> onGridlinesChanged;
-    std::function<void(bool)> onHitIndicatorsChanged;
-    std::function<void(bool)> onTrackChanged;
-    std::function<void(bool)> onLaneSeparatorsChanged;
-    std::function<void(bool)> onStrikelineChanged;
-    std::function<void(bool)> onHighwayChanged;
-    std::function<void(bool)> onStarPowerChanged;
+    std::function<void(const ViewOptions&)> onViewChanged;
+    std::function<void(bool)> onUtilityStripToggled;
     std::function<void(bool)> onKick2xChanged;
     std::function<void(bool)> onDiscoFlipChanged;
     std::function<void(bool)> onDynamicsChanged;
@@ -156,6 +145,10 @@ public:
     }
 
     void setLatencyOffsetRange(int minMs, int maxMs);
+
+    // The editor owns the view; the menu shows it and reports edits back through onViewChanged.
+    void setView(const ViewOptions& v) { viewMenu.setView(v); }
+    void setUtilityStripVisible(bool on) { viewMenu.setUtilityStripVisible(on); }
 
     void setHighwayLengthPct(int pct)
     {
@@ -204,10 +197,10 @@ private:
     bool showMultiDifficulty = false;
 
     //==============================================================================
-    // View panel — Modifiers (contextual per instrument)
+    // View panel: the layer list, then the chart rules it opens onto
 
-    PanelSectionHeader modifiersHeader{"Modifiers"};
-    PillToggle starPowerToggle{"Star Power"};
+    ViewMenuPanel viewMenu;
+
     PillToggle autoHopoToggle{"Auto HOPO"};
     PillToggle dynamicsToggle{"Dynamics"};
     PillToggle kick2xToggle{"Kick 2x"};
@@ -220,33 +213,13 @@ private:
     enum class ModScope { ALL, GUITAR, DRUMS };
     struct ModToggle { PillToggle* pill; ModScope scope; };
     // Order here = display order in the chart panel (flows left-to-right, 2 per row)
-    std::array<ModToggle, 6> modToggles {{
-        { &starPowerToggle,  ModScope::ALL },
+    std::array<ModToggle, 5> modToggles {{
         { &cymbalsToggle,    ModScope::DRUMS },
         { &dynamicsToggle,   ModScope::DRUMS },
         { &kick2xToggle,     ModScope::DRUMS },
         { &discoFlipToggle,  ModScope::DRUMS },
         { &autoHopoToggle,   ModScope::GUITAR },
     }};
-
-    // View panel — Chart elements
-    PanelSectionHeader chartHeader{"Chart"};
-    PillToggle gemsToggle{"Gems"};
-    PillToggle barsToggle{"Bars"};
-    PillToggle sustainsToggle{"Sustains"};
-    PillToggle lanesToggle{"Lanes"};
-    PillToggle fillsToggle{"Fills"};
-    PillToggle breToggle{"BRE"};
-    PillToggle activationToggle{"Activation"};
-    PillToggle gridlinesToggle{"Gridlines"};
-    PillToggle hitIndicatorsToggle{"Hits"};
-
-    // View panel — Scene elements
-    PanelSectionHeader sceneHeader{"Scene"};
-    PillToggle trackToggle{"Track"};
-    PillToggle laneSeparatorsToggle{"Rails"};
-    PillToggle strikelineToggle{"Strike"};
-    PillToggle highwayToggle{"Hwy"};
 
     //==============================================================================
     // Settings panel (gear icon) — Display, Highway, Sync

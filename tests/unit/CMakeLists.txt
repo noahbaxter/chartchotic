@@ -37,6 +37,7 @@ target_sources(unit_tests PRIVATE
     test_events_track_text.cpp
     test_part_mapping.cpp
     test_part_palettes.cpp
+    test_view_layers.cpp
     test_bar_ramps.cpp
     test_frame.cpp
     ${SOURCE_ROOT}/Editor/AuthoringConfig.cpp

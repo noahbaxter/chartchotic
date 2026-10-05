@@ -23,6 +23,7 @@ public:
         std::function<float(float)> computeFarFadeEnd;
         std::function<void(std::function<void(HighwayComponent&)>)> forEachHighway;
         std::function<void(std::function<void(HighwayComponent&)>)> forAllHighways;
+        std::function<void()> applyView;
     };
 
     void init(juce::ValueTree& state,

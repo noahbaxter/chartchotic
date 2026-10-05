@@ -195,7 +195,8 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
                      [this]() { loadState(); },
                      [this](float v) { return computeFarFadeEnd(v); },
                      [this](auto fn) { forEachHighway(fn); },
-                     [this](auto fn) { forAllHighways(fn); }
+                     [this](auto fn) { forAllHighways(fn); },
+                     [this]() { forAllHighways([this](auto& hw) { hw.applyView(view); }); }
                  });
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
@@ -928,26 +929,13 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         propagateToSlots("hopoThresh", thresholdIndex);
     };
 
-    toolbar.onGemsChanged = [this](bool on) { state.setProperty("showGems", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowGems(on); }); };
-    toolbar.onBarsChanged = [this](bool on) { state.setProperty("showBars", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBars(on); }); };
-    toolbar.onSustainsChanged = [this](bool on) { state.setProperty("showSustains", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowSustains(on); }); };
-    toolbar.onLanesChanged = [this](bool on) { state.setProperty("showLanes", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowLanes(on); }); };
     toolbar.onLaneToolActive = [this](bool on) { forEachHighway([on](auto& hw) { hw.setLaneToolActive(on); }); };
-    toolbar.onFillsChanged = [this](bool on) { state.setProperty("showFills", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowFills(on); }); };
-    toolbar.onBreChanged = [this](bool on) { state.setProperty("showBre", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowBre(on); }); };
-    toolbar.onActivationChanged = [this](bool on) { state.setProperty("showActivation", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowActivationLane(on); }); };
-    toolbar.onGridlinesChanged = [this](bool on) { state.setProperty("showGridlines", on, nullptr); forEachHighway([on](auto& hw) { hw.setShowGridlines(on); }); };
+    toolbar.onViewChanged = [this](const ViewOptions& v) { view = v; applyView(); };
+    toolbar.onUtilityStripToggled = [this](bool on) { setUtilityStripVisible(on); };
 
-    toolbar.onHitIndicatorsChanged = [this](bool on) { state.setProperty("hitIndicators", on, nullptr); propagateToSlots("hitIndicators", on); };
-    toolbar.onStarPowerChanged = [this](bool on) { state.setProperty("starPower", on, nullptr); propagateToSlots("starPower", on); };
     toolbar.onKick2xChanged = [this](bool on) { state.setProperty("kick2x", on, nullptr); propagateToSlots("kick2x", on); };
     toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
     toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };
-
-    toolbar.onTrackChanged = [this](bool on) { state.setProperty("showTrack", on, nullptr); propagateToSlots("showTrack", on); forEachHighway([on](auto& hw) { hw.setShowTrack(on); }); };
-    toolbar.onLaneSeparatorsChanged = [this](bool on) { state.setProperty("showLaneSeparators", on, nullptr); propagateToSlots("showLaneSeparators", on); forEachHighway([on](auto& hw) { hw.setShowLaneSeparators(on); }); };
-    toolbar.onStrikelineChanged = [this](bool on) { state.setProperty("showStrikeline", on, nullptr); propagateToSlots("showStrikeline", on); forEachHighway([on](auto& hw) { hw.setShowStrikeline(on); }); };
-    toolbar.onHighwayChanged = [this](bool on) { state.setProperty("showHighway", on, nullptr); propagateToSlots("showHighway", on); forEachHighway([on](auto& hw) { hw.setShowHighway(on); }); };
 
     toolbar.onNoteSpeedChanged = [this](int speed) {
         state.setProperty("noteSpeed", speed, nullptr);
@@ -1626,37 +1614,10 @@ void ChartchoticAudioProcessorEditor::loadState()
 
     toolbar.loadState();
 
-    // Restore render toggle flags (default ON if property missing from saved state)
-    {
-        bool gems = !state.hasProperty("showGems") || (bool)state["showGems"];
-        bool bars = !state.hasProperty("showBars") || (bool)state["showBars"];
-        bool sustains = !state.hasProperty("showSustains") || (bool)state["showSustains"];
-        bool lanes = !state.hasProperty("showLanes") || (bool)state["showLanes"];
-        bool fills = !state.hasProperty("showFills") || (bool)state["showFills"];
-        bool bre = !state.hasProperty("showBre") || (bool)state["showBre"];
-        bool activation = !state.hasProperty("showActivation") || (bool)state["showActivation"];
-        bool gridlines = !state.hasProperty("showGridlines") || (bool)state["showGridlines"];
-        bool track = !state.hasProperty("showTrack") || (bool)state["showTrack"];
-        bool laneSeps = !state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"];
-        bool strikeline = !state.hasProperty("showStrikeline") || (bool)state["showStrikeline"];
-        bool hwy = !state.hasProperty("showHighway") || (bool)state["showHighway"];
-
-        forEachHighway([=](auto& hw) {
-            hw.getSceneRenderer().showGems = gems;
-            hw.getSceneRenderer().showBars = bars;
-            hw.getSceneRenderer().showSustains = sustains;
-            hw.getSceneRenderer().showLanes = lanes;
-            hw.getSceneRenderer().showFills = fills;
-            hw.getSceneRenderer().showBre = bre;
-            // Through the setter: it also drives whether the activation gem grows.
-            hw.setShowActivationLane(activation);
-            hw.getSceneRenderer().showGridlines = gridlines;
-            hw.getSceneRenderer().showTrack = track;
-            hw.getSceneRenderer().showLaneSeparators = laneSeps;
-            hw.getSceneRenderer().showStrikeline = strikeline;
-            hw.showHighway = hwy;
-        });
-    }
+    view = ViewOptions::fromState(state);
+    utilityStripVisible = !state.hasProperty("showUtilityStrip") || (bool)state["showUtilityStrip"];
+    toolbar.setUtilityStripVisible(utilityStripVisible);
+    applyView();
 
     if (state.hasProperty("stripFollow"))
         utilityStrip.setFollowOn((bool)state["stripFollow"]);

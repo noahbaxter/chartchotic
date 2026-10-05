@@ -27,6 +27,7 @@ public:
     GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager);
 
     bool writeMode = false;   // When true, use write-mode opacities and paint STEP lines
+    bool showMeasureNumbers = true;
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedGridlineMap& gridlines,
                   double windowStartTime, double windowEndTime,

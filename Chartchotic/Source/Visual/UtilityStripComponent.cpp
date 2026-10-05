@@ -1080,10 +1080,16 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 std::vector<PhraseMath::Kind> UtilityStripComponent::phraseColumns() const
 {
     using Kind = PhraseMath::Kind;
+    using L = ViewLayers::Layer;
     if (editorView == EditorView::StarPower) return { Kind::StarPower };
-    if (editorView == EditorView::Phrase)    return { Kind::StarPower, Kind::Solo, Kind::Fill,
-                                                      Kind::Bre };
-    return {};
+    if (editorView != EditorView::Phrase)    return {};
+
+    std::vector<Kind> kinds;
+    if (shows(L::StarPower)) kinds.push_back(Kind::StarPower);
+    if (shows(L::Solos))     kinds.push_back(Kind::Solo);
+    if (shows(L::Fills))     kinds.push_back(Kind::Fill);
+    if (shows(L::Bre))       kinds.push_back(Kind::Bre);
+    return kinds;
 }
 
 // Read off the first pitch of the kind, which for a fill is 120: the one pitch every part
@@ -1391,7 +1397,8 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
     drawChartGround(g, v);
 
-    drawChunkLines(g, v);
+    using L = ViewLayers::Layer;
+    if (shows(L::BeatLines)) drawChunkLines(g, v);
 
     // One block per song instead of every section in the project, which at this zoom is a
     // wash of names nobody can read. The clip edges are the blocks now, so they go too.
@@ -1401,12 +1408,12 @@ void UtilityStripComponent::paint(juce::Graphics& g)
     }
     else
     {
-        drawSectionBands(g, v);
+        if (shows(L::Sections)) drawSectionBands(g, v);
         // The phrase views swap the note map for their columns. Tempo has nothing of its own
         // to draw yet, so it keeps the notes as a reference like Notes and Sections do.
-        if (showsPhrases()) drawPhrases(g, v);
-        else                drawNotes(g, v);
-        drawSections(g, v);
+        if (showsPhrases())      drawPhrases(g, v);
+        else if (shows(L::Gems)) drawNotes(g, v);
+        if (shows(L::Sections)) drawSections(g, v);
         drawClipEdges(g, v);
     }
 
@@ -1415,7 +1422,7 @@ void UtilityStripComponent::paint(juce::Graphics& g)
 
     // One pass over the whole arbitrated set, above every line that owns one of them, so a
     // number is never half under a band or a section plate.
-    drawMeasureNumbers(g);
+    if (shows(L::MeasureNumbers)) drawMeasureNumbers(g);
 
     // The current moment has to win against everything else drawn here, so it gets a glow,
     // a solid bar and a nub on each edge rather than a hairline.

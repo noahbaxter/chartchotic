@@ -203,6 +203,7 @@ void SceneRenderer::populate(int viewportWidth, int viewportHeight, const TimeBa
         sustainRenderer.showFills = showFills;
         sustainRenderer.showBre = showBre;
         sustainRenderer.showActivationLane = showActivationLane;
+        sustainRenderer.showSolos = showSolos;
         sustainRenderer.populate(drawCallMap, sustainWindow, windowStartTime, windowEndTime,
                                  width, height, showLanes, showSustains,
                                  highwayPosEnd,
@@ -212,6 +213,7 @@ void SceneRenderer::populate(int viewportWidth, int viewportHeight, const TimeBa
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.gridlines_us, collectPhaseTiming);
+        gridlineRenderer.showMeasureNumbers = showMeasureNumbers;
         if (showGridlines)
             gridlineRenderer.populate(drawCallMap, gridlines, windowStartTime, windowEndTime,
                                       width, height, highwayPosEnd,

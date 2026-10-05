@@ -43,7 +43,6 @@ public:
     static constexpr juce::uint32 yellow = 0xFFF0C030;
     static constexpr juce::uint32 blue   = 0xFF3A7BD5;
     static constexpr juce::uint32 orange = 0xFFE8853A;
-    static constexpr juce::uint32 purple = 0xFF9B59B6;
 
     // The lane band in the LANE pill's art. Deliberately NOT controlSelected: the pill fills
     // with that colour when it is on, so a band painted the same vanished into it exactly when

@@ -158,13 +158,14 @@ private:
     void paintButton(juce::Graphics& g, juce::Rectangle<int> box, const juce::String& label,
                      bool primary, bool isHovered)
     {
-        const auto accent = juce::Colour(isDestructive ? Theme::coral : Theme::purple);
+        // Only a destructive answer gets the accent; anything else stays neutral.
+        const auto accent = juce::Colour(isDestructive ? Theme::coral : Theme::textWhite);
 
         if (primary)
         {
             g.setColour(accent.withAlpha(isHovered ? 1.0f : 0.85f));
             g.fillRoundedRectangle(box.toFloat(), corner);
-            g.setColour(juce::Colour(Theme::textWhite));
+            g.setColour(juce::Colour(isDestructive ? Theme::textWhite : Theme::darkBg));
         }
         else
         {

@@ -132,7 +132,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
     std::vector<LabelCandidate> labelCandidates;
     std::map<size_t, juce::String> labelToRender;  // gridlineIdx -> label text
 
-    if (writeMode && !PositionMath::bemaniMode)
+    if (writeMode && showMeasureNumbers && !PositionMath::bemaniMode)
     {
         for (size_t i = 0; i < gridlines.size(); ++i)
         {

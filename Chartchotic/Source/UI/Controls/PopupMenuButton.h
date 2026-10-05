@@ -63,11 +63,11 @@ public:
         g.fillRoundedRectangle(getLocalBounds().toFloat(), Theme::panelRadius);
 
         if (!outlined) return;
-        g.setColour(juce::Colour(Theme::coral).withAlpha(0.5f));
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(0.3f));
         g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), Theme::panelRadius, 1.0f);
     }
 
-    // The coral edge marks a menu panel. A small list hanging off its own button reads as part
+    // The edge marks a menu panel. A small list hanging off its own button reads as part
     // of that button, and the edge only makes it shout.
     void setOutlined(bool shouldOutline) { outlined = shouldOutline; repaint(); }
 
@@ -192,12 +192,13 @@ public:
         repaint();
     }
 
+    // Through the fit rather than a bare layout, so content that grew (an expanded group) is
+    // still clamped to the window and scrolls instead of running off it.
     void relayoutPanel()
     {
         if (panel != nullptr && onLayoutPanel)
         {
-            onLayoutPanel(panel.get());
-            panel->onContentLaidOut();
+            fitAndPositionPanel();
             panel->repaint();
         }
     }

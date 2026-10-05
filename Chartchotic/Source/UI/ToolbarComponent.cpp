@@ -202,15 +202,18 @@ void ToolbarComponent::initTopBar()
 }
 
 //==============================================================================
-// Chart panel — Modifiers + Elements
+// View panel: layers, then chart rules
 
 void ToolbarComponent::initChartPanel()
 {
-    // --- Modifiers ---
-
-    starPowerToggle.onClick = [this]() {
-        if (onStarPowerChanged) onStarPowerChanged(starPowerToggle.getToggleState());
+    viewMenu.onViewChanged = [this](const ViewOptions& v) { if (onViewChanged) onViewChanged(v); };
+    viewMenu.onUtilityStripToggled = [this](bool on) { if (onUtilityStripToggled) onUtilityStripToggled(on); };
+    viewMenu.onLayoutChanged = [this]() {
+        if (chartButton.isPanelVisible())
+            chartButton.relayoutPanel();
     };
+
+    // --- Chart rules ---
 
     // Auto HOPO toggle + threshold (guitar only)
     autoHopoToggle.setToggleState(DEFAULT_AUTO_HOPO);
@@ -259,85 +262,15 @@ void ToolbarComponent::initChartPanel()
     hopoThresholdTooltip.setText(TooltipStrings::hopoThreshold);
     hopoThresholdTooltip.attachTo(hopoThresholdStepper);
 
-    // --- Chart + Scene ---
-
-    gemsToggle.onClick = [this]() {
-        if (onGemsChanged) onGemsChanged(gemsToggle.getToggleState());
-    };
-
-    barsToggle.onClick = [this]() {
-        if (onBarsChanged) onBarsChanged(barsToggle.getToggleState());
-    };
-
-    sustainsToggle.onClick = [this]() {
-        if (onSustainsChanged) onSustainsChanged(sustainsToggle.getToggleState());
-    };
-
-    lanesToggle.onClick = [this]() {
-        if (onLanesChanged) onLanesChanged(lanesToggle.getToggleState());
-    };
-
-    fillsToggle.onClick = [this]() {
-        if (onFillsChanged) onFillsChanged(fillsToggle.getToggleState());
-    };
-
-    breToggle.onClick = [this]() {
-        if (onBreChanged) onBreChanged(breToggle.getToggleState());
-    };
-
-    activationToggle.onClick = [this]() {
-        if (onActivationChanged) onActivationChanged(activationToggle.getToggleState());
-    };
-
-    gridlinesToggle.onClick = [this]() {
-        if (onGridlinesChanged) onGridlinesChanged(gridlinesToggle.getToggleState());
-    };
-
-    hitIndicatorsToggle.onClick = [this]() {
-        if (onHitIndicatorsChanged) onHitIndicatorsChanged(hitIndicatorsToggle.getToggleState());
-    };
-
-    trackToggle.onClick = [this]() {
-        if (onTrackChanged) onTrackChanged(trackToggle.getToggleState());
-    };
-
-    laneSeparatorsToggle.onClick = [this]() {
-        if (onLaneSeparatorsChanged) onLaneSeparatorsChanged(laneSeparatorsToggle.getToggleState());
-    };
-
-    strikelineToggle.onClick = [this]() {
-        if (onStrikelineChanged) onStrikelineChanged(strikelineToggle.getToggleState());
-    };
-
-    highwayToggle.onClick = [this]() {
-        if (onHighwayChanged) onHighwayChanged(highwayToggle.getToggleState());
-    };
-
     // Register all children
-    chartButton.addPanelChild(&modifiersHeader);
-    chartButton.addPanelChild(&starPowerToggle);
+    chartButton.addPanelChild(&viewMenu);
     chartButton.addPanelChild(&autoHopoToggle);
     chartButton.addPanelChild(&hopoThresholdStepper);
     chartButton.addPanelChild(&dynamicsToggle);
     chartButton.addPanelChild(&kick2xToggle);
     chartButton.addPanelChild(&cymbalsToggle);
     chartButton.addPanelChild(&discoFlipToggle);
-    chartButton.addPanelChild(&chartHeader);
-    chartButton.addPanelChild(&gemsToggle);
-    chartButton.addPanelChild(&barsToggle);
-    chartButton.addPanelChild(&sustainsToggle);
-    chartButton.addPanelChild(&lanesToggle);
-    chartButton.addPanelChild(&fillsToggle);
-    chartButton.addPanelChild(&breToggle);
-    chartButton.addPanelChild(&activationToggle);
-    chartButton.addPanelChild(&gridlinesToggle);
-    chartButton.addPanelChild(&hitIndicatorsToggle);
-    chartButton.addPanelChild(&sceneHeader);
-    chartButton.addPanelChild(&trackToggle);
-    chartButton.addPanelChild(&laneSeparatorsToggle);
-    chartButton.addPanelChild(&strikelineToggle);
-    chartButton.addPanelChild(&highwayToggle);
-    chartButton.setPanelSize(175, 372);
+    chartButton.setPanelSize(200, 372);
     chartButton.onLayoutPanel = [this](juce::Component* panel) { layoutChartPanel(panel); };
     chartButton.setMenuGroup(&squareMenuGroup);
     squareMenuGroup.add(&chartButton, [this]() { chartButton.dismissPanel(); });
@@ -748,21 +681,7 @@ void ToolbarComponent::loadState()
         }
     }
 
-    // Toggles
-    gemsToggle.setToggleState(!state.hasProperty("showGems") || (bool)state["showGems"]);
-    barsToggle.setToggleState(!state.hasProperty("showBars") || (bool)state["showBars"]);
-    sustainsToggle.setToggleState(!state.hasProperty("showSustains") || (bool)state["showSustains"]);
-    lanesToggle.setToggleState(!state.hasProperty("showLanes") || (bool)state["showLanes"]);
-    fillsToggle.setToggleState(!state.hasProperty("showFills") || (bool)state["showFills"]);
-    breToggle.setToggleState(!state.hasProperty("showBre") || (bool)state["showBre"]);
-    activationToggle.setToggleState(!state.hasProperty("showActivation") || (bool)state["showActivation"]);
-    starPowerToggle.setToggleState(!state.hasProperty("starPower") || (bool)state["starPower"]);
-    gridlinesToggle.setToggleState(!state.hasProperty("showGridlines") || (bool)state["showGridlines"]);
-    hitIndicatorsToggle.setToggleState(!state.hasProperty("hitIndicators") || (bool)state["hitIndicators"]);
-    trackToggle.setToggleState(!state.hasProperty("showTrack") || (bool)state["showTrack"]);
-    laneSeparatorsToggle.setToggleState(!state.hasProperty("showLaneSeparators") || (bool)state["showLaneSeparators"]);
-    strikelineToggle.setToggleState(!state.hasProperty("showStrikeline") || (bool)state["showStrikeline"]);
-    highwayToggle.setToggleState(!state.hasProperty("showHighway") || (bool)state["showHighway"]);
+    // Chart rules
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
@@ -923,13 +842,26 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
     int margin = juce::roundToInt(12.0f * s);
     int pillH = juce::roundToInt(26.0f * s);
     int stepperH = juce::roundToInt(24.0f * s);
-    int headerH = juce::roundToInt(18.0f * s);
     int gap = juce::roundToInt(5.0f * s);
-    int sectionGap = juce::roundToInt(8.0f * s);
     int y = margin;
     int w = panel->getWidth() - margin * 2;
     int col2 = w / 2;
     int pillW = col2 - juce::roundToInt(2.0f * s);
+
+    viewMenu.setScale(s);
+    viewMenu.setBounds(margin, y, w, viewMenu.preferredHeight());
+    y += viewMenu.getHeight();
+
+    const bool rulesOpen = viewMenu.rulesExpanded();
+    if (!rulesOpen)
+    {
+        for (auto& mod : modToggles) mod.pill->setVisible(false);
+        hopoThresholdStepper.setVisible(false);
+        panel->setSize(panel->getWidth(), y + margin);
+        return;
+    }
+    y += gap;
+
     // Show toggles based on what's currently visible
     bool hasDrums = false, hasGuitar = false;
     if (enabledParts.empty())
@@ -947,10 +879,6 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
             if (isGuitarLike(p)) hasGuitar = true;
         }
     }
-
-    // --- Modifiers ---
-    modifiersHeader.setBounds(margin, y, w, headerH);
-    y += headerH + gap;
 
     // Flow modifier pills left-to-right in 2-column rows
     int col = 0;
@@ -982,46 +910,7 @@ void ToolbarComponent::layoutChartPanel(juce::Component* panel)
         hopoThresholdStepper.setVisible(false);
     }
 
-    y += sectionGap - gap;
-
-    // --- Chart (note/chart primitives) ---
-    chartHeader.setBounds(margin, y, w, headerH);
-    y += headerH + gap;
-
-    int elemH = juce::roundToInt(22.0f * s);
-    int elemGap = juce::roundToInt(3.0f * s);
-    int col3 = w / 3;
-    int elemW = col3 - juce::roundToInt(2.0f * s);
-
-    gemsToggle.setBounds(margin, y, elemW, elemH);
-    barsToggle.setBounds(margin + col3, y, elemW, elemH);
-    sustainsToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
-    y += elemH + elemGap;
-
-    lanesToggle.setBounds(margin, y, elemW, elemH);
-    gridlinesToggle.setBounds(margin + col3, y, elemW, elemH);
-    hitIndicatorsToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
-    y += elemH + elemGap;
-
-    fillsToggle.setBounds(margin, y, elemW, elemH);
-    breToggle.setBounds(margin + col3, y, elemW, elemH);
-    activationToggle.setBounds(margin + col3 * 2, y, elemW, elemH);
-    y += elemH + sectionGap;
-
-    // --- Scene (static environment) ---
-    sceneHeader.setBounds(margin, y, w, headerH);
-    y += headerH + gap;
-
-    int col4 = w / 4;
-    int elemW4 = col4 - juce::roundToInt(2.0f * s);
-
-    trackToggle.setBounds(margin, y, elemW4, elemH);
-    laneSeparatorsToggle.setBounds(margin + col4, y, elemW4, elemH);
-    strikelineToggle.setBounds(margin + col4 * 2, y, elemW4, elemH);
-    highwayToggle.setBounds(margin + col4 * 3, y, elemW4, elemH);
-    y += elemH;
-
-    panel->setSize(panel->getWidth(), y + margin);
+    panel->setSize(panel->getWidth(), y - gap + margin);
 }
 
 void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)

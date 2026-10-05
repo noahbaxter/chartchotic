@@ -321,24 +321,44 @@ private:
                             juce::roundToInt(capped));
     }
 
-    void toggleUtilityStrip()
+    void toggleUtilityStrip() { setUtilityStripVisible(!utilityStripVisible); }
+
+    void setUtilityStripVisible(bool on)
     {
-        utilityStripVisible = !utilityStripVisible;
+        utilityStripVisible = on;
         state.setProperty("showUtilityStrip", utilityStripVisible, nullptr);
+        toolbar.setUtilityStripVisible(on);
         resized();
     }
 
-    // The section the playhead is inside, spelled over the highway the way the games title
-    // it. It rides on the strip: no strip and it is gone.
-    bool sectionBannerVisible = true;
+    // What every highway and the strip draw. Owned here, edited by the View menu, and handed
+    // to every pooled highway rather than just the visible ones, so a highway that comes into
+    // view later is already showing the right thing.
+    ViewOptions view = ViewOptions::defaults();
 
-    void toggleSectionBanner()
+    void applyView()
     {
-        sectionBannerVisible = !sectionBannerVisible;
-        state.setProperty("showSectionBanner", sectionBannerVisible, nullptr);
-        resized();   // the grid may be holding room for it
+        using L = ViewLayers::Layer;
+        using S = ViewLayers::Surface;
+
+        view.writeTo(state);
+        // The interpreter reads its slot's own copy of state, and star power decides what it
+        // resolves.
+        propagateToSlots("starPower", view.has(L::StarPower, S::Highway));
+
+        forAllHighways([this](auto& hw) { hw.applyView(view); });
+        utilityStrip.applyView(view);
+        toolbar.setView(view);
+
+        sectionBannerVisible = view.has(L::Sections, S::Highway);
+        resized();
         repaint();
     }
+
+    // The section the playhead is inside, spelled over the highway the way the games title
+    // it. Mirrors the Sections layer on the highway, and rides on the strip: no strip and it
+    // is gone.
+    bool sectionBannerVisible = true;
 
     bool sectionBannerShown() const { return sectionBannerVisible && utilityStripVisible; }
     float sectionBannerSize() const
@@ -453,7 +473,6 @@ private:
     {
         if (!interactionController.writeModeActive())
         {
-            footer.setModeAccent(juce::Colour(Theme::coral));
             footer.setDefaultHelpText(makeHelp({
                 key("Scroll"), dim("navigate"),
                 key("Cmd+Scroll"), dim("adjust speed")
@@ -462,7 +481,6 @@ private:
         }
 
         bool drawMode = interactionController.subMode() == SubMode::Draw;
-        footer.setModeAccent(drawMode ? juce::Colour(Theme::purple) : juce::Colour(Theme::blue));
 
         bool stamp = drawMode && interactionController.hasStamp();
         bool bar = interactionController.barMode();

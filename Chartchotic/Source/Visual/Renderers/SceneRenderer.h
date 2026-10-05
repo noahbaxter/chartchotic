@@ -66,7 +66,9 @@ class SceneRenderer
         bool showFills = DEFAULT_SHOW_FILLS;
         bool showBre = DEFAULT_SHOW_BRE;
         bool showActivationLane = DEFAULT_SHOW_ACTIVATION;
+        bool showSolos = true;
         bool showGridlines = true;
+        bool showMeasureNumbers = true;
         bool showTrack = true;
         bool showLaneSeparators = true;
         bool showStrikeline = true;

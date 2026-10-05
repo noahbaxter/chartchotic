@@ -284,16 +284,8 @@ void SessionController::updateVisibleSlots()
 
 void SessionController::applyVisualState()
 {
-    // Propagate render toggle flags from state to active highways
-    bool gems = !state->hasProperty("showGems") || (bool)(*state)["showGems"];
-    bool bars = !state->hasProperty("showBars") || (bool)(*state)["showBars"];
-    bool sustains = !state->hasProperty("showSustains") || (bool)(*state)["showSustains"];
-    bool lanes = !state->hasProperty("showLanes") || (bool)(*state)["showLanes"];
-    bool gridlines = !state->hasProperty("showGridlines") || (bool)(*state)["showGridlines"];
-    bool track = !state->hasProperty("showTrack") || (bool)(*state)["showTrack"];
-    bool laneSeps = !state->hasProperty("showLaneSeparators") || (bool)(*state)["showLaneSeparators"];
-    bool strikeline = !state->hasProperty("showStrikeline") || (bool)(*state)["showStrikeline"];
-    bool hwy = !state->hasProperty("showHighway") || (bool)(*state)["showHighway"];
+    cb.applyView();
+
     bool stretch = state->hasProperty("stretchToFill") && (bool)(*state)["stretchToFill"];
 
     float userLength = state->hasProperty("highwayLength")
@@ -302,15 +294,6 @@ void SessionController::applyVisualState()
     float scaledLength = cb.computeFarFadeEnd(userLength);
 
     cb.forEachHighway([=](auto& hw) {
-        hw.getSceneRenderer().showGems = gems;
-        hw.getSceneRenderer().showBars = bars;
-        hw.getSceneRenderer().showSustains = sustains;
-        hw.getSceneRenderer().showLanes = lanes;
-        hw.getSceneRenderer().showGridlines = gridlines;
-        hw.getSceneRenderer().showTrack = track;
-        hw.getSceneRenderer().showLaneSeparators = laneSeps;
-        hw.getSceneRenderer().showStrikeline = strikeline;
-        hw.showHighway = hwy;
         hw.stretchToFill = stretch;
         hw.getSceneRenderer().farFadeEnd = scaledLength;
     });

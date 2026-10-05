@@ -60,9 +60,7 @@ public:
         const float side = juce::jmin(inner.getWidth(), inner.getHeight());
         auto box = juce::Rectangle<float>(side, side).withCentre(inner.getCentre());
 
-        const juce::Colour onColour = (mode == SubMode::Draw)
-            ? juce::Colour(Theme::purple)
-            : juce::Colour(Theme::blue);
+        const juce::Colour onColour = juce::Colour(Theme::controlSelected);
         const juce::Colour glyphColour = active
             ? (hovering ? onColour.brighter(0.12f) : onColour)
             : juce::Colour(Theme::textDim).withAlpha(hovering ? 0.75f : 0.55f);

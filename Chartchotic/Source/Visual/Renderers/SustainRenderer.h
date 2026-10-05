@@ -66,7 +66,7 @@ public:
     // band has its own toggle rather than riding on the fill's: it is the part a player reads,
     // and it stays useful with the colour spread turned off.
     bool showFills = DEFAULT_SHOW_FILLS, showBre = DEFAULT_SHOW_BRE,
-         showActivationLane = DEFAULT_SHOW_ACTIVATION;
+         showActivationLane = DEFAULT_SHOW_ACTIVATION, showSolos = true;
 
 private:
 

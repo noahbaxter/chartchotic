@@ -39,6 +39,7 @@
 #include "../Editor/StripCommandMapper.h"
 #include "StripViewMath.h"
 #include "PhraseMath.h"
+#include "ViewLayers.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
 
@@ -155,6 +156,14 @@ public:
     {
         if (editorView == v) return;
         editorView = v;
+        repaint();
+    }
+
+    // The strip's column of the View menu.
+    void applyView(const ViewOptions& v)
+    {
+        if (view == v) return;
+        view = v;
         repaint();
     }
 
@@ -591,6 +600,9 @@ private:
 
     bool showsPhrases() const
     { return editorView == EditorView::StarPower || editorView == EditorView::Phrase; }
+
+    ViewOptions view = ViewOptions::defaults();
+    bool shows(ViewLayers::Layer l) const { return view.has(l, ViewLayers::Surface::Strip); }
 
     // The note map's side inset, so phrase columns line up with the notes they replace.
     static constexpr float PHRASE_COLUMN_INSET = 3.0f;

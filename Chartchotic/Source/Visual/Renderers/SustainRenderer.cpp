@@ -199,6 +199,7 @@ void SustainRenderer::drawPhrase(const TimeBasedSustainEvent& phrase, double win
     // decoration, it says where star power can be taken, so it survives both being off.
     if (fill && !showFills) return;
     if (bre && !showBre)    return;
+    if (solo && !showSolos) return;
     if (activation && !showActivationLane) return;
 
     // The phrase carries the gem it was built from, so the swell pointing at a cymbal is

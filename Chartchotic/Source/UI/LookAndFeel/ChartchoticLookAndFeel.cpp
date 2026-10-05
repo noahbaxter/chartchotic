@@ -170,22 +170,21 @@ void ChartchoticLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Butto
     auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     bool toggled = button.getToggleState();
 
+    // The steppers' grey edge, so the toolbar's buttons and steppers read as one set.
     if (toggled || shouldDrawButtonAsHighlighted)
     {
-        // Open or hover — coral fill + bright border
-        g.setColour(juce::Colour(Theme::coral).withAlpha(0.25f));
+        g.setColour(juce::Colour(Theme::darkBgHover));
         g.fillRoundedRectangle(bounds, Theme::cornerRadius);
 
-        g.setColour(juce::Colour(Theme::coral));
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(0.6f));
         g.drawRoundedRectangle(bounds, Theme::cornerRadius, 1.0f);
     }
     else
     {
-        // Default — dim border, no fill
         g.setColour(backgroundColour);
         g.fillRoundedRectangle(bounds, Theme::cornerRadius);
 
-        g.setColour(juce::Colour(Theme::coral).withAlpha(0.6f));
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(0.3f));
         g.drawRoundedRectangle(bounds, Theme::cornerRadius, 1.0f);
     }
 }

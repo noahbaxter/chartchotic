@@ -60,8 +60,6 @@ public:
             repaint();
     }
 
-    void setModeAccent(juce::Colour c) { modeAccent = c; repaint(); }
-
     void resized() override
     {
         auto area = getLocalBounds();
@@ -123,7 +121,7 @@ private:
     {
         juce::Font normalFont = Theme::getUIFont(helpFontSize);
         juce::Colour dimColour = juce::Colours::white.withAlpha(0.35f);
-        juce::Colour keyColour = modeAccent;
+        juce::Colour keyColour = juce::Colour(Theme::controlSelected);
 
         float spaceW = normalFont.getStringWidthFloat(" ");
         float keyPadX  = spaceW * HELP_KEY_PAD_X;
@@ -193,5 +191,4 @@ private:
     HelpText helpOverride;
     juce::Rectangle<int> helpArea;
     float helpFontSize = 12.0f;
-    juce::Colour modeAccent { Theme::coral };
 };
