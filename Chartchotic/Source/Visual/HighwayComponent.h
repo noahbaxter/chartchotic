@@ -32,8 +32,7 @@ struct HighwayFrameData {
     TimeBasedSustainWindow phraseWindow;   // star power bands and fill lanes, for the editor views
     TimeBasedGridlineMap gridlines;
     TimeBasedFlipRegions flipRegions;
-    TimeBasedEventMarkers eventMarkers;
-    TimeBasedEventMarkers sectionMarkers;   // named gates, for the Sections view
+    TimeBasedEventMarkers eventMarkers;   // section, tempo and time signature gates
     double windowStartTime = 0.0;
     double windowEndTime = 1.0;
     float scrollOffset = 0.0f;
@@ -133,6 +132,8 @@ public:
         sceneRenderer.showLaneSeparators = has(L::LaneLines);
         sceneRenderer.showStrikeline = has(L::Strikeline);
         showHighway = has(L::Surface);
+        gateLayerOn = { has(L::SectionGates), has(L::TimeSigGates),
+                        has(L::TempoGates), has(L::DiscoGates) };
 
         // Also drives whether the activation gem grows.
         showActivationOn = has(L::Activation);
@@ -180,6 +181,8 @@ private:
     bool writeModeOn = false;
     bool barModeOn = false;
     bool showActivationOn = DEFAULT_SHOW_ACTIVATION;
+    // What the View menu asks for, by GateKind. The editor view can add to it at paint time.
+    std::array<bool, GATE_KIND_COUNT> gateLayerOn { false, false, false, true };
     bool laneToolOn = false;
     GlobalPhraseGetter globalPhraseGetter;
     EditorView editorView = EditorView::Notes;

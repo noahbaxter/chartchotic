@@ -222,21 +222,30 @@ void SceneRenderer::populate(int viewportWidth, int viewportHeight, const TimeBa
                                       farFadeEnd, farFadeLen, farFadeCurve);
     }
 
-    // Text event markers (disco flip start/end)
-    if (!flipRegions.empty())
+    // Gates: disco flips, sections, tempo and time signature changes. A kind takes a lane only
+    // if it is switched on and the song has any, counted over the whole marker list rather than
+    // what is on screen, so the lanes hold still instead of reshuffling as gates scroll past.
+    GateLanes gateLanes;
     {
-        textEventRenderer.activePart = activePart;
-        textEventRenderer.populate(drawCallMap, flipRegions, windowStartTime, windowEndTime,
-                                   width, height, highwayPosEnd,
-                                   farFadeEnd, farFadeLen, farFadeCurve);
+        std::array<bool, GATE_KIND_COUNT> present {};
+        for (const auto& marker : eventMarkers)
+            present[(size_t)marker.kind] = true;
+        present[(size_t)GateKind::DiscoFlip] = !flipRegions.empty();
+
+        for (int k = 0; k < GATE_KIND_COUNT; ++k)
+            if (showGate[(size_t)k] && present[(size_t)k])
+                gateLanes.index[(size_t)k] = gateLanes.count++;
     }
 
-    // Named gates: the Sections view's sections today, tempo and lyrics when those views land.
-    // The caller decides which markers a view shows and passes only those.
-    if (!eventMarkers.empty())
+    if (gateLanes.count > 0)
     {
         textEventRenderer.activePart = activePart;
-        textEventRenderer.populateEventMarkers(drawCallMap, eventMarkers, windowStartTime, windowEndTime,
+        textEventRenderer.populate(drawCallMap, flipRegions, gateLanes,
+                                   windowStartTime, windowEndTime,
+                                   width, height, highwayPosEnd,
+                                   farFadeEnd, farFadeLen, farFadeCurve);
+        textEventRenderer.populateEventMarkers(drawCallMap, eventMarkers, gateLanes,
+                                               windowStartTime, windowEndTime,
                                                width, height, highwayPosEnd,
                                                farFadeEnd, farFadeLen, farFadeCurve);
     }

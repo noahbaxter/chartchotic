@@ -56,6 +56,15 @@ constexpr float PHRASE_STAR_POWER_VIEW_OPACITY = 0.4f;
 inline const juce::Colour PHRASE_SOLO_COLOUR { 0xFF2F6BC8 };
 constexpr float PHRASE_SOLO_OPACITY = 0.34f;
 
+// Gates across the board, one colour per kind. A disco flip is white; a section takes the
+// strip's label blue, so the same section reads as the same thing on both surfaces.
+inline const juce::Colour GATE_DISCO_COLOUR { 0xFFFFFFFF };
+inline const juce::Colour SECTION_ACCENT_COLOUR { 0xFF9CC4F5 };
+inline const juce::Colour GATE_TIME_SIG_COLOUR { 0xFF8FE0C0 };
+inline const juce::Colour GATE_TEMPO_COLOUR { 0xFFF2B866 };
+// How far a gate's label may be squeezed sideways to fit its lane before it wraps or truncates.
+constexpr float GATE_LABEL_MIN_SCALE = 0.7f;
+
 // Bar mode: how far the lanes that are not bar notes fade back.
 constexpr float BAR_MODE_DIM = 0.3f;
 
@@ -275,9 +284,29 @@ struct TimeBasedFlipRegion {
 };
 using TimeBasedFlipRegions = std::vector<TimeBasedFlipRegion>;
 
+// What a gate across the board marks. Each kind that is showing gets its own lane, side by
+// side in this order, so two kinds landing on the same beat sit beside each other instead of
+// stacking into one unreadable wall.
+enum class GateKind { Section, TimeSig, Tempo, DiscoFlip, Count };
+constexpr int GATE_KIND_COUNT = (int)GateKind::Count;
+
+inline juce::Colour gateColour(GateKind kind)
+{
+    switch (kind)
+    {
+        case GateKind::Section:   return SECTION_ACCENT_COLOUR;
+        case GateKind::TimeSig:   return GATE_TIME_SIG_COLOUR;
+        case GateKind::Tempo:     return GATE_TEMPO_COLOUR;
+        case GateKind::DiscoFlip:
+        case GateKind::Count:     break;
+    }
+    return GATE_DISCO_COLOUR;
+}
+
 struct TimeBasedEventMarker {
     double time;
     juce::String label;
+    GateKind kind = GateKind::Section;
 };
 using TimeBasedEventMarkers = std::vector<TimeBasedEventMarker>;
 static constexpr int MAX_DRAW_COLUMNS = 8;

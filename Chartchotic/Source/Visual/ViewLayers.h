@@ -25,6 +25,7 @@ namespace ViewLayers
         Gems, Sustains, Bars, Hits,
         StarPower, Solos, Fills, Activation, Bre, Lanes,
         BeatLines, MeasureNumbers, Sections,
+        SectionGates, TimeSigGates, TempoGates, DiscoGates,
         Surface, SideRails, LaneLines, Strikeline,
         Count
     };
@@ -32,8 +33,8 @@ namespace ViewLayers
 
     enum class Surface { Highway, Strip };
 
-    enum class Group { Notes, Phrases, Timing, Board };
-    inline constexpr int groupCount = 4;
+    enum class Group { Notes, Phrases, Timing, Gates, Board };
+    inline constexpr int groupCount = 5;
 
     struct LayerInfo
     {
@@ -62,13 +63,17 @@ namespace ViewLayers
         { Layer::BeatLines,      Group::Timing,   "Beat lines",         "beatLines",      true,  true,  true,  "showGridlines" },
         { Layer::MeasureNumbers, Group::Timing,   "Measure numbers",    "measureNumbers", true,  true,  true,  "" },
         { Layer::Sections,       Group::Timing,   "Sections",           "sections",       true,  true,  true,  "showSectionBanner" },
+        { Layer::SectionGates,   Group::Gates,    "Sections",           "sectionGates",   true,  false, false, "" },
+        { Layer::TimeSigGates,   Group::Gates,    "Time signature",     "timeSigGates",   true,  false, false, "" },
+        { Layer::TempoGates,     Group::Gates,    "Tempo",              "tempoGates",     true,  false, false, "" },
+        { Layer::DiscoGates,     Group::Gates,    "Disco flip",         "discoGates",     true,  false, true,  "" },
         { Layer::Surface,        Group::Board,    "Surface",            "surface",        true,  false, true,  "showHighway" },
         { Layer::SideRails,      Group::Board,    "Side rails",         "sideRails",      true,  false, true,  "showTrack" },
         { Layer::LaneLines,      Group::Board,    "Lane lines",         "laneLines",      true,  false, true,  "showLaneSeparators" },
         { Layer::Strikeline,     Group::Board,    "Strikeline",         "strikeline",     true,  false, true,  "showStrikeline" },
     }};
 
-    inline constexpr const char* groupLabels[groupCount] = { "Notes", "Phrases", "Timing", "Board" };
+    inline constexpr const char* groupLabels[groupCount] = { "Notes", "Phrases", "Timing", "Gates", "Board" };
 
     inline const LayerInfo& info(Layer l) { return table[(size_t)l]; }
 

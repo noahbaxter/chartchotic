@@ -37,21 +37,20 @@ static PPQ applyLatencyOffset(PPQ cursorPPQ, const FrameContext& ctx)
     return cursorPPQ;
 }
 
-// The song's sections as named gates on the highway, for the Sections view. Song-scoped, so
-// they come off the EVENTS track's own parse rather than any one part's window.
+// The song's sections as named gates on the highway, added to the tempo and time signature
+// ones. Song-scoped, so they come off the EVENTS track's own parse rather than any one part's
+// window.
 template <typename PPQToTime>
-static TimeBasedEventMarkers buildSectionMarkers(const FrameContext& ctx, PPQ cursorPPQ,
-                                                 PPQToTime ppqToTime)
+static void appendSectionMarkers(TimeBasedEventMarkers& markers, const FrameContext& ctx,
+                                 PPQ cursorPPQ, PPQToTime ppqToTime)
 {
-    TimeBasedEventMarkers markers;
     auto* session = ctx.processor.getInstrumentSession();
-    if (session == nullptr) return markers;
+    if (session == nullptr) return;
 
     const double cursorTime = ppqToTime(cursorPPQ.toDouble());
     for (const auto& section : session->getSongSections().getSections())
-        markers.push_back({ ppqToTime(section.position.toDouble()) - cursorTime, section.name });
-
-    return markers;
+        markers.push_back({ ppqToTime(section.position.toDouble()) - cursorTime, section.name,
+                            GateKind::Section });
 }
 
 // The part's phrases plus the active difficulty's fill activation bands, which live apart
@@ -164,7 +163,7 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     out.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
     out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
-    out.sectionMarkers = buildSectionMarkers(ctx, cursorPPQ, ppqToTime);
+    appendSectionMarkers(out.eventMarkers, ctx, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
     out.windowEndTime = ctx.displayWindowTimeSeconds;
     out.isPlaying = ctx.processor.isPlaying;
@@ -216,7 +215,7 @@ void FrameDataBuilder::buildReaperBatched([[maybe_unused]] HighwayFrameData& pri
     TimeBasedEventMarkers sharedMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
         tempoTimeSigMap, cursorPPQ, ppqToTime);
     // Sections belong to the song, so every highway in the grid shows the same gates.
-    TimeBasedEventMarkers sharedSections = buildSectionMarkers(ctx, cursorPPQ, ppqToTime);
+    appendSectionMarkers(sharedMarkers, ctx, cursorPPQ, ppqToTime);
 
     bool isPlaying = ctx.processor.isPlaying;
 
@@ -293,7 +292,6 @@ void FrameDataBuilder::buildReaperBatched([[maybe_unused]] HighwayFrameData& pri
             frameData.phraseWindow = TimeConverter::convertSustainWindow(allPhrases(partWindow, diffWindow), cursorPPQ, ppqToTime);
             frameData.gridlines = sharedGridlines;
             frameData.eventMarkers = sharedMarkers;
-            frameData.sectionMarkers = sharedSections;
             frameData.windowStartTime = 0.0;
             frameData.windowEndTime = ctx.displayWindowTimeSeconds;
             frameData.isPlaying = isPlaying;

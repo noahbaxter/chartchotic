@@ -261,7 +261,7 @@ public:
      * @param map The tempo/timesig event map
      * @param cursorPPQ Current cursor position (for relative time conversion)
      * @param ppqToTime Function converting PPQ to absolute time in seconds
-     * @return Vector of event markers with labels like "BPM 140.0", "3/4", or "BPM 140.0  3/4"
+     * @return Vector of event markers with labels like "140.0 BPM" (Tempo) or "3/4" (TimeSig)
      */
     static TimeBasedEventMarkers buildTempoEventMarkers(
         const TempoTimeSignatureMap& map,
@@ -280,19 +280,18 @@ public:
             bool tempoChanged = hasTempoChange(event, prev);
             bool timeSigChanged = hasTimeSignatureChange(event, prev);
 
+            // One marker per kind, not one combined label: each kind draws in its own gate lane.
             if (tempoChanged || timeSigChanged)
             {
                 double markerTime = ppqToTime(ppq.toDouble()) - cursorTime;
-                juce::String label;
-                if (tempoChanged)
-                    label = "BPM " + juce::String(event.bpm, 1);
                 if (timeSigChanged)
-                {
-                    if (label.isNotEmpty()) label += "  ";
-                    label += juce::String(event.timeSigNumerator) + "/"
-                           + juce::String(event.timeSigDenominator);
-                }
-                markers.push_back({markerTime, label});
+                    markers.push_back({ markerTime,
+                                        juce::String(event.timeSigNumerator) + "/"
+                                            + juce::String(event.timeSigDenominator),
+                                        GateKind::TimeSig });
+                if (tempoChanged)
+                    markers.push_back({ markerTime, juce::String(event.bpm, 1) + " BPM",
+                                        GateKind::Tempo });
             }
             prev = event;
         }

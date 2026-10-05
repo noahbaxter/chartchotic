@@ -72,6 +72,9 @@ class SceneRenderer
         bool showTrack = true;
         bool showLaneSeparators = true;
         bool showStrikeline = true;
+        // Indexed by GateKind. Disco flips alone by default, which is what drew before gates
+        // had kinds.
+        std::array<bool, GATE_KIND_COUNT> showGate { false, false, false, true };
 
         // Forward write-mode flag to gridline renderer (changes opacities + enables STEP)
         void setWriteMode(bool on) { gridlineRenderer.writeMode = on; }

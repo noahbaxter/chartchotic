@@ -65,9 +65,6 @@ void HighwayComponent::commitPendingPart()
     rebuildTrack();
 }
 
-// Stands in for "no markers this view", so paint can hand the renderer a reference either way.
-static const TimeBasedEventMarkers kNoMarkers;
-
 void HighwayComponent::paint(juce::Graphics& g)
 {
     PERF_SCOPE("paint/highway");
@@ -625,17 +622,20 @@ void HighwayComponent::paint(juce::Graphics& g)
     // around instead of showing bar mode on every highway at once.
     sceneRenderer.setBarModeDim(barModeShown() ? BAR_MODE_DIM : 1.0f);
 
-    // The Sections view puts the song's sections on the highway as named gates, drawn the same
-    // way disco flips are. Nothing else draws markers yet: the tempo ones in the frame data
-    // wait for the Tempo view, or every view would carry BPM labels.
-    const TimeBasedEventMarkers& eventMarkers = shownView() == EditorView::Sections
-                                              ? frameData.sectionMarkers
-                                              : kNoMarkers;
+    // Which gate kinds draw: whatever the View menu has on, plus the ones an editor view is
+    // about. The Sections view always shows its sections, the Tempo view its tempo and time
+    // signature changes.
+    auto gates = gateLayerOn;
+    if (shownView() == EditorView::Sections)
+        gates[(size_t)GateKind::Section] = true;
+    if (shownView() == EditorView::Tempo)
+        gates[(size_t)GateKind::Tempo] = gates[(size_t)GateKind::TimeSig] = true;
+    sceneRenderer.showGate = gates;
 
     PERF_SCOPE("paint/highway/scene");
     sceneRenderer.paint(g, w, h,
                         trackWindow, sustainWindow, frameData.gridlines,
-                        frameData.flipRegions, eventMarkers,
+                        frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
 #ifdef DEBUG

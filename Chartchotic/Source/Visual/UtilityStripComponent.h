@@ -67,7 +67,7 @@ namespace UtilityColours
     // Same blue as a section line but dashed and thinner: a clip edge is a fact about the
     // timeline, not a thing you charted.
     inline const juce::Colour clipEdge     = juce::Colour(0x996E8FB5);
-    inline const juce::Colour sectionText  = juce::Colour(0xFF9CC4F5);
+    inline const juce::Colour sectionText  = SECTION_ACCENT_COLOUR;
     inline const juce::Colour uiText       = juce::Colour(0xFFE2E2E8);
     // The chart name in the footer, in the same white as the name over the highway.
     inline const juce::Colour chartName    = juce::Colour(Theme::textWhite);
