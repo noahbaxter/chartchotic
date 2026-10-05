@@ -40,12 +40,11 @@ namespace LaneColours
     constexpr Lane white  { 0xFFAEAEAE, 0xFFEAEAEA };
 
     // Kick / 2x-kick bar tubes: bright is the gloss line along the top, dark is the rim.
-    // Both read ORANGE, the 2x deeper, which is closer to the game than the yellow the old
-    // art bakes had. These are a deliberate choice rather than the ramps' own colours, so the
-    // bars no longer match barRampKick pixel for pixel: the ramp supplies the shading and
-    // these supply the hue.
-    constexpr Lane kick   { 0xFFD04A08, 0xFFFF7A14 };   // kick bar: orange gloss, deeper rim
-    constexpr Lane kick2x { 0xFF9C3406, 0xFFC85A0C };   // 2x-kick: the same tube, darker
+    // The kick is barRampKick's own rim and gloss, so a default install draws the yellow tube
+    // the art was made as. The 2x is a plain orange, far enough round the wheel that the two
+    // cannot be mistaken: as two shades of one orange they could not be told apart on a board.
+    constexpr Lane kick   { 0xFFF0650A, 0xFFFEF81D };   // kick bar: yellow gloss, orange rim
+    constexpr Lane kick2x { 0xFFD04A08, 0xFFFF7A14 };   // 2x-kick: orange
     // The open bar's own purple, which is NOT the purple gem's: the bar art runs far brighter
     // than the gem hue. Sharing one entry made the open bar darker than its art and tied it to
     // elite's left crash, so recolouring either moved the other.

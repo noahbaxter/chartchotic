@@ -49,24 +49,24 @@ TEST_CASE("BarRamps - the open bar still matches its art", "[barramp]")
     REQUIRE(peakOf(GemArt::barRampOpen()).getARGB() == LaneColours::openBar.bright);
 }
 
-TEST_CASE("BarRamps - the kicks read as orange, the 2x darker", "[barramp]")
+TEST_CASE("BarRamps - the kick is its art's yellow, the 2x a distinct orange", "[barramp]")
 {
-    // Deliberately NOT the ramps' own colours: the art bakes are yellow, and these are picked
-    // to sit closer to the game. What matters is the relationship, which is the cue telling
-    // the two kicks apart on a board where both are full-width bars.
+    // The kick's constant is the ramp's own colour, so a default install draws the art as made.
+    REQUIRE(peakOf(GemArt::barRampKick()).getARGB() == LaneColours::kick.bright);
+
     const auto kick   = LaneColours::bright(LaneColours::kick);
     const auto kick2x = LaneColours::bright(LaneColours::kick2x);
+    const auto red    = LaneColours::bright(LaneColours::red);
+    const auto yellow = LaneColours::bright(LaneColours::yellow);
 
-    // Orange: hue in the red-to-yellow arc, nearer the red end than a pure yellow's ~0.14.
-    REQUIRE(kick.getHue()   > 0.02f);
-    REQUIRE(kick.getHue()   < 0.12f);
-    REQUIRE(kick2x.getHue() > 0.02f);
-    REQUIRE(kick2x.getHue() < 0.12f);
+    // Yellow, not amber: at or past the yellow lane's own hue.
+    REQUIRE(kick.getHue() >= yellow.getHue());
 
-    // The 2x is the same bar, darker. Both parts of that matter: too far apart in hue and it
-    // reads as a different note, the same brightness and it reads as the same one.
-    REQUIRE(kick2x.getBrightness() < kick.getBrightness() - 0.1f);
-    REQUIRE(std::abs(kick2x.getHue() - kick.getHue()) < 0.05f);
+    // The 2x sits in the orange between the red and yellow lanes, and well clear of the kick.
+    // As two shades of one orange the pair could not be told apart on a board.
+    REQUIRE(kick2x.getHue() > red.getHue());
+    REQUIRE(kick2x.getHue() < yellow.getHue());
+    REQUIRE(kick.getHue() - kick2x.getHue() > 0.06f);
 }
 
 TEST_CASE("BarRamps - the open bar is not the purple gem", "[barramp]")

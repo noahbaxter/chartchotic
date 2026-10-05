@@ -103,14 +103,16 @@ public:
             auto* row = xml.createNewChildElement("part");
             row->setAttribute("name", trackNameFor(part));
 
+            // Only the lanes that differ from the defaults. A lane written at its default is
+            // frozen there, and a later change to that default would never reach this person.
             for (int h = 0; h < LaneColours::hueCount; ++h)
             {
-                writeLane(*row, "pad" + juce::String(h), p.pad[h]);
-                writeLane(*row, "cym" + juce::String(h), p.cymbal[h]);
+                writeLane(*row, "pad" + juce::String(h), p.pad[h], fallback.pad[h]);
+                writeLane(*row, "cym" + juce::String(h), p.cymbal[h], fallback.cymbal[h]);
             }
-            writeLane(*row, "kick", p.kick);
-            writeLane(*row, "kick2x", p.kick2x);
-            writeLane(*row, "open", p.open);
+            writeLane(*row, "kick", p.kick, fallback.kick);
+            writeLane(*row, "kick2x", p.kick2x, fallback.kick2x);
+            writeLane(*row, "open", p.open, fallback.open);
         }
 
         const auto target = file();
@@ -132,8 +134,10 @@ private:
         out.bright = (juce::uint32)pair[1].getHexValue64();
     }
 
-    static void writeLane(juce::XmlElement& row, const juce::String& key, const LaneColours::Lane& l)
+    static void writeLane(juce::XmlElement& row, const juce::String& key,
+                          const LaneColours::Lane& l, const LaneColours::Lane& def)
     {
+        if (l.dark == def.dark && l.bright == def.bright) return;
         row.setAttribute(key, juce::String::toHexString((juce::int64)l.dark)
                               + "," + juce::String::toHexString((juce::int64)l.bright));
     }
