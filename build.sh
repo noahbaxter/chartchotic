@@ -190,6 +190,18 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
         -S "$SCRIPT_DIR"
 fi
 
+# Drop any object ninja holds no header dependencies for. Ninja takes a missing depfile to
+# mean "depends on nothing", so such an object is never recompiled when a header changes and
+# links against a class layout it no longer matches. That shipped a HighwayComponent.o two
+# days older than its own header, which crashed the editor constructor on open. Every real
+# object here includes something, so zero deps always means the record was lost.
+if [ -f "$NINJA_BUILD_DIR/build.ninja" ]; then
+    (cd "$NINJA_BUILD_DIR" && ninja -t deps 2>/dev/null | sed -n 's/: #deps 0,.*//p') | while IFS= read -r obj; do
+        echo "Rebuilding $obj (no recorded dependencies)"
+        rm -f "$NINJA_BUILD_DIR/$obj"
+    done
+fi
+
 # Ensure user data directories exist
 mkdir -p "$HOME/Library/Application Support/Chartchotic/highways"
 
