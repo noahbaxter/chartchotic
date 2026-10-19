@@ -72,6 +72,16 @@ After installing, restart your DAW to autoscan for the plugin.
 
 ---
 
+## How Was AI Used?
+
+Generative AI was used to write code and nothing else. This README and any other text a user may see is 100% written by me.
+
+No art asset was generated or AI upscaled. The gems, highways and other chart art are all made by the artists credited below.
+
+Since ~mid 2026 much of the code was written with Claude Code. To be clear I've been a professional software developer since 2018, and I am not "vibe coding" something I have no understanding of. All code is reviewed, and all macro decisions are ultimately being painstakingly made by me.
+
+---
+
 ## Support
 
 Have questions or found a bug? [Open an issue](https://github.com/noahbaxter/chartchotic/issues).
