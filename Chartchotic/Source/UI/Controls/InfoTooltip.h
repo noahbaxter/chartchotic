@@ -14,7 +14,17 @@
 class InfoTooltip
 {
 public:
+    /**
+        Where the card sits relative to what it explains.
+
+        Left of the target suits a row of controls with room beside it. Below
+        suits a checkbox in a line of them, where the card would otherwise
+        cover the neighbour you are comparing it against.
+    */
+    enum class Placement { left, below };
+
     void setText(const juce::String& text) { tooltipText = text; }
+    void setPlacement(Placement where) { placement = where; }
 
     // Attach to a component so the tooltip auto-shows on mouseEnter/mouseExit.
     // The target must outlive this InfoTooltip.
@@ -64,10 +74,13 @@ public:
         int cardW = textW + padX * 2;
         int cardH = juce::roundToInt(layout.getHeight()) + padY * 2;
 
-        // Position to the left of the target, vertically aligned with its top
         auto pos = topLevel->getLocalPoint(&relativeTo, juce::Point<int>(0, 0));
-        int tipX = pos.x - cardW - 4;
-        int tipY = pos.y;
+
+        // Below: left edges aligned, so the card reads as belonging to the
+        // control above it. Left: alongside, top edges aligned.
+        int tipX = placement == Placement::below ? pos.x : pos.x - cardW - 4;
+        int tipY = placement == Placement::below ? pos.y + relativeTo.getHeight() + 4
+                                                 : pos.y;
 
         // Keep within bounds
         tipX = juce::jmax(4, juce::jmin(tipX, topLevel->getWidth() - cardW - 4));
@@ -92,6 +105,7 @@ public:
 
 private:
     juce::String tooltipText;
+    Placement placement = Placement::left;
     juce::Component* hoverTarget = nullptr;
 
     struct TooltipCard : public juce::Component

@@ -208,7 +208,8 @@ private:
         // behind notes that would otherwise sit on top of it. The Phrase view is not the same
         // case: a fill or BRE drawn at phrase-view strength already reads, and dimming the notes
         // over it only made the phrase look like it had come in front of them.
-        sceneRenderer.setPhraseDim(shownView() == EditorView::StarPower || laneToolShown()
+        sceneRenderer.setPhraseDim(shownView() == EditorView::StarPower
+                                   || shownView() == EditorView::Sections || laneToolShown()
                                    ? PHRASE_VIEW_GEM_DIM : 1.0f);
         sceneRenderer.setPhraseViewActive(shownView() == EditorView::Phrase);
     }

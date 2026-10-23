@@ -632,10 +632,19 @@ void HighwayComponent::paint(juce::Graphics& g)
         gates[(size_t)GateKind::Tempo] = gates[(size_t)GateKind::TimeSig] = true;
     sceneRenderer.showGate = gates;
 
+    // The gate a click in the Sections view would place, so it is never placed blind.
+    auto eventMarkers = frameData.eventMarkers;
+    if (shownView() == EditorView::Sections && overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.ghostVisible && ov.sectionHoverNew)
+            eventMarkers.push_back({ projectQNToSeconds(ov.ghostQN), {}, GateKind::Section });
+    }
+
     PERF_SCOPE("paint/highway/scene");
     sceneRenderer.paint(g, w, h,
                         trackWindow, sustainWindow, frameData.gridlines,
-                        frameData.flipRegions, frameData.eventMarkers,
+                        frameData.flipRegions, eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
 #ifdef DEBUG

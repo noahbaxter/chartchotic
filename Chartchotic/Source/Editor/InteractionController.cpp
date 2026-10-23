@@ -69,7 +69,7 @@ void InteractionController::setView(EditorView v)
     // Edit mode steps aside too. A phrase is a range with nothing to select, so every click in
     // these views goes to the write controller regardless; leaving the toggle on Edit showed a
     // tool that was not the one acting.
-    if (v == EditorView::StarPower || v == EditorView::Phrase)
+    if (v == EditorView::StarPower || v == EditorView::Phrase || v == EditorView::Sections)
     {
         setBarMode(false);
         writeController.setSubMode(SubMode::Draw);

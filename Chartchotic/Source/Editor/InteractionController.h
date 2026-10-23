@@ -123,13 +123,22 @@ public:
         writeController.onChartWritten = std::move(f);
     }
 
+    // How the editor asks for a section's name.
+    void setNameRequestHandler(
+        std::function<void(const juce::String&, const juce::String&,
+                           std::function<void(const juce::String&)>)> f)
+    {
+        writeController.onNameRequested = std::move(f);
+    }
+
 private:
     bool isEditActive() const;
-    // Views that write from the highway. Sections and Tempo do not yet.
+    // Views that write from the highway. Tempo does not yet.
     bool highwayAuthors() const
     {
         auto v = writeController.view();
-        return v == EditorView::Notes || v == EditorView::StarPower || v == EditorView::Phrase;
+        return v == EditorView::Notes || v == EditorView::StarPower || v == EditorView::Phrase
+            || v == EditorView::Sections;
     }
     // Gems only exist to edit in Notes; the phrase views author ranges instead. The lane tool
     // lives inside Notes but authors ranges too, so gems are not its to select or erase.

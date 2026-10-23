@@ -5,7 +5,8 @@
 
 // Checkbox-style toggle: small square box with checkmark + label text.
 // Coral fill when checked, outlined when unchecked. Matches theme.
-class CheckboxToggle : public juce::Component
+class CheckboxToggle : public juce::Component,
+                       public juce::SettableTooltipClient
 {
 public:
     CheckboxToggle(const juce::String& text) : label(text) {}
@@ -13,7 +14,9 @@ public:
 
     void setToggleState(bool shouldBeOn, juce::NotificationType notification = juce::dontSendNotification)
     {
-        if (on == shouldBeOn) return;
+        const bool wasMixed = mixed;
+        mixed = false;
+        if (on == shouldBeOn && !wasMixed) return;
         on = shouldBeOn;
         repaint();
         if (notification != juce::dontSendNotification && onClick)
@@ -22,7 +25,51 @@ public:
 
     bool getToggleState() const { return on; }
 
+    /** Selected items disagree: show a dash instead of on or off. */
+    void setMixed(bool isMixed)
+    {
+        if (mixed == isMixed) return;
+        mixed = isMixed;
+        repaint();
+    }
+
+    bool isMixed() const { return mixed; }
+
+    /**
+        Draw the label at this height instead of the theme's control font.
+
+        For a checkbox sitting in a line of other things, where the shared
+        control font is bigger than everything beside it and the row reads as
+        though the checkbox were the important part of it.
+    */
+    void setLabelHeight(float height)
+    {
+        if (labelHeight == height) return;
+        labelHeight = height;
+        repaint();
+    }
+
     std::function<void()> onClick;
+
+    /**
+        The box and its text, and nothing else.
+
+        These are often given a whole row so the label has somewhere to run,
+        and a component that claims every pixel of it swallows clicks meant
+        for whatever sits further along that row.
+    */
+    bool hitTest(int x, int) override
+    {
+        return (float)x <= contentWidth();
+    }
+
+    /**
+        The box and its longest label, so a caller can hand it exactly that.
+
+        Given less, the label is truncated to "5-lane dr...", which is a
+        checkbox that no longer says what it does.
+    */
+    int preferredWidth() const { return juce::roundToInt(contentWidth()) + 2; }
 
     void paint(juce::Graphics& g) override
     {
@@ -32,16 +79,31 @@ public:
         float boxX = 2.0f;
         auto box = juce::Rectangle<float>(boxX, boxY, boxSize, boxSize);
         float corner = boxSize * 0.2f;
-        bool hovering = isMouseOver();
+        bool hovering = isMouseOver() && isEnabled();
 
-        if (on)
+        // Per colour: setOpacity is undone by the next setColour.
+        const float dim = isEnabled() ? 1.0f : 0.35f;
+
+        if (mixed)
         {
-            g.setColour(hovering ? juce::Colour(Theme::coral).brighter(0.15f)
-                                 : juce::Colour(Theme::coral));
+            g.setColour((hovering ? juce::Colour(Theme::coral).withAlpha(0.7f)
+                                  : juce::Colour(Theme::textDim).withAlpha(0.5f))
+                            .withMultipliedAlpha(dim));
+            g.drawRoundedRectangle(box, corner, 1.0f);
+
+            g.setColour(juce::Colour(Theme::textDim).withMultipliedAlpha(dim));
+            const float inset = boxSize * 0.26f;
+            g.fillRect(box.getX() + inset, box.getCentreY() - boxSize * 0.06f,
+                       boxSize - inset * 2.0f, boxSize * 0.12f);
+        }
+        else if (on)
+        {
+            g.setColour((hovering ? juce::Colour(Theme::coral).brighter(0.15f)
+                                  : juce::Colour(Theme::coral)).withMultipliedAlpha(dim));
             g.fillRoundedRectangle(box, corner);
 
             // Checkmark
-            g.setColour(juce::Colour(Theme::textWhite));
+            g.setColour(juce::Colour(Theme::textWhite).withMultipliedAlpha(dim));
             float cx = box.getCentreX();
             float cy = box.getCentreY();
             float s = boxSize * 0.25f;
@@ -54,16 +116,17 @@ public:
         }
         else
         {
-            g.setColour(hovering ? juce::Colour(Theme::coral).withAlpha(0.7f)
-                                 : juce::Colour(Theme::textDim).withAlpha(0.5f));
+            g.setColour((hovering ? juce::Colour(Theme::coral).withAlpha(0.7f)
+                                  : juce::Colour(Theme::textDim).withAlpha(0.5f))
+                            .withMultipliedAlpha(dim));
             g.drawRoundedRectangle(box, corner, 1.0f);
         }
 
         // Label
         float labelX = boxX + boxSize + boxSize * 0.4f;
-        g.setColour(hovering ? juce::Colour(Theme::textWhite)
-                             : juce::Colour(Theme::textDim));
-        g.setFont(Theme::controlFont);
+        g.setColour((hovering ? juce::Colour(Theme::textWhite)
+                              : juce::Colour(Theme::textDim)).withMultipliedAlpha(dim));
+        g.setFont(labelFont());
         auto& displayLabel = (hovering && hoverLabel.isNotEmpty()) ? hoverLabel : label;
         g.drawText(displayLabel, juce::Rectangle<float>(labelX, 0.0f, getWidth() - labelX, h),
                    juce::Justification::centredLeft);
@@ -71,9 +134,12 @@ public:
 
     void mouseUp(const juce::MouseEvent& e) override
     {
+        if (!isEnabled()) return;
         if (getLocalBounds().contains(e.getPosition()))
         {
-            on = !on;
+            // Mixed resolves upwards: one click turns the whole selection on.
+            on = mixed ? true : !on;
+            mixed = false;
             repaint();
             if (onClick) onClick();
         }
@@ -83,7 +149,26 @@ public:
     void mouseExit(const juce::MouseEvent&) override { repaint(); }
 
 private:
+    juce::Font labelFont() const
+    {
+        return labelHeight > 0.0f ? Theme::getUIFont(labelHeight) : Theme::controlFont;
+    }
+
+    /** Where the label ends: the box, the gap after it, and the longest text. */
+    float contentWidth() const
+    {
+        const auto font = labelFont();
+        const float boxSize = (float)getHeight() * 0.7f;
+        const float textX = 2.0f + boxSize + boxSize * 0.4f;
+        const float textWidth = juce::jmax(font.getStringWidthFloat(label),
+                                           font.getStringWidthFloat(hoverLabel));
+
+        return textX + textWidth + 2.0f;
+    }
+
     juce::String label;
     juce::String hoverLabel;
+    float labelHeight = 0.0f;
     bool on = false;
+    bool mixed = false;
 };

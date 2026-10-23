@@ -1,5 +1,6 @@
 #include "WriteController.h"
 #include "LaneMath.h"
+#include "SectionRenumber.h"
 #include "../Midi/Utils/MidiConstants.h"
 #include "../Midi/Utils/GridMath.h"
 #include <algorithm>
@@ -166,10 +167,12 @@ void WriteController::recomputeGhost()
     overlayState.ghostShowsErase = false;
     overlayState.ghostGem        = GemWrapper();
     overlayState.ghostModeLabel  = {};
+    overlayState.sectionHoverNew = false;
     overlayState.stampGhosts.clear();
 
-    // After the clear, since the phrase hover sets the label fields it shares with the ghost.
+    // After the clear, since the hovers set the label fields they share with the ghost.
     recomputePhraseHover();
+    recomputeSectionHover();
 
     if (!lastPointValid)                                  return;
     if (!writeModeActive())                               return;
@@ -551,6 +554,229 @@ void WriteController::recomputePhrasePreview()
     // Suppresses itself while the drag owns the range, so the two never draw at once.
     recomputePhraseHover();
     if (onStateChanged) onStateChanged();
+}
+
+//==============================================================================
+// Sections
+
+namespace
+{
+    // Brackets are the event's own wrapper, so a name carrying them would write "[section [x]]".
+    std::string sectionNameFrom(const juce::String& typed)
+    {
+        return typed.removeCharacters("[]").trim().toStdString();
+    }
+
+    // A gate is a hairline, so a click has to land on it from further off than one grid step
+    // or a fine grid makes existing sections impossible to grab.
+    constexpr double SECTION_MIN_REACH_QN = 0.5;
+
+    double sectionReachQN(int stepDivision, int tuplet)
+    {
+        return std::max(SECTION_MIN_REACH_QN, stepSpacingQN(stepDivision, tuplet));
+    }
+
+    // The section a point lands on, or -1. Within `reach` of it, which also keeps a new one
+    // from being dropped on top of an old one.
+    int sectionNear(const std::vector<double>& qns, double qn, double reach)
+    {
+        int hit = -1;
+        double nearest = reach;
+        for (int i = 0; i < (int)qns.size(); ++i)
+        {
+            const double distance = std::abs(qns[(size_t)i] - qn);
+            if (distance <= nearest) { nearest = distance; hit = i; }
+        }
+        return hit;
+    }
+}
+
+// Edits start from what the highway draws, not from the writer's own read. The writer's
+// getSections() looks at the first EVENTS item only, while setSections() clears every item, so
+// writing back its list wiped the sections of any other item.
+std::vector<MidiWriter::SectionInfo> WriteController::currentSections() const
+{
+    std::vector<MidiWriter::SectionInfo> out;
+    if (instrumentSession == nullptr) return out;
+
+    for (const auto& s : instrumentSession->getSongSections().getSections())
+        out.push_back({ s.position.toDouble(), s.name.toStdString() });
+    return out;
+}
+
+// What a click would do, shown before it does it: a gate where a section would land, or the
+// label alone over one that is already there. Read off the session's parse, not the writer,
+// because this runs on every pointer move.
+void WriteController::recomputeSectionHover()
+{
+    if (currentView != EditorView::Sections)              return;
+    if (!writeModeActive() || isPlaying())                return;
+    if (instrumentSession == nullptr)                     return;
+
+    // A section being dragged shows where it will land.
+    if (sectionDragActive && sectionDragMoved)
+    {
+        overlayState.ghostVisible    = true;
+        overlayState.ghostLane       = -1;
+        overlayState.ghostQN         = sectionDragToQN;
+        overlayState.ghostModeLabel  = "MOVE SECTION";
+        overlayState.sectionHoverNew = true;
+        return;
+    }
+
+    if (!lastPointValid || !lastPoint.onHighway)          return;
+
+    std::vector<double> qns;
+    for (const auto& s : currentSections()) qns.push_back(s.qn);
+
+    const int hit = sectionNear(qns, lastPoint.rawProjectQN,
+                                sectionReachQN(currentStepDivision, currentTuplet));
+
+    overlayState.ghostVisible    = true;
+    overlayState.ghostLane       = -1;
+    overlayState.ghostQN         = hit >= 0 ? qns[(size_t)hit]
+                                            : std::max(0.0, snapQN(lastPoint.rawProjectQN));
+    overlayState.ghostModeLabel  = hit >= 0 ? "DRAG TO MOVE, CLICK TO RENAME" : "NEW SECTION";
+    overlayState.sectionHoverNew = hit < 0;
+}
+
+void WriteController::handleSectionDown(const AuthoringPoint& p, const AuthoringContext& ctx)
+{
+    if (midiWriter() == nullptr || instrumentSession == nullptr) return;
+
+    auto sections = currentSections();
+
+    std::vector<double> qns;
+    for (const auto& s : sections) qns.push_back(s.qn);
+    const int hit = sectionNear(qns, p.rawProjectQN,
+                                sectionReachQN(currentStepDivision, currentTuplet));
+
+    if (ctx.rightButton)
+    {
+        if (hit < 0) return;
+        sections.erase(sections.begin() + hit);
+        commitSections(std::move(sections), "Chartchotic: Delete section", true);
+        return;
+    }
+
+    // Held until release: a drag moves it, a plain click renames it.
+    if (hit >= 0)
+    {
+        sectionDragActive = true;
+        sectionDragMoved  = false;
+        sectionDragFromQN = sections[(size_t)hit].qn;
+        sectionDragToQN   = sectionDragFromQN;
+        sectionDragName   = sections[(size_t)hit].name;
+        return;
+    }
+
+    if (!onNameRequested) return;
+
+    // The answer arrives later, so the sections are read again then rather than trusting this
+    // list to still be the project's.
+    const double qn = std::max(0.0, snapQN(p.rawProjectQN));
+    onNameRequested("New section", "Section " + juce::String((int)sections.size() + 1),
+                    [this, qn](const juce::String& typed)
+    {
+        const auto name = sectionNameFrom(typed);
+        if (name.empty()) return;
+
+        auto current = currentSections();
+        current.push_back({ qn, name });
+        commitSections(std::move(current), "Chartchotic: Add section", true);
+    });
+}
+
+void WriteController::handleSectionDrag(const AuthoringPoint& p)
+{
+    if (!sectionDragActive) return;
+
+    // Not a move until the pointer has really left: a click that wobbles is still a click.
+    const double reach = sectionReachQN(currentStepDivision, currentTuplet);
+    if (std::abs(p.rawProjectQN - sectionDragFromQN) > reach / 2.0) sectionDragMoved = true;
+
+    sectionDragToQN = std::max(0.0, snapQN(p.rawProjectQN));
+    recomputeGhost();
+    if (onStateChanged) onStateChanged();
+}
+
+void WriteController::handleSectionUp()
+{
+    if (!sectionDragActive) return;
+
+    const bool moved = sectionDragMoved;
+    const double from = sectionDragFromQN;
+    const double to = sectionDragToQN;
+    const auto name = sectionDragName;
+    clearSectionDrag();
+
+    if (!moved)
+    {
+        if (!onNameRequested) return;
+        onNameRequested("Rename section", juce::String(name), [this, from](const juce::String& typed)
+        {
+            const auto renamed = sectionNameFrom(typed);
+            if (renamed.empty()) return;
+
+            auto current = currentSections();
+            for (auto& s : current)
+                if (GridMath::same(s.qn, from)) s.name = renamed;
+            commitSections(std::move(current), "Chartchotic: Rename section", false);
+        });
+        return;
+    }
+
+    auto current = currentSections();
+    for (const auto& s : current)
+    {
+        if (GridMath::same(s.qn, from)) continue;
+        if (std::abs(s.qn - to) < SongSections::MIN_SECTION_SPACING_QN)
+        {
+            if (onPhraseRefused) onPhraseRefused("There is already a section there");
+            return;
+        }
+    }
+
+    for (auto& s : current)
+        if (GridMath::same(s.qn, from)) { s.qn = to; break; }
+    commitSections(std::move(current), "Chartchotic: Move section", true);
+}
+
+void WriteController::clearSectionDrag()
+{
+    sectionDragActive = false;
+    sectionDragMoved  = false;
+    recomputeGhost();
+    if (onStateChanged) onStateChanged();
+}
+
+void WriteController::commitSections(std::vector<MidiWriter::SectionInfo> sections,
+                                     const char* undoLabel, bool renumber)
+{
+    auto* writer = midiWriter();
+    if (writer == nullptr || instrumentSession == nullptr) return;
+
+    std::sort(sections.begin(), sections.end(),
+              [](const MidiWriter::SectionInfo& a, const MidiWriter::SectionInfo& b)
+              { return a.qn < b.qn; });
+    if (renumber) SectionRenumber::renumber(sections);
+
+    writer->beginBatch(undoLabel);
+    const bool wrote = writer->setSections(sections);
+    writer->endBatch();
+
+    // Sections come off the EVENTS track's own parse, which the session only re-reads when told.
+    const auto& tracks = instrumentSession->getTracks();
+    for (int i = 0; i < (int)tracks.size(); ++i)
+        if (tracks[(size_t)i].part == Part::EVENTS)
+        {
+            instrumentSession->invalidateTrack(i);
+            break;
+        }
+
+    if (!wrote && onPhraseRefused) onPhraseRefused("Could not write the sections to the EVENTS track");
+    if (onStateChanged) onStateChanged();
+    if (onChartWritten) onChartWritten();
 }
 
 //==============================================================================
@@ -1180,6 +1406,12 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
         return;
     }
 
+    if (currentView == EditorView::Sections)
+    {
+        if (writeModeActive() && !isPlaying() && p.onHighway) handleSectionDown(p, ctx);
+        return;
+    }
+
     if (!canWrite(p)) return;
 
     int trackIdx = resolveTrackIdx();
@@ -1216,6 +1448,7 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
     JUCE_ASSERT_MESSAGE_THREAD;
 
     sustainPendingClick = false;
+    if (sectionDragActive)   { handleSectionDrag(p);    return; }
     if (phraseDragActive)    { handlePhraseDrag(p);     return; }
     if (laneDragActive)      { handleUpdateLane(p);     return; }
     if (sustainDragActive)   { handleUpdateSustain(p);  return; }
@@ -1226,6 +1459,7 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
 void WriteController::onPointerUp(const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
+    if (sectionDragActive) { handleSectionUp(); return; }
     if (phraseDragActive) { handlePhraseUp(); return; }
     if (laneDragActive)   { handleCommitLane(); return; }
 

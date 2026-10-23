@@ -65,6 +65,11 @@ public:
     // The highway parses its own copy of the MIDI, so it has to be told to re-read or the
     // phrase does not appear until the 50ms hash poll happens to notice.
     std::function<void()> onChartWritten;
+
+    // Asks the editor for a section's name: title, text to start from, and where the answer goes.
+    // Never called with an empty answer.
+    using NameHandler = std::function<void(const juce::String&)>;
+    std::function<void(const juce::String&, const juce::String&, NameHandler)> onNameRequested;
     void setStepDivision(int division);
     void setTuplet(int t);
     void toggleTuplet();
@@ -117,6 +122,27 @@ private:
     void handlePhraseUp();
     void clearPhraseDrag();
     void recomputePhrasePreview();
+
+    // Sections are points with a name rather than ranges: click empty time to add one, click one
+    // to rename it, right click to delete.
+    void handleSectionDown(const AuthoringPoint& p, const AuthoringContext& ctx);
+    void handleSectionDrag(const AuthoringPoint& p);
+    void handleSectionUp();
+    void clearSectionDrag();
+    void recomputeSectionHover();
+    // The song's sections as the highway draws them, from every EVENTS item.
+    std::vector<MidiWriter::SectionInfo> currentSections() const;
+    // `renumber` closes the gap in numbered families ("Verse 1, Verse 2"); a rename skips it,
+    // since renumbering would undo the number just typed.
+    void commitSections(std::vector<MidiWriter::SectionInfo> sections, const char* undoLabel,
+                        bool renumber);
+
+    // Pressing on a section holds it: a drag moves it, a release without one renames it.
+    bool        sectionDragActive = false;
+    bool        sectionDragMoved  = false;
+    double      sectionDragFromQN = 0.0;
+    double      sectionDragToQN   = 0.0;
+    std::string sectionDragName;
     PhraseTarget currentLaneType     = PhraseTarget::Lane1;
     bool         writeModeActiveFlag = false;
 

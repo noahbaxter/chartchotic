@@ -150,6 +150,10 @@ struct OverlayState
     // would start the way the note views show a ghost gem.
     PhrasePreview phraseHover;
 
+    // Sections view: a click here would add a section at ghostQN, so the highway draws a gate
+    // there. False over an existing section, whose own gate is already on screen.
+    bool sectionHoverNew = false;
+
     // Lane tool: notes a lane would capture, drawn at full strength through the phrase dim. A
     // lane snaps its edges to note starts rather than to the grid, so this is how the edges
     // are shown: on hover the one note an edge would land on, during a drag every note the

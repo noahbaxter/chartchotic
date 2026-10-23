@@ -30,6 +30,10 @@
 #include "UI/FooterComponent.h"
 #include "UI/PartsMenuComponent.h"
 #include "UI/ConfirmPrompt.h"
+#include "UI/TextPrompt.h"
+#include "Export/ChartExporter.h"
+#include "Export/ExportWindow.h"
+#include "Export/ChartSettings.h"
 #include "UI/PalettePicker.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
@@ -443,6 +447,7 @@ private:
     // working with the window shut. This is only the view on it.
     PartsMenuComponent partsMenu;
     ConfirmPrompt confirmPrompt;
+    TextPrompt textPrompt;
     // Opened from the colour strip under a part's icon. Its own window, like the prompt.
     PalettePicker palettePicker;
     static constexpr int partsMenuMargin = 16;
@@ -524,6 +529,10 @@ private:
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif
     void updateDisplaySizeFromSpeedSlider();
+
+    /** Opens the export window, or brings it forward when already open. */
+    void showExportDialog();
+    std::unique_ptr<ExportWindow> exportWindow;
     void applyLatencySetting(int latencyValue);
 
     FrameContext buildFrameContext();

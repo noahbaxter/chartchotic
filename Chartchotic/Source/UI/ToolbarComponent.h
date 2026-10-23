@@ -101,6 +101,7 @@ public:
     std::function<void(const ViewOptions&)> onViewChanged;
     std::function<void(bool)> onUtilityStripToggled;
     std::function<void(bool)> onKick2xChanged;
+    std::function<void()> onExportChart;
     std::function<void(bool)> onDiscoFlipChanged;
     std::function<void(bool)> onDynamicsChanged;
     std::function<void(int noteSpeed)> onNoteSpeedChanged;
@@ -236,6 +237,10 @@ private:
     ValueStepper gemScaleStepper{"Gem Size", "%"};
     ValueStepper barScaleStepper{"Bar Size", "%"};
 
+
+    PanelSectionHeader exportHeader{"Export"};
+    // Momentary, not a mode: the pill resets itself on click.
+    PillToggle exportButton{"Export Chart"};
 
     PanelSectionHeader syncHeader{"Sync"};
     ValueStepper syncOffsetStepper{"Calibration", " ms"};

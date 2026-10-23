@@ -121,6 +121,20 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/NoteEditor.h
         Chartchotic/Source/Editor/PhraseWriter.cpp
         Chartchotic/Source/Editor/PhraseWriter.h
+        Chartchotic/Source/Export/BackgroundGenerator.cpp
+        Chartchotic/Source/Export/BackgroundGenerator.h
+        Chartchotic/Source/Export/ChartExporter.cpp
+        Chartchotic/Source/Export/ChartExporter.h
+        Chartchotic/Source/Export/ChartMidiWriter.cpp
+        Chartchotic/Source/Export/ChartMidiWriter.h
+        Chartchotic/Source/Export/ChartSettings.h
+        Chartchotic/Source/Export/ExportDialogComponent.cpp
+        Chartchotic/Source/Export/ExportWindow.h
+        Chartchotic/Source/Export/IconPreview.cpp
+        Chartchotic/Source/Export/IconPreview.h
+        Chartchotic/Source/Export/ExportDialogComponent.h
+        Chartchotic/Source/Export/SngPacker.cpp
+        Chartchotic/Source/Export/SngPacker.h
         Chartchotic/Source/Host/ReaperVST3.h
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp

@@ -87,7 +87,7 @@ public:
         tupletDropdown.setArrowVisible(false);
 
         addHoverZone(modeButtons,        {"Q"},      "draw places notes, edit selects & modifies");
-        addHoverZone(phraseKindButtons,  {"A", "S", "D", "F"}, "which phrase a drag writes");
+        addHoverZone(phraseKindButtons,  {"A", "S", "D", "F"}, "which phrase a drag writes, sect: click to add, rename or right click to delete a section");
         // Modifier hints run in the same order as the segments they sit under,
         // matching the home-row slots in ModifierSlots.h.
         barHelpZone = addHoverZone(barToggle, {"B"}, "only interact with open notes");
@@ -179,9 +179,17 @@ public:
         // and there is no state where the thing you clicked is not the thing you are writing.
         phraseKindButtons.onSelectionChanged = [this](int idx) {
             auto kinds = PhraseMath::kindsFor(interactionController.focusPart());
+            if (onLaneToolChanged) onLaneToolChanged(false);
+
+            // The last segment is sections: song-wide marks rather than a phrase on this part.
+            if (idx == (int)kinds.size())
+            {
+                selectView(EditorView::Sections);
+                return;
+            }
+
             if (onPhraseKindChanged && idx >= 0 && idx < (int)kinds.size())
                 onPhraseKindChanged(kinds[(size_t)idx]);
-            if (onLaneToolChanged) onLaneToolChanged(false);
             selectView(EditorView::Phrase);
         };
 
@@ -257,6 +265,7 @@ public:
         bool hasSel = editMode && interactionController.hasEditSelection();
         bool notesView = interactionController.view() == EditorView::Notes;
         const bool phraseView = interactionController.view() == EditorView::Phrase;
+        const bool sectionsView = interactionController.view() == EditorView::Sections;
         // Lanes are written on the note highway, so the view alone cannot say whether a note type
         // or the lane tool holds the turn.
         const bool laneMode = interactionController.laneTool();
@@ -290,7 +299,8 @@ public:
         // A phrase is a range, not a note: there is nothing there for edit mode to select, and
         // every click in a phrase view goes to the write controller whatever this says. Greyed
         // rather than hidden, so the bar keeps one shape as you step through the views.
-        const bool phraseKindView = phraseView || interactionController.view() == EditorView::StarPower;
+        const bool phraseKindView = phraseView || sectionsView
+                                 || interactionController.view() == EditorView::StarPower;
         modeButtons.setAlpha(phraseKindView ? 0.35f : 1.0f);
         modeButtons.setInterceptsMouseClicks(!phraseKindView, !phraseKindView);
 
@@ -323,6 +333,7 @@ public:
         auto kinds = PhraseMath::kindsFor(interactionController.focusPart());
         juce::StringArray kindLabels;
         for (auto k : kinds) kindLabels.add(PhraseMath::phraseShortLabel(k));
+        kindLabels.add(SECTION_LABEL);
         phraseKindButtons.setItems(kindLabels);
         phraseKindButtons.setAccentColour(modeAccent);
         // Note types and phrase kinds are one exclusive choice spread over two groups: whichever
@@ -333,6 +344,10 @@ public:
             for (int i = 0; i < (int)kinds.size(); ++i)
                 if (kinds[(size_t)i] == interactionController.phraseKind())
                     phraseKindButtons.setSelectedIndex(i);
+        }
+        else if (sectionsView)
+        {
+            phraseKindButtons.setSelectedIndex((int)kinds.size());
         }
         else
         {
@@ -542,7 +557,7 @@ public:
         // width everywhere and only the spare gap either side changes with the part.
         labelGroupPhrase = { x, 0, phraseW, labelH };
         const int phraseSlotEnd = x + phraseW;
-        const int phraseItems = (int)PhraseMath::kindsFor(interactionController.focusPart()).size();
+        const int phraseItems = (int)PhraseMath::kindsFor(interactionController.focusPart()).size() + 1;
         x += (phraseW - phraseItems * phraseItemWidth()) / 2;
         place(phraseKindButtons, phraseItems * phraseItemWidth());
         x = phraseSlotEnd + groupGap;
@@ -657,7 +672,7 @@ private:
     static constexpr ViewItem VIEWS[] = {
         { EditorView::Notes,     "Notes",    true  },
         { EditorView::Phrase,    "Phrase",   true  },
-        { EditorView::Sections,  "Sections", false },
+        { EditorView::Sections,  "Sections", true  },
         { EditorView::Tempo,     "Tempo",    false },
     };
 
@@ -763,12 +778,15 @@ private:
         for (auto k : { PhraseMath::Kind::StarPower, PhraseMath::Kind::Solo,
                         PhraseMath::Kind::Fill, PhraseMath::Kind::Bre })
             v.add(PhraseMath::phraseShortLabel(k));
+        v.add(SECTION_LABEL);
         return textWidthFor(v);
     }
 
-    // The phrase slot holds the most kinds any instrument has, so switching parts changes which
-    // segments are in it and nothing after it on the row moves. Same trick the note slot uses.
-    static constexpr int PHRASE_MAX_KINDS = 4;
+    // The phrase slot holds the most kinds any instrument has plus sections, so switching parts
+    // changes which segments are in it and nothing after it on the row moves. Same trick the
+    // note slot uses.
+    static constexpr const char* SECTION_LABEL = "sect";
+    static constexpr int PHRASE_MAX_KINDS = 5;
     static constexpr float STEPPER_TEXT_PAD = 0.3f;        // of the font height
     static constexpr float STEPPER_ARROW_SQUARES = 0.6f;   // each arrow zone, in squares
 
