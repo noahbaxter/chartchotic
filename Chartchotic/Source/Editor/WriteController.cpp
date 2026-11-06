@@ -1776,11 +1776,22 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             int pitch = alternatingKicks ? resolvePitch(paintLane)
                                          : resolveActivePitch(lane);
             if (pitch < 0) continue;
+            // An existing drum note with a different dynamic gets replaced, the
+            // same as clicking it would. Same dynamic, or any guitar note, is
+            // left alone and not tracked, so shrinking never erases it.
+            int velocity = resolveVelocity();
+            double duration = 0.0;
+            std::optional<Overwritten> original;
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
             if (pre.noteIndex >= 0 && GridMath::same(pre.startQN, snapped))
-                continue;
-            placeNote(paintDragTrackIdx, snapped, pitch, paintLane, resolveVelocity());
-            paintedNotes.push_back({ snapped, paintLane });
+            {
+                if (!drums || pre.velocity == velocity) continue;
+                duration = pre.endQN - pre.startQN;
+                original = Overwritten{ pre.velocity, duration,
+                                        captureMarkerMask(paintDragTrackIdx, snapped, paintLane) };
+            }
+            placeNote(paintDragTrackIdx, snapped, pitch, paintLane, velocity, duration);
+            paintedNotes.push_back({ snapped, paintLane, original });
             continue;
         }
         paintedNotes.push_back({ snapped, lane });
@@ -1807,7 +1818,11 @@ void WriteController::paintShrinkTo(double lo, double hi)
             else
             {
                 int oldPitch = resolveActivePitch(it->lane);
-                if (oldPitch >= 0)
+                if (oldPitch >= 0 && it->original)
+                    placeStampNote(paintDragTrackIdx, it->qn, oldPitch, it->lane,
+                                   it->original->velocity, it->original->duration,
+                                   it->original->markers);
+                else if (oldPitch >= 0)
                     eraseNote(paintDragTrackIdx, it->qn, oldPitch, it->lane, currentActiveSkill);
             }
             it = paintedNotes.erase(it);

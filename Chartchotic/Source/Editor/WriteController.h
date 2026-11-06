@@ -260,7 +260,10 @@ private:
     double paintStartQN      = 0.0;
     double paintLastQN        = 0.0;
     int    paintLastLane      = -1;
-    struct PaintedNote { double qn; int lane; };
+    // A drum note the stroke overwrote with a new dynamic keeps what it was,
+    // so shrinking the stroke back over it restores it instead of erasing it.
+    struct Overwritten { int velocity; double duration; uint32_t markers; };
+    struct PaintedNote { double qn; int lane; std::optional<Overwritten> original; };
     std::vector<PaintedNote> paintedNotes;
     void paintFillRange(double fromQN, double toQN, int lane);
     void paintShrinkTo(double lo, double hi);
