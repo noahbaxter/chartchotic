@@ -106,9 +106,11 @@ protected:
         }
     }
 
+    // Only elite kicks carry dynamics. Everywhere else a stock kit sends no kick
+    // velocity, so bar notes land normal whatever ghost/accent is armed.
     int resolveVelocity() const
     {
-        if (!isDrums()) return NORMAL_VELOCITY;
+        if (!isDrums() || (barModeFlag && !isElite())) return NORMAL_VELOCITY;
         switch (currentDrumDynamic)
         {
             case DrumDynamic::Ghost:  return GHOST_VELOCITY;
