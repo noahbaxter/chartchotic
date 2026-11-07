@@ -591,6 +591,17 @@ namespace
     }
 }
 
+// -1 outside every song, so stray sections count among themselves.
+int WriteController::songIndexAt(double qn) const
+{
+    if (instrumentSession == nullptr) return -1;
+    const auto& songs = instrumentSession->getSongs().getSongs();
+    for (size_t i = 0; i < songs.size(); ++i)
+        if (!GridMath::before(qn, songs[i].startQN) && GridMath::before(qn, songs[i].endQN))
+            return (int)i;
+    return -1;
+}
+
 // Edits start from what the highway draws, not from the writer's own read. The writer's
 // getSections() looks at the first EVENTS item only, while setSections() clears every item, so
 // writing back its list wiped the sections of any other item.
@@ -675,7 +686,15 @@ void WriteController::handleSectionDown(const AuthoringPoint& p, const Authoring
     // The answer arrives later, so the sections are read again then rather than trusting this
     // list to still be the project's.
     const double qn = std::max(0.0, snapQN(p.rawProjectQN));
-    onNameRequested("New section", "Section " + juce::String((int)sections.size() + 1),
+
+    // Numbered by position within the song it lands in, so each song counts from 1.
+    const int song = songIndexAt(qn);
+    int number = 1;
+    for (const auto& s : sections)
+        if (songIndexAt(s.qn) == song && GridMath::before(s.qn, qn))
+            ++number;
+
+    onNameRequested("New section", "Section " + juce::String(number),
                     [this, qn](const juce::String& typed)
     {
         const auto name = sectionNameFrom(typed);
@@ -759,7 +778,9 @@ void WriteController::commitSections(std::vector<MidiWriter::SectionInfo> sectio
     std::sort(sections.begin(), sections.end(),
               [](const MidiWriter::SectionInfo& a, const MidiWriter::SectionInfo& b)
               { return a.qn < b.qn; });
-    if (renumber) SectionRenumber::renumber(sections);
+    if (renumber)
+        SectionRenumber::renumber(sections, [this](const MidiWriter::SectionInfo& s)
+                                  { return songIndexAt(s.qn); });
 
     writer->beginBatch(undoLabel);
     const bool wrote = writer->setSections(sections);

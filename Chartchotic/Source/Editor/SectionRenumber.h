@@ -4,6 +4,7 @@
 #include <cctype>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 // Sections named "Verse 1", "Verse 2" count their own kind, so adding or removing one leaves the
@@ -38,15 +39,17 @@ namespace SectionRenumber
     }
 
     // `sections` must already be in time order. A family of one is left alone, so a lone
-    // "Chorus 2" is not quietly turned into "Chorus 1".
-    template <typename Section>
-    void renumber(std::vector<Section>& sections)
+    // "Chorus 2" is not quietly turned into "Chorus 1". `songOf` maps a section to the song it
+    // sits in, and each song counts its families from 1 on its own.
+    template <typename Section, typename SongOf>
+    void renumber(std::vector<Section>& sections, SongOf songOf)
     {
-        std::map<std::string, std::vector<size_t>> families;
+        std::map<std::pair<int, std::string>, std::vector<size_t>> families;
         for (size_t i = 0; i < sections.size(); ++i)
         {
             const auto parts = split(sections[i].name);
-            if (parts.numbered) families[lowered(parts.base)].push_back(i);
+            if (parts.numbered)
+                families[{ songOf(sections[i]), lowered(parts.base) }].push_back(i);
         }
 
         for (const auto& family : families)

@@ -132,6 +132,7 @@ private:
     void recomputeSectionHover();
     // The song's sections as the highway draws them, from every EVENTS item.
     std::vector<MidiWriter::SectionInfo> currentSections() const;
+    int songIndexAt(double qn) const;
     // `renumber` closes the gap in numbered families ("Verse 1, Verse 2"); a rename skips it,
     // since renumbering would undo the number just typed.
     void commitSections(std::vector<MidiWriter::SectionInfo> sections, const char* undoLabel,

@@ -1,5 +1,6 @@
 #include "test_helpers.h"
 #include "Midi/SongSections.h"
+#include "Editor/SectionRenumber.h"
 
 namespace
 {
@@ -229,4 +230,22 @@ TEST_CASE("SongSections - singalong cues are not sections", "[sections]")
 
     // The trainer event must not have ended the song.
     REQUIRE(s.getEndPPQ() == PPQ(0.0));
+}
+
+TEST_CASE("SectionRenumber: each song counts its families from 1", "[sections]")
+{
+    struct S { double qn; std::string name; };
+    // Two songs split at QN 100, numbered as if the project were one long song.
+    std::vector<S> list = { { 0, "Section 1" }, { 10, "Section 2" }, { 20, "Verse 3" },
+                            { 100, "Section 3" }, { 110, "Section 4" }, { 120, "Verse 9" } };
+
+    SectionRenumber::renumber(list, [](const S& s) { return s.qn < 100 ? 0 : 1; });
+
+    REQUIRE(list[0].name == "Section 1");
+    REQUIRE(list[1].name == "Section 2");
+    REQUIRE(list[3].name == "Section 1");
+    REQUIRE(list[4].name == "Section 2");
+    // A family of one per song is left alone, even when the project holds two of them.
+    REQUIRE(list[2].name == "Verse 3");
+    REQUIRE(list[5].name == "Verse 9");
 }
