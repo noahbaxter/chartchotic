@@ -1023,30 +1023,38 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     // land on, so it answers in the hover's own colour rather than staying structure blue.
     double hoverQN = hoverY >= 0 ? snappedBarQN(hoverY, v) : -1.0;
 
+    auto underCursor = [&](size_t i)
+    {
+        return GridMath::same(list[i].position.toDouble(), hoverQN) || (int)i == hoverSection;
+    };
+
+    // Every line before any label. Drawn together, a later section's line (often one whose
+    // own label lost the collision pass) struck through the names below it when zoomed out.
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        double qn = list[i].position.toDouble();
+        if (qn < v.startQN || qn > v.endQN) continue;
+
+        float y = (float)yForQN(qn, v);
+        if (y >= top && y <= top + trackHeight())
+        {
+            g.setColour(underCursor(i) ? UtilityColours::hoverLine : UtilityColours::sectionLine);
+            g.fillRect(0.0f, y, w, m.sectionLineH);
+        }
+    }
+
     for (size_t i = 0; i < list.size(); ++i)
     {
         double qn = list[i].position.toDouble();
         double endQN = sectionEndQN(i, v);
         if (endQN < v.startQN || qn > v.endQN) continue;
 
-        float y = (float)yForQN(qn, v);
-
         bool sticky = ((int)i == stickyIndex(v));
         if ((qn < v.startQN || qn > v.endQN) && !sticky) continue;
 
         // The number belongs to the name beside it, so it goes when the name goes. Claimed
         // in resolveMeasureNumbers and drawn with the rest of them.
-        bool labelled = !plates[i].isEmpty();
-
-        bool underCursor = GridMath::same(qn, hoverQN) || (int)i == hoverSection;
-
-        if (y >= top && y <= top + trackHeight())
-        {
-            g.setColour(underCursor ? UtilityColours::hoverLine : UtilityColours::sectionLine);
-            g.fillRect(0.0f, y, w, m.sectionLineH);
-        }
-
-        if (!labelled) continue;
+        if (plates[i].isEmpty()) continue;
 
         g.setFont(m.sectionLabel);
         // Straight from the hit-test bounds, so a pinned label is clickable where it is
@@ -1055,7 +1063,7 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
 
         g.setColour(UtilityColours::background.withAlpha(0.82f));
         g.fillRect(plate);
-        g.setColour(underCursor ? UtilityColours::uiText : UtilityColours::sectionText);
+        g.setColour(underCursor(i) ? UtilityColours::uiText : UtilityColours::sectionText);
         g.drawText(list[i].name, plate.getX() + 3, plate.getY(), plate.getWidth() - 6,
                    plate.getHeight(), juce::Justification::centredLeft, true);
 
