@@ -10,6 +10,12 @@ class InteractionController
 public:
     explicit InteractionController(juce::ValueTree& state);
 
+    void setGridSectionSource(const std::function<GridSection(double)>& f)
+    {
+        writeController.setGridSectionSource(f);
+        editController.setGridSectionSource(f);
+    }
+
     void onFrame(MidiWriter* writer, InstrumentSession* session,
                  const bool* playingState, Part activePart, SkillLevel activeSkill,
                  double currentProjectQN);

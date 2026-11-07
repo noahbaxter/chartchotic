@@ -46,6 +46,18 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     // here makes the first layout bake rather than reuse.
     trackImageCache.invalidate();
 
+    // Snap counts steps from the same time signature anchors the gridlines do, so the two
+    // agree after an odd-length bar.
+    interactionController.setGridSectionSource([this](double qn) {
+        const juce::ScopedLock lock(audioProcessor.getTempoLock());
+        const auto& map = audioProcessor.getTempoTimeSignatureMap();
+        GridSection section;
+        section.anchorQN = TempoTimeSignatureEventHelper::getLastTimeSigResetPosition(map, PPQ(qn)).toDouble();
+        if (auto end = TempoTimeSignatureEventHelper::getNextTimeSigResetPosition(map, PPQ(qn)))
+            section.endQN = end->toDouble();
+        return section;
+    });
+
     // Create scratch renderer for shared track image cache
     cacheRenderer = std::make_unique<TrackRenderer>(state);
 

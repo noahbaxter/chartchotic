@@ -18,6 +18,7 @@
 #include <map>
 #include <cmath>
 #include <functional>
+#include <optional>
 
 class TempoTimeSignatureEventHelper
 {
@@ -181,6 +182,15 @@ public:
         }
 
         return PPQ(0.0);
+    }
+
+    // The first timeSigReset strictly after searchFromPPQ, or nullopt when none follows.
+    static std::optional<PPQ> getNextTimeSigResetPosition(const TempoTimeSignatureMap& map, PPQ searchFromPPQ)
+    {
+        for (auto it = map.upper_bound(searchFromPPQ); it != map.end(); ++it)
+            if (it->second.timeSigReset)
+                return it->second.ppqPosition;
+        return std::nullopt;
     }
 
     // 0-indexed measure plus the 1-indexed beat within it (1.0 on the downbeat).

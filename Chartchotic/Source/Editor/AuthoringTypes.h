@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 #include <JuceHeader.h>
 #include "../Utils/ChartTypes.h"
@@ -313,13 +315,24 @@ inline double stepSpacingQN(int stepDivision, int tuplet)
     return 4.0 / double(stepDivision);
 }
 
-inline double snapToStep(double rawQN, int stepDivision, int tuplet)
+// The stretch of the map one time signature governs. Steps count from its anchor, the way
+// the gridlines do, so a bar that is short by a 16th moves the grid after it with it. The
+// next anchor is a grid point too, even when the last step before it falls short.
+struct GridSection
+{
+    double anchorQN = 0.0;
+    double endQN    = std::numeric_limits<double>::infinity();
+};
+
+inline double snapToStep(double rawQN, int stepDivision, int tuplet, GridSection section = {})
 {
     const double spacing = stepSpacingQN(stepDivision, tuplet);
     if (spacing <= 0.0)
         return rawQN;
 
-    double snapped = std::round(rawQN / spacing) * spacing;
+    const double lo = section.anchorQN + std::floor((rawQN - section.anchorQN) / spacing) * spacing;
+    const double hi = std::min(lo + spacing, section.endQN);
+    double snapped = (rawQN - lo < hi - rawQN) ? lo : hi;
 
     const double oneOver128 = 1.0 / 128.0;
     const double quantized  = std::round(snapped / oneOver128) * oneOver128;

@@ -1727,12 +1727,12 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
     double lo = std::min(fromQN, toQN);
     double hi = std::max(fromQN, toQN);
 
-    double firstStep = snapToStep(lo, currentStepDivision, currentTuplet);
-    if (GridMath::before(firstStep, lo)) firstStep += spacing;
+    double firstStep = snapToGrid(lo);
+    if (GridMath::before(firstStep, lo)) firstStep = nextGridStep(firstStep);
 
-    for (double qn = firstStep; !GridMath::after(qn, hi); qn += spacing)
+    for (double qn = firstStep; !GridMath::after(qn, hi); qn = nextGridStep(qn))
     {
-        double snapped = snapToStep(qn, currentStepDivision, currentTuplet);
+        double snapped = qn;
 
         bool alreadyPainted = false;
         for (const auto& pn : paintedNotes)

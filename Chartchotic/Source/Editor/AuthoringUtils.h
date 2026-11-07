@@ -2,9 +2,10 @@
 
 #include "AuthoringTypes.h"
 
-inline double snapQN(double rawQN, int stepDivision, int tuplet, bool snapEnabled)
+inline double snapQN(double rawQN, int stepDivision, int tuplet, bool snapEnabled,
+                     GridSection section = {})
 {
     return snapEnabled
-        ? snapToStep(rawQN, stepDivision, tuplet)
+        ? snapToStep(rawQN, stepDivision, tuplet, section)
         : rawQN;
 }

@@ -26,6 +26,7 @@ public:
     void setInstrumentSession(InstrumentSession* s){ instrumentSession = s; noteEditor.setInstrumentSession(s); }
     void setPlayingStatePtr(const bool* p)         { playingStatePtr = p; }
     void setPatchBuffer(OptimisticPatchBuffer* b)   { patchBuffer = b; }
+    void setGridSectionSource(std::function<GridSection(double)> f) { gridSectionSource = std::move(f); }
     void setActivePart(Part p)                     { currentActivePart = p; }
     void setActiveSkill(SkillLevel s)              { currentActiveSkill = s; }
     void setStepDivision(int d)                    { currentStepDivision = d; }
@@ -157,7 +158,28 @@ protected:
 
     double snapQN(double rawQN) const
     {
-        return ::snapQN(rawQN, currentStepDivision, currentTuplet, snapEnabledFlag);
+        return ::snapQN(rawQN, currentStepDivision, currentTuplet, snapEnabledFlag,
+                        gridSectionAt(rawQN));
+    }
+
+    // Snap regardless of the snap toggle, for walking the grid itself.
+    double snapToGrid(double qn) const
+    {
+        return snapToStep(qn, currentStepDivision, currentTuplet, gridSectionAt(qn));
+    }
+
+    // The first grid point after qn, crossing into the next time signature's grid at its anchor.
+    double nextGridStep(double qn) const
+    {
+        const double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
+        const auto section = gridSectionAt(qn);
+        const double next = snapToGrid(qn) + spacing;
+        return GridMath::before(next, section.endQN) ? snapToGrid(next) : section.endQN;
+    }
+
+    GridSection gridSectionAt(double qn) const
+    {
+        return gridSectionSource ? gridSectionSource(qn) : GridSection{};
     }
 
     // Patch-aware note operations — patching is automatic, sub-controllers
@@ -690,6 +712,7 @@ protected:
 
     InstrumentSession*      instrumentSession    = nullptr;
     const bool*             playingStatePtr      = nullptr;
+    std::function<GridSection(double)> gridSectionSource;
     Part                    currentActivePart    = Part::GUITAR;
     SkillLevel              currentActiveSkill   = SkillLevel::EXPERT;
     int                     currentStepDivision  = 8;
