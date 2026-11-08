@@ -160,13 +160,17 @@ void HighwayComponent::paint(juce::Graphics& g)
     paintOverviewSections(g, w, h);
 
     // Ghost cursor: set before paint so it renders through the note pipeline.
+    // The stamp list is cleared with the rest: the scene draws it whenever it is non-empty, so a
+    // stamp left over from the last frame the ghost was up kept drawing after it went away.
     sceneRenderer.ghostCursor.visible = false;
     sceneRenderer.ghostCursor.positionLabel = {};
     sceneRenderer.ghostCursor.modeLabel = {};
+    sceneRenderer.ghostCursor.stampGhosts.clear();
     if (overlayStateGetter)
     {
         const auto& ov = overlayStateGetter();
-        if (ov.ghostVisible && projectQNToSeconds)
+        // Nothing can be placed while playing, so the ghost would only cover the chart.
+        if (ov.ghostVisible && projectQNToSeconds && !frameData.isPlaying)
         {
             double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
             if (std::abs(windowSpan) > 1e-9)
@@ -178,7 +182,6 @@ void HighwayComponent::paint(juce::Graphics& g)
                     ? formatPositionQN(ov.ghostQN) : juce::String();
                 sceneRenderer.ghostCursor.modeLabel = ov.ghostModeLabel;
 
-                sceneRenderer.ghostCursor.stampGhosts.clear();
                 if (!ov.stampGhosts.empty())
                 {
                     for (const auto& sg : ov.stampGhosts)
@@ -453,7 +456,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 });
             }
         }
-        if (ov.ghostVisible && !ov.stampGhosts.empty())
+        if (ov.ghostVisible && !ov.stampGhosts.empty() && !frameData.isPlaying)
         {
             for (const auto& sg : ov.stampGhosts)
             {
