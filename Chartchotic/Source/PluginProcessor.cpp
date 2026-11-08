@@ -272,10 +272,24 @@ void ChartchoticAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, j
 
     // Tempo is taken as constant across the block. Where a tempo change inside the block makes
     // that wrong, the monitor's fire window keeps one block's hits from repeating in the next.
+    // The rate is measured off how far the playhead really moved over the last block when it
+    // can be: the reported tempo knows nothing of REAPER's playrate, so at 0.5x it put every
+    // hit in the block twice as early as it lands.
     const double bpm = positionInfo->getBpm().orFallback(120.0);
     const double sampleRate = getSampleRate();
-    const double ppqPerSample = sampleRate > 0.0 ? bpm / 60.0 / sampleRate : 0.0;
-    monitor.render(buffer, playheadPositionInPPQ.toDouble(), ppqPerSample, isPlaying);
+    double ppqPerSample = sampleRate > 0.0 ? bpm / 60.0 / sampleRate : 0.0;
+    const double ppqNow = playheadPositionInPPQ.toDouble();
+    if (isPlaying && monitorWasPlaying && monitorLastSamples > 0)
+    {
+        const double measured = (ppqNow - monitorLastPPQ) / monitorLastSamples;
+        // Anything outside the speed control's range is a seek or a loop, not playback.
+        if (measured > ppqPerSample * 0.2 && measured < ppqPerSample * 3.5)
+            ppqPerSample = measured;
+    }
+    monitorLastPPQ = ppqNow;
+    monitorLastSamples = buffer.getNumSamples();
+    monitorWasPlaying = isPlaying;
+    monitor.render(buffer, ppqNow, ppqPerSample, isPlaying);
 }
 //==============================================
 // Stock JUCE

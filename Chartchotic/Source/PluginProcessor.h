@@ -158,6 +158,10 @@ public:
 
   private:
     MonitorPlayer monitor;
+    // Audio thread only: the last block's start and length, to measure the real beat rate.
+    double monitorLastPPQ = 0.0;
+    int    monitorLastSamples = 0;
+    bool   monitorWasPlaying = false;
     juce::ValueTree state;
     MidiProject midiProject;
     MidiProcessor midiProcessor;
