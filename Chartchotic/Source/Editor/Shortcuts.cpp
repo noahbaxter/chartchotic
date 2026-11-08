@@ -76,6 +76,7 @@ const std::vector<Shortcuts::Command>& Shortcuts::commands()
         { "note-type-5",          WriteCommand::ModifierSlot5,      "G",                 true,  "Fifth note type" },
         { "toggle-bar-mode",      WriteCommand::ToggleBarMode,      "B",                 true,  "Write bar (kick and open) notes" },
         { "capture-stamp",        WriteCommand::CaptureStamp,       "C",                 true,  "Copy a stamp from the hovered notes or the selection" },
+        { "recall-stamp",         WriteCommand::RecallStamp,        "V",                 true,  "Bring back the last stamp copied" },
         { "grid-coarser",         WriteCommand::StepDown,           "[",                 true,  "Halve the grid division" },
         { "grid-finer",           WriteCommand::StepUp,             "]",                 true,  "Double the grid division" },
         { "delete-selection",     WriteCommand::DeleteSelection,    "Delete, Backspace", true,  "Delete the selected notes" },

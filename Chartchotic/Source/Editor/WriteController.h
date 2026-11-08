@@ -35,6 +35,9 @@ public:
     };
     void setStamp(std::vector<StampNote> s);
     void clearStamp();
+    // Puts the last stamp copied back up, as it was copied. False when there is none, or when
+    // it has lanes this instrument does not.
+    bool recallStamp();
     void shiftStampLanes(int delta);
     bool hasStamp() const { return !stamp.empty(); }
     const std::vector<StampNote>& getStamp() const { return stamp; }
@@ -270,6 +273,8 @@ private:
     void paintShrinkTo(double lo, double hi);
 
     std::vector<StampNote> stamp;
+    // Outlives the stamp itself, so closing a stamp never loses the copy.
+    std::vector<StampNote> lastStamp;
 
     // Stamp capture (hold C + drag in draw mode)
     // Value T restores when toggling the tuplet grid back on. Triplet until

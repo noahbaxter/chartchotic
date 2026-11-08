@@ -226,6 +226,7 @@ void WriteController::recomputeGhost()
 void WriteController::setStamp(std::vector<StampNote> s)
 {
     stamp = std::move(s);
+    lastStamp = stamp;
     stateDidChange();
 }
 
@@ -233,6 +234,17 @@ void WriteController::clearStamp()
 {
     stamp.clear();
     stateDidChange();
+}
+
+bool WriteController::recallStamp()
+{
+    if (lastStamp.empty()) return false;
+    for (const auto& sn : lastStamp)
+        if (sn.lane < 0 || sn.lane > maxLane()) return false;
+
+    stamp = lastStamp;
+    stateDidChange();
+    return true;
 }
 
 void WriteController::shiftStampLanes(int delta)

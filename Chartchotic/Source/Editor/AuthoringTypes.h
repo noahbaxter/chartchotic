@@ -295,6 +295,7 @@ enum class WriteCommand {
     DeselectAll,
     ToggleBarMode,
     CaptureStamp,
+    RecallStamp,
     // Editor-wide, handled by the editor rather than the authoring controllers
     ToggleUtilityStrip,
     ToggleStripZoom,

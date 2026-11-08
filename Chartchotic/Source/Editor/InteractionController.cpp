@@ -242,6 +242,14 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
         }
     }
 
+    if (cmd == WriteCommand::RecallStamp)
+    {
+        if (!writeController.recallStamp()) return false;
+        // Same as copying from a selection: the stamp is placed in draw mode.
+        writeController.setSubMode(SubMode::Draw);
+        return true;
+    }
+
     if (writeController.hasStamp())
     {
         if (code == juce::KeyPress::leftKey)  { writeController.shiftStampLanes(-1); return true; }
