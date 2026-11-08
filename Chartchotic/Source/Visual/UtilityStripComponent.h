@@ -62,6 +62,8 @@ namespace UtilityColours
     // Faint on purpose: the band sits under the note map, so anything heavier reads as a
     // colour the notes are, rather than as ground they sit on.
     inline const juce::Colour sectionBand  = juce::Colour(0x0D2F5F96);
+    // Every other section when the names are too crowded to label: between the two above.
+    inline const juce::Colour sectionBandAlt = juce::Colour(0x1E3A6AA6);
     // The section the playhead is in, filled a step brighter than the rest.
     inline const juce::Colour sectionBandCurrent = juce::Colour(0x2C3E77B8);
     // Same blue as a section line but dashed and thinner: a clip edge is a fact about the
@@ -531,6 +533,8 @@ private:
     // Plates for this paint, built once by resolveMeasureNumbers and read by drawSections
     // rather than rebuilt.
     mutable std::vector<juce::Rectangle<int>> framePlates;
+    // Set by labelPlates: too many names for the space, so the strip bands instead of labelling.
+    mutable bool sectionsCrowded = false;
 
     static constexpr int MEASURE_ROW_H = 12;
     static constexpr int PLAYHEAD_TAB_H = 16;

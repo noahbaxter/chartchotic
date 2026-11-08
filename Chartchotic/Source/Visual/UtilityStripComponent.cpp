@@ -817,6 +817,42 @@ std::vector<juce::Rectangle<int>> UtilityStripComponent::labelPlates(const View&
     for (int i = 0; i < (int)list.size(); ++i)
         place(i, false);
 
+    // Crowded: some name in view lost the pass. Survivors at that density are a scatter of
+    // names with no telling which line they belong to, so the bands take over (alternating,
+    // see drawSectionBands) and only the names that answer a question stay: the section you
+    // are in, the pinned one, and the one under the cursor.
+    sectionsCrowded = false;
+    const int top = trackTop();
+    for (size_t i = 0; i < list.size() && !sectionsCrowded; ++i)
+    {
+        const double qn = list[i].position.toDouble();
+        if (!plates[i].isEmpty() || qn < v.startQN || qn > v.endQN) continue;
+        const float y = (float)yForQN(qn, v);
+        sectionsCrowded = y >= (float)top && y <= (float)bottom;
+    }
+
+    if (sectionsCrowded)
+    {
+        int hovered = -1;
+        if (hoverY >= 0)
+        {
+            const double hoverQN = qnForY(hoverY, v);
+            for (size_t i = 0; i < list.size(); ++i)
+                if (hoverQN >= list[i].position.toDouble() && hoverQN < sectionEndQN(i, v))
+                    hovered = (int)i;
+        }
+
+        std::vector<juce::Rectangle<int>> kept(list.size());
+        for (int i : { litSectionIndex(v), stickyIndex(v), hovered })
+        {
+            if (i < 0 || i >= (int)list.size()) continue;
+            auto plate = plates[(size_t)i].isEmpty() ? sectionHeaderBounds((size_t)i, v) : plates[(size_t)i];
+            if (!plate.isEmpty() && plate.getBottom() <= bottom && plate.getY() >= top)
+                kept[(size_t)i] = plate;
+        }
+        plates = std::move(kept);
+    }
+
     return plates;
 }
 
@@ -973,8 +1009,11 @@ void UtilityStripComponent::drawSectionBands(juce::Graphics& g, const View& v) c
         float bandBottom = juce::jlimit(top, bottom, (float)yForQN(qn, v));
         if (bandBottom <= bandTop) continue;
 
+        // Crowded, every other band steps up a shade, so each section reads as its own block
+        // with the names mostly gone.
         g.setColour((int)i == lit ? UtilityColours::sectionBandCurrent
-                                  : UtilityColours::sectionBand);
+                    : (sectionsCrowded && i % 2 == 1) ? UtilityColours::sectionBandAlt
+                                                      : UtilityColours::sectionBand);
         g.fillRect(0.0f, bandTop, w, bandBottom - bandTop);
     }
 }
@@ -1034,6 +1073,10 @@ void UtilityStripComponent::drawSections(juce::Graphics& g, const View& v) const
     {
         double qn = list[i].position.toDouble();
         if (qn < v.startQN || qn > v.endQN) continue;
+
+        // Crowded, the alternating bands already mark every edge; a line per section on top
+        // of them is the clutter the bands replace.
+        if (sectionsCrowded && !underCursor(i)) continue;
 
         float y = (float)yForQN(qn, v);
         if (y >= top && y <= top + trackHeight())
