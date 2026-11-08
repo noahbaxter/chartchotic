@@ -27,7 +27,7 @@ struct WriteGridConfig
 {
     bool active = false;       // writeModeActive AND snapEnabled
     int  stepDivision = 8;     // 1..64, e.g. 8 -> 1/8 notes
-    int  tuplet = 0;           // 0 = off, else 3/5/7
+    int  tuplet = 0;           // 0 = off, else one of kTuplets
 };
 
 class GridlineGenerator

@@ -42,7 +42,7 @@ namespace LaneMath
     //
     // Deliberately NOT MIDI_MIN_SUSTAIN_LENGTH. That is a third of a quarter note: the shortest
     // note that should read as a sustain rather than a plain gem. Rolls are charted far finer.
-    // Plain 16ths are a quarter note apart, and 28 of the 48 step/tuplet settings the write bar
+    // Plain 16ths are a quarter note apart, and 92 of the 120 step/tuplet settings the write bar
     // offers are shorter still, so borrowing the sustain minimum refused a lane over exactly the
     // runs lanes exist for. Nothing in the .mid specs states a minimum lane length.
     //

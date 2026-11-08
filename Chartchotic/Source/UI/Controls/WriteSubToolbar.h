@@ -95,7 +95,7 @@ public:
         addHoverZone(laneTwoToggle, {"S"},      "drag writes a roll alternating between two lanes");
         addHoverZone(snapToggle,         {"E"},                    "lock note placement to grid");
         addHoverZone(divisionDropdown,   {"[", "]", "⌥scroll"},    "grid spacing (1/4, 1/8, 1/16...)");
-        addHoverZone(tupletDropdown,     {"T", "⇧T"},              "tuplet on/off, shift cycles 3/5/7");
+        addHoverZone(tupletDropdown,     {"T", "⇧T"},              "tuplet on/off, shift steps through 3 to 19");
         addHoverZone(guitarForceButtons, {"A", "S", "D", "F"},     "force HOPO, strum, or tap (overrides auto)");
         addHoverZone(drumDynamicButtons, {"A", "S", "D"},          "ghost (soft) or accent (loud) hit");
         addHoverZone(cymbalToggle,       {"F"},                    "cymbal placement (PRO drums)");
@@ -714,7 +714,9 @@ private:
     // and another where it is applied. These used to live in ToolbarComponent's handlers, which
     // is why stepping had to search for the current value before it could move off it.
     static constexpr int STEP_DIVISIONS[] = { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64 };
-    static constexpr int TUPLETS[] = { 0, 3, 5, 7 };
+    // Off, then kTuplets.
+    static constexpr int TUPLETS[] = { 0, 3, 5, 7, 9, 11, 13, 15, 17, 19 };
+    static_assert(std::size(TUPLETS) == std::size(kTuplets) + 1, "TUPLETS is Off followed by kTuplets");
 
     template <size_t N>
     static int indexOf(const int (&table)[N], int value)

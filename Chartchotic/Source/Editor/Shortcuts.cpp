@@ -68,7 +68,7 @@ const std::vector<Shortcuts::Command>& Shortcuts::commands()
         { "toggle-lane-tool",     WriteCommand::ToggleLaneTool,     "R",                 true,  "Lane tool, or put a lane on the selection" },
         { "toggle-snap",          WriteCommand::ToggleSnap,         "E",                 true,  "Snap to grid on and off" },
         { "toggle-tuplet",        WriteCommand::ToggleTuplet,       "T",                 true,  "Tuplet grid on and off" },
-        { "cycle-tuplet",         WriteCommand::CycleTuplet,        "Shift+T",           true,  "Cycle the tuplet through 3, 5 and 7" },
+        { "cycle-tuplet",         WriteCommand::CycleTuplet,        "Shift+T",           true,  "Step the tuplet through the odd values 3 to 19" },
         { "note-type-1",          WriteCommand::ModifierSlot1,      "A",                 true,  "First note type on the write bar" },
         { "note-type-2",          WriteCommand::ModifierSlot2,      "S",                 true,  "Second note type" },
         { "note-type-3",          WriteCommand::ModifierSlot3,      "D",                 true,  "Third note type" },

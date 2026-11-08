@@ -317,6 +317,25 @@ enum class GuitarForce { None, Hopo, Strum, Tap };
 // Step grid math — shared between WriteController (click snap) and
 // GridlineGenerator (visual grid). One definition, no drift.
 
+// The tuplets on offer. Odd only: an even tuplet is an odd one at a finer division (6 is 3 at
+// twice the division, 10 is 5), so it would only duplicate a grid already reachable.
+constexpr int kTuplets[] = { 3, 5, 7, 9, 11, 13, 15, 17, 19 };
+
+inline bool isTuplet(int t)
+{
+    for (int k : kTuplets) if (k == t) return true;
+    return false;
+}
+
+// The tuplet after `t`, wrapping, and the first one when `t` is off or unknown.
+inline int nextTuplet(int t)
+{
+    constexpr int count = (int)(sizeof(kTuplets) / sizeof(kTuplets[0]));
+    for (int i = 0; i < count; ++i)
+        if (kTuplets[i] == t) return kTuplets[(i + 1) % count];
+    return kTuplets[0];
+}
+
 inline double stepSpacingQN(int stepDivision, int tuplet)
 {
     if (tuplet > 0)

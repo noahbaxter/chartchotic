@@ -186,8 +186,8 @@ TEST_CASE("AuthoringConfig - roll lane pitches", "[authoring_config]")
 TEST_CASE("LaneMath - a lane is writable at every grid setting", "[authoring_config]")
 {
     // Every division the write bar offers, against every tuplet from none through 20. The bar
-    // only exposes 3, 5 and 7 today, so the rest are here so that widening that list cannot
-    // quietly reintroduce a grid a lane refuses to sit on.
+    // only exposes the odd ones, so the rest are here so that widening that list cannot quietly
+    // reintroduce a grid a lane refuses to sit on.
     const int divisions[] = { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64 };
 
     int finerThanSustainMinimum = 0;
@@ -246,4 +246,16 @@ TEST_CASE("LaneMath - only the shared markers have a kind to pick", "[authoring_
 
     // And with the tool off the slots are the ordinary note types again.
     REQUIRE(modifierSlotsFor(RenderType::FIVE_FRET, false).size() == 4);
+}
+
+TEST_CASE("Tuplets - odd values 3 to 19, cycled in order and wrapping", "[authoring_config]")
+{
+    for (int t = 0; t <= 20; ++t)
+        REQUIRE(isTuplet(t) == (t >= 3 && t % 2 == 1 && t <= 19));
+
+    REQUIRE(nextTuplet(0)  == 3);    // off turns on
+    REQUIRE(nextTuplet(3)  == 5);
+    REQUIRE(nextTuplet(17) == 19);
+    REQUIRE(nextTuplet(19) == 3);
+    REQUIRE(nextTuplet(4)  == 3);    // not a tuplet, so start over
 }

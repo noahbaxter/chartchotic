@@ -79,7 +79,7 @@ void WriteController::loadPersistedState()
     if (state.hasProperty(kWriteTuplet))
     {
         int t = (int)state.getProperty(kWriteTuplet);
-        if (t == 0 || t == 3 || t == 5 || t == 7)
+        if (t == 0 || isTuplet(t))
             currentTuplet = t;
     }
 
@@ -355,7 +355,7 @@ void WriteController::setStepDivision(int division)
 
 void WriteController::setTuplet(int t)
 {
-    if (t != 0 && t != 3 && t != 5 && t != 7) return;
+    if (t != 0 && !isTuplet(t)) return;
     if (currentTuplet == t) return;
     currentTuplet = t;
     state.setProperty(kWriteTuplet, t, nullptr);
@@ -376,12 +376,7 @@ void WriteController::toggleTuplet()
 void WriteController::cycleTuplet()
 {
     // Always lands on a live tuplet, so this doubles as "turn it on" when off.
-    switch (currentTuplet)
-    {
-        case 3:  lastTuplet = 5; break;
-        case 5:  lastTuplet = 7; break;
-        default: lastTuplet = 3; break;
-    }
+    lastTuplet = nextTuplet(currentTuplet);
     setTuplet(lastTuplet);
 }
 
