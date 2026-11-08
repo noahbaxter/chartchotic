@@ -24,6 +24,10 @@ CommandMapper::CommandMapper()
         { SubMode::Edit, EventType::Down, MouseButton::Left,  ModifierFlags::Alt,  WriteCommand::SelectAt },
         { SubMode::Edit, EventType::Drag, MouseButton::Left,  ModifierFlags::Alt,  WriteCommand::ContinueMove },
         { SubMode::Edit, EventType::Up,   MouseButton::Left,  ModifierFlags::Alt,  WriteCommand::CommitMove },
+        // Shift+Left: toggle a note, or every note in a box, in or out of the selection
+        { SubMode::Edit, EventType::Down, MouseButton::Left,  ModifierFlags::Shift, WriteCommand::SelectAt },
+        { SubMode::Edit, EventType::Drag, MouseButton::Left,  ModifierFlags::Shift, WriteCommand::ContinueMarquee },
+        { SubMode::Edit, EventType::Up,   MouseButton::Left,  ModifierFlags::Shift, WriteCommand::CommitMarquee },
         // Double-click
         { SubMode::Edit, EventType::DoubleClick, MouseButton::Left, ModifierFlags::None, WriteCommand::DoubleClick },
     };

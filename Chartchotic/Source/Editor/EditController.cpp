@@ -84,6 +84,19 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
     int clickPitch = resolveActivePitch(p.laneIndex);
     int clickLane = p.laneIndex;
 
+    // Shift never moves anything: it starts a toggle, settled on release as a click or a box.
+    toggleSelecting = ctx.mods.isShiftDown();
+    if (toggleSelecting)
+    {
+        toggleBase = selection;
+        toggleDownPoint = p;
+        marqueeDragged = false;
+        dragMode = DragMode::Marquee;
+        marqueeScreenStart = p.screenPos;
+        marqueeRect.begin(snapQN(p.rawProjectQN), clickLane);
+        return;
+    }
+
     bool hitInteractableNote = p.overExistingNote && !p.hitSustainBody
         && findNote(resolveTrackIdx(), p.hitNoteStartQN, clickPitch).noteIndex >= 0;
 
@@ -272,17 +285,72 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
     notifyChanged();
 }
 
+std::vector<SelectedNote> EditController::notesInMarquee(int trackIdx)
+{
+    std::vector<SelectedNote> out;
+    for (const auto& cn : classifyNotesInRect(trackIdx, marqueeRect))
+        out.push_back({ trackIdx, cn.note.startQN, cn.note.endQN, cn.note.pitch, cn.lane, cn.sustainOnly });
+    return out;
+}
+
 void EditController::handleContinueMarquee(const AuthoringPoint& p)
 {
     marqueeRect.update(snapQN(p.rawProjectQN), p.laneIndex, barModeFlag, isDrums());
     overlayState.marqueeVisible = true;
     overlayState.marqueeErase   = false;
     overlayState.marqueeRect    = marqueeRect;
+
+    // A toggle box previews its result as the selection itself, since tinting what is under
+    // the box would show the notes it is about to drop as selected.
+    marqueeDragged = true;
+    overlayState.marqueeTintsContents = !toggleSelecting;
+    if (toggleSelecting)
+    {
+        const int trackIdx = resolveTrackIdx();
+        if (trackIdx >= 0) selection = SelectionMath::toggle(toggleBase, notesInMarquee(trackIdx));
+        recomputeOverlay();
+    }
     if (onStateChanged) onStateChanged();
+}
+
+void EditController::commitToggleSelection(const AuthoringPoint& p)
+{
+    toggleSelecting = false;
+    overlayState.marqueeTintsContents = true;
+
+    const int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) { selection = toggleBase; notifyChanged(); return; }
+
+    if (marqueeDragged)
+    {
+        marqueeRect.update(snapQN(p.rawProjectQN), p.laneIndex, barModeFlag, isDrums());
+        selection = SelectionMath::toggle(toggleBase, notesInMarquee(trackIdx));
+        notifyChanged();
+        return;
+    }
+
+    // A plain shift-click: the note under it flips, and empty space leaves the selection be.
+    const auto& at = toggleDownPoint;
+    selection = toggleBase;
+    if (at.overExistingNote)
+    {
+        const int pitch = resolveActivePitch(at.laneIndex);
+        auto found = findNote(trackIdx, at.hitNoteStartQN, pitch);
+        if (found.noteIndex >= 0)
+        {
+            const bool sustainOnly = at.hitSustainBody
+                && GridMath::atLeast(found.endQN - found.startQN, double(MIDI_MIN_SUSTAIN_LENGTH));
+            selection = SelectionMath::toggle(toggleBase,
+                { { trackIdx, found.startQN, found.endQN, pitch, at.laneIndex, sustainOnly } });
+        }
+    }
+    notifyChanged();
 }
 
 void EditController::handleCommitMarquee(const AuthoringPoint& p)
 {
+    if (toggleSelecting) { commitToggleSelection(p); return; }
+
     int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
 

@@ -184,6 +184,8 @@ struct OverlayState
     // Marquee (select or erase) — highway-space coordinates
     bool        marqueeVisible = false;
     bool        marqueeErase   = false;
+    // Off for a shift (toggle) box, which shows its result through the selection instead.
+    bool        marqueeTintsContents = true;
     MarqueeRect marqueeRect;
     double      eraseClickedNoteQN    = -1.0;
     int         eraseClickedLane     = -1;

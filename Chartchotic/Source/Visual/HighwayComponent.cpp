@@ -296,7 +296,7 @@ void HighwayComponent::paint(juce::Graphics& g)
             }
 
             // Marquee preview tint: select = blue, erase = red
-            if (ov.marqueeVisible)
+            if (ov.marqueeVisible && ov.marqueeTintsContents)
             {
                 const auto& mr = ov.marqueeRect;
                 auto& targets = ov.marqueeErase

@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "AuthoringControllerBase.h"
+#include "SelectionMath.h"
 
 class EditController : public AuthoringControllerBase
 {
@@ -38,6 +39,8 @@ private:
     void handleSelectAt       (const AuthoringPoint& p);
     void handleContinueMarquee(const AuthoringPoint& p);
     void handleCommitMarquee  (const AuthoringPoint& p);
+    void commitToggleSelection(const AuthoringPoint& p);
+    std::vector<SelectedNote> notesInMarquee(int trackIdx);
     void handleContinueMove   (const AuthoringPoint& p);
     void handleCommitMove     (const AuthoringPoint& p);
     void handleDoubleClick    (const AuthoringPoint& p);
@@ -59,6 +62,13 @@ private:
     // Marquee state
     juce::Point<float> marqueeScreenStart;
     MarqueeRect marqueeRect;
+
+    // Shift-selection: the selection as it stood at the press, which the click or box flips
+    // against, and whether the press turned into a box.
+    bool toggleSelecting = false;
+    bool marqueeDragged = false;
+    std::vector<SelectedNote> toggleBase;
+    AuthoringPoint toggleDownPoint;
 
     // Move state
     juce::Point<float> moveScreenStart;

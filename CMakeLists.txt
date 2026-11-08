@@ -115,6 +115,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/WriteController.h
         Chartchotic/Source/Editor/CommandMapper.cpp
         Chartchotic/Source/Editor/CommandMapper.h
+        Chartchotic/Source/Editor/SelectionMath.h
         Chartchotic/Source/Editor/Shortcuts.cpp
         Chartchotic/Source/Editor/Shortcuts.h
         Chartchotic/Source/Editor/LaneMath.h
