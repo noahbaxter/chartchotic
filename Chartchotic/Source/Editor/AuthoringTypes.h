@@ -352,6 +352,10 @@ struct GridSection
 {
     double anchorQN = 0.0;
     double endQN    = std::numeric_limits<double>::infinity();
+    // One bar of the section's time signature, 0 when unknown. Every bar line is a snap point
+    // whatever the step: a 1/1 step is four beats, which in 3/4 or 7/8 walks off the bar lines,
+    // and the 1 of a bar is the one place a coarse grid most needs to reach.
+    double barQN    = 0.0;
 };
 
 inline double snapToStep(double rawQN, int stepDivision, int tuplet, GridSection section = {})
@@ -360,9 +364,19 @@ inline double snapToStep(double rawQN, int stepDivision, int tuplet, GridSection
     if (spacing <= 0.0)
         return rawQN;
 
-    const double lo = section.anchorQN + std::floor((rawQN - section.anchorQN) / spacing) * spacing;
-    const double hi = std::min(lo + spacing, section.endQN);
-    double snapped = (rawQN - lo < hi - rawQN) ? lo : hi;
+    auto nearestOn = [&](double step)
+    {
+        const double lo = section.anchorQN + std::floor((rawQN - section.anchorQN) / step) * step;
+        const double hi = std::min(lo + step, section.endQN);
+        return (rawQN - lo < hi - rawQN) ? lo : hi;
+    };
+
+    double snapped = nearestOn(spacing);
+    if (section.barQN > 0.0)
+    {
+        const double bar = nearestOn(section.barQN);
+        if (std::abs(rawQN - bar) < std::abs(rawQN - snapped)) snapped = bar;
+    }
 
     const double oneOver128 = 1.0 / 128.0;
     const double quantized  = std::round(snapped / oneOver128) * oneOver128;

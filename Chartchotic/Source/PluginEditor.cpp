@@ -50,12 +50,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     // agree after an odd-length bar.
     interactionController.setGridSectionSource([this](double qn) {
         const juce::ScopedLock lock(audioProcessor.getTempoLock());
-        const auto& map = audioProcessor.getTempoTimeSignatureMap();
-        GridSection section;
-        section.anchorQN = TempoTimeSignatureEventHelper::getLastTimeSigResetPosition(map, PPQ(qn)).toDouble();
-        if (auto end = TempoTimeSignatureEventHelper::getNextTimeSigResetPosition(map, PPQ(qn)))
-            section.endQN = end->toDouble();
-        return section;
+        return gridSectionFor(audioProcessor.getTempoTimeSignatureMap(), qn);
     });
 
     // Create scratch renderer for shared track image cache

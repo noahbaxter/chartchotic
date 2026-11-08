@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Midi/Utils/TimeConverter.h"
+#include "Editor/AuthoringUtils.h"
 
 // Simple identity ppqToTime for testing (PPQ value = time in seconds)
 static auto identityPPQToTime = [](double ppq) { return ppq; };
@@ -236,11 +237,7 @@ TEST_CASE("Gridline generator - multiple time sig changes", "[gridline]")
 
 static GridSection sectionAt(const TempoTimeSignatureMap& map, double qn)
 {
-    GridSection s;
-    s.anchorQN = TempoTimeSignatureEventHelper::getLastTimeSigResetPosition(map, PPQ(qn)).toDouble();
-    if (auto end = TempoTimeSignatureEventHelper::getNextTimeSigResetPosition(map, PPQ(qn)))
-        s.endQN = end->toDouble();
-    return s;
+    return gridSectionFor(map, qn);
 }
 
 TEST_CASE("Snap - a bar short by a 16th moves the grid after it", "[gridline][snap]")
@@ -291,4 +288,36 @@ TEST_CASE("Snap - a bar short by a 16th moves the grid after it", "[gridline][sn
         }
         REQUIRE(checked > 0);
     }
+}
+
+TEST_CASE("Snap - every bar line is reachable at any grid size", "[gridline][snap]")
+{
+    // 3/4, then 7/8 at 9, then 5/4 at 16. A 1/1 step is four beats, which lines up with none
+    // of these bars, so without the bar lines the 1 of most bars could not be reached.
+    TempoTimeSignatureMap map;
+    map[PPQ(0.0)]  = TempoTimeSignatureEvent(PPQ(0.0),  120.0, 3, 4, true);
+    map[PPQ(9.0)]  = TempoTimeSignatureEvent(PPQ(9.0),  120.0, 7, 8, true);
+    map[PPQ(16.0)] = TempoTimeSignatureEvent(PPQ(16.0), 120.0, 5, 4, true);
+
+    auto snap = [&](double qn, int div) { return snapToStep(qn, div, 0, sectionAt(map, qn)); };
+
+    auto gridlines = GridlineGenerator::generateGridlines(map, PPQ(0.0), PPQ(30.0), PPQ(0.0), identityPPQToTime);
+    int bars = 0;
+    for (const auto& gl : gridlines)
+    {
+        if (gl.type != Gridline::MEASURE) continue;
+        ++bars;
+        for (int div : { 1, 2 })
+        {
+            INFO("bar line " << gl.time << " at 1/" << div);
+            REQUIRE(snap(gl.time, div) == Catch::Approx(gl.time));
+            // And from either side, as a cursor actually arrives at it.
+            REQUIRE(snap(gl.time - 0.2, div) == Catch::Approx(gl.time));
+            REQUIRE(snap(gl.time + 0.2, div) == Catch::Approx(gl.time));
+        }
+    }
+    REQUIRE(bars >= 8);
+
+    // The regular grid is still there between bar lines: 1/1 in 3/4 still lands on beat 4.
+    REQUIRE(snap(4.1, 1) == Catch::Approx(4.0));
 }
