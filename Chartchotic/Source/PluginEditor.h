@@ -37,6 +37,7 @@
 #include "UI/PalettePicker.h"
 #include "Editor/AssetController.h"
 #include "Editor/Shortcuts.h"
+#include "Host/ReaperPlayRate.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
 #include "Editor/InteractionController.h"
@@ -583,6 +584,10 @@ private:
     // Audio monitor: rebuilt from the focused highway's chart a few times a second, or at once
     // when what it plays changes.
     void updateMonitor();
+
+    // REAPER's master playrate, driven by the toolbar's speed control.
+    ReaperPlayRate playRate { audioProcessor.getReaperMidiProvider().getAPIs() };
+    void updatePlaybackSpeed();
     juce::int64 lastMonitorBuildTicks = 0;
     juce::String lastMonitorKey;
 

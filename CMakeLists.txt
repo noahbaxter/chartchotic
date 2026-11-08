@@ -217,6 +217,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Host/ReaperIntegration.h
         Chartchotic/Source/Host/ReaperTrackDetector.cpp
         Chartchotic/Source/Host/ReaperTrackDetector.h
+        Chartchotic/Source/Host/PlayRateMath.h
+        Chartchotic/Source/Host/ReaperPlayRate.h
         Chartchotic/Source/Host/ReaperVST2Extensions.cpp
         Chartchotic/Source/Host/ReaperVST2Extensions.h
         Chartchotic/Source/Host/ReaperVST3Extensions.cpp

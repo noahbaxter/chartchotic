@@ -44,6 +44,7 @@ target_sources(unit_tests PRIVATE
     test_shortcuts.cpp
     test_gem_lookup.cpp
     test_note_speed.cpp
+    test_play_rate.cpp
     ${SOURCE_ROOT}/Editor/AuthoringConfig.cpp
     ${SOURCE_ROOT}/Editor/Shortcuts.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp

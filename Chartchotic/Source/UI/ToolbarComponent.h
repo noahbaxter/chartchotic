@@ -19,6 +19,7 @@
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
 #include "PartIcon.h"
+#include "../Host/PlayRateMath.h"
 
 class InteractionController;
 #ifdef DEBUG
@@ -59,6 +60,12 @@ public:
     void loadState();
     // The monitor pills follow their state flags, wherever those were flipped from.
     void syncMonitorToggles();
+
+    // The host's playback speed, which the editor reads back every frame so the control
+    // follows REAPER's own slider too. `available` hides the control outside REAPER.
+    void setPlaybackSpeed(double rate, bool keepPitch, bool pitchToggleKnown, bool available);
+    std::function<void(double rate)> onPlaybackSpeedChanged;
+    std::function<void()> onKeepPitchToggled;
     void updateVisibility();
     void setReaperMode(bool isReaper);
     bool isReaperModeActive() const { return reaperMode; }
@@ -215,6 +222,13 @@ private:
     // Audio monitor, on the strip itself so it is one click away while playing
     PillToggle monitorClickToggle{"Click"};
     PillToggle monitorNotesToggle{"Notes"};
+
+    // Playback speed: the button shows the rate and drops a panel to set it.
+    PopupMenuButton speedButton{"1x"};
+    juce::Slider speedSlider{ juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    PillToggle keepPitchToggle{"Keep pitch"};
+    PillToggle speedResetButton{"1x"};
+    void layoutSpeedPanel(juce::Component* panel);
 
     PillToggle autoHopoToggle{"Auto HOPO"};
     PillToggle dynamicsToggle{"Dynamics"};

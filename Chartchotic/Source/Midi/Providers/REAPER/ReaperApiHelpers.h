@@ -56,6 +56,14 @@ struct ReaperAPIs
     int (*CountSelectedMediaItems)(void* proj) = nullptr;
     void* (*GetSelectedMediaItem)(void* proj, int selitem) = nullptr;
 
+    // Master playrate, for the speed control. Preserve pitch has no API call of its own, only
+    // a native action, which is found by name through the action list.
+    double (*Master_GetPlayRate)(void* project) = nullptr;
+    void   (*CSurf_OnPlayRateChange)(double playrate) = nullptr;
+    int    (*GetToggleCommandState)(int command_id) = nullptr;
+    void*  (*SectionFromUniqueID)(int uniqueID) = nullptr;
+    int    (*kbd_enumerateActions)(void* section, int idx, const char** nameOut) = nullptr;
+
     // Playback state functions
     double (*GetPlayPosition2Ex)(void* proj) = nullptr;
     double (*GetCursorPositionEx)(void* proj) = nullptr;
@@ -263,6 +271,13 @@ public:
         outAPIs.IsMediaItemSelected = (bool(*)(void*))apiFunc("IsMediaItemSelected");
         outAPIs.CountSelectedMediaItems = (int(*)(void*))apiFunc("CountSelectedMediaItems");
         outAPIs.GetSelectedMediaItem = (void*(*)(void*, int))apiFunc("GetSelectedMediaItem");
+
+        // Master playrate (speed control)
+        outAPIs.Master_GetPlayRate = (double(*)(void*))apiFunc("Master_GetPlayRate");
+        outAPIs.CSurf_OnPlayRateChange = (void(*)(double))apiFunc("CSurf_OnPlayRateChange");
+        outAPIs.GetToggleCommandState = (int(*)(int))apiFunc("GetToggleCommandState");
+        outAPIs.SectionFromUniqueID = (void*(*)(int))apiFunc("SectionFromUniqueID");
+        outAPIs.kbd_enumerateActions = (int(*)(void*, int, const char**))apiFunc("kbd_enumerateActions");
 
         // Playback state
         outAPIs.GetPlayPosition2Ex = (double(*)(void*))apiFunc("GetPlayPosition2Ex");

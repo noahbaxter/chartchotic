@@ -21,6 +21,7 @@ ToolbarComponent::~ToolbarComponent()
     difficultySelector.dismissPanel();
     chartButton.dismissPanel();
     settingsButton.dismissPanel();
+    speedButton.dismissPanel();
 }
 
 //==============================================================================
@@ -44,6 +45,38 @@ void ToolbarComponent::initTopBar()
     monitorNotesToggle.onClick = [this]() { state.setProperty("monitorNotes", monitorNotesToggle.getToggleState(), nullptr); };
     addAndMakeVisible(monitorClickToggle);
     addAndMakeVisible(monitorNotesToggle);
+
+    // Playback speed. Skewed so 1x sits mid-track: the slow half is where detail work happens
+    // and would otherwise be squeezed into a quarter of the throw. Double-click returns to 1x.
+    speedButton.setTooltip("Playback speed (REAPER playrate). Tempo and markers are untouched");
+    speedSlider.setRange(PlayRateMath::kMin, PlayRateMath::kMax, PlayRateMath::kStep);
+    speedSlider.setSkewFactorFromMidPoint(1.0);
+    speedSlider.setDoubleClickReturnValue(true, 1.0);
+    speedSlider.setNumDecimalPlacesToDisplay(2);
+    speedSlider.setTextValueSuffix("x");
+    speedSlider.setValue(1.0, juce::dontSendNotification);
+    speedSlider.onValueChange = [this]()
+    {
+        if (onPlaybackSpeedChanged) onPlaybackSpeedChanged(speedSlider.getValue());
+    };
+    keepPitchToggle.setTooltip("Keep the audio's pitch when the speed changes (REAPER's preserve pitch option)");
+    // The pill flips itself on click, but what it shows after that is what REAPER reports:
+    // setPlaybackSpeed corrects it the next frame, so a toggle that did not take never sticks.
+    keepPitchToggle.onClick = [this]() { if (onKeepPitchToggled) onKeepPitchToggled(); };
+    speedResetButton.onClick = [this]()
+    {
+        // A button, not a toggle: it flips on click like any pill, so it is put back at once.
+        speedResetButton.setToggleState(false);
+        speedSlider.setValue(1.0, juce::sendNotificationSync);
+    };
+    speedButton.addPanelChild(&speedSlider);
+    speedButton.addPanelChild(&keepPitchToggle);
+    speedButton.addPanelChild(&speedResetButton);
+    speedButton.setPanelSize(240, 80);
+    speedButton.onLayoutPanel = [this](juce::Component* panel) { layoutSpeedPanel(panel); };
+    speedButton.setMenuGroup(&squareMenuGroup);
+    squareMenuGroup.add(&speedButton, [this]() { speedButton.dismissPanel(); });
+    addChildComponent(speedButton);
 
     initManualInstrumentSelector();
     addAndMakeVisible(instrumentSelector);
@@ -619,6 +652,15 @@ void ToolbarComponent::resized()
     rx -= (gap + pillW);
     monitorClickToggle.setBounds(rx, y, pillW, h);
 
+    if (speedButton.isVisible())
+    {
+        speedButton.setScale(scale);
+        speedButton.setPanelTopMargin(getHeight());
+        int speedW = juce::roundToInt(48.0f * scale);
+        rx -= (gap + speedW);
+        speedButton.setBounds(rx, y, speedW, h);
+    }
+
 #ifdef DEBUG
     // Debug (D) and Tuning (T) as small stacked squares
     debugPanel.getButton().setScale(scale);
@@ -654,6 +696,51 @@ void ToolbarComponent::resized()
 
 //==============================================================================
 // State
+
+void ToolbarComponent::setPlaybackSpeed(double rate, bool keepPitch, bool pitchToggleKnown, bool available)
+{
+    if (speedButton.isVisible() != available)
+    {
+        if (!available) speedButton.dismissPanel();
+        speedButton.setVisible(available);
+        resized();
+    }
+    if (!available) return;
+
+    // "1x", "0.5x", "1.25x": as many places as the rate needs, never trailing zeros.
+    auto label = juce::String(PlayRateMath::snap(rate), 2);
+    while (label.containsChar('.') && (label.endsWithChar('0') || label.endsWithChar('.')))
+        label = label.dropLastCharacters(1);
+    label += "x";
+    if (speedButton.getButtonText() != label) speedButton.setButtonText(label);
+
+    // Not while dragging, or the read-back would fight the thumb.
+    if (!speedSlider.isMouseButtonDown() && !PlayRateMath::same(speedSlider.getValue(), rate))
+        speedSlider.setValue(rate, juce::dontSendNotification);
+
+    keepPitchToggle.setVisible(pitchToggleKnown);
+    keepPitchToggle.setToggleState(keepPitch);
+}
+
+void ToolbarComponent::layoutSpeedPanel(juce::Component* panel)
+{
+    const float s = speedButton.getScale();
+    const int margin = juce::roundToInt(12.0f * s);
+    const int rowH = juce::roundToInt(24.0f * s);
+    const int gap = juce::roundToInt(8.0f * s);
+    const int w = panel->getWidth() - margin * 2;
+
+    speedSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, juce::roundToInt(52.0f * s), rowH);
+    speedSlider.setColour(juce::Slider::trackColourId, juce::Colour(Theme::textDim).withAlpha(0.6f));
+    speedSlider.setBounds(margin, margin, w, rowH);
+
+    const int y = margin + rowH + gap;
+    const int resetW = juce::roundToInt(40.0f * s);
+    speedResetButton.setBounds(margin + w - resetW, y, resetW, rowH);
+    keepPitchToggle.setBounds(margin, y, w - resetW - gap, rowH);
+
+    panel->setSize(panel->getWidth(), y + rowH + margin);
+}
 
 void ToolbarComponent::syncMonitorToggles()
 {

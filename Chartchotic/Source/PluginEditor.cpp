@@ -659,6 +659,20 @@ void ChartchoticAudioProcessorEditor::commitPartPins()
     repaint();
 }
 
+void ChartchoticAudioProcessorEditor::updatePlaybackSpeed()
+{
+    // Read back every frame rather than only after our own changes, so moving REAPER's own
+    // playrate slider, or its keep-pitch option, shows here too.
+    auto& provider = audioProcessor.getReaperMidiProvider();
+    const bool available = provider.isReaperApiAvailable() && playRate.available();
+    if (!available)
+    {
+        toolbar.setPlaybackSpeed(1.0, false, false, false);
+        return;
+    }
+    toolbar.setPlaybackSpeed(playRate.get(), playRate.preservesPitch(), playRate.hasPitchToggle(), true);
+}
+
 void ChartchoticAudioProcessorEditor::updateMonitor()
 {
     auto& monitor = audioProcessor.getMonitor();
@@ -854,6 +868,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
     }
 
     updateMonitor();
+    updatePlaybackSpeed();
 
     // Build frame data and push to each active highway slot
 #ifdef DEBUG
@@ -1143,6 +1158,9 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onExportChart = [this]() { showExportDialog(); };
     toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
     toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };
+
+    toolbar.onPlaybackSpeedChanged = [this](double rate) { playRate.set(rate); };
+    toolbar.onKeepPitchToggled     = [this]() { playRate.togglePreservePitch(); };
 
     toolbar.onNoteSpeedChanged = [this](int speed) {
         state.setProperty("noteSpeed", speed, nullptr);
