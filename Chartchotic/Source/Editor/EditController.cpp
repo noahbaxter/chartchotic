@@ -133,7 +133,8 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         handleSelectAt(p);
         dragMode = DragMode::Marquee;
         marqueeScreenStart = p.screenPos;
-        marqueeRect.begin(p.rawProjectQN, clickLane);
+        // Both edges snap, so starting a few pixels past a note still takes it in.
+        marqueeRect.begin(snapQN(p.rawProjectQN), clickLane);
     }
 }
 
@@ -273,7 +274,7 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
 
 void EditController::handleContinueMarquee(const AuthoringPoint& p)
 {
-    marqueeRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
+    marqueeRect.update(snapQN(p.rawProjectQN), p.laneIndex, barModeFlag, isDrums());
     overlayState.marqueeVisible = true;
     overlayState.marqueeErase   = false;
     overlayState.marqueeRect    = marqueeRect;
@@ -285,7 +286,7 @@ void EditController::handleCommitMarquee(const AuthoringPoint& p)
     int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
 
-    marqueeRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
+    marqueeRect.update(snapQN(p.rawProjectQN), p.laneIndex, barModeFlag, isDrums());
 
     selection.clear();
     for (const auto& cn : classifyNotesInRect(trackIdx, marqueeRect))

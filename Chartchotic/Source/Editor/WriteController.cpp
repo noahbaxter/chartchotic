@@ -278,7 +278,8 @@ void WriteController::beginStampCapture()
 
     stampCaptureActive   = true;
     stampCaptureTrackIdx = trackIdx;
-    stampCaptureRect.begin(lastPoint.rawProjectQN, lastPoint.laneIndex);
+    // Snapped like the edit marquee, so a capture that starts just past a note still takes it.
+    stampCaptureRect.begin(snapQN(lastPoint.rawProjectQN), lastPoint.laneIndex);
     overlayState.marqueeVisible = true;
     overlayState.marqueeErase   = false;
     overlayState.marqueeRect    = stampCaptureRect;
@@ -405,7 +406,7 @@ void WriteController::onPointerMove(const AuthoringPoint& p,
 
     if (stampCaptureActive && p.onHighway && p.laneIndex >= 0)
     {
-        stampCaptureRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
+        stampCaptureRect.update(snapQN(p.rawProjectQN), p.laneIndex, barModeFlag, isDrums());
         overlayState.marqueeRect = stampCaptureRect;
         if (onStateChanged) onStateChanged();
     }
