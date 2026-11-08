@@ -37,6 +37,14 @@ void ToolbarComponent::initTopBar()
     // Logo
     addAndMakeVisible(logo);
 
+    // Audio monitor. The editor reads these each frame, so the toolbar only records them.
+    monitorClickToggle.setTooltip("Metronome");
+    monitorNotesToggle.setTooltip("Play a sample for every note in the focused chart");
+    monitorClickToggle.onClick = [this]() { state.setProperty("monitorClick", monitorClickToggle.getToggleState(), nullptr); };
+    monitorNotesToggle.onClick = [this]() { state.setProperty("monitorNotes", monitorNotesToggle.getToggleState(), nullptr); };
+    addAndMakeVisible(monitorClickToggle);
+    addAndMakeVisible(monitorNotesToggle);
+
     initManualInstrumentSelector();
     addAndMakeVisible(instrumentSelector);
 
@@ -611,6 +619,12 @@ void ToolbarComponent::resized()
     rx -= (gap + btnW);
     chartButton.setBounds(rx, y, btnW, h);
 
+    int pillW = juce::roundToInt(44.0f * scale);
+    rx -= (gap + pillW);
+    monitorNotesToggle.setBounds(rx, y, pillW, h);
+    rx -= (gap + pillW);
+    monitorClickToggle.setBounds(rx, y, pillW, h);
+
 #ifdef DEBUG
     // Debug (D) and Tuning (T) as small stacked squares
     debugPanel.getButton().setScale(scale);
@@ -646,6 +660,12 @@ void ToolbarComponent::resized()
 
 //==============================================================================
 // State
+
+void ToolbarComponent::syncMonitorToggles()
+{
+    monitorClickToggle.setToggleState((bool)state.getProperty("monitorClick", false));
+    monitorNotesToggle.setToggleState((bool)state.getProperty("monitorNotes", false));
+}
 
 void ToolbarComponent::loadState()
 {
@@ -694,6 +714,7 @@ void ToolbarComponent::loadState()
 
     // Chart rules
     kick2xToggle.setToggleState(!state.hasProperty("kick2x") || (bool)state["kick2x"]);
+    syncMonitorToggles();
     dynamicsToggle.setToggleState(!state.hasProperty("dynamics") || (bool)state["dynamics"]);
     discoFlipToggle.setToggleState(!state.hasProperty("discoFlip") || (bool)state["discoFlip"]);
     trackDiscoveryToggle.setToggleState(!state.hasProperty("trackDiscovery") || (bool)state["trackDiscovery"]);

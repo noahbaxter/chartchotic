@@ -57,6 +57,8 @@ public:
     void resized() override;
 
     void loadState();
+    // The monitor pills follow their state flags, wherever those were flipped from.
+    void syncMonitorToggles();
     void updateVisibility();
     void setReaperMode(bool isReaper);
     bool isReaperModeActive() const { return reaperMode; }
@@ -201,6 +203,10 @@ private:
     // View panel: the layer list, then the chart rules it opens onto
 
     ViewMenuPanel viewMenu;
+
+    // Audio monitor, on the strip itself so it is one click away while playing
+    PillToggle monitorClickToggle{"Click"};
+    PillToggle monitorNotesToggle{"Notes"};
 
     PillToggle autoHopoToggle{"Auto HOPO"};
     PillToggle dynamicsToggle{"Dynamics"};

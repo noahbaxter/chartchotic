@@ -659,6 +659,64 @@ void ChartchoticAudioProcessorEditor::commitPartPins()
     repaint();
 }
 
+void ChartchoticAudioProcessorEditor::updateMonitor()
+{
+    auto& monitor = audioProcessor.getMonitor();
+    const bool clickOn = (bool)state.getProperty("monitorClick", false);
+    const bool notesOn = (bool)state.getProperty("monitorNotes", false);
+    monitor.setClickEnabled(clickOn);
+    monitor.setNotesEnabled(notesOn);
+    if (!clickOn && !notesOn) return;
+
+    auto* session = audioProcessor.getInstrumentSession();
+    if (session == nullptr || activeSlotCount <= 0) return;
+
+    const auto& slot = slots[effectiveFocusSlot()];
+    const bool kick2x = !state.hasProperty("kick2x") || (bool)state["kick2x"];
+    const bool proDrums = (DrumType)(int)state.getProperty("drumType") == DrumType::PRO;
+    const bool dynamics = (bool)state.getProperty("dynamics");
+
+    // A change in what plays rebuilds at once; edits to the chart are caught by the timer.
+    const juce::String key = juce::String((int)slot.part) + "/" + juce::String((int)slot.skillLevel)
+                           + "/" + juce::String((int)kick2x) + "/" + juce::String((int)proDrums)
+                           + "/" + juce::String((int)dynamics);
+    const juce::int64 now = juce::Time::getHighResolutionTicks();
+    const double elapsed = (now - lastMonitorBuildTicks)
+                         / (double)juce::Time::getHighResolutionTicksPerSecond();
+    if (key == lastMonitorKey && elapsed < 0.5) return;
+    lastMonitorKey = key;
+    lastMonitorBuildTicks = now;
+
+    auto built = std::make_shared<MonitorTriggers>();
+
+    const auto& tracks = session->getTracks();
+    for (int i = 0; i < (int)tracks.size(); ++i)
+    {
+        if (tracks[i].part != slot.part) continue;
+        const auto& notes = session->getNotes(i);
+        if (slot.part == Part::ELITE_DRUMS)
+            built->notes = MonitorTriggerBuilder::eliteDrums(notes, slot.skillLevel, kick2x, dynamics);
+        else if (isDrumLike(slot.part))
+            built->notes = MonitorTriggerBuilder::drums(notes, slot.skillLevel, kick2x, proDrums, dynamics);
+        else if (isGuitarLike(slot.part))
+            built->notes = MonitorTriggerBuilder::guitar(notes, slot.skillLevel);
+        break;
+    }
+
+    // The click runs to the end of the last chart, so it covers the whole project.
+    const auto& spans = session->getClipSpans();
+    const double endQN = spans.empty() ? 0.0 : spans.back().endQN;
+    // Copied out first, so the audio thread never waits on a whole project's worth of clicks.
+    TempoTimeSignatureMap tempoMap;
+    {
+        const juce::ScopedLock lock(audioProcessor.getTempoLock());
+        tempoMap = audioProcessor.getTempoTimeSignatureMap();
+    }
+    built->click = MonitorTriggerBuilder::metronome(tempoMap, 0.0, endQN);
+
+    monitor.publish(std::move(built));
+}
+
 void ChartchoticAudioProcessorEditor::onFrame()
 {
     if (targetFrameInterval > 0.0)
@@ -794,6 +852,8 @@ void ChartchoticAudioProcessorEditor::onFrame()
             }
         }
     }
+
+    updateMonitor();
 
     // Build frame data and push to each active highway slot
 #ifdef DEBUG

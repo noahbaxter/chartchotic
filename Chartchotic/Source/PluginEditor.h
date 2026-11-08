@@ -578,6 +578,12 @@ private:
     // Cache invalidation throttling (for REAPER MIDI edit detection while paused)
     juce::int64 lastCacheInvalidationTicks = 0;
 
+    // Audio monitor: rebuilt from the focused highway's chart a few times a second, or at once
+    // when what it plays changes.
+    void updateMonitor();
+    juce::int64 lastMonitorBuildTicks = 0;
+    juce::String lastMonitorKey;
+
     // Track info display (footer status bar)
     int lastDisplayedTrackNumber = -1;
     juce::String lastDisplayedTrackName;

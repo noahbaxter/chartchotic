@@ -15,6 +15,7 @@
 #include "Midi/Providers/REAPER/ReaperMidiProvider.h"
 #include "Midi/InstrumentSession.h"
 #include "Midi/Discovery/PartMapping.h"
+#include "Audio/MonitorPlayer.h"
 #include "DebugTools/Logger.h"
 
 // Forward declarations
@@ -152,7 +153,11 @@ public:
     // Timeline position control for scroll wheel seeking
     void requestTimelinePositionChange(PPQ newPosition);
 
+    // Metronome and note samples. Fed by the editor, played in processBlock.
+    MonitorPlayer& getMonitor() { return monitor; }
+
   private:
+    MonitorPlayer monitor;
     juce::ValueTree state;
     MidiProject midiProject;
     MidiProcessor midiProcessor;

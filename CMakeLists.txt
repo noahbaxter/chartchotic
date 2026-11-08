@@ -95,6 +95,10 @@ target_sources(Chartchotic
         Chartchotic/Source/PluginProcessor.h
         Chartchotic/Source/PluginEditor.cpp
         Chartchotic/Source/PluginEditor.h
+        # Audio monitor (metronome and note samples)
+        Chartchotic/Source/Audio/MonitorPlayer.cpp
+        Chartchotic/Source/Audio/MonitorPlayer.h
+        Chartchotic/Source/Audio/MonitorTriggers.h
         # Editor (PluginEditor delegates)
         Chartchotic/Source/Editor/AssetController.cpp
         Chartchotic/Source/Editor/AssetController.h
@@ -410,6 +414,20 @@ set(CHARTCHOTIC_ASSETS
         assets/static/hits/hit_open_5.png
         assets/static/hits/hit_open_6.png
         assets/static/hits/hit_open_7.png
+        # Monitor samples: metronome, guitar click, drum kit
+        assets/static/samples/bar.wav
+        assets/static/samples/quarter.wav
+        assets/static/samples/sixteenth.wav
+        assets/static/samples/KICK.wav
+        assets/static/samples/SNARE.wav
+        assets/static/samples/HAT.wav
+        assets/static/samples/HH_o.wav
+        assets/static/samples/TOM1.wav
+        assets/static/samples/TOM2.wav
+        assets/static/samples/TOM3.wav
+        assets/static/samples/CRASH2.wav
+        assets/static/samples/RIDE.wav
+        assets/static/samples/RIDE_BELL.wav
         # MIDI test files loaded from disk at runtime (see CHARTCHOTIC_MIDI_ASSET_DIR)
 )
 

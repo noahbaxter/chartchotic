@@ -181,6 +181,7 @@ void ChartchoticAudioProcessor::rediscoverParts()
 void ChartchoticAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     setLatencyInSeconds(latencyInSeconds);
+    monitor.prepare(sampleRate);
 }
 
 void ChartchoticAudioProcessor::releaseResources()
@@ -268,6 +269,13 @@ void ChartchoticAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, j
                                            getSampleRate());
         }
     }
+
+    // Tempo is taken as constant across the block. Where a tempo change inside the block makes
+    // that wrong, the monitor's fire window keeps one block's hits from repeating in the next.
+    const double bpm = positionInfo->getBpm().orFallback(120.0);
+    const double sampleRate = getSampleRate();
+    const double ppqPerSample = sampleRate > 0.0 ? bpm / 60.0 / sampleRate : 0.0;
+    monitor.render(buffer, playheadPositionInPPQ.toDouble(), ppqPerSample, isPlaying);
 }
 //==============================================
 // Stock JUCE

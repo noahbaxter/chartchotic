@@ -40,6 +40,7 @@ target_sources(unit_tests PRIVATE
     test_view_layers.cpp
     test_bar_ramps.cpp
     test_frame.cpp
+    test_monitor_triggers.cpp
     ${SOURCE_ROOT}/Editor/AuthoringConfig.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp
