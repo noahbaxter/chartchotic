@@ -1781,22 +1781,28 @@ void ChartchoticAudioProcessorEditor::resized()
 
 void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
-    // Convert note speed to highway time: 7.87 is the default highway length in world units,
-    // so at note speed N, notes take 7.87/N seconds to reach the strikeline.
     int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
+    const bool overview = isOverviewSpeed(noteSpeed);
 
     // Same formula for both modes; Bemani applies ratio so same speed value feels equivalent.
     // Flat viewport has no foreshortening, so it needs a longer time window to match
-    // the readable note density of perspective mode.
-    displayWindowTimeSeconds = 7.87 / (double)noteSpeed;
-    if (PositionMath::bemaniMode)
+    // the readable note density of perspective mode. An overview level is a fixed span, so it
+    // takes no ratio.
+    displayWindowTimeSeconds = noteSpeedWindowSeconds(noteSpeed);
+    if (PositionMath::bemaniMode && !overview)
         displayWindowTimeSeconds *= (double)NOTE_SPEED_BEMANI_RATIO;
 
     // PPQ window must cover the full visible highway (farFadeEnd * window time) at worst-case tempo.
-    // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ scaled by highway length.
+    // At 300 BPM, 1 second = 5 quarter notes. Base window of 30 PPQ, which every regular speed
+    // fits inside, grown for the overview spans, then scaled by highway length.
     const double BASE_PPQ_WINDOW = 30.0;
+    const double WORST_QN_PER_SECOND = 5.0;
     double hwScale = activeSlotCount == 0 ? 1.0 : std::max(1.0, (double)primaryHighway().getSceneRenderer().farFadeEnd);
-    displaySizeInPPQ = PPQ(BASE_PPQ_WINDOW * hwScale);
+    displaySizeInPPQ = PPQ(std::max(BASE_PPQ_WINDOW, displayWindowTimeSeconds * WORST_QN_PER_SECOND) * hwScale);
+
+    // Overview is for getting around: selection and stamps still work, drawing single notes
+    // waits until you zoom back in.
+    interactionController.setOverview(overview);
 
     // Sync the display size to the processor so processBlock can use it
     audioProcessor.setDisplayWindowSize(displaySizeInPPQ);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <iterator>
 #include <vector>
 #include "../Visual/Utils/DrawingConstants.h"
 
@@ -17,6 +19,31 @@ constexpr int NOTE_SPEED_BEMANI_MAX  = 30;
 constexpr int NOTE_SPEED_BEMANI_DEFAULT = 12;
 // Conversion factor: bemani flat viewport shows ~1.7x more readable area than perspective
 constexpr float NOTE_SPEED_BEMANI_RATIO = 12.0f / 7.0f;
+
+// Below NOTE_SPEED_MIN the stepper carries on into overview levels: a fixed stretch of chart,
+// with gems drawn as plain ticks and sections banded, for getting around rather than reading.
+// Speed 1 is the first level, 0 the next, and so on down to NOTE_SPEED_LOWEST.
+constexpr double NOTE_SPEED_OVERVIEW_SECONDS[] = { 8.0, 15.0, 30.0, 60.0 };
+constexpr int    NOTE_SPEED_OVERVIEW_LEVELS    = (int)std::size(NOTE_SPEED_OVERVIEW_SECONDS);
+constexpr int    NOTE_SPEED_LOWEST             = NOTE_SPEED_MIN - NOTE_SPEED_OVERVIEW_LEVELS;
+
+inline bool isOverviewSpeed(int speed) { return speed < NOTE_SPEED_MIN; }
+
+// Seconds of chart on screen at this speed, before the bemani ratio. 7.87 is the default
+// highway length in world units, so at speed N notes take 7.87/N seconds to reach the strikeline.
+inline double noteSpeedWindowSeconds(int speed)
+{
+    if (!isOverviewSpeed(speed)) return 7.87 / (double)speed;
+    const int level = std::clamp(NOTE_SPEED_MIN - 1 - speed, 0, NOTE_SPEED_OVERVIEW_LEVELS - 1);
+    return NOTE_SPEED_OVERVIEW_SECONDS[level];
+}
+
+// The stepper shows a speed as its number and an overview level as the span it shows.
+inline juce::String noteSpeedLabel(int speed)
+{
+    if (!isOverviewSpeed(speed)) return juce::String(speed);
+    return juce::String((int)noteSpeedWindowSeconds(speed)) + "s";
+}
 
 // Gem Scale (continuous %)
 constexpr int GEM_SCALE_MIN_PCT     = 20;

@@ -207,6 +207,11 @@ void WriteController::recomputeGhost()
                     sn.lane, sn.qnOffset, sn.duration,
                     resolveCapturedWrapper(sn.lane, sn.velocity, sn.markerMask, qn + sn.qnOffset) });
         }
+        else if (overviewFlag)
+        {
+            // Nothing to preview: a click here places nothing.
+            overlayState.ghostVisible = false;
+        }
         else if (altKickArmed)
         {
             // A shift-drag from here lays an alternating roll that always opens
@@ -1446,6 +1451,15 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
     if (trackIdx < 0) return;
 
     auto cmd = commandMapper.resolve(currentSubMode, EventType::Down, ctx);
+
+    // In an overview the notes are ticks, too small to aim a single note or a lane at. A stamp
+    // still lands, since it is placed as a whole, and erasing still works.
+    if (overviewFlag)
+    {
+        if (laneToolFlag) return;
+        const bool places = cmd == WriteCommand::BeginSustain || cmd == WriteCommand::BeginPaint;
+        if (places && stamp.empty()) return;
+    }
 
     // The lane tool writes a range on the track rather than a note in a lane, so it takes the
     // gesture before anything resolves a pitch to place. Right removes the lane under the

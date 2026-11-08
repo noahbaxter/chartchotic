@@ -157,6 +157,8 @@ void HighwayComponent::paint(juce::Graphics& g)
     if (overflow > 0)
         g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
 
+    paintOverviewSections(g, w, h);
+
     // Ghost cursor: set before paint so it renders through the note pipeline.
     sceneRenderer.ghostCursor.visible = false;
     sceneRenderer.ghostCursor.positionLabel = {};
@@ -772,6 +774,69 @@ void HighwayComponent::paint(juce::Graphics& g)
             g.drawImage(*discoBall, dest);
             g.setOpacity(1.0f);
         }
+    }
+}
+
+void HighwayComponent::paintOverviewSections(juce::Graphics& g, int w, int h)
+{
+    if (!isOverviewSpeed(state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT))
+        return;
+
+    std::vector<const TimeBasedEventMarker*> sections;
+    for (const auto& m : frameData.eventMarkers)
+        if (m.kind == GateKind::Section) sections.push_back(&m);
+    if (sections.empty()) return;
+    std::sort(sections.begin(), sections.end(),
+              [](const auto* a, const auto* b) { return a->time < b->time; });
+
+    const double span = frameData.windowEndTime - frameData.windowStartTime;
+    if (span <= 1e-9) return;
+    const float posStart = PositionConstants::HIGHWAY_POS_START;
+    const float posEnd   = sceneRenderer.farFadeEnd;
+    const auto renderType = getRenderType(activePart);
+    auto toPos = [&](double t) { return (float)((t - frameData.windowStartTime) / span); };
+    auto edgeAt = [&](float pos)
+    {
+        return PositionMath::getFretboardEdge(renderType, pos, (uint)w, (uint)h, posStart, posEnd);
+    };
+
+    g.setFont(Theme::getUIFont(13.0f));
+    for (size_t i = 0; i < sections.size(); ++i)
+    {
+        const float p0 = std::max(posStart, toPos(sections[i]->time));
+        const float p1 = std::min(posEnd, i + 1 < sections.size() ? toPos(sections[i + 1]->time) : posEnd);
+        if (p1 <= p0) continue;
+
+        // Every other section takes a wash, so where one ends and the next starts reads at a
+        // glance even with the gems down to ticks. Traced through a few rows so the band follows
+        // the board's perspective rather than cutting a straight trapezoid across it.
+        if (i % 2 == 0)
+        {
+            juce::Path band;
+            constexpr int steps = 8;
+            for (int s = 0; s <= steps; ++s)
+            {
+                const auto e = edgeAt(p0 + (p1 - p0) * (float)s / steps);
+                if (s == 0) band.startNewSubPath(e.leftX, e.centerY);
+                else        band.lineTo(e.leftX, e.centerY);
+            }
+            for (int s = steps; s >= 0; --s)
+            {
+                const auto e = edgeAt(p0 + (p1 - p0) * (float)s / steps);
+                band.lineTo(e.rightX, e.centerY);
+            }
+            band.closeSubPath();
+            g.setColour(juce::Colours::white.withAlpha(0.09f));
+            g.fillPath(band);
+        }
+
+        // The name sits where the section starts, or at the bottom of the board for the one
+        // already under way.
+        const auto e = edgeAt(p0);
+        g.setColour(juce::Colours::white.withAlpha(0.85f));
+        g.drawText(sections[i]->label, juce::Rectangle<float>(e.leftX + 4.0f, e.centerY - 16.0f,
+                                                              std::max(10.0f, e.rightX - e.leftX - 8.0f), 15.0f),
+                   juce::Justification::bottomLeft, true);
     }
 }
 

@@ -178,6 +178,9 @@ public:
     void setGlobalPhraseGetter(GlobalPhraseGetter g) { globalPhraseGetter = std::move(g); }
 
 private:
+    // Overview levels only: alternating bands per section, each named where it starts.
+    void paintOverviewSections(juce::Graphics& g, int w, int h);
+
     bool writeModeOn = false;
     bool barModeOn = false;
     bool showActivationOn = DEFAULT_SHOW_ACTIVATION;

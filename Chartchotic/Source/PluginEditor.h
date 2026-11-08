@@ -133,11 +133,9 @@ public:
         {
             double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
             int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
-            noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + (wheelDelta > 0 ? 1 : -1));
+            toolbar.setNoteSpeed(noteSpeed + (wheelDelta > 0 ? 1 : -1));
+            noteSpeed = toolbar.getNoteSpeed();
             state.setProperty("noteSpeed", noteSpeed, nullptr);
-            toolbar.getNoteSpeedStepper().setDisplayValue(noteSpeed);
-            toolbar.getNoteSpeedStepper().setAtMin(noteSpeed <= NOTE_SPEED_MIN);
-            toolbar.getNoteSpeedStepper().setAtMax(noteSpeed >= NOTE_SPEED_MAX);
             if (toolbar.onNoteSpeedChanged) toolbar.onNoteSpeedChanged(noteSpeed);
             return;
         }

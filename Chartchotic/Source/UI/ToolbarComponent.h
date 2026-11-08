@@ -159,8 +159,16 @@ public:
         highwayLengthStepper.setDisplayValue(highwayLengthPct);
     }
 
-    // Expose for scroll-wheel handling in editor
-    ValueStepper& getNoteSpeedStepper() { return noteSpeedStepper; }
+    // Clamps to the full range, overview levels included, and updates the stepper. Does not
+    // fire onNoteSpeedChanged, so the caller decides whether anything else needs to hear it.
+    void setNoteSpeed(int speed)
+    {
+        noteSpeed = juce::jlimit(NOTE_SPEED_LOWEST, NOTE_SPEED_MAX, speed);
+        noteSpeedStepper.setDisplayValue(noteSpeedLabel(noteSpeed));
+        noteSpeedStepper.setAtMin(noteSpeed <= NOTE_SPEED_LOWEST);
+        noteSpeedStepper.setAtMax(noteSpeed >= NOTE_SPEED_MAX);
+    }
+    int getNoteSpeed() const { return noteSpeed; }
     ChartchoticLogo& getLogo() { return logo; }
     WriteSubToolbar& getWriteSubToolbar() { return writeSubToolbar; }
 

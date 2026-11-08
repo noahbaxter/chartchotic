@@ -151,6 +151,16 @@ private:
 
     SharedFrameContext buildFrameContext(float position);
     void drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime);
+
+    // Overview levels draw each gem as a flat tick in its lane's colour. A long window holds
+    // far more notes than the art path is built to blit, and at that size the art reads as
+    // noise anyway; the tick keeps lane, colour, selection and the hit box.
+    bool overviewMode = false;
+    void drawNoteRowOverview(const TimeBasedTrackFrame& gems, float position, double frameTime);
+    bool isOverviewBar(uint column, const GemWrapper& gw) const;
+    juce::Rectangle<float> overviewTickRect(uint column, const GemWrapper& gw, float position) const;
+    static void pushOverviewTick(DrawCallMap& map, DrawOrder order, uint column,
+                                 juce::Rectangle<float> tick, juce::Colour colour);
     void appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                           double frameTime, const SharedFrameContext& ctx,
                           Render::Frame& outFrame,

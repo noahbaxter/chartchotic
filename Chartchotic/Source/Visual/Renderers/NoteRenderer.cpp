@@ -14,6 +14,7 @@
 #include "../Geometry/RenderTypeConfig.h"
 #include "../../Editor/AuthoringTypes.h"
 #include "../../Midi/Utils/InstrumentMapper.h"
+#include "../../UI/ControlConstants.h"
 
 namespace
 {
@@ -187,6 +188,7 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
                             float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
     hitBoxes.clear();
+    overviewMode = isOverviewSpeed(state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT);
     GemLookup::sort(selectedGems);
     GemLookup::sort(eraseTargets);
     GemLookup::sort(highlightedGems);
@@ -240,6 +242,29 @@ void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float positio
                                 juce::Image* image, float opacity, const GemWrapper& gem,
                                 bool selected)
 {
+    if (overviewMode)
+    {
+        // Stamp and move previews as ticks too, so they line up with what they stand for.
+        const bool kickFlam = gem.flam && isDrumLike(activePart) && isDrumKick((uint)lane, activePart);
+        auto ghostTick = [&](uint column)
+        {
+            auto colour = selected ? AuthoringColours::selectTint.withAlpha(1.0f)
+                                   : assetManager.getNoteColour(column, activePart, gem.gem, false);
+            pushOverviewTick(drawCallMap, DrawOrder::OVERLAY, column, overviewTickRect(column, gem, position),
+                             colour.withMultipliedAlpha(opacity));
+        };
+        if (kickFlam)
+        {
+            ghostTick((uint)DRUM_KICK_COLUMN);
+            ghostTick(activePart == Part::ELITE_DRUMS ? (uint)ELITE_KICK_2X_COLUMN : (uint)DRUM_KICK_2X_COLUMN);
+        }
+        else
+        {
+            ghostTick((uint)lane);
+        }
+        return;
+    }
+
     auto ctx = buildFrameContext(position);
     ghostPass = true;
 
@@ -276,8 +301,96 @@ void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float positio
         Render::drawFrame(frame, ctx.anchor, ctx.frameScale, drawCallMap);
 }
 
+bool NoteRenderer::isOverviewBar(uint column, const GemWrapper& gw) const
+{
+    const bool pedalBar = activePart == Part::ELITE_DRUMS && (gw.gem == Gem::STOMP || gw.gem == Gem::SPLASH);
+    return pedalBar || isBarNote(column, isDrumLike(activePart) ? activePart : Part::GUITAR);
+}
+
+juce::Rectangle<float> NoteRenderer::overviewTickRect(uint column, const GemWrapper& gw, float position) const
+{
+    // Screen-space edges of one lane at this row, the same projection a full gem uses.
+    auto laneEdge = [&](uint c)
+    {
+        const uint laneIdx = resolveLaneIndex(c);
+        return getColumnEdge(position, laneCoords[laneIdx], 1.0f, PositionConstants::FRETBOARD_SCALE,
+                             PositionMath::bemaniMode ? (int)laneIdx - 1 : -1);
+    };
+
+    const bool barNote = isOverviewBar(column, gw);
+    float left, right, centerY;
+    if (activePart == Part::ELITE_DRUMS && (gw.gem == Gem::STOMP || gw.gem == Gem::SPLASH))
+    {
+        // Spans snare to left crash, as the full art does.
+        const auto l = laneEdge(1), r = laneEdge(3);
+        left = l.leftX; right = r.rightX; centerY = l.centerY;
+    }
+    else if (barNote)
+    {
+        const auto fb = PositionMath::getFretboardEdge(getRenderType(activePart), position, width, height,
+                                                       HIGHWAY_POS_START, posEnd);
+        left = fb.leftX; right = fb.rightX; centerY = fb.centerY;
+    }
+    else
+    {
+        const auto e = laneEdge(column);
+        left = e.leftX; right = e.rightX; centerY = e.centerY;
+    }
+
+    // Thin enough that a dense run stays separate ticks, thick enough to see far back.
+    const float laneWidth = right - left;
+    const float inset = barNote ? 0.0f : laneWidth * 0.08f;
+    const float tickH = std::max(1.5f, barNote ? laneWidth * 0.012f : laneWidth * 0.16f);
+    return { left + inset, centerY - tickH * 0.5f, laneWidth - inset * 2.0f, tickH };
+}
+
+void NoteRenderer::pushOverviewTick(DrawCallMap& map, DrawOrder order, uint column,
+                                    juce::Rectangle<float> tick, juce::Colour colour)
+{
+    map[(int)order][juce::jlimit(0, MAX_DRAW_COLUMNS - 1, (int)column)].push_back([tick, colour](juce::Graphics& g)
+    {
+        g.setColour(colour);
+        g.fillRect(tick);
+    });
+}
+
+void NoteRenderer::drawNoteRowOverview(const TimeBasedTrackFrame& gems, float position, double frameTime)
+{
+    const bool starPowerActive = state.getProperty("starPower");
+    const float baseOpacity = calculateOpacity(position);
+
+    for (uint col = 0; col < (uint)gems.size(); ++col)
+    {
+        const auto& gw = gems[col];
+        if (gw.gem == Gem::NONE) continue;
+
+        const bool barNote = isOverviewBar(col, gw);
+        if (frameTime < (barNote ? cachedBarClipTime : cachedNoteClipTime)) continue;
+        if (barNote ? !showBars : !showGems) continue;
+
+        const auto tick = overviewTickRect(col, gw, position);
+
+        float opacity = baseOpacity;
+        if (!barNote && barModeDim < 1.0f) opacity *= barModeDim;
+        if (phraseDim < 1.0f && !gw.activation && !isHighlighted((int)col, frameTime)) opacity *= phraseDim;
+
+        juce::Colour colour = assetManager.getNoteColour(col, activePart, gw.gem, starPowerActive && gw.starPower);
+        if (GemLookup::contains(selectedGems, (int)col, frameTime))      colour = AuthoringColours::selectTint.withAlpha(1.0f);
+        else if (GemLookup::contains(eraseTargets, (int)col, frameTime)) colour = AuthoringColours::eraseTint.withAlpha(1.0f);
+        pushOverviewTick(*currentDrawCallMap, barNote ? DrawOrder::BAR : DrawOrder::NOTE, col, tick,
+                         colour.withMultipliedAlpha(opacity));
+
+        // A tick is a few pixels tall; the box is padded so it can still be clicked.
+        if (!ghostPass)
+            hitBoxes.push_back({ (int)col, frameTime, tick.withSizeKeepingCentre(tick.getWidth(),
+                                                                         std::max(tick.getHeight(), 8.0f)) });
+    }
+}
+
 void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime)
 {
+    if (overviewMode) { drawNoteRowOverview(gems, position, frameTime); return; }
+
     auto ctx = buildFrameContext(position);
 
     Render::Frame composite;

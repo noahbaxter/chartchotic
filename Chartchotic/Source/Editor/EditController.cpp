@@ -196,7 +196,8 @@ void EditController::onPointerDoubleClick(const AuthoringPoint& p, const Authori
     doubleClickConsumed = true;
     pendingSelect = false;
     auto cmd = commandMapper.resolve(SubMode::Edit, EventType::DoubleClick, ctx);
-    if (cmd == WriteCommand::DoubleClick)
+    // A double-click toggles a single note, which an overview is too coarse to aim.
+    if (cmd == WriteCommand::DoubleClick && !overviewFlag)
         handleDoubleClick(p);
 }
 

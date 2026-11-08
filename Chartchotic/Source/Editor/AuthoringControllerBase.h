@@ -27,6 +27,9 @@ public:
     void setPlayingStatePtr(const bool* p)         { playingStatePtr = p; }
     void setPatchBuffer(OptimisticPatchBuffer* b)   { patchBuffer = b; }
     void setGridSectionSource(std::function<GridSection(double)> f) { gridSectionSource = std::move(f); }
+    // Zoomed out to an overview level: notes are ticks too small to aim at, so nothing that
+    // places a single note runs. Selecting, stamping, moving and deleting still do.
+    void setOverview(bool on)                      { overviewFlag = on; }
     void setActivePart(Part p)                     { currentActivePart = p; }
     void setActiveSkill(SkillLevel s)              { currentActiveSkill = s; }
     void setStepDivision(int d)                    { currentStepDivision = d; }
@@ -713,6 +716,7 @@ protected:
     InstrumentSession*      instrumentSession    = nullptr;
     const bool*             playingStatePtr      = nullptr;
     std::function<GridSection(double)> gridSectionSource;
+    bool                    overviewFlag         = false;
     Part                    currentActivePart    = Part::GUITAR;
     SkillLevel              currentActiveSkill   = SkillLevel::EXPERT;
     int                     currentStepDivision  = 8;

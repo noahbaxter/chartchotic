@@ -16,6 +16,13 @@ public:
         editController.setGridSectionSource(f);
     }
 
+    void setOverview(bool on)
+    {
+        writeController.setOverview(on);
+        editController.setOverview(on);
+        writeController.stateDidChange();
+    }
+
     void onFrame(MidiWriter* writer, InstrumentSession* session,
                  const bool* playingState, Part activePart, SkillLevel activeSkill,
                  double currentProjectQN);

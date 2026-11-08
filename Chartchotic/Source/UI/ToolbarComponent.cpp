@@ -79,21 +79,15 @@ void ToolbarComponent::initTopBar()
     addAndMakeVisible(difficultySelector);
 
     // Note Speed stepper (no label — tooltip on hover)
-    noteSpeedStepper.setDisplayValue(noteSpeed);
+    noteSpeedStepper.setDisplayValue(noteSpeedLabel(noteSpeed));
     noteSpeedStepper.setLabelRatio(0.0f);
-    noteSpeedStepper.setTooltip("Note Speed");
+    noteSpeedStepper.setTooltip("Note Speed. Below 2 it steps out to overviews of 8 to 60 seconds");
     noteSpeedStepper.onStep = [this](int delta) {
-        noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + delta);
-        noteSpeedStepper.setDisplayValue(noteSpeed);
-        noteSpeedStepper.setAtMin(noteSpeed <= NOTE_SPEED_MIN);
-        noteSpeedStepper.setAtMax(noteSpeed >= NOTE_SPEED_MAX);
+        setNoteSpeed(noteSpeed + delta);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     noteSpeedStepper.onValueEdited = [this](const juce::String& text) {
-        noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, text.getIntValue());
-        noteSpeedStepper.setDisplayValue(noteSpeed);
-        noteSpeedStepper.setAtMin(noteSpeed <= NOTE_SPEED_MIN);
-        noteSpeedStepper.setAtMax(noteSpeed >= NOTE_SPEED_MAX);
+        setNoteSpeed(text.getIntValue());
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     addAndMakeVisible(noteSpeedStepper);
@@ -691,10 +685,7 @@ void ToolbarComponent::loadState()
     }
 
     // Note speed
-    noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
-    noteSpeedStepper.setDisplayValue(noteSpeed);
-    noteSpeedStepper.setAtMin(noteSpeed <= NOTE_SPEED_MIN);
-    noteSpeedStepper.setAtMax(noteSpeed >= NOTE_SPEED_MAX);
+    setNoteSpeed(state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT);
 
     // Drum type → cymbals toggle (Pro = 2 = on)
     int drumType = (int)state["drumType"];
