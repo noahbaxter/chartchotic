@@ -1880,7 +1880,9 @@ void WriteController::paintShrinkTo(double lo, double hi)
 void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx,
                                        [[maybe_unused]] int pitch, [[maybe_unused]] bool drums)
 {
-    if (!stamp.empty()) clearStamp();
+    // With a stamp up, right-click only puts the stamp away. Erasing on the same click killed
+    // whatever note happened to sit under the cursor.
+    if (!stamp.empty()) { clearStamp(); return; }
     eraseDragActive   = true;
     eraseDragTrackIdx = trackIdx;
     eraseRect.begin(p.rawProjectQN, p.laneIndex);
