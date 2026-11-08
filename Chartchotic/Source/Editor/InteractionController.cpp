@@ -210,8 +210,7 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
 
     int code = key.getKeyCode();
 
-    if (code == 'C' && !key.getModifiers().isCommandDown()
-        && writeController.writeModeActive())
+    if (cmd == WriteCommand::CaptureStamp)
     {
         if (!isEditActive())
         {

@@ -36,6 +36,7 @@
 #include "Export/ChartSettings.h"
 #include "UI/PalettePicker.h"
 #include "Editor/AssetController.h"
+#include "Editor/Shortcuts.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
 #include "Editor/InteractionController.h"
@@ -66,30 +67,26 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
-        // Ahead of the write-mode keys: the strip is editor chrome, not an authoring tool,
-        // so it toggles whether or not write mode is on.
-        if (!key.getModifiers().isAnyModifierKeyDown())
+        // Ahead of the write-mode keys: the strip and the monitor are editor chrome, not
+        // authoring tools, so they work whether or not write mode is on.
+        switch (Shortcuts::get().resolve(interactionController.writeModeActive(), key))
         {
-            if (key.getKeyCode() == 'U') { toggleUtilityStrip(); return true; }
-            if (key.getKeyCode() == 'M' && utilityStripVisible)
-            {
+            case WriteCommand::ToggleUtilityStrip: toggleUtilityStrip(); return true;
+            case WriteCommand::ToggleStripZoom:
+                if (!utilityStripVisible) break;
                 utilityStrip.toggleZoom();
                 return true;
-            }
-
-            // Next to the view toggle because they are the same kind of thing: getting
-            // around the project rather than editing it. Brackets would have been the
-            // obvious pair, but write mode owns those for the step division.
-            if (key.getKeyCode() == ',' && utilityStripVisible)
-            {
+            case WriteCommand::PreviousChart:
+                if (!utilityStripVisible) break;
                 utilityStrip.gotoAdjacentChart(-1);
                 return true;
-            }
-            if (key.getKeyCode() == '.' && utilityStripVisible)
-            {
+            case WriteCommand::NextChart:
+                if (!utilityStripVisible) break;
                 utilityStrip.gotoAdjacentChart(1);
                 return true;
-            }
+            case WriteCommand::ToggleMonitorClick: toggleStateFlag("monitorClick"); return true;
+            case WriteCommand::ToggleMonitorNotes: toggleStateFlag("monitorNotes"); return true;
+            default: break;
         }
 
         if (interactionController.onKeyPress(key))
@@ -190,6 +187,13 @@ public:
             { apis.Main_OnCommand(40026, 0); return true; }
 
         return false;
+    }
+
+    // The monitor pills own these flags; a shortcut flips the flag and the pill follows.
+    void toggleStateFlag(const juce::Identifier& name)
+    {
+        state.setProperty(name, !(bool)state.getProperty(name, false), nullptr);
+        toolbar.syncMonitorToggles();
     }
 
 private:

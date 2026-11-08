@@ -294,6 +294,14 @@ enum class WriteCommand {
     DeleteSelection,
     DeselectAll,
     ToggleBarMode,
+    CaptureStamp,
+    // Editor-wide, handled by the editor rather than the authoring controllers
+    ToggleUtilityStrip,
+    ToggleStripZoom,
+    PreviousChart,
+    NextChart,
+    ToggleMonitorClick,
+    ToggleMonitorNotes,
 };
 
 enum class SubMode { Draw, Edit };

@@ -12,14 +12,6 @@ struct Binding
     WriteCommand  command;
 };
 
-struct KeyBinding
-{
-    int           keyCode;
-    ModifierFlags modifiers;
-    bool          requiresWriteMode;
-    WriteCommand  command;
-};
-
 class CommandMapper
 {
 public:
@@ -28,14 +20,13 @@ public:
     WriteCommand resolve(SubMode mode, EventType event,
                          const AuthoringContext& ctx) const;
 
+    // Keys come from the user-editable table in Shortcuts.
     WriteCommand resolveKey(bool writeModeActive,
                             const juce::KeyPress& key) const;
 
 private:
-    std::vector<Binding>    bindings;
-    std::vector<KeyBinding> keyBindings;
+    std::vector<Binding> bindings;
 
     static MouseButton   buttonFromContext(const AuthoringContext& ctx);
     static ModifierFlags modifiersFromContext(const AuthoringContext& ctx);
-    static ModifierFlags modifiersFromKeyPress(const juce::KeyPress& key);
 };
