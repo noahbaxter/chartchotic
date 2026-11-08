@@ -39,7 +39,10 @@ void AnimationRenderer::triggerAnimationForColumn(uint gemColumn, Gem gemType, b
     uint kick2xColumn = (activePart == Part::ELITE_DRUMS) ? (uint)ELITE_KICK_2X_COLUMN
                                                           : (uint)DRUM_KICK_2X_COLUMN;
     bool is2xKick = isDrums && gemColumn == kick2xColumn;
-    animationManager.triggerHit(gemColumn, activePart, is2xKick, gemType, starPower);
+    // White only when the gem itself is drawn white: in a star power phrase AND with star
+    // power shown. Taking the phrase flag alone flashed white over gems drawn in lane colour.
+    const bool spShown = starPower && (bool)state.getProperty("starPower");
+    animationManager.triggerHit(gemColumn, activePart, is2xKick, gemType, spShown);
 }
 
 //==============================================================================
