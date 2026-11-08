@@ -335,6 +335,7 @@ void AssetManager::rescaleForWidth(int viewportWidth)
     // Flare tints derive from the (now rescaled) smoke master — drop them so they
     // regenerate at the new scale on next use.
     flareTintCache.clear();
+    hitFrameTintCache.clear();
 
     lastScaledWidth = viewportWidth;
 }
@@ -478,6 +479,18 @@ juce::Image* AssetManager::flareTinted(juce::Colour colour)
     auto it = flareTintCache.find(key);
     if (it == flareTintCache.end())
         it = flareTintCache.emplace(key, tintFlare(hitFlareWhite, colour)).first;
+    return &it->second;
+}
+
+juce::Image* AssetManager::getHitAnimationFrameTinted(int frameNumber, juce::Colour tint)
+{
+    auto* master = getHitAnimationFrame(frameNumber);
+    if (master == nullptr) return nullptr;
+
+    const auto key = std::make_pair(frameNumber, tint.getARGB());
+    auto it = hitFrameTintCache.find(key);
+    if (it == hitFrameTintCache.end())
+        it = hitFrameTintCache.emplace(key, tintFlare(*master, tint)).first;
     return &it->second;
 }
 

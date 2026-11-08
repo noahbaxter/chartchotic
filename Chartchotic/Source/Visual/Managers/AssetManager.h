@@ -200,6 +200,10 @@ public:
         if (frameNumber >= 1 && frameNumber <= 5) return &hitAnimationFrames[frameNumber - 1];
         return nullptr;
     }
+    // The same frame tinted like the flare. The frames are white glow art, and once the
+    // coloured flare drops out after its first frames they were all that was left, so every
+    // hit trailed off white. Cached per frame and colour.
+    juce::Image* getHitAnimationFrameTinted(int frameNumber, juce::Colour tint);
     // Star-power flare is the untinted greyscale "smoke" master itself.
     juce::Image* getHitFlareWhiteImage() { return &hitFlareWhite; }
     // Guitar tap flare — the shared purple.
@@ -352,6 +356,7 @@ private:
     // rescale. Keyed by the lane colour's ARGB so any colour (preset or custom)
     // is handled with no per-lane asset.
     std::map<juce::uint32, juce::Image> flareTintCache;
+    std::map<std::pair<int, juce::uint32>, juce::Image> hitFrameTintCache;
     juce::Image* flareTinted(juce::Colour colour);
     juce::Image kickAnimationFrames[7];  // hit_kick_1.png through hit_kick_7.png
     juce::Image openAnimationFrames[7];  // hit_open_1.png through hit_open_7.png

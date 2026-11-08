@@ -282,11 +282,19 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
 
-    auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
-
     // Use white flare for SP, purple for tap, otherwise colored
     bool useWhite = (anim.starPower && hitTypeConfig.spWhiteFlare);
     bool usePurple = (isGuitar && anim.gemType == Gem::TAP_ACCENT && hitTypeConfig.tapPurpleFlare);
+
+    // The first frames sit under the flare, which carries the colour. Past it the flash frame
+    // is all that is left, so it takes the flare's colour itself rather than trailing off white.
+    auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
+    if (!useWhite && anim.currentFrame > HIT_FLARE_MAX_FRAME)
+    {
+        const auto trail = usePurple ? LaneColours::bright(LaneColours::purple)
+                                     : assetManager.getNoteColour(anim.lane, activePart, anim.gemType, false);
+        hitFrame = assetManager.getHitAnimationFrameTinted(anim.currentFrame, trail);
+    }
     auto flareImage = useWhite
         ? assetManager.getHitFlareWhiteImage()
         : usePurple
