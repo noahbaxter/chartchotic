@@ -253,6 +253,7 @@ target_sources(Chartchotic
         # Visual / Utils
         Chartchotic/Source/Visual/Utils/DrawingConstants.h
         Chartchotic/Source/Visual/Utils/Frame.h
+        Chartchotic/Source/Visual/Utils/GemLookup.h
         Chartchotic/Source/Visual/Utils/FrameRenderer.cpp
         Chartchotic/Source/Visual/Utils/FrameRenderer.h
         Chartchotic/Source/Visual/Geometry/PositionConstants.h

@@ -187,6 +187,9 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
                             float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
     hitBoxes.clear();
+    GemLookup::sort(selectedGems);
+    GemLookup::sort(eraseTargets);
+    GemLookup::sort(highlightedGems);
     currentDrawCallMap = &drawCallMap;
     setFrame(activePart, width, height, posEnd, farFadeEnd, farFadeLen, farFadeCurve);
     currentVpDepth = currentConfig->getPerspectiveParams().vanishingPointDepth;
@@ -312,25 +315,15 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
                 appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite);
             }
 
-            bool selected = false;
-            for (const auto& sg : selectedGems)
-                if (sg.lane == gemColumn && std::abs(sg.time - frameTime) < 0.002)
-                { selected = true; break; }
-
-            if (selected)
+            if (GemLookup::contains(selectedGems, gemColumn, frameTime))
             {
                 for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
                     composite.sprites[s].tint = AuthoringColours::selectTint;
             }
-            else
+            else if (GemLookup::contains(eraseTargets, gemColumn, frameTime))
             {
-                bool erasing = false;
-                for (const auto& et : eraseTargets)
-                    if (et.lane == gemColumn && std::abs(et.time - frameTime) < 0.002)
-                    { erasing = true; break; }
-                if (erasing)
-                    for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
-                        composite.sprites[s].tint = AuthoringColours::eraseTint;
+                for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
+                    composite.sprites[s].tint = AuthoringColours::eraseTint;
             }
         }
     }

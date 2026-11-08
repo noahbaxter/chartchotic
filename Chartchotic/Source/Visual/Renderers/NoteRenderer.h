@@ -23,6 +23,7 @@
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
+#include "../Utils/GemLookup.h"
 #include "HighwayRenderer.h"
 
 namespace PositionConstants { struct RenderTypeConfig; }
@@ -104,19 +105,15 @@ public:
     // Used to key off a null imageOverride, which broke when every ghost started passing one.
     bool ghostPass = false;
 
-    struct SelectedGem { int lane; double time; };
+    using SelectedGem = GemLookup::Gem;
     std::vector<SelectedGem> selectedGems;
     std::vector<SelectedGem> eraseTargets;
     // Lane tool: notes the lane being drawn will capture. They keep full strength through the
     // phrase dim, so which notes are in play reads at a glance.
     std::vector<SelectedGem> highlightedGems;
 
-    bool isHighlighted(int lane, double time) const
-    {
-        for (const auto& hg : highlightedGems)
-            if (hg.lane == lane && std::abs(hg.time - time) < 0.002) return true;
-        return false;
-    }
+    // Valid once populate() has sorted the lists, which it does first.
+    bool isHighlighted(int lane, double time) const { return GemLookup::contains(highlightedGems, lane, time); }
 
     struct NoteHitBox
     {
